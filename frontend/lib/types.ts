@@ -16,6 +16,7 @@ export interface ResumeProfile {
   name: string;
   created_at: string;
   updated_at: string;
+  is_active: boolean;
 }
 
 export interface Company {
@@ -110,4 +111,5 @@ export interface CompanyFormData {
 
 export interface ResumeProfileFormData {
   name: string;
+  is_active?: boolean;
 }

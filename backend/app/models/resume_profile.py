@@ -16,6 +16,7 @@ class ResumeProfile(SQLModel, table=True):
     name: str = Field(index=True, max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = Field(default=True)
 
     # Relationships
     interviews: list["Interview"] = Relationship(back_populates="resume_profile")
