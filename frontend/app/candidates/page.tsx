@@ -109,7 +109,7 @@ export default function CandidatesPage() {
             <div
               key={candidate.id}
               onClick={() => viewDetail(candidate.id)}
-              className="group cursor-pointer relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#12141c] p-5 transition-all duration-300 hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20"
+              className="group cursor-pointer relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-slate-300 dark:border-white/[0.1] hover:shadow-lg hover:shadow-black/20"
             >
               <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br from-emerald-500/10 to-teal-500/10 blur-2xl transition-all group-hover:opacity-60" />
               <div className="relative">
@@ -120,20 +120,20 @@ export default function CandidatesPage() {
                   <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       onClick={(e) => { e.stopPropagation(); openEdit(candidate); }}
-                      className="rounded-lg p-1.5 text-slate-500 hover:bg-white/[0.06] hover:text-white transition-colors"
+                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
                     >
                       <Pencil size={13} />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDelete(candidate.id); }}
-                      className="rounded-lg p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                     >
                       <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
-                <h3 className="mt-3 text-sm font-semibold text-white">{candidate.name}</h3>
-                <p className="mt-1 text-[11px] text-slate-500">
+                <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</h3>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
                   Added {formatDate(candidate.created_at)}
                 </p>
               </div>
@@ -180,19 +180,19 @@ export default function CandidatesPage() {
         ) : detailData ? (
           <div className="space-y-3">
             {detailData.interviews.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-500">No interviews yet</p>
+              <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-500">No interviews yet</p>
             ) : (
               detailData.interviews.map((interview) => (
                 <div
                   key={interview.id}
-                  className="flex items-center gap-4 rounded-xl bg-white/[0.02] p-3.5"
+                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5"
                 >
                   <CalendarCheck size={16} className="shrink-0 text-indigo-400" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
                       {interview.company_name} — {interview.role}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-500">
                       Round {interview.round} · {formatDate(interview.interview_date)}
                     </p>
                   </div>

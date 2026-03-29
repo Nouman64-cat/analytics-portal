@@ -25,11 +25,11 @@ interface ChartCardProps {
 
 export function ChartCard({ title, subtitle, children }: ChartCardProps) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#12141c] p-5">
+    <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
         {subtitle && (
-          <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">{subtitle}</p>
         )}
       </div>
       {children}
@@ -122,7 +122,7 @@ export function PieChartWidget({ data, height = 300 }: PieChartWidgetProps) {
           verticalAlign="bottom"
           height={36}
           formatter={(value: string) => (
-            <span className="text-[11px] text-slate-400">{value}</span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400">{value}</span>
           )}
         />
       </PieChart>

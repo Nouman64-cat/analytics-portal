@@ -46,14 +46,14 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
 
       {/* Panel */}
       <div
-        className={`relative w-full ${SIZE_MAP[size]} rounded-2xl border border-white/[0.08] bg-[#14161f] shadow-2xl shadow-black/50 animate-in zoom-in-95 duration-200`}
+        className={`relative w-full ${SIZE_MAP[size]} rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl shadow-black/50 animate-in zoom-in-95 duration-200`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/[0.06] px-6 py-4">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.06] hover:text-white transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X size={16} />
           </button>
@@ -77,7 +77,7 @@ export function FormField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider">
+      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
         {label}
       </label>
       {children}
@@ -86,19 +86,19 @@ export function FormField({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20";
+  "w-full rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-500 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20";
 
 export const selectClass =
-  "w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm text-white outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none";
+  "w-full rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2.5 text-sm text-slate-900 dark:text-white outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none";
 
 export const textareaClass =
-  "w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 resize-none";
+  "w-full rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-500 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 resize-none";
 
 export const buttonPrimary =
   "inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-all hover:shadow-xl hover:shadow-indigo-500/30 hover:brightness-110 active:scale-[0.98]";
 
 export const buttonSecondary =
-  "inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 transition-all hover:bg-white/[0.06] hover:text-white";
+  "inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white";
 
 export const buttonDanger =
   "inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/20";

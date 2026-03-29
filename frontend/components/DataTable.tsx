@@ -21,15 +21,15 @@ export default function DataTable<T extends { id: string }>({
   onRowClick,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#12141c]">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/[0.06]">
+            <tr className="border-b border-slate-200 dark:border-white/[0.06]">
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 ${
+                  className={`px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 ${
                     col.className || ""
                   }`}
                 >
@@ -43,14 +43,14 @@ export default function DataTable<T extends { id: string }>({
               <tr
                 key={row.id}
                 onClick={() => onRowClick?.(row)}
-                className={`transition-colors hover:bg-white/[0.02] ${
+                className={`transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.02] ${
                   onRowClick ? "cursor-pointer" : ""
                 }`}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-5 py-3.5 text-sm text-slate-300 ${
+                    className={`px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 ${
                       col.className || ""
                     }`}
                   >

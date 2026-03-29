@@ -13,7 +13,7 @@ interface StatsCardProps {
 
 export default function StatsCard({ title, value, icon: Icon, trend, gradient }: StatsCardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#12141c] p-5 transition-all duration-300 hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20">
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-slate-300 dark:hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20">
       {/* Background glow */}
       <div
         className={`absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-20 blur-2xl transition-all duration-500 group-hover:opacity-30 ${gradient}`}
@@ -21,10 +21,10 @@ export default function StatsCard({ title, value, icon: Icon, trend, gradient }:
 
       <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">
             {title}
           </p>
-          <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
           {trend && (
             <p className="mt-1 text-xs text-emerald-400">{trend}</p>
           )}
@@ -32,7 +32,7 @@ export default function StatsCard({ title, value, icon: Icon, trend, gradient }:
         <div
           className={`flex h-10 w-10 items-center justify-center rounded-xl ${gradient} bg-opacity-10`}
         >
-          <Icon size={20} className="text-white/80" />
+          <Icon size={20} className="text-slate-900 dark:text-white/80" />
         </div>
       </div>
     </div>

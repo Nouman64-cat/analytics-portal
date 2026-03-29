@@ -120,24 +120,24 @@ export default function DashboardPage() {
           </ChartCard>
         </div>
         <div className="lg:col-span-2">
-          <div className="rounded-2xl border border-white/[0.06] bg-[#12141c] p-5">
-            <h3 className="mb-4 text-sm font-semibold text-white">
+          <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
               Recent Interviews
             </h3>
             <div className="space-y-3">
               {stats.recent_interviews.map((interview) => (
                 <div
                   key={interview.id}
-                  className="flex items-center gap-4 rounded-xl bg-white/[0.02] p-3.5 transition-colors hover:bg-white/[0.04]"
+                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.04]"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-300">
                     {interview.company?.[0] || "?"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
                       {interview.company} — {interview.role}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-500">
                       {interview.candidate} · Round {interview.round} ·{" "}
                       {formatDate(interview.date)}
                     </p>

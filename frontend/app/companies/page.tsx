@@ -92,7 +92,7 @@ export default function CompaniesPage() {
           {companies.map((company) => (
             <div
               key={company.id}
-              className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#12141c] p-5 transition-all duration-300 hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20"
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-slate-300 dark:border-white/[0.1] hover:shadow-lg hover:shadow-black/20"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -100,28 +100,28 @@ export default function CompaniesPage() {
                     {company.name[0]}
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-white">{company.name}</h3>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{company.name}</h3>
                     {company.staffing_firm && (
-                      <p className="text-xs text-slate-500">via {company.staffing_firm}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-500">via {company.staffing_firm}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
                     onClick={() => openEdit(company)}
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-white/[0.06] hover:text-white transition-colors"
+                    className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
                   >
                     <Pencil size={13} />
                   </button>
                   <button
                     onClick={() => handleDelete(company.id)}
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                    className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                   >
                     <Trash2 size={13} />
                   </button>
                 </div>
               </div>
-              <p className="mt-3 text-[11px] text-slate-500">
+              <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-500">
                 Added {formatDate(company.created_at)}
               </p>
             </div>

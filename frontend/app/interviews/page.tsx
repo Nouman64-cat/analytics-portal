@@ -148,7 +148,7 @@ export default function InterviewsPage() {
 
       {/* Search */}
       <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
         <input
           type="text"
           placeholder="Search interviews..."
@@ -162,45 +162,45 @@ export default function InterviewsPage() {
       {filtered.length === 0 ? (
         <EmptyState message="No interviews found" />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#12141c]">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Company</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Role</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Candidate</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Profile</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Round</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Date</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Actions</th>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Company</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Role</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Candidate</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Profile</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Round</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Date</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
                 {filtered.map((interview) => (
                   <tr
                     key={interview.id}
-                    className="transition-colors hover:bg-white/[0.02]"
+                    className="transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.02]"
                   >
-                    <td className="px-5 py-3.5 text-sm font-medium text-white">
+                    <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
                       {interview.company_name}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-300 max-w-[200px]">
+                    <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
                       {truncate(interview.role, 40)}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-300">
+                    <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">
                       {interview.candidate_name}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-400">
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                       {interview.resume_profile_name}
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center rounded-lg bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-slate-300">
+                      <span className="inline-flex items-center rounded-lg bg-slate-100 dark:bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                         {interview.round}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-400">
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                       {formatDate(interview.interview_date)}
                     </td>
                     <td className="px-5 py-3.5">
@@ -210,21 +210,21 @@ export default function InterviewsPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => setDetailModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-white/[0.06] hover:text-white transition-colors"
+                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
                           title="View details"
                         >
                           <Eye size={14} />
                         </button>
                         <button
                           onClick={() => openEditModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-white/[0.06] hover:text-white transition-colors"
+                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
                           title="Edit"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => handleDelete(interview.id)}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                           title="Delete"
                         >
                           <Trash2 size={14} />
@@ -373,52 +373,52 @@ export default function InterviewsPage() {
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Company</p>
-                <p className="mt-1 text-sm font-medium text-white">{detailModal.company_name}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Company</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{detailModal.company_name}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Role</p>
-                <p className="mt-1 text-sm text-white">{detailModal.role}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Role</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.role}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Candidate</p>
-                <p className="mt-1 text-sm text-white">{detailModal.candidate_name}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Candidate</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.candidate_name}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Profile</p>
-                <p className="mt-1 text-sm text-white">{detailModal.resume_profile_name}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Profile</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.resume_profile_name}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Round</p>
-                <p className="mt-1 text-sm text-white">{detailModal.round}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Round</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.round}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Date</p>
-                <p className="mt-1 text-sm text-white">{formatDate(detailModal.interview_date)}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Date</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatDate(detailModal.interview_date)}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Time (EST)</p>
-                <p className="mt-1 text-sm text-white">{formatTime(detailModal.time_est)}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (EST)</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_est)}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Time (PKT)</p>
-                <p className="mt-1 text-sm text-white">{formatTime(detailModal.time_pkt)}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (PKT)</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_pkt)}</p>
               </div>
               {detailModal.salary_range && (
                 <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Salary Range</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Salary Range</p>
                   <p className="mt-1 text-sm text-emerald-400">{detailModal.salary_range}</p>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Status</p>
                 <div className="mt-1"><StatusBadge status={detailModal.status} /></div>
               </div>
             </div>
             {detailModal.feedback && (
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Feedback</p>
-                <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-300">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Feedback</p>
+                <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white dark:bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                   {detailModal.feedback}
                 </p>
               </div>
