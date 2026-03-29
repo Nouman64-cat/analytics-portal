@@ -47,16 +47,22 @@ export default function DashboardPage() {
   // Normalize statuses for the pie chart
   const statusMap: Record<string, number> = {};
   Object.entries(stats.interviews_by_status).forEach(([status, count]) => {
-    const lower = status.toLowerCase();
-    let key = "Pending";
+    const lower = status.trim().toLowerCase();
+    let key = "Other";
     if (lower.includes("converted")) key = "Converted";
     else if (lower.includes("rejected")) key = "Rejected";
     else if (lower.includes("closed")) key = "Closed";
-    else if (lower === "no status") key = "Pending";
-    else key = "Other";
+    else if (lower === "upcoming") key = "Upcoming";
+    else if (lower === "unresponsed" || lower === "no status" || lower === "") key = "Unresponsed";
+    else key = "Pending";
     statusMap[key] = (statusMap[key] || 0) + count;
   });
   const statusData = recordToChartData(statusMap);
+
+  const totalResolved = (statusMap["Converted"] || 0) + (statusMap["Rejected"] || 0) + (statusMap["Closed"] || 0);
+  const globalConversionRate = totalResolved > 0 
+    ? Math.round(((statusMap["Converted"] || 0) / totalResolved) * 100) 
+    : 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -87,9 +93,7 @@ export default function DashboardPage() {
         />
         <StatsCard
           title="Conversion Rate"
-          value={`${Math.round(
-            ((statusMap["Converted"] || 0) / stats.total_interviews) * 100
-          )}%`}
+          value={`${globalConversionRate}%`}
           icon={TrendingUp}
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
         />
@@ -138,7 +142,7 @@ export default function DashboardPage() {
                       ></div>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      {metrics.converted} out of {metrics.total} converted
+                      {metrics.converted} out of {metrics.total_resolved} resolved (Total: {metrics.total})
                     </p>
                   </div>
                 ))}
@@ -169,7 +173,7 @@ export default function DashboardPage() {
                       {formatDate(interview.date)}
                     </p>
                   </div>
-                  <StatusBadge status={interview.status} />
+                  <StatusBadge status={interview.status} dateStr={interview.date} />
                 </div>
               ))}
             </div>

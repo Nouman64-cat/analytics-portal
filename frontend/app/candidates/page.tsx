@@ -196,7 +196,7 @@ export default function CandidatesPage() {
                       Round {interview.round} · {formatDate(interview.interview_date)}
                     </p>
                   </div>
-                  <StatusBadge status={interview.status} />
+                  <StatusBadge status={interview.status} dateStr={interview.interview_date} />
                 </div>
               ))
             )}

@@ -21,15 +21,25 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
     # Total candidates
     total_candidates = session.exec(select(func.count(Candidate.id))).one()
 
-    # Interviews by status
-    status_query = (
-        select(Interview.status, func.count(Interview.id))
-        .group_by(Interview.status)
-    )
-    status_results = session.exec(status_query).all()
-    interviews_by_status = {
-        (status or "No Status"): count for status, count in status_results
-    }
+    # Interviews by status with exact date intelligence
+    all_status_query = select(Interview.status, Interview.interview_date)
+    all_statuses = session.exec(all_status_query).all()
+    
+    interviews_by_status_raw = {}
+    from datetime import date
+    today = date.today()
+    
+    for status, int_date in all_statuses:
+        actual_val = status
+        if not status or not status.strip():
+            if int_date and int_date > today:
+                actual_val = "Upcoming"
+            else:
+                actual_val = "Unresponsed"
+        
+        interviews_by_status_raw[actual_val] = interviews_by_status_raw.get(actual_val, 0) + 1
+        
+    interviews_by_status = interviews_by_status_raw
 
     # Interviews by company
     company_query = (
@@ -61,16 +71,20 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
     candidate_metrics = {}
     for name, status in candidate_interviews:
         if name not in candidate_metrics:
-            candidate_metrics[name] = {"total": 0, "converted": 0}
+            candidate_metrics[name] = {"total_resolved": 0, "converted": 0, "total": 0}
         
         candidate_metrics[name]["total"] += 1
         
         status_lower = (status or "").lower()
         if "converted" in status_lower:
             candidate_metrics[name]["converted"] += 1
+            candidate_metrics[name]["total_resolved"] += 1
+        elif "rejected" in status_lower or "closed" in status_lower:
+            candidate_metrics[name]["total_resolved"] += 1
             
     for name, stats in candidate_metrics.items():
-        rate = round((stats["converted"] / stats["total"]) * 100) if stats["total"] > 0 else 0
+        # Exclude Unresponsed and Pending from the conversion rate calculation
+        rate = round((stats["converted"] / stats["total_resolved"]) * 100) if stats["total_resolved"] > 0 else 0
         stats["rate"] = rate
 
     # Recent interviews (last 5)

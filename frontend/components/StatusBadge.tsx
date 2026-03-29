@@ -4,11 +4,12 @@ import { getStatusStyle, getStatusLabel } from "@/lib/utils";
 
 interface StatusBadgeProps {
   status: string | null | undefined;
+  dateStr?: string | null;
 }
 
-export default function StatusBadge({ status }: StatusBadgeProps) {
-  const style = getStatusStyle(status);
-  const label = getStatusLabel(status);
+export default function StatusBadge({ status, dateStr }: StatusBadgeProps) {
+  const style = getStatusStyle(status, dateStr);
+  const label = getStatusLabel(status, dateStr);
 
   return (
     <span

@@ -28,20 +28,32 @@ export function formatTime(timeStr: string | null | undefined): string {
 /**
  * Get status badge styling based on status text.
  */
-export function getStatusStyle(status: string | null | undefined) {
-  if (!status) return STATUS_COLORS.pending;
-  const lower = status.toLowerCase();
-  if (lower.includes("converted")) return STATUS_COLORS.converted;
-  if (lower.includes("rejected")) return STATUS_COLORS.rejected;
-  if (lower.includes("closed")) return STATUS_COLORS.closed;
+export function getStatusStyle(status: string | null | undefined, dateStr?: string | null) {
+  const label = getStatusLabel(status, dateStr).toLowerCase();
+  
+  if (label.includes("converted")) return STATUS_COLORS.converted;
+  if (label.includes("rejected")) return STATUS_COLORS.rejected;
+  if (label.includes("closed")) return STATUS_COLORS.closed;
+  if (label === "upcoming") return { bg: "bg-blue-500/10", text: "text-blue-400", dot: "bg-blue-400" };
+  
   return STATUS_COLORS.pending;
 }
 
 /**
  * Get a short label for a status string.
  */
-export function getStatusLabel(status: string | null | undefined): string {
-  if (!status) return "Pending";
+export function getStatusLabel(status: string | null | undefined, dateStr?: string | null): string {
+  if (!status || status.trim() === "") {
+    if (dateStr) {
+      const d = new Date(dateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (d > today) {
+        return "Upcoming";
+      }
+    }
+    return "Unresponsed";
+  }
   if (status.length > 50) return status.substring(0, 47) + "...";
   return status;
 }

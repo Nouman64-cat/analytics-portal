@@ -204,7 +204,7 @@ export default function InterviewsPage() {
                       {formatDate(interview.interview_date)}
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={interview.status} />
+                      <StatusBadge status={interview.status} dateStr={interview.interview_date} />
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
@@ -411,8 +411,8 @@ export default function InterviewsPage() {
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Status</p>
-                <div className="mt-1"><StatusBadge status={detailModal.status} /></div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
+                <div className="mt-1"><StatusBadge status={detailModal.status} dateStr={detailModal.interview_date} /></div>
               </div>
             </div>
             {detailModal.feedback && (
