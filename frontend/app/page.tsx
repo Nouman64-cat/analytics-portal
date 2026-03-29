@@ -115,9 +115,36 @@ export default function DashboardPage() {
       {/* Candidate distribution + Recent */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div>
-          <ChartCard title="Interviews by Candidate">
-            <BarChartWidget data={candidateData} color="#a78bfa" height={280} />
-          </ChartCard>
+          <div className="space-y-6">
+            <ChartCard title="Interviews by Candidate">
+              <BarChartWidget data={candidateData} color="#a78bfa" height={220} />
+            </ChartCard>
+            
+            <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">
+              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+                Candidate Conversion
+              </h3>
+              <div className="space-y-4">
+                {Object.entries(stats.candidate_metrics || {}).map(([name, metrics]) => (
+                  <div key={name}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">{metrics.rate}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-white/[0.04] rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-emerald-400 h-full rounded-full transition-all duration-1000" 
+                        style={{ width: `${Math.max(1, metrics.rate)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {metrics.converted} out of {metrics.total} converted
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">

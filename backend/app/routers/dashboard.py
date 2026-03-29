@@ -51,6 +51,28 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
     candidate_results = session.exec(candidate_query).all()
     interviews_by_candidate = {name: count for name, count in candidate_results}
 
+    # Candidates detailed metrics
+    candidate_interviews_query = (
+        select(Candidate.name, Interview.status)
+        .join(Interview, Interview.candidate_id == Candidate.id)
+    )
+    candidate_interviews = session.exec(candidate_interviews_query).all()
+    
+    candidate_metrics = {}
+    for name, status in candidate_interviews:
+        if name not in candidate_metrics:
+            candidate_metrics[name] = {"total": 0, "converted": 0}
+        
+        candidate_metrics[name]["total"] += 1
+        
+        status_lower = (status or "").lower()
+        if "converted" in status_lower:
+            candidate_metrics[name]["converted"] += 1
+            
+    for name, stats in candidate_metrics.items():
+        rate = round((stats["converted"] / stats["total"]) * 100) if stats["total"] > 0 else 0
+        stats["rate"] = rate
+
     # Recent interviews (last 5)
     recent_query = (
         select(Interview)
@@ -78,5 +100,6 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         "interviews_by_status": interviews_by_status,
         "interviews_by_company": interviews_by_company,
         "interviews_by_candidate": interviews_by_candidate,
+        "candidate_metrics": candidate_metrics,
         "recent_interviews": recent,
     }
