@@ -44,7 +44,7 @@ app.include_router(interviews.router)
 app.include_router(dashboard.router)
 
 
-@app.get("/", tags=["Health"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
 def health_check():
     return {
         "status": "healthy",
