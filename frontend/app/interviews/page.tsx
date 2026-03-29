@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Search, Eye, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Users } from "lucide-react";
 import { interviewsService, companiesService, candidatesService, profilesService } from "@/lib/services";
-import { formatDate, formatTime, truncate } from "@/lib/utils";
+import { formatDate, formatTime, truncate, getStatusLabel } from "@/lib/utils";
 import type { Interview, Company, Candidate, ResumeProfile, InterviewFormData } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
+import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import Modal, { FormField, inputClass, selectClass, textareaClass, buttonPrimary, buttonSecondary, buttonDanger } from "@/components/Modal";
 
 export default function InterviewsPage() {
@@ -17,6 +18,13 @@ export default function InterviewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+    status: "All",
+    company_id: "All",
+    candidate_id: "All",
+    resume_profile_id: "All",
+    round: "All"
+  });
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -120,18 +128,41 @@ export default function InterviewsPage() {
 
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
-    return (
+    const matchSearch =
       !q ||
       i.company_name?.toLowerCase().includes(q) ||
       i.candidate_name?.toLowerCase().includes(q) ||
       i.role.toLowerCase().includes(q) ||
       i.status?.toLowerCase().includes(q) ||
-      i.resume_profile_name?.toLowerCase().includes(q)
-    );
+      i.resume_profile_name?.toLowerCase().includes(q);
+
+    const matchCompany = filters.company_id === "All" || i.company_id === filters.company_id;
+    const matchCandidate = filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
+    const matchProfile = filters.resume_profile_id === "All" || i.resume_profile_id === filters.resume_profile_id;
+    const matchRound = filters.round === "All" || i.round === filters.round;
+    
+    let matchStatus = true;
+    if (filters.status !== "All") {
+      const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
+      matchStatus = label === filters.status.toLowerCase() || (i.status?.toLowerCase() || "").includes(filters.status.toLowerCase());
+    }
+
+    return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchStatus;
   });
 
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
+
+  // Computed distributions
+  const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0 };
+
+  interviews.forEach(i => {
+    const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
+    if (label === "upcoming") statusCounts.Upcoming++;
+    else if (label === "unresponsed") statusCounts.Unresponsed++;
+    else if (label.includes("converted")) statusCounts.Converted++;
+    else if (label.includes("rejected")) statusCounts.Rejected++;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -146,16 +177,114 @@ export default function InterviewsPage() {
         }
       />
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
-        <input
-          type="text"
-          placeholder="Search interviews..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className={`${inputClass} pl-10`}
+      {/* Status Cards */}
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">Pipeline Status</h3>
+      <StatsGrid>
+        <StatsCard
+          title="Upcoming"
+          value={statusCounts.Upcoming}
+          icon={CalendarCheck}
+          gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
         />
+        <StatsCard
+          title="Unresponsed"
+          value={statusCounts.Unresponsed}
+          icon={Clock}
+          gradient="bg-gradient-to-br from-slate-500 to-slate-600"
+        />
+        <StatsCard
+          title="Converted"
+          value={statusCounts.Converted}
+          icon={CheckCircle2}
+          gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+        />
+        <StatsCard
+          title="Rejected"
+          value={statusCounts.Rejected}
+          icon={XCircle}
+          gradient="bg-gradient-to-br from-red-500 to-rose-600"
+        />
+      </StatsGrid>
+
+      {/* Filters Row */}
+      <div className="flex flex-col gap-4 mb-6 relative z-10">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search */}
+          <div className="relative sm:max-w-md w-full">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search interviews..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${inputClass} pl-10`}
+            />
+          </div>
+          
+          {/* Dropdown Filters */}
+          <div className="flex flex-wrap items-center gap-2 w-full">
+            <select 
+              value={filters.status} 
+              onChange={e => setFilters({...filters, status: e.target.value})}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Converted">Converted</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Closed">Closed</option>
+              <option value="Upcoming">Upcoming</option>
+              <option value="Unresponsed">Unresponsed</option>
+            </select>
+            
+            <select 
+              value={filters.company_id} 
+              onChange={e => setFilters({...filters, company_id: e.target.value})}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+            >
+              <option value="All">All Companies</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            
+            <select 
+              value={filters.candidate_id} 
+              onChange={e => setFilters({...filters, candidate_id: e.target.value})}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+            >
+              <option value="All">All Candidates</option>
+              {candidates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+
+            <select 
+              value={filters.resume_profile_id} 
+              onChange={e => setFilters({...filters, resume_profile_id: e.target.value})}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+            >
+              <option value="All">All Profiles</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            
+            <select 
+              value={filters.round} 
+              onChange={e => setFilters({...filters, round: e.target.value})}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
+            >
+              <option value="All">All Rounds</option>
+              {Array.from(new Set(interviews.map(i => i.round))).filter(Boolean).map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+
+            {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All") && (
+              <button 
+                onClick={() => setFilters({status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All"})}
+                className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Table */}
