@@ -1,10 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import { isAuthenticated, mustChangePassword, clearToken } from "@/lib/auth";
+
+const PUBLIC_PATHS = ["/login", "/change-password"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (PUBLIC_PATHS.includes(pathname)) {
+      setChecked(true);
+      return;
+    }
+    if (!isAuthenticated()) {
+      clearToken();
+      router.replace("/login");
+      return;
+    }
+    if (mustChangePassword()) {
+      router.replace("/change-password");
+      return;
+    }
+    setChecked(true);
+  }, [pathname, router]);
+
+  // Public pages render without the shell
+  if (PUBLIC_PATHS.includes(pathname)) return <>{children}</>;
+
+  // Wait for auth check before rendering protected content
+  if (!checked) return null;
 
   return (
     <>

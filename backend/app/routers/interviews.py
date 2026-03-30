@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from app.deps import get_current_user
 from sqlmodel import Session, select, col
 from sqlalchemy.orm import joinedload
 from app.database import get_session
@@ -17,7 +18,7 @@ from app.schemas.interview import (
     InterviewReadWithDetails,
 )
 
-router = APIRouter(prefix="/api/v1/interviews", tags=["Interviews"])
+router = APIRouter(prefix="/api/v1/interviews", tags=["Interviews"], dependencies=[Depends(get_current_user)])
 
 
 def _enrich_interview(interview: Interview) -> dict:

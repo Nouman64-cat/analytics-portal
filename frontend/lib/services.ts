@@ -1,4 +1,5 @@
 import { API_V1 } from "./constants";
+import { getToken, clearToken } from "./auth";
 import type {
   DashboardStats,
   BusinessDeveloper,
@@ -18,10 +19,20 @@ import type {
 // ─── Generic fetch wrapper ──────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${API_V1}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.href = "/login";
+    throw new Error("Session expired. Please log in again.");
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
@@ -32,6 +43,29 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+// ─── Auth ────────────────────────────────────────────────────
+
+export const authService = {
+  login: (email: string, password: string) =>
+    fetch(`${API_V1}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || "Login failed");
+      }
+      return res.json() as Promise<{ access_token: string; must_change_password: boolean }>;
+    }),
+
+  changePassword: (newPassword: string) =>
+    apiFetch<{ message: string }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
+};
 
 // ─── Dashboard ──────────────────────────────────────────────
 

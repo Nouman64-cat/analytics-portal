@@ -6,9 +6,9 @@ from app.config import get_settings
 from app.database import create_db_and_tables
 
 # Import all models so SQLModel registers them
-from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview  # noqa: F401
+from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, User  # noqa: F401
 
-from app.routers import candidates, resume_profiles, companies, interviews, dashboard, business_developers
+from app.routers import candidates, resume_profiles, companies, interviews, dashboard, business_developers, auth
 
 settings = get_settings()
 
@@ -37,6 +37,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(auth.router)
 app.include_router(candidates.router)
 app.include_router(resume_profiles.router)
 app.include_router(companies.router)

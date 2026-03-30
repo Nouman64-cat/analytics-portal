@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.candidate import Candidate
@@ -11,7 +12,7 @@ from app.schemas.candidate import (
     CandidateReadWithInterviews,
 )
 
-router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"])
+router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[CandidateRead])

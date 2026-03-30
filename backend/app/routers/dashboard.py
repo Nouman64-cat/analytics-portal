@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends
+from app.deps import get_current_user
 from sqlmodel import Session, select, func, col
 from app.database import get_session
 from app.models.interview import Interview
 from app.models.company import Company
 from app.models.candidate import Candidate
 
-router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/stats")

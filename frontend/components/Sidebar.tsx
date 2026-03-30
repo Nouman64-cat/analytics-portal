@@ -20,8 +20,11 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  LogOut,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
+import { clearToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
@@ -34,12 +37,18 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleLogout = () => {
+    clearToken();
+    router.replace("/login");
+  };
 
   return (
     <aside
@@ -93,6 +102,18 @@ export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* Logout */}
+      <div className="border-t border-slate-200 dark:border-white/[0.06] p-3">
+        <button
+          onClick={handleLogout}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 ${collapsed ? "justify-center px-0" : ""}`}
+          title={collapsed ? "Sign out" : undefined}
+        >
+          <LogOut size={18} className="shrink-0" />
+          {!collapsed && <span>Sign out</span>}
+        </button>
+      </div>
 
       {/* Theme Toggle bottom */}
       <div className="border-t border-slate-200 dark:border-white/[0.06] p-3">

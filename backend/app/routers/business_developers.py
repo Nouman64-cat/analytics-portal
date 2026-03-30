@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.business_developer import BusinessDeveloper
@@ -10,7 +11,7 @@ from app.schemas.business_developer import (
     BusinessDeveloperUpdate,
 )
 
-router = APIRouter(prefix="/api/v1/business-developers", tags=["Business Developers"])
+router = APIRouter(prefix="/api/v1/business-developers", tags=["Business Developers"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[BusinessDeveloperRead])

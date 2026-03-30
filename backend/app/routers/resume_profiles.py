@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
+from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models.resume_profile import ResumeProfile
@@ -10,7 +11,7 @@ from app.schemas.resume_profile import (
     ResumeProfileUpdate,
 )
 
-router = APIRouter(prefix="/api/v1/resume-profiles", tags=["Resume Profiles"])
+router = APIRouter(prefix="/api/v1/resume-profiles", tags=["Resume Profiles"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[ResumeProfileRead])

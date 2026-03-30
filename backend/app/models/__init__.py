@@ -4,5 +4,6 @@ from app.models.resume_profile import ResumeProfile
 from app.models.company import Company
 from app.models.business_developer import BusinessDeveloper
 from app.models.interview import Interview
+from app.models.user import User
 
-__all__ = ["Candidate", "ResumeProfile", "Company", "BusinessDeveloper", "Interview"]
+__all__ = ["Candidate", "ResumeProfile", "Company", "BusinessDeveloper", "Interview", "User"]
