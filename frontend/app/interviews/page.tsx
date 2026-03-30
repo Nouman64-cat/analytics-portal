@@ -69,6 +69,20 @@ export default function InterviewsPage() {
       setCandidates(candidatesData);
       setProfiles(profilesData);
       setBusinessDevs(bdsData);
+
+      // Handle deep-linked interview from Dashboard
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const targetId = params.get("id");
+        if (targetId) {
+          const target = interviewsData.find(i => i.id === targetId);
+          if (target) {
+            setDetailModal(target);
+            // Clean URL to prevent re-opening on manual refresh
+            window.history.replaceState({}, '', '/interviews');
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load interviews");
     } finally {

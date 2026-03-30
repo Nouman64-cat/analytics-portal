@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   CalendarCheck,
   Building2,
@@ -168,11 +169,12 @@ export default function DashboardPage() {
             </h3>
             <div className="space-y-3">
               {stats.recent_interviews.map((interview) => (
-                <div
+                <Link
+                  href={`/interviews?id=${interview.id}`}
                   key={interview.id}
-                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06] cursor-pointer"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-300">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-500 dark:text-indigo-400">
                     {interview.company?.[0] || "?"}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -208,8 +210,10 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
-                  <StatusBadge status={interview.status} dateStr={interview.date} />
-                </div>
+                  <div className="shrink-0">
+                    <StatusBadge status={interview.status} dateStr={interview.date} />
+                  </div>
+                </Link>
               ))}
             </div>
           </div>
