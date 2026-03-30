@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Users, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
+import * as xlsx from "xlsx";
 import { interviewsService, companiesService, candidatesService, profilesService } from "@/lib/services";
 import { formatDate, formatTime, truncate, getStatusLabel } from "@/lib/utils";
 import type { Interview, Company, Candidate, ResumeProfile, InterviewFormData } from "@/lib/types";
@@ -19,7 +20,7 @@ export default function InterviewsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 10;
 
   const [filters, setFilters] = useState({
     status: "All",
@@ -38,6 +39,7 @@ export default function InterviewsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<Interview | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<InterviewFormData>({
     company_id: "",
     candidate_id: "",
@@ -102,15 +104,17 @@ export default function InterviewsPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      const payload = { ...formData };
-      // Clean empty strings to undefined
-      if (!payload.salary_range) delete payload.salary_range;
-      if (!payload.interview_date) delete payload.interview_date;
-      if (!payload.time_est) delete payload.time_est;
-      if (!payload.time_pkt) delete payload.time_pkt;
-      if (!payload.status) delete payload.status;
-      if (!payload.feedback) delete payload.feedback;
+      const payload: any = { ...formData };
+      // Send null to accurately clear fields in the database
+      if (!payload.salary_range) payload.salary_range = null;
+      if (!payload.interview_date) payload.interview_date = null;
+      if (!payload.time_est) payload.time_est = null;
+      if (!payload.time_pkt) payload.time_pkt = null;
+      if (!payload.status) payload.status = null;
+      if (!payload.feedback) payload.feedback = null;
 
       if (editingId) {
         await interviewsService.update(editingId, payload);
@@ -121,6 +125,8 @@ export default function InterviewsPage() {
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,7 +154,7 @@ export default function InterviewsPage() {
     const matchCandidate = filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
     const matchProfile = filters.resume_profile_id === "All" || i.resume_profile_id === filters.resume_profile_id;
     const matchRound = filters.round === "All" || i.round === filters.round;
-    
+
     let matchStatus = true;
     if (filters.status !== "All") {
       const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
@@ -157,6 +163,27 @@ export default function InterviewsPage() {
 
     return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchStatus;
   });
+
+  const handleExport = () => {
+    const dataToExport = filtered.map(i => ({
+      Company: i.company_name,
+      Role: i.role,
+      Candidate: i.candidate_name,
+      Profile: i.resume_profile_name,
+      Round: i.round,
+      "Interview Date": i.interview_date ? formatDate(i.interview_date) : "",
+      "Time (EST)": i.time_est ? formatTime(i.time_est) : "",
+      "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
+      "Salary Range": i.salary_range || "",
+      Status: getStatusLabel(i.status, i.interview_date),
+      Feedback: i.feedback || "",
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(dataToExport);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Interviews");
+    xlsx.writeFile(workbook, `Interviews_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
@@ -184,10 +211,16 @@ export default function InterviewsPage() {
         title="Interviews"
         subtitle={`${interviews.length} total interviews`}
         action={
-          <button onClick={openCreateModal} className={buttonPrimary}>
-            <Plus size={16} />
-            Add Interview
-          </button>
+          <div className="flex gap-2">
+            <button onClick={handleExport} className={buttonSecondary}>
+              <Download size={16} />
+              Export
+            </button>
+            <button onClick={openCreateModal} className={buttonPrimary}>
+              <Plus size={16} />
+              Add Interview
+            </button>
+          </div>
         }
       />
 
@@ -234,12 +267,12 @@ export default function InterviewsPage() {
               className={`${inputClass} pl-10`}
             />
           </div>
-          
+
           {/* Dropdown Filters */}
           <div className="flex flex-wrap items-center gap-2 w-full">
-            <select 
-              value={filters.status} 
-              onChange={e => setFilters({...filters, status: e.target.value})}
+            <select
+              value={filters.status}
+              onChange={e => setFilters({ ...filters, status: e.target.value })}
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
             >
               <option value="All">All Statuses</option>
@@ -250,37 +283,37 @@ export default function InterviewsPage() {
               <option value="Upcoming">Upcoming</option>
               <option value="Unresponsed">Unresponsed</option>
             </select>
-            
-            <select 
-              value={filters.company_id} 
-              onChange={e => setFilters({...filters, company_id: e.target.value})}
+
+            <select
+              value={filters.company_id}
+              onChange={e => setFilters({ ...filters, company_id: e.target.value })}
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
             >
               <option value="All">All Companies</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            
-            <select 
-              value={filters.candidate_id} 
-              onChange={e => setFilters({...filters, candidate_id: e.target.value})}
+
+            <select
+              value={filters.candidate_id}
+              onChange={e => setFilters({ ...filters, candidate_id: e.target.value })}
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
             >
               <option value="All">All Candidates</option>
               {candidates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
 
-            <select 
-              value={filters.resume_profile_id} 
-              onChange={e => setFilters({...filters, resume_profile_id: e.target.value})}
+            <select
+              value={filters.resume_profile_id}
+              onChange={e => setFilters({ ...filters, resume_profile_id: e.target.value })}
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
             >
               <option value="All">All Profiles</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            
-            <select 
-              value={filters.round} 
-              onChange={e => setFilters({...filters, round: e.target.value})}
+
+            <select
+              value={filters.round}
+              onChange={e => setFilters({ ...filters, round: e.target.value })}
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
             >
               <option value="All">All Rounds</option>
@@ -290,8 +323,8 @@ export default function InterviewsPage() {
             </select>
 
             {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All") && (
-              <button 
-                onClick={() => setFilters({status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All"})}
+              <button
+                onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All" })}
                 className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"
               >
                 Clear Filters
@@ -379,7 +412,7 @@ export default function InterviewsPage() {
               </tbody>
             </table>
           </div>
-          
+
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] px-4 py-3 sm:px-6">
               <div className="flex flex-1 justify-between sm:hidden">
@@ -420,11 +453,10 @@ export default function InterviewsPage() {
                       <button
                         key={i + 1}
                         onClick={() => setCurrentPage(i + 1)}
-                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
-                          currentPage === i + 1
-                            ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                            : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                        }`}
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${currentPage === i + 1
+                          ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                          : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                          }`}
                       >
                         {i + 1}
                       </button>
@@ -539,7 +571,7 @@ export default function InterviewsPage() {
           <div className="col-span-2">
             <FormField label="Status">
               <select
-                value={formData.status || "Pending"}
+                value={formData.status || ""}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 className={selectClass}
               >
@@ -569,8 +601,9 @@ export default function InterviewsPage() {
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>
             Cancel
           </button>
-          <button onClick={handleSubmit} className={buttonPrimary}>
-            {editingId ? "Update" : "Create"}
+          <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
+            {isSubmitting && <Loader2 className="animate-spin" size={16} />}
+            {editingId ? (isSubmitting ? "Updating..." : "Update") : (isSubmitting ? "Creating..." : "Create")}
           </button>
         </div>
       </Modal>

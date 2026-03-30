@@ -22,7 +22,7 @@ export interface ResumeProfile {
 export interface Company {
   id: string;
   name: string;
-  staffing_firm: string | null;
+  is_staffing_firm: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -106,7 +106,7 @@ export interface CandidateFormData {
 
 export interface CompanyFormData {
   name: string;
-  staffing_firm?: string;
+  is_staffing_firm?: boolean;
 }
 
 export interface ResumeProfileFormData {

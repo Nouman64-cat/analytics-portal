@@ -6,18 +6,18 @@ from typing import Optional
 
 class CompanyCreate(BaseModel):
     name: str
-    staffing_firm: Optional[str] = None
+    is_staffing_firm: bool = False
 
 
 class CompanyUpdate(BaseModel):
     name: Optional[str] = None
-    staffing_firm: Optional[str] = None
+    is_staffing_firm: Optional[bool] = None
 
 
 class CompanyRead(BaseModel):
     id: uuid.UUID
     name: str
-    staffing_firm: Optional[str] = None
+    is_staffing_firm: bool = False
     created_at: datetime
     updated_at: datetime
 

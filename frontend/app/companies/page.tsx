@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Loader2 } from "lucide-react";
 import { companiesService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { Company, CompanyFormData } from "@/lib/types";
@@ -14,6 +14,7 @@ export default function CompaniesPage() {
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<CompanyFormData>({ name: "" });
 
   const fetchData = useCallback(async () => {
@@ -44,9 +45,11 @@ export default function CompaniesPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      const payload = { ...formData };
-      if (!payload.staffing_firm) delete payload.staffing_firm;
+      const payload: any = { ...formData };
+      if (!payload.staffing_firm) payload.staffing_firm = null;
       if (editingId) {
         await companiesService.update(editingId, payload);
       } else {
@@ -56,6 +59,8 @@ export default function CompaniesPage() {
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -102,7 +107,9 @@ export default function CompaniesPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{company.name}</h3>
                     {company.staffing_firm && (
-                      <p className="text-xs text-slate-500 dark:text-slate-500">via {company.staffing_firm}</p>
+                      <span className="mt-1 inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-700/10 dark:ring-indigo-400/20">
+                        Staffing Firm
+                      </span>
                     )}
                   </div>
                 </div>
@@ -146,19 +153,23 @@ export default function CompaniesPage() {
               autoFocus
             />
           </FormField>
-          <FormField label="Staffing Firm (optional)">
-            <input
-              value={formData.staffing_firm || ""}
-              onChange={(e) => setFormData({ ...formData, staffing_firm: e.target.value })}
-              placeholder="e.g., Recruiting Agency"
-              className={inputClass}
-            />
+          <FormField label="">
+            <label className="flex items-center gap-3 cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">
+              <input
+                type="checkbox"
+                checked={formData.staffing_firm !== null && formData.staffing_firm !== ""}
+                onChange={(e) => setFormData({ ...formData, staffing_firm: e.target.checked ? "Yes" : "" })}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-0 dark:border-white/[0.1] dark:bg-white/[0.04] dark:checked:bg-indigo-500 w-4 h-4 cursor-pointer"
+              />
+              Is this a Staffing Firm?
+            </label>
           </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
-          <button onClick={handleSubmit} className={buttonPrimary}>
-            {editingId ? "Update" : "Create"}
+          <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
+            {isSubmitting && <Loader2 className="animate-spin" size={16} />}
+            {editingId ? (isSubmitting ? "Updating..." : "Update") : (isSubmitting ? "Creating..." : "Create")}
           </button>
         </div>
       </Modal>

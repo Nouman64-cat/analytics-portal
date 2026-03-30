@@ -3,6 +3,7 @@ from datetime import datetime, date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select, col
+from sqlalchemy.orm import joinedload
 from app.database import get_session
 from app.models.interview import Interview
 from app.models.company import Company
@@ -53,7 +54,11 @@ def list_interviews(
     session: Session = Depends(get_session),
 ):
     """List interviews with optional filters."""
-    query = select(Interview)
+    query = select(Interview).options(
+        joinedload(Interview.company),
+        joinedload(Interview.candidate),
+        joinedload(Interview.resume_profile)
+    )
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)

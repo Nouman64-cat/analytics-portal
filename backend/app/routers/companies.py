@@ -24,7 +24,7 @@ def list_companies(session: Session = Depends(get_session)):
 @router.post("/", response_model=CompanyRead, status_code=status.HTTP_201_CREATED)
 def create_company(data: CompanyCreate, session: Session = Depends(get_session)):
     """Create a new company."""
-    company = Company(name=data.name, staffing_firm=data.staffing_firm)
+    company = Company(name=data.name, is_staffing_firm=data.is_staffing_firm)
     session.add(company)
     session.commit()
     session.refresh(company)
@@ -52,7 +52,7 @@ def get_company(company_id: uuid.UUID, session: Session = Depends(get_session)):
     return CompanyReadWithInterviews(
         id=company.id,
         name=company.name,
-        staffing_firm=company.staffing_firm,
+        is_staffing_firm=company.is_staffing_firm,
         created_at=company.created_at,
         updated_at=company.updated_at,
         interviews=interview_summaries,

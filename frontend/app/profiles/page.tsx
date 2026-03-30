@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileUser, Activity, Target } from "lucide-react";
+import { Plus, Pencil, Trash2, FileUser, Activity, Target, Loader2 } from "lucide-react";
 import { profilesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { ResumeProfile, ResumeProfileFormData, Interview } from "@/lib/types";
@@ -18,6 +18,7 @@ export default function ProfilesPage() {
   
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<ResumeProfileFormData>({ name: "", is_active: true });
 
   const fetchData = useCallback(async () => {
@@ -54,6 +55,8 @@ export default function ProfilesPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       if (editingId) {
         await profilesService.update(editingId, formData);
@@ -64,6 +67,8 @@ export default function ProfilesPage() {
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -251,7 +256,10 @@ export default function ProfilesPage() {
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
-          <button onClick={handleSubmit} className={buttonPrimary}>{editingId ? "Apply Update" : "Deploy"}</button>
+          <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
+            {isSubmitting && <Loader2 className="animate-spin" size={16} />}
+            {editingId ? (isSubmitting ? "Applying..." : "Apply Update") : (isSubmitting ? "Deploying..." : "Deploy")}
+          </button>
         </div>
       </Modal>
     </div>

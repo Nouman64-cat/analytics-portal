@@ -14,7 +14,7 @@ class Company(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(index=True, max_length=255)
-    staffing_firm: Optional[str] = Field(default=None, max_length=255)
+    is_staffing_firm: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

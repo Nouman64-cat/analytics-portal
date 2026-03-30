@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Pencil, Trash2, CalendarCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarCheck, Loader2 } from "lucide-react";
 import { candidatesService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { Candidate, CandidateWithInterviews, CandidateFormData } from "@/lib/types";
@@ -15,6 +15,7 @@ export default function CandidatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<CandidateFormData>({ name: "" });
   const [detailData, setDetailData] = useState<CandidateWithInterviews | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -62,6 +63,8 @@ export default function CandidatesPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       if (editingId) {
         await candidatesService.update(editingId, formData);
@@ -72,6 +75,8 @@ export default function CandidatesPage() {
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -160,8 +165,9 @@ export default function CandidatesPage() {
         </FormField>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
-          <button onClick={handleSubmit} className={buttonPrimary}>
-            {editingId ? "Update" : "Create"}
+          <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
+            {isSubmitting && <Loader2 className="animate-spin" size={16} />}
+            {editingId ? (isSubmitting ? "Updating..." : "Update") : (isSubmitting ? "Creating..." : "Create")}
           </button>
         </div>
       </Modal>
