@@ -29,7 +29,8 @@ export default function InterviewsPage() {
     company_id: "All",
     candidate_id: "All",
     resume_profile_id: "All",
-    round: "All"
+    round: "All",
+    bd_id: "All"
   });
 
   // Reset page to 1 when search or filters change
@@ -197,6 +198,7 @@ export default function InterviewsPage() {
     const matchCandidate = filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
     const matchProfile = filters.resume_profile_id === "All" || i.resume_profile_id === filters.resume_profile_id;
     const matchRound = filters.round === "All" || i.round === filters.round;
+    const matchBd = filters.bd_id === "All" || i.bd_id === filters.bd_id;
 
     let matchStatus = true;
     if (filters.status !== "All") {
@@ -204,7 +206,7 @@ export default function InterviewsPage() {
       matchStatus = label === filters.status.toLowerCase() || (i.status?.toLowerCase() || "").includes(filters.status.toLowerCase());
     }
 
-    return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchStatus;
+    return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchBd && matchStatus;
   });
 
   const handleExport = () => {
@@ -380,9 +382,20 @@ export default function InterviewsPage() {
               ))}
             </select>
 
-            {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All") && (
+            <select
+              value={filters.bd_id}
+              onChange={e => setFilters({ ...filters, bd_id: e.target.value })}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+            >
+              <option value="All">All BDs</option>
+              {businessDevs.map(bd => (
+                <option key={bd.id} value={bd.id}>{bd.name}</option>
+              ))}
+            </select>
+
+            {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All" || filters.bd_id !== "All") && (
               <button
-                onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All" })}
+                onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All", bd_id: "All" })}
                 className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"
               >
                 Clear Filters
