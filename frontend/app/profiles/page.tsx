@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import type { ResumeProfile, ResumeProfileFormData, Interview } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, selectClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -20,6 +21,8 @@ export default function ProfilesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<ResumeProfileFormData>({ name: "", is_active: true });
+  const [deleteModal, setDeleteModal] = useState<ResumeProfile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -72,13 +75,17 @@ export default function ProfilesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this profile?")) return;
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    setIsDeleting(true);
     try {
-      await profilesService.delete(id);
+      await profilesService.delete(deleteModal.id);
+      setDeleteModal(null);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -218,7 +225,7 @@ export default function ProfilesPage() {
                 </div>
                 <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <button onClick={() => openEdit(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="Edit Profile Details"><Pencil size={13} /></button>
-                  <button onClick={() => handleDelete(profile.id)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
+                  <button onClick={() => setDeleteModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
                 </div>
               </div>
 
@@ -235,6 +242,17 @@ export default function ProfilesPage() {
       </div>
 
       {profiles.length === 0 && <EmptyState message="No robust profiles generated yet" />}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={!!deleteModal}
+        onClose={() => setDeleteModal(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title="Delete Profile"
+        itemName={deleteModal?.name ?? ""}
+        itemDetail={deleteModal ? (deleteModal.is_active !== false ? "Active" : "Closed") : undefined}
+      />
 
       {/* Profile Modification Framework Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit Profile Options" : "Register Profile Framework"} size="sm">

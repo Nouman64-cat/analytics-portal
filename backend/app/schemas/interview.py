@@ -16,6 +16,7 @@ class InterviewCreate(BaseModel):
     time_pkt: Optional[time] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
+    bd_id: Optional[uuid.UUID] = None
 
 
 class InterviewUpdate(BaseModel):
@@ -30,6 +31,7 @@ class InterviewUpdate(BaseModel):
     time_pkt: Optional[time] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
+    bd_id: Optional[uuid.UUID] = None
 
 
 class InterviewRead(BaseModel):
@@ -45,6 +47,7 @@ class InterviewRead(BaseModel):
     time_pkt: Optional[time] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
+    bd_id: Optional[uuid.UUID] = None
     created_at: datetime
     updated_at: datetime
 
@@ -52,7 +55,8 @@ class InterviewRead(BaseModel):
 
 
 class InterviewReadWithDetails(InterviewRead):
-    """Interview with expanded company, candidate, and profile names."""
+    """Interview with expanded company, candidate, profile, and BD names."""
     company_name: Optional[str] = None
     candidate_name: Optional[str] = None
     resume_profile_name: Optional[str] = None
+    bd_name: Optional[str] = None

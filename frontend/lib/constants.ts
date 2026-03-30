@@ -9,6 +9,7 @@ export const NAV_ITEMS = [
   { label: "Companies", href: "/companies", icon: "Building2" },
   { label: "Candidates", href: "/candidates", icon: "Users" },
   { label: "Profiles", href: "/profiles", icon: "FileUser" },
+  { label: "Business Devs", href: "/business-developers", icon: "Briefcase" },
 ] as const;
 
 // Chart colors — premium palette

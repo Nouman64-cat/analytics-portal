@@ -1,6 +1,8 @@
 import { API_V1 } from "./constants";
 import type {
   DashboardStats,
+  BusinessDeveloper,
+  BusinessDeveloperFormData,
   Candidate,
   CandidateWithInterviews,
   CandidateFormData,
@@ -35,6 +37,24 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const dashboardService = {
   getStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
+};
+
+// ─── Business Developers ────────────────────────────────────
+
+export const businessDevelopersService = {
+  list: () => apiFetch<BusinessDeveloper[]>("/business-developers"),
+  create: (data: BusinessDeveloperFormData) =>
+    apiFetch<BusinessDeveloper>("/business-developers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: Partial<BusinessDeveloperFormData>) =>
+    apiFetch<BusinessDeveloper>(`/business-developers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(`/business-developers/${id}`, { method: "DELETE" }),
 };
 
 // ─── Candidates ─────────────────────────────────────────────

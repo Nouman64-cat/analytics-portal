@@ -8,6 +8,7 @@ import type { Candidate, CandidateWithInterviews, CandidateFormData } from "@/li
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -20,6 +21,8 @@ export default function CandidatesPage() {
   const [detailData, setDetailData] = useState<CandidateWithInterviews | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -80,13 +83,17 @@ export default function CandidatesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this candidate?")) return;
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    setIsDeleting(true);
     try {
-      await candidatesService.delete(id);
+      await candidatesService.delete(deleteModal.id);
+      setDeleteModal(null);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -130,7 +137,7 @@ export default function CandidatesPage() {
                       <Pencil size={13} />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(candidate.id); }}
+                      onClick={(e) => { e.stopPropagation(); setDeleteModal(candidate); }}
                       className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                     >
                       <Trash2 size={13} />
@@ -171,6 +178,16 @@ export default function CandidatesPage() {
           </button>
         </div>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={!!deleteModal}
+        onClose={() => setDeleteModal(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title="Delete Candidate"
+        itemName={deleteModal?.name ?? ""}
+      />
 
       {/* Detail Modal */}
       <Modal

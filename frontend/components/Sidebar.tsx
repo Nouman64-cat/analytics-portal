@@ -10,6 +10,7 @@ import {
   Building2,
   Users,
   FileUser,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -23,6 +24,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Building2,
   Users,
   FileUser,
+  Briefcase,
 };
 
 export default function Sidebar() {
@@ -37,18 +39,17 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] transition-all duration-300 flex flex-col ${
-        collapsed ? "w-[72px]" : "w-[260px]"
-      }`}
+      className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] transition-all duration-300 flex flex-col ${collapsed ? "w-[72px]" : "w-[260px]"
+        }`}
     >
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 dark:border-white/[0.06] px-5">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white shadow-md">
-          R
+          AI
         </div>
         {!collapsed && (
           <span className="text-sm font-semibold text-slate-800 dark:text-white tracking-tight">
-            RizViz Portal
+            AI Interviews Portal
           </span>
         )}
       </div>
@@ -65,10 +66,9 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200
-                ${
-                  isActive
-                    ? "bg-gradient-to-r from-indigo-50 to-indigo-100 dark:from-indigo-500/15 dark:to-purple-500/10 text-indigo-700 dark:text-white shadow-sm dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white"
+                ${isActive
+                  ? "bg-gradient-to-r from-indigo-50 to-indigo-100 dark:from-indigo-500/15 dark:to-purple-500/10 text-indigo-700 dark:text-white shadow-sm dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white"
                 }
                 ${collapsed ? "justify-center px-0" : ""}
               `}
@@ -76,11 +76,10 @@ export default function Sidebar() {
             >
               <Icon
                 size={18}
-                className={`shrink-0 ${
-                  isActive
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
-                }`}
+                className={`shrink-0 ${isActive
+                  ? "text-indigo-600 dark:text-indigo-400"
+                  : "text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+                  }`}
               />
               {!collapsed && <span>{item.label}</span>}
               {isActive && !collapsed && (

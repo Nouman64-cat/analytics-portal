@@ -19,6 +19,13 @@ export interface ResumeProfile {
   is_active: boolean;
 }
 
+export interface BusinessDeveloper {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -44,6 +51,8 @@ export interface Interview {
   time_pkt: string | null;
   status: string | null;
   feedback: string | null;
+  bd_id: string | null;
+  bd_name: string | null;
   created_at: string;
   updated_at: string;
   company_name: string | null;
@@ -98,6 +107,11 @@ export interface InterviewFormData {
   time_pkt?: string;
   status?: string;
   feedback?: string;
+  bd_id?: string;
+}
+
+export interface BusinessDeveloperFormData {
+  name: string;
 }
 
 export interface CandidateFormData {

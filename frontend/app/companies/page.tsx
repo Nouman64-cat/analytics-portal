@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import type { Company, CompanyFormData } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -16,6 +17,8 @@ export default function CompaniesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<CompanyFormData>({ name: "" });
+  const [deleteModal, setDeleteModal] = useState<Company | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -64,13 +67,17 @@ export default function CompaniesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this company? Associated interviews will also fail.")) return;
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    setIsDeleting(true);
     try {
-      await companiesService.delete(id);
+      await companiesService.delete(deleteModal.id);
+      setDeleteModal(null);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -121,7 +128,7 @@ export default function CompaniesPage() {
                     <Pencil size={13} />
                   </button>
                   <button
-                    onClick={() => handleDelete(company.id)}
+                    onClick={() => setDeleteModal(company)}
                     className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                   >
                     <Trash2 size={13} />
@@ -135,6 +142,18 @@ export default function CompaniesPage() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={!!deleteModal}
+        onClose={() => setDeleteModal(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title="Delete Company"
+        description="This action cannot be undone. Associated interviews may also be affected."
+        itemName={deleteModal?.name ?? ""}
+        itemDetail={deleteModal?.staffing_firm ? "Staffing Firm" : undefined}
+      />
 
       {/* Modal */}
       <Modal

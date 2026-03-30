@@ -25,6 +25,7 @@ class Interview(SQLModel, table=True):
     time_pkt: Optional[time] = Field(default=None)
     status: Optional[str] = Field(default=None, max_length=500)
     feedback: Optional[str] = Field(default=None)
+    bd_id: Optional[uuid.UUID] = Field(default=None, foreign_key="business_developers.id", index=True)
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -34,9 +35,11 @@ class Interview(SQLModel, table=True):
     company: Optional["Company"] = Relationship(back_populates="interviews")
     candidate: Optional["Candidate"] = Relationship(back_populates="interviews")
     resume_profile: Optional["ResumeProfile"] = Relationship(back_populates="interviews")
+    business_developer: Optional["BusinessDeveloper"] = Relationship()
 
 
 # Import here to avoid circular imports — these are needed for relationship resolution
 from app.models.company import Company  # noqa: E402, F811
 from app.models.candidate import Candidate  # noqa: E402, F811
 from app.models.resume_profile import ResumeProfile  # noqa: E402, F811
+from app.models.business_developer import BusinessDeveloper  # noqa: E402, F811

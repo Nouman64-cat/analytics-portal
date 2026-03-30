@@ -9,6 +9,7 @@ from app.models.interview import Interview
 from app.models.company import Company
 from app.models.candidate import Candidate
 from app.models.resume_profile import ResumeProfile
+from app.models.business_developer import BusinessDeveloper
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -34,11 +35,13 @@ def _enrich_interview(interview: Interview) -> dict:
         "time_pkt": interview.time_pkt,
         "status": interview.status,
         "feedback": interview.feedback,
+        "bd_id": interview.bd_id,
         "created_at": interview.created_at,
         "updated_at": interview.updated_at,
         "company_name": interview.company.name if interview.company else None,
         "candidate_name": interview.candidate.name if interview.candidate else None,
         "resume_profile_name": interview.resume_profile.name if interview.resume_profile else None,
+        "bd_name": interview.business_developer.name if interview.business_developer else None,
     }
     return data
 
@@ -57,7 +60,8 @@ def list_interviews(
     query = select(Interview).options(
         joinedload(Interview.company),
         joinedload(Interview.candidate),
-        joinedload(Interview.resume_profile)
+        joinedload(Interview.resume_profile),
+        joinedload(Interview.business_developer),
     )
 
     if candidate_id:
@@ -89,6 +93,8 @@ def create_interview(data: InterviewCreate, session: Session = Depends(get_sessi
         raise HTTPException(status_code=404, detail="Candidate not found")
     if not session.get(ResumeProfile, data.resume_profile_id):
         raise HTTPException(status_code=404, detail="Resume profile not found")
+    if data.bd_id and not session.get(BusinessDeveloper, data.bd_id):
+        raise HTTPException(status_code=404, detail="Business developer not found")
 
     interview = Interview(**data.model_dump())
     session.add(interview)
@@ -126,6 +132,8 @@ def update_interview(
         raise HTTPException(status_code=404, detail="Candidate not found")
     if "resume_profile_id" in update_data and not session.get(ResumeProfile, update_data["resume_profile_id"]):
         raise HTTPException(status_code=404, detail="Resume profile not found")
+    if "bd_id" in update_data and update_data["bd_id"] and not session.get(BusinessDeveloper, update_data["bd_id"]):
+        raise HTTPException(status_code=404, detail="Business developer not found")
 
     for key, value in update_data.items():
         setattr(interview, key, value)

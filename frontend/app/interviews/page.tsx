@@ -3,19 +3,21 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Users, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import * as xlsx from "xlsx";
-import { interviewsService, companiesService, candidatesService, profilesService } from "@/lib/services";
+import { interviewsService, companiesService, candidatesService, profilesService, businessDevelopersService } from "@/lib/services";
 import { formatDate, formatTime, truncate, getStatusLabel } from "@/lib/utils";
-import type { Interview, Company, Candidate, ResumeProfile, InterviewFormData } from "@/lib/types";
+import type { Interview, Company, Candidate, ResumeProfile, BusinessDeveloper, InterviewFormData } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
-import Modal, { FormField, inputClass, selectClass, textareaClass, buttonPrimary, buttonSecondary, buttonDanger } from "@/components/Modal";
+import Modal, { FormField, inputClass, selectClass, textareaClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
+  const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -38,6 +40,8 @@ export default function InterviewsPage() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<Interview | null>(null);
+  const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<InterviewFormData>({
@@ -52,16 +56,18 @@ export default function InterviewsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [interviewsData, companiesData, candidatesData, profilesData] = await Promise.all([
+      const [interviewsData, companiesData, candidatesData, profilesData, bdsData] = await Promise.all([
         interviewsService.list(),
         companiesService.list(),
         candidatesService.list(),
         profilesService.list(),
+        businessDevelopersService.list(),
       ]);
       setInterviews(interviewsData);
       setCompanies(companiesData);
       setCandidates(candidatesData);
       setProfiles(profilesData);
+      setBusinessDevs(bdsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load interviews");
     } finally {
@@ -81,6 +87,7 @@ export default function InterviewsPage() {
       resume_profile_id: profiles[0]?.id || "",
       role: "",
       round: "1st",
+      bd_id: "",
     });
     setModalOpen(true);
   };
@@ -99,6 +106,7 @@ export default function InterviewsPage() {
       time_pkt: interview.time_pkt || "",
       status: interview.status || "",
       feedback: interview.feedback || "",
+      bd_id: interview.bd_id || "",
     });
     setModalOpen(true);
   };
@@ -115,6 +123,7 @@ export default function InterviewsPage() {
       if (!payload.time_pkt) payload.time_pkt = null;
       if (!payload.status) payload.status = null;
       if (!payload.feedback) payload.feedback = null;
+      if (!payload.bd_id) payload.bd_id = null;
 
       if (editingId) {
         await interviewsService.update(editingId, payload);
@@ -130,13 +139,17 @@ export default function InterviewsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this interview?")) return;
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    setIsDeleting(true);
     try {
-      await interviewsService.delete(id);
+      await interviewsService.delete(deleteModal.id);
+      setDeleteModal(null);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -349,6 +362,7 @@ export default function InterviewsPage() {
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Profile</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Round</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Date</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">BD</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
                 </tr>
@@ -379,6 +393,9 @@ export default function InterviewsPage() {
                     <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                       {formatDate(interview.interview_date)}
                     </td>
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                      {interview.bd_name || <span className="text-slate-400 dark:text-slate-600">—</span>}
+                    </td>
                     <td className="px-5 py-3.5">
                       <StatusBadge status={interview.status} dateStr={interview.interview_date} />
                     </td>
@@ -399,7 +416,7 @@ export default function InterviewsPage() {
                           <Pencil size={14} />
                         </button>
                         <button
-                          onClick={() => handleDelete(interview.id)}
+                          onClick={() => setDeleteModal(interview)}
                           className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                           title="Delete"
                         >
@@ -544,6 +561,18 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
+          <FormField label="Business Developer">
+            <select
+              value={formData.bd_id || ""}
+              onChange={(e) => setFormData({ ...formData, bd_id: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">None</option>
+              {businessDevs.map((bd) => (
+                <option key={bd.id} value={bd.id}>{bd.name}</option>
+              ))}
+            </select>
+          </FormField>
           <FormField label="Interview Date">
             <input
               type="date"
@@ -608,6 +637,17 @@ export default function InterviewsPage() {
         </div>
       </Modal>
 
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={!!deleteModal}
+        onClose={() => setDeleteModal(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title="Delete Interview"
+        itemName={deleteModal ? `${deleteModal.company_name} — ${deleteModal.role}` : ""}
+        itemDetail={deleteModal ? `${deleteModal.candidate_name} · ${deleteModal.round}` : undefined}
+      />
+
       {/* Detail Modal */}
       <Modal
         open={!!detailModal}
@@ -654,6 +694,12 @@ export default function InterviewsPage() {
                 <div>
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Salary Range</p>
                   <p className="mt-1 text-sm text-emerald-400">{detailModal.salary_range}</p>
+                </div>
+              )}
+              {detailModal.bd_name && (
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Business Developer</p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.bd_name}</p>
                 </div>
               )}
               <div>
