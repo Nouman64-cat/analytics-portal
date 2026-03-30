@@ -121,7 +121,7 @@ export default function BusinessDevelopersPage() {
   const chartData = useMemo(() =>
     [...bds]
       .map(bd => ({ name: bd.name, companies: bdCounts[bd.id] || 0 }))
-      .sort((a, b) => b.interviews - a.interviews),
+      .sort((a, b) => b.companies - a.companies),
     [bds, bdCounts]
   );
   // ─────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export default function BusinessDevelopersPage() {
                   contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff" }}
                   itemStyle={{ color: "#e2e8f0" }}
                   cursor={{ fill: "rgba(99,102,241,0.08)" }}
-                  formatter={(value: number) => [value, "Companies"]}
+                  formatter={(value) => [value ?? 0, "Companies"]}
                 />
                 <Bar dataKey="companies" radius={[6, 6, 0, 0]}>
                   {chartData.map((_, i) => (
