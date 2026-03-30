@@ -65,6 +65,16 @@ export default function DashboardPage() {
     ? Math.round(((statusMap["Converted"] || 0) / totalResolved) * 100) 
     : 0;
 
+  const STATUS_HEX_COLORS: Record<string, string> = {
+    "Converted": "#10b981", // emerald-500
+    "Rejected": "#ef4444",  // red-500
+    "Dropped": "#f59e0b",   // amber-500
+    "Closed": "#64748b",    // slate-500
+    "Upcoming": "#3b82f6",  // blue-500
+    "Unresponsed": "#94a3b8", // slate-400
+    "Other": "#8b5cf6",     // violet-500
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -112,7 +122,7 @@ export default function DashboardPage() {
         </div>
         <div>
           <ChartCard title="Status Distribution" subtitle="All interviews">
-            <PieChartWidget data={statusData} height={320} />
+            <PieChartWidget data={statusData} height={320} colorMapping={STATUS_HEX_COLORS} />
           </ChartCard>
         </div>
       </div>

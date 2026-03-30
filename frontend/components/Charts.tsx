@@ -88,9 +88,10 @@ export function BarChartWidget({ data, color = "#6366f1", height = 300 }: BarCha
 interface PieChartWidgetProps {
   data: { name: string; value: number }[];
   height?: number;
+  colorMapping?: Record<string, string>;
 }
 
-export function PieChartWidget({ data, height = 300 }: PieChartWidgetProps) {
+export function PieChartWidget({ data, height = 300, colorMapping }: PieChartWidgetProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
@@ -104,9 +105,12 @@ export function PieChartWidget({ data, height = 300 }: PieChartWidgetProps) {
           dataKey="value"
           stroke="none"
         >
-          {data.map((_, index) => (
-            <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-          ))}
+          {data.map((entry, index) => {
+            const sliceColor = colorMapping && colorMapping[entry.name] 
+              ? colorMapping[entry.name] 
+              : CHART_COLORS[index % CHART_COLORS.length];
+            return <Cell key={index} fill={sliceColor} />;
+          })}
         </Pie>
         <Tooltip
           contentStyle={{
