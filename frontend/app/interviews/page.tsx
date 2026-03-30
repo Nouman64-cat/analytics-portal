@@ -236,7 +236,7 @@ export default function InterviewsPage() {
   // Computed distributions
   const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0, Dropped: 0, Closed: 0 };
 
-  interviews.forEach(i => {
+  filtered.forEach(i => {
     const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
     else if (label === "unresponsed") statusCounts.Unresponsed++;
