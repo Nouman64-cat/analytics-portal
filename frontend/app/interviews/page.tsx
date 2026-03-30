@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Users, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
+import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Ban, Users, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import * as xlsx from "xlsx";
 import { interviewsService, companiesService, candidatesService, profilesService, businessDevelopersService } from "@/lib/services";
 import { formatDate, formatTime, truncate, getStatusLabel } from "@/lib/utils";
@@ -139,6 +139,31 @@ export default function InterviewsPage() {
     }
   };
 
+  // Returns true if the US is observing DST on a given date.
+  // DST runs from the 2nd Sunday of March to the 1st Sunday of November.
+  const isUsDst = (dateStr: string): boolean => {
+    const d = new Date(dateStr + "T12:00:00");
+    const year = d.getFullYear();
+    const dstStart = new Date(year, 2, 1); // March 1
+    dstStart.setDate(1 + (7 - dstStart.getDay()) % 7 + 7); // 2nd Sunday of March
+    const dstEnd = new Date(year, 10, 1); // November 1
+    dstEnd.setDate(1 + (7 - dstEnd.getDay()) % 7); // 1st Sunday of November
+    return d >= dstStart && d < dstEnd;
+  };
+
+  // EST (UTC-5) → PKT (UTC+5) = +10h; EDT (UTC-4) → PKT (UTC+5) = +9h
+  // Falls back to today's date when no interview date is set yet
+  const estToPktOffset = (dateStr?: string) => {
+    const d = dateStr || new Date().toISOString().split("T")[0];
+    return isUsDst(d) ? 9 : 10;
+  };
+
+  const shiftTime = (timeStr: string, hours: number): string => {
+    const [h, m] = timeStr.split(":").map(Number);
+    const total = ((h * 60 + m + hours * 60) % (24 * 60) + 24 * 60) % (24 * 60);
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  };
+
   const handleDelete = async () => {
     if (!deleteModal) return;
     setIsDeleting(true);
@@ -163,7 +188,12 @@ export default function InterviewsPage() {
       i.status?.toLowerCase().includes(q) ||
       i.resume_profile_name?.toLowerCase().includes(q);
 
-    const matchCompany = filters.company_id === "All" || i.company_id === filters.company_id;
+    const interviewCompany = companies.find(c => c.id === i.company_id);
+    const matchCompany =
+      filters.company_id === "All" ||
+      (filters.company_id === "staffing" && interviewCompany?.is_staffing_firm === true) ||
+      (filters.company_id === "direct" && interviewCompany?.is_staffing_firm === false) ||
+      i.company_id === filters.company_id;
     const matchCandidate = filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
     const matchProfile = filters.resume_profile_id === "All" || i.resume_profile_id === filters.resume_profile_id;
     const matchRound = filters.round === "All" || i.round === filters.round;
@@ -202,7 +232,7 @@ export default function InterviewsPage() {
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
   // Computed distributions
-  const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0 };
+  const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0, Dropped: 0, Closed: 0 };
 
   interviews.forEach(i => {
     const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
@@ -210,6 +240,8 @@ export default function InterviewsPage() {
     else if (label === "unresponsed") statusCounts.Unresponsed++;
     else if (label.includes("converted")) statusCounts.Converted++;
     else if (label.includes("rejected")) statusCounts.Rejected++;
+    else if (label.includes("dropped")) statusCounts.Dropped++;
+    else if (label.includes("closed")) statusCounts.Closed++;
   });
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -239,7 +271,7 @@ export default function InterviewsPage() {
 
       {/* Status Cards */}
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">Pipeline Status</h3>
-      <StatsGrid>
+      <StatsGrid cols={6}>
         <StatsCard
           title="Upcoming"
           value={statusCounts.Upcoming}
@@ -263,6 +295,18 @@ export default function InterviewsPage() {
           value={statusCounts.Rejected}
           icon={XCircle}
           gradient="bg-gradient-to-br from-red-500 to-rose-600"
+        />
+        <StatsCard
+          title="Dropped"
+          value={statusCounts.Dropped}
+          icon={Ban}
+          gradient="bg-gradient-to-br from-amber-500 to-orange-600"
+        />
+        <StatsCard
+          title="Closed"
+          value={statusCounts.Closed}
+          icon={XCircle}
+          gradient="bg-gradient-to-br from-slate-500 to-slate-600"
         />
       </StatsGrid>
 
@@ -289,9 +333,9 @@ export default function InterviewsPage() {
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
             >
               <option value="All">All Statuses</option>
-              <option value="Pending">Pending</option>
               <option value="Converted">Converted</option>
               <option value="Rejected">Rejected</option>
+              <option value="Dropped">Dropped</option>
               <option value="Closed">Closed</option>
               <option value="Upcoming">Upcoming</option>
               <option value="Unresponsed">Unresponsed</option>
@@ -300,10 +344,11 @@ export default function InterviewsPage() {
             <select
               value={filters.company_id}
               onChange={e => setFilters({ ...filters, company_id: e.target.value })}
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
             >
               <option value="All">All Companies</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="staffing">Staffing Firm</option>
+              <option value="direct">Direct Client</option>
             </select>
 
             <select
@@ -362,6 +407,8 @@ export default function InterviewsPage() {
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Profile</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Round</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Date</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">EST</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">PKT</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">BD</th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
@@ -392,6 +439,12 @@ export default function InterviewsPage() {
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                       {formatDate(interview.interview_date)}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                      {interview.time_est ? formatTime(interview.time_est) : <span className="text-slate-400 dark:text-slate-600">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                      {interview.time_pkt ? formatTime(interview.time_pkt) : <span className="text-slate-400 dark:text-slate-600">—</span>}
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                       {interview.bd_name || <span className="text-slate-400 dark:text-slate-600">—</span>}
@@ -573,19 +626,25 @@ export default function InterviewsPage() {
               ))}
             </select>
           </FormField>
-          <FormField label="Interview Date">
-            <input
-              type="date"
-              value={formData.interview_date || ""}
-              onChange={(e) => setFormData({ ...formData, interview_date: e.target.value })}
-              className={inputClass}
-            />
-          </FormField>
+          <div className="col-span-2">
+            <FormField label="Interview Date">
+              <input
+                type="date"
+                value={formData.interview_date || ""}
+                onChange={(e) => setFormData({ ...formData, interview_date: e.target.value })}
+                className={inputClass}
+              />
+            </FormField>
+          </div>
           <FormField label="Time (EST)">
             <input
               type="time"
               value={formData.time_est || ""}
-              onChange={(e) => setFormData({ ...formData, time_est: e.target.value })}
+              onChange={(e) => {
+                const est = e.target.value;
+                const offset = estToPktOffset(formData.interview_date);
+                setFormData({ ...formData, time_est: est, time_pkt: est ? shiftTime(est, offset) : "" });
+              }}
               className={inputClass}
             />
           </FormField>
@@ -593,7 +652,11 @@ export default function InterviewsPage() {
             <input
               type="time"
               value={formData.time_pkt || ""}
-              onChange={(e) => setFormData({ ...formData, time_pkt: e.target.value })}
+              onChange={(e) => {
+                const pkt = e.target.value;
+                const offset = estToPktOffset(formData.interview_date);
+                setFormData({ ...formData, time_pkt: pkt, time_est: pkt ? shiftTime(pkt, -offset) : "" });
+              }}
               className={inputClass}
             />
           </FormField>
@@ -605,9 +668,9 @@ export default function InterviewsPage() {
                 className={selectClass}
               >
                 <option value="">Select a status...</option>
-                <option value="Pending">Pending</option>
                 <option value="Converted">Converted</option>
                 <option value="Rejected">Rejected</option>
+                <option value="Dropped">Dropped</option>
                 <option value="Closed">Closed</option>
                 <option value="Upcoming">Upcoming</option>
                 <option value="Unresponsed">Unresponsed</option>

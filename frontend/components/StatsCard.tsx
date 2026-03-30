@@ -43,11 +43,13 @@ export default function StatsCard({ title, value, icon: Icon, trend, gradient }:
 
 interface StatsGridProps {
   children: ReactNode;
+  cols?: 4 | 5 | 6;
 }
 
-export function StatsGrid({ children }: StatsGridProps) {
+export function StatsGrid({ children, cols = 4 }: StatsGridProps) {
+  const colClass = cols === 6 ? "lg:grid-cols-6" : cols === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4";
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${colClass}`}>
       {children}
     </div>
   );

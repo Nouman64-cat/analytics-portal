@@ -32,8 +32,8 @@ export const CHART_COLORS = [
 export const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   converted: { bg: "bg-emerald-500/10", text: "text-emerald-400", dot: "bg-emerald-400" },
   rejected: { bg: "bg-red-500/10", text: "text-red-400", dot: "bg-red-400" },
-  closed: { bg: "bg-amber-500/10", text: "text-amber-400", dot: "bg-amber-400" },
-  pending: { bg: "bg-slate-500/10", text: "text-slate-400", dot: "bg-slate-400" },
+  dropped: { bg: "bg-amber-500/10", text: "text-amber-400", dot: "bg-amber-400" },
+  closed: { bg: "bg-slate-500/10", text: "text-slate-400", dot: "bg-slate-400" },
 };
 
 // Pagination

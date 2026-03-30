@@ -4,6 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+
+interface SidebarProps {
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
+}
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -27,10 +32,9 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Briefcase,
 };
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -110,7 +114,7 @@ export default function Sidebar() {
 
       {/* Collapse button */}
       <button
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={() => onCollapse(!collapsed)}
         className="flex items-center justify-center gap-2 border-t border-slate-200 dark:border-white/[0.06] p-4 text-xs text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.02] hover:text-slate-900 dark:hover:text-white transition-colors"
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}

@@ -8,7 +8,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { dashboardService } from "@/lib/services";
-import { recordToChartData, formatDate } from "@/lib/utils";
+import { recordToChartData, formatDate, formatTime } from "@/lib/utils";
 import type { DashboardStats } from "@/lib/types";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
@@ -51,15 +51,16 @@ export default function DashboardPage() {
     let key = "Other";
     if (lower.includes("converted")) key = "Converted";
     else if (lower.includes("rejected")) key = "Rejected";
+    else if (lower.includes("dropped")) key = "Dropped";
     else if (lower.includes("closed")) key = "Closed";
     else if (lower === "upcoming") key = "Upcoming";
     else if (lower === "unresponsed" || lower === "no status" || lower === "") key = "Unresponsed";
-    else key = "Pending";
+    else key = "Other";
     statusMap[key] = (statusMap[key] || 0) + count;
   });
   const statusData = recordToChartData(statusMap);
 
-  const totalResolved = (statusMap["Converted"] || 0) + (statusMap["Rejected"] || 0) + (statusMap["Closed"] || 0);
+  const totalResolved = (statusMap["Converted"] || 0) + (statusMap["Rejected"] || 0) + (statusMap["Dropped"] || 0) + (statusMap["Closed"] || 0);
   const globalConversionRate = totalResolved > 0 
     ? Math.round(((statusMap["Converted"] || 0) / totalResolved) * 100) 
     : 0;
@@ -169,9 +170,33 @@ export default function DashboardPage() {
                       {interview.company} — {interview.role}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-500">
-                      {interview.candidate} · Round {interview.round} ·{" "}
-                      {formatDate(interview.date)}
+                      {interview.candidate} · Round {interview.round} · {formatDate(interview.date)}
                     </p>
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      {interview.time_est && (
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                          EST {formatTime(interview.time_est)}
+                        </span>
+                      )}
+                      {interview.time_est && interview.time_pkt && (
+                        <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                      )}
+                      {interview.time_pkt && (
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                          PKT {formatTime(interview.time_pkt)}
+                        </span>
+                      )}
+                      {interview.bd_name && (
+                        <>
+                          {(interview.time_est || interview.time_pkt) && (
+                            <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                          )}
+                          <span className="text-[11px] text-indigo-400 dark:text-indigo-400">
+                            {interview.bd_name}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <StatusBadge status={interview.status} dateStr={interview.date} />
                 </div>

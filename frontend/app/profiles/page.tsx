@@ -104,33 +104,49 @@ export default function ProfilesPage() {
     return counts;
   }, [interviews]);
 
-  // Line Chart Data Prep
+  // Line Chart Data Prep — last 30 days
   const chartData = useMemo(() => {
-    // 1. Determine the top maximum 4 performing profiles
-    const topProfiles = [...profiles].sort((a, b) => (profileCounts[b.id] || 0) - (profileCounts[a.id] || 0)).slice(0, 4);
-    if (topProfiles.length === 0) return [];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    cutoff.setHours(0, 0, 0, 0);
 
-    // 2. Group all dynamically validated interviews by month map
-    const timeline: Record<string, any> = {};
-    const sortedInterviews = [...interviews].filter(i => !!i.interview_date).sort((a,b) => new Date(a.interview_date!).getTime() - new Date(b.interview_date!).getTime());
-    
-    sortedInterviews.forEach(i => {
-      const date = new Date(i.interview_date!);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // e.g. 2026-03
-      
-      if (!timeline[monthKey]) {
-        timeline[monthKey] = { name: date.toLocaleDateString('default', { month: 'short', year: 'numeric' }), _sortKey: monthKey };
-        topProfiles.forEach(p => { timeline[monthKey][p.name] = 0; });
-      }
-      
-      const pName = i.resume_profile_name || "";
-      if (topProfiles.find(tp => tp.name === pName)) {
-        timeline[monthKey][pName] += 1;
-      }
+    const recentInterviews = interviews.filter(i => {
+      if (!i.interview_date) return false;
+      return new Date(i.interview_date + "T00:00:00") >= cutoff;
     });
 
+    // Top 4 profiles by count within the last 30 days
+    const recentCounts: Record<string, number> = {};
+    recentInterviews.forEach(i => {
+      recentCounts[i.resume_profile_id] = (recentCounts[i.resume_profile_id] || 0) + 1;
+    });
+    const topProfiles = [...profiles]
+      .sort((a, b) => (recentCounts[b.id] || 0) - (recentCounts[a.id] || 0))
+      .slice(0, 4);
+    if (topProfiles.length === 0) return [];
+
+    // Group by day
+    const timeline: Record<string, any> = {};
+    [...recentInterviews]
+      .sort((a, b) => new Date(a.interview_date!).getTime() - new Date(b.interview_date!).getTime())
+      .forEach(i => {
+        const dayKey = i.interview_date!; // "YYYY-MM-DD"
+        if (!timeline[dayKey]) {
+          const d = new Date(dayKey + "T00:00:00");
+          timeline[dayKey] = {
+            name: d.toLocaleDateString("default", { month: "short", day: "numeric" }),
+            _sortKey: dayKey,
+          };
+          topProfiles.forEach(p => { timeline[dayKey][p.name] = 0; });
+        }
+        const pName = i.resume_profile_name || "";
+        if (topProfiles.find(tp => tp.name === pName)) {
+          timeline[dayKey][pName] += 1;
+        }
+      });
+
     return Object.values(timeline).sort((a, b) => a._sortKey.localeCompare(b._sortKey));
-  }, [profiles, interviews, profileCounts]);
+  }, [profiles, interviews]);
 
   const LINE_COLORS = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b"];
 
@@ -162,7 +178,7 @@ export default function ProfilesPage() {
       {/* Line Chart Analytics Showcase */}
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-6 shadow-sm overflow-hidden">
-          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">Profile Performance Envelope (Trailing Volume)</h3>
+          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">Profile Performance — Last 30 Days</h3>
           <div className="h-[300px] w-full ml-[-20px] sm:ml-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>

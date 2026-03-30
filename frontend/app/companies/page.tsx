@@ -37,13 +37,13 @@ export default function CompaniesPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: "", staffing_firm: "" });
+    setFormData({ name: "", is_staffing_firm: false });
     setModalOpen(true);
   };
 
   const openEdit = (company: Company) => {
     setEditingId(company.id);
-    setFormData({ name: company.name, staffing_firm: company.staffing_firm || "" });
+    setFormData({ name: company.name, is_staffing_firm: company.is_staffing_firm });
     setModalOpen(true);
   };
 
@@ -51,8 +51,7 @@ export default function CompaniesPage() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const payload: any = { ...formData };
-      if (!payload.staffing_firm) payload.staffing_firm = null;
+      const payload = { ...formData };
       if (editingId) {
         await companiesService.update(editingId, payload);
       } else {
@@ -113,7 +112,7 @@ export default function CompaniesPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{company.name}</h3>
-                    {company.staffing_firm && (
+                    {company.is_staffing_firm && (
                       <span className="mt-1 inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-700/10 dark:ring-indigo-400/20">
                         Staffing Firm
                       </span>
@@ -152,7 +151,7 @@ export default function CompaniesPage() {
         title="Delete Company"
         description="This action cannot be undone. Associated interviews may also be affected."
         itemName={deleteModal?.name ?? ""}
-        itemDetail={deleteModal?.staffing_firm ? "Staffing Firm" : undefined}
+        itemDetail={deleteModal?.is_staffing_firm ? "Staffing Firm" : undefined}
       />
 
       {/* Modal */}
@@ -176,8 +175,8 @@ export default function CompaniesPage() {
             <label className="flex items-center gap-3 cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">
               <input
                 type="checkbox"
-                checked={formData.staffing_firm !== null && formData.staffing_firm !== ""}
-                onChange={(e) => setFormData({ ...formData, staffing_firm: e.target.checked ? "Yes" : "" })}
+                checked={!!formData.is_staffing_firm}
+                onChange={(e) => setFormData({ ...formData, is_staffing_firm: e.target.checked })}
                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-0 dark:border-white/[0.1] dark:bg-white/[0.04] dark:checked:bg-indigo-500 w-4 h-4 cursor-pointer"
               />
               Is this a Staffing Firm?

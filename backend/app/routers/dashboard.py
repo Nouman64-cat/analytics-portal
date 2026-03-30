@@ -79,19 +79,19 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         if "converted" in status_lower:
             candidate_metrics[name]["converted"] += 1
             candidate_metrics[name]["total_resolved"] += 1
-        elif "rejected" in status_lower or "closed" in status_lower:
+        elif "rejected" in status_lower or "dropped" in status_lower or "closed" in status_lower:
             candidate_metrics[name]["total_resolved"] += 1
-            
+
     for name, stats in candidate_metrics.items():
-        # Exclude Unresponsed and Pending from the conversion rate calculation
+        # Exclude Unresponsed from the conversion rate calculation
         rate = round((stats["converted"] / stats["total_resolved"]) * 100) if stats["total_resolved"] > 0 else 0
         stats["rate"] = rate
 
-    # Recent interviews (last 5)
+    # Recent interviews (last 7)
     recent_query = (
         select(Interview)
         .order_by(Interview.interview_date.desc())  # type: ignore
-        .limit(5)
+        .limit(7)
     )
     recent_interviews = session.exec(recent_query).all()
     recent = [
@@ -103,6 +103,9 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
             "round": i.round,
             "date": str(i.interview_date) if i.interview_date else None,
             "status": i.status,
+            "time_est": i.time_est.strftime("%H:%M") if i.time_est else None,
+            "time_pkt": i.time_pkt.strftime("%H:%M") if i.time_pkt else None,
+            "bd_name": i.business_developer.name if i.business_developer else None,
         }
         for i in recent_interviews
     ]

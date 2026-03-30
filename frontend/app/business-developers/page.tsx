@@ -92,14 +92,19 @@ export default function BusinessDevelopersPage() {
 
   // ─── Analytics ───────────────────────────────────────────────────
   const bdCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const companySets: Record<string, Set<string>> = {};
     interviews.forEach(i => {
-      if (i.bd_id) counts[i.bd_id] = (counts[i.bd_id] || 0) + 1;
+      if (i.bd_id) {
+        if (!companySets[i.bd_id]) companySets[i.bd_id] = new Set();
+        companySets[i.bd_id].add(i.company_id);
+      }
     });
+    const counts: Record<string, number> = {};
+    Object.entries(companySets).forEach(([bdId, set]) => { counts[bdId] = set.size; });
     return counts;
   }, [interviews]);
 
-  const totalBdInterviews = useMemo(
+  const totalBdCompanies = useMemo(
     () => Object.values(bdCounts).reduce((s, n) => s + n, 0),
     [bdCounts]
   );
@@ -110,12 +115,12 @@ export default function BusinessDevelopersPage() {
     [bds, bdCounts]
   );
 
-  const avgPerBd = bds.length > 0 ? (totalBdInterviews / bds.length).toFixed(1) : "0";
+  const avgPerBd = bds.length > 0 ? (totalBdCompanies / bds.length).toFixed(1) : "0";
 
   // Bar chart data — all BDs sorted by count desc
   const chartData = useMemo(() =>
     [...bds]
-      .map(bd => ({ name: bd.name, interviews: bdCounts[bd.id] || 0 }))
+      .map(bd => ({ name: bd.name, companies: bdCounts[bd.id] || 0 }))
       .sort((a, b) => b.interviews - a.interviews),
     [bds, bdCounts]
   );
@@ -140,7 +145,7 @@ export default function BusinessDevelopersPage() {
       {/* Stats */}
       <StatsGrid>
         <StatsCard title="Total BDs" value={bds.length} icon={Users} gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
-        <StatsCard title="Interviews Sourced" value={totalBdInterviews} icon={CalendarCheck} gradient="bg-gradient-to-br from-indigo-500 to-purple-600" />
+        <StatsCard title="Leads Brought" value={totalBdCompanies} icon={CalendarCheck} gradient="bg-gradient-to-br from-indigo-500 to-purple-600" />
         <StatsCard title="Top Performer" value={topBd?.name ?? "—"} icon={TrendingUp} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
         <StatsCard title="Avg per BD" value={avgPerBd} icon={Briefcase} gradient="bg-gradient-to-br from-fuchsia-500 to-pink-600" />
       </StatsGrid>
@@ -148,7 +153,7 @@ export default function BusinessDevelopersPage() {
       {/* Bar Chart */}
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-6 shadow-sm">
-          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">Interviews Sourced per Business Developer</h3>
+          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">Leads Brought per Business Developer</h3>
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -159,9 +164,9 @@ export default function BusinessDevelopersPage() {
                   contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff" }}
                   itemStyle={{ color: "#e2e8f0" }}
                   cursor={{ fill: "rgba(99,102,241,0.08)" }}
-                  formatter={(value: number) => [value, "Interviews"]}
+                  formatter={(value: number) => [value, "Companies"]}
                 />
-                <Bar dataKey="interviews" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="companies" radius={[6, 6, 0, 0]}>
                   {chartData.map((_, i) => (
                     <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
                   ))}
@@ -210,7 +215,7 @@ export default function BusinessDevelopersPage() {
                   <div className="mt-4">
                     <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{count}</p>
                     <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                      {count === 1 ? "interview" : "interviews"} sourced
+                      {count === 1 ? "Lead" : "Leads"} brought
                     </p>
                   </div>
 

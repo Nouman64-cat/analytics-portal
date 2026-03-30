@@ -42,9 +42,9 @@ export const dashboardService = {
 // ─── Business Developers ────────────────────────────────────
 
 export const businessDevelopersService = {
-  list: () => apiFetch<BusinessDeveloper[]>("/business-developers"),
+  list: () => apiFetch<BusinessDeveloper[]>("/business-developers/"),
   create: (data: BusinessDeveloperFormData) =>
-    apiFetch<BusinessDeveloper>("/business-developers", {
+    apiFetch<BusinessDeveloper>("/business-developers/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -60,10 +60,10 @@ export const businessDevelopersService = {
 // ─── Candidates ─────────────────────────────────────────────
 
 export const candidatesService = {
-  list: () => apiFetch<Candidate[]>("/candidates"),
+  list: () => apiFetch<Candidate[]>("/candidates/"),
   get: (id: string) => apiFetch<CandidateWithInterviews>(`/candidates/${id}`),
   create: (data: CandidateFormData) =>
-    apiFetch<Candidate>("/candidates", {
+    apiFetch<Candidate>("/candidates/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -79,10 +79,10 @@ export const candidatesService = {
 // ─── Resume Profiles ────────────────────────────────────────
 
 export const profilesService = {
-  list: () => apiFetch<ResumeProfile[]>("/resume-profiles"),
+  list: () => apiFetch<ResumeProfile[]>("/resume-profiles/"),
   get: (id: string) => apiFetch<ResumeProfile>(`/resume-profiles/${id}`),
   create: (data: ResumeProfileFormData) =>
-    apiFetch<ResumeProfile>("/resume-profiles", {
+    apiFetch<ResumeProfile>("/resume-profiles/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -98,10 +98,10 @@ export const profilesService = {
 // ─── Companies ──────────────────────────────────────────────
 
 export const companiesService = {
-  list: () => apiFetch<Company[]>("/companies"),
+  list: () => apiFetch<Company[]>("/companies/"),
   get: (id: string) => apiFetch<CompanyWithInterviews>(`/companies/${id}`),
   create: (data: CompanyFormData) =>
-    apiFetch<Company>("/companies", {
+    apiFetch<Company>("/companies/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -121,11 +121,11 @@ export const interviewsService = {
     const query = params
       ? "?" + new URLSearchParams(params).toString()
       : "";
-    return apiFetch<Interview[]>(`/interviews${query}`);
+    return apiFetch<Interview[]>(`/interviews/${query}`);
   },
   get: (id: string) => apiFetch<Interview>(`/interviews/${id}`),
   create: (data: InterviewFormData) =>
-    apiFetch<Interview>("/interviews", {
+    apiFetch<Interview>("/interviews/", {
       method: "POST",
       body: JSON.stringify(data),
     }),

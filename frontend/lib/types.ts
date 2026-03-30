@@ -91,6 +91,9 @@ export interface RecentInterview {
   round: string;
   date: string | null;
   status: string | null;
+  time_est: string | null;
+  time_pkt: string | null;
+  bd_name: string | null;
 }
 
 // ─── Form Payloads ──────────────────────────────────────────

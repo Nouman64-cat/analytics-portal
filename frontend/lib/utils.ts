@@ -33,10 +33,11 @@ export function getStatusStyle(status: string | null | undefined, dateStr?: stri
   
   if (label.includes("converted")) return STATUS_COLORS.converted;
   if (label.includes("rejected")) return STATUS_COLORS.rejected;
+  if (label.includes("dropped")) return STATUS_COLORS.dropped;
   if (label.includes("closed")) return STATUS_COLORS.closed;
   if (label === "upcoming") return { bg: "bg-blue-500/10", text: "text-blue-400", dot: "bg-blue-400" };
-  
-  return STATUS_COLORS.pending;
+
+  return { bg: "bg-slate-500/10", text: "text-slate-400", dot: "bg-slate-400" };
 }
 
 /**
