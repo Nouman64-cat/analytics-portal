@@ -23,7 +23,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
-import { clearToken } from "@/lib/auth";
+import { clearToken, getUserRole } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -50,6 +50,12 @@ export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
     router.replace("/login");
   };
 
+  const role = getUserRole();
+  const MANAGER_HIDDEN_HREFS = ["/", "/business-developers"];
+  const visibleNavItems = role === "manager"
+    ? NAV_ITEMS.filter((item) => !MANAGER_HIDDEN_HREFS.includes(item.href))
+    : NAV_ITEMS;
+
   return (
     <aside
       className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] transition-all duration-300 flex flex-col ${collapsed ? "w-[72px]" : "w-[260px]"
@@ -69,7 +75,7 @@ export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = ICON_MAP[item.icon];
           const isActive =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);

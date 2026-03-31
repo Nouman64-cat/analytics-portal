@@ -9,6 +9,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import { getUserRole } from "@/lib/auth";
 
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -23,6 +24,8 @@ export default function CandidatesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const role = getUserRole();
+  const cannotCRUD = role === "bd" || role === "manager";
 
   const fetchData = useCallback(async () => {
     try {
@@ -106,10 +109,12 @@ export default function CandidatesPage() {
         title="Candidates"
         subtitle={`${candidates.length} team members`}
         action={
-          <button onClick={openCreate} className={buttonPrimary}>
-            <Plus size={16} />
-            Add Candidate
-          </button>
+          !cannotCRUD && (
+            <button onClick={openCreate} className={buttonPrimary}>
+              <Plus size={16} />
+              Add Candidate
+            </button>
+          )
         }
       />
 
@@ -129,20 +134,22 @@ export default function CandidatesPage() {
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-lg font-bold text-emerald-300">
                     {candidate.name[0]}
                   </div>
-                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openEdit(candidate); }}
-                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteModal(candidate); }}
-                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                  {!cannotCRUD && (
+                    <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEdit(candidate); }}
+                        className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteModal(candidate); }}
+                        className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</h3>
                 <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">

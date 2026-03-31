@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { isAuthenticated, mustChangePassword, clearToken } from "@/lib/auth";
+import { isAuthenticated, mustChangePassword, clearToken, getUserRole } from "@/lib/auth";
 
 const PUBLIC_PATHS = ["/login", "/change-password"];
 
@@ -25,6 +25,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
     if (mustChangePassword()) {
       router.replace("/change-password");
+      return;
+    }
+    if (getUserRole() === "manager" && (pathname === "/" || pathname === "/business-developers")) {
+      router.replace("/interviews");
       return;
     }
     setChecked(true);

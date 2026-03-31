@@ -8,6 +8,7 @@ import type { Company, CompanyFormData } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import { getUserRole } from "@/lib/auth";
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -19,6 +20,8 @@ export default function CompaniesPage() {
   const [formData, setFormData] = useState<CompanyFormData>({ name: "" });
   const [deleteModal, setDeleteModal] = useState<Company | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const role = getUserRole();
+  const cannotCRUD = role === "bd" || role === "manager";
 
   const fetchData = useCallback(async () => {
     try {
@@ -89,10 +92,12 @@ export default function CompaniesPage() {
         title="Companies"
         subtitle={`${companies.length} companies tracked`}
         action={
-          <button onClick={openCreate} className={buttonPrimary}>
-            <Plus size={16} />
-            Add Company
-          </button>
+          !cannotCRUD && (
+            <button onClick={openCreate} className={buttonPrimary}>
+              <Plus size={16} />
+              Add Company
+            </button>
+          )
         }
       />
 
@@ -119,20 +124,22 @@ export default function CompaniesPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button
-                    onClick={() => openEdit(company)}
-                    className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteModal(company)}
-                    className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+                {!cannotCRUD && (
+                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      onClick={() => openEdit(company)}
+                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteModal(company)}
+                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )}
               </div>
               <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-500">
                 Added {formatDate(company.created_at)}

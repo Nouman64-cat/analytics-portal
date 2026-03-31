@@ -11,6 +11,7 @@ import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/Pag
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import Modal, { FormField, inputClass, selectClass, textareaClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import { getUserRole } from "@/lib/auth";
 
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -44,6 +45,8 @@ export default function InterviewsPage() {
   const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const role = getUserRole();
+  const cannotCRUD = role === "bd" || role === "manager";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<InterviewFormData>({
     company_id: "",
@@ -263,10 +266,12 @@ export default function InterviewsPage() {
               <Download size={16} />
               Export
             </button>
-            <button onClick={openCreateModal} className={buttonPrimary}>
-              <Plus size={16} />
-              Add Interview
-            </button>
+            {!cannotCRUD && (
+              <button onClick={openCreateModal} className={buttonPrimary}>
+                <Plus size={16} />
+                Add Interview
+              </button>
+            )}
           </div>
         }
       />
@@ -474,20 +479,24 @@ export default function InterviewsPage() {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() => openEditModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {!cannotCRUD && (
+                          <>
+                            <button
+                              onClick={() => openEditModal(interview)}
+                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteModal(interview)}
+                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

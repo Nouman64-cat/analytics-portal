@@ -8,6 +8,7 @@ import type { ResumeProfile, ResumeProfileFormData, Interview } from "@/lib/type
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, selectClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import { getUserRole } from "@/lib/auth";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -23,6 +24,8 @@ export default function ProfilesPage() {
   const [formData, setFormData] = useState<ResumeProfileFormData>({ name: "", is_active: true });
   const [deleteModal, setDeleteModal] = useState<ResumeProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const role = getUserRole();
+  const cannotCRUD = role === "bd" || role === "manager";
 
   const fetchData = useCallback(async () => {
     try {
@@ -161,10 +164,12 @@ export default function ProfilesPage() {
         title="Resume Profiles"
         subtitle="Manage and analyze individual profile performance."
         action={
-          <button onClick={openCreate} className={buttonPrimary}>
-            <Plus size={16} />
-            Add Profile
-          </button>
+          !cannotCRUD && (
+            <button onClick={openCreate} className={buttonPrimary}>
+              <Plus size={16} />
+              Add Profile
+            </button>
+          )
         }
       />
 
@@ -239,10 +244,12 @@ export default function ProfilesPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button onClick={() => openEdit(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="Edit Profile Details"><Pencil size={13} /></button>
-                  <button onClick={() => setDeleteModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
-                </div>
+                {!cannotCRUD && (
+                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button onClick={() => openEdit(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="Edit Profile Details"><Pencil size={13} /></button>
+                    <button onClick={() => setDeleteModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
+                  </div>
+                )}
               </div>
 
               {/* Exact Statistics Pipeline Count */}
