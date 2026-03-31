@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Plus, Pencil, Trash2, CalendarCheck, Loader2 } from "lucide-react";
-import { candidatesService } from "@/lib/services";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Plus, Pencil, Trash2, CalendarCheck, Loader2, Search } from "lucide-react";
+import { candidatesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
-import type { Candidate, CandidateWithInterviews, CandidateFormData } from "@/lib/types";
+import type { Candidate, CandidateWithInterviews, CandidateFormData, Interview } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
@@ -13,6 +13,7 @@ import { getUserRole } from "@/lib/auth";
 
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -27,12 +28,32 @@ export default function CandidatesPage() {
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
 
+  const [search, setSearch] = useState("");
+
+  const interviewCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    interviews.forEach((i) => {
+      counts[i.candidate_id] = (counts[i.candidate_id] || 0) + 1;
+    });
+    return counts;
+  }, [interviews]);
+
+  const filteredCandidates = useMemo(() => {
+    if (!search.trim()) return candidates;
+    const q = search.toLowerCase();
+    return candidates.filter((c) => c.name.toLowerCase().includes(q));
+  }, [candidates, search]);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await candidatesService.list();
+      const [data, interviewsData] = await Promise.all([
+        candidatesService.list(),
+        interviewsService.list(),
+      ]);
       setCandidates(data);
+      setInterviews(interviewsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load candidates");
     } finally {
@@ -118,24 +139,36 @@ export default function CandidatesPage() {
         }
       />
 
+      {/* Search */}
+      <div className="relative sm:max-w-sm">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
+        <input
+          type="text"
+          placeholder="Search candidates..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={`${inputClass} pl-10`}
+        />
+      </div>
+
       {candidates.length === 0 ? (
         <EmptyState message="No candidates yet" />
+      ) : filteredCandidates.length === 0 ? (
+        <EmptyState message="No candidates match your search" />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
-          {candidates.map((candidate) => (
-            <div
-              key={candidate.id}
-              onClick={() => viewDetail(candidate.id)}
-              className="group cursor-pointer relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-slate-300 dark:border-white/[0.1] hover:shadow-lg hover:shadow-black/20"
-            >
-              <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br from-emerald-500/10 to-teal-500/10 blur-2xl transition-all group-hover:opacity-60" />
-              <div className="relative">
-                <div className="flex items-center justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-lg font-bold text-emerald-300">
-                    {candidate.name[0]}
-                  </div>
+          {filteredCandidates.map((candidate) => {
+            const count = interviewCounts[candidate.id] || 0;
+            return (
+              <div
+                key={candidate.id}
+                onClick={() => viewDetail(candidate.id)}
+                className="group cursor-pointer relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-emerald-300/50 dark:hover:border-emerald-500/30 hover:shadow-lg hover:shadow-black/20"
+              >
+                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-500/10 to-teal-500/10 blur-2xl transition-all group-hover:opacity-80" />
+                <div className="relative">
                   {!cannotCRUD && (
-                    <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 mb-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEdit(candidate); }}
                         className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
@@ -150,14 +183,27 @@ export default function CandidatesPage() {
                       </button>
                     </div>
                   )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-2xl font-bold text-emerald-300">
+                      {candidate.name[0]}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{count}</p>
+                      <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        {count === 1 ? "Interview" : "Interviews"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 border-t border-slate-100 dark:border-white/[0.04] pt-3">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
+                      Added {formatDate(candidate.created_at)}
+                    </p>
+                  </div>
                 </div>
-                <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</h3>
-                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
-                  Added {formatDate(candidate.created_at)}
-                </p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
