@@ -35,3 +35,14 @@ export function isAuthenticated(): boolean {
   if (!token) return false;
   return !isTokenExpired(token);
 }
+
+export function getUserRole(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
+}

@@ -11,6 +11,7 @@ import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/Pag
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import Modal, { FormField, inputClass, selectClass, textareaClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import { getUserRole } from "@/lib/auth";
 
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -44,6 +45,8 @@ export default function InterviewsPage() {
   const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const role = getUserRole();
+  const cannotCRUD = role === "bd" || role === "manager";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<InterviewFormData>({
     company_id: "",
@@ -277,10 +280,12 @@ export default function InterviewsPage() {
               <Download size={16} />
               Export
             </button>
-            <button onClick={openCreateModal} className={buttonPrimary}>
-              <Plus size={16} />
-              Add Interview
-            </button>
+            {!cannotCRUD && (
+              <button onClick={openCreateModal} className={buttonPrimary}>
+                <Plus size={16} />
+                Add Interview
+              </button>
+            )}
           </div>
         }
       />
@@ -425,7 +430,7 @@ export default function InterviewsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-white/[0.06]">
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Company</th>
@@ -488,20 +493,24 @@ export default function InterviewsPage() {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() => openEditModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {!cannotCRUD && (
+                          <>
+                            <button
+                              onClick={() => openEditModal(interview)}
+                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteModal(interview)}
+                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -581,7 +590,7 @@ export default function InterviewsPage() {
         title={editingId ? "Edit Interview" : "Add Interview"}
         size="lg"
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Company">
             <select
               value={formData.company_id}
@@ -623,7 +632,7 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Role">
               <input
                 value={formData.role}
@@ -653,7 +662,7 @@ export default function InterviewsPage() {
               ))}
             </select>
           </FormField>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Interview Date">
               <input
                 type="date"
@@ -687,7 +696,7 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Status">
               <select
                 value={formData.status || ""}
@@ -704,7 +713,7 @@ export default function InterviewsPage() {
               </select>
             </FormField>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Feedback">
               <textarea
                 value={formData.feedback || ""}
@@ -747,7 +756,7 @@ export default function InterviewsPage() {
       >
         {detailModal && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Company</p>
                 <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{detailModal.company_name}</p>
