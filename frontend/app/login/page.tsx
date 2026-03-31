@@ -43,7 +43,7 @@ export default function LoginPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-8 shadow-sm space-y-5"
+          className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 sm:p-8 shadow-sm space-y-5"
         >
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Email</label>

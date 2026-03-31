@@ -168,7 +168,7 @@ export default function CandidatesPage() {
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-500/10 to-teal-500/10 blur-2xl transition-all group-hover:opacity-80" />
                 <div className="relative">
                   {!cannotCRUD && (
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 mb-2">
+                    <div className="flex justify-end gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 mb-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEdit(candidate); }}
                         className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"

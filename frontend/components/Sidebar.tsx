@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 interface SidebarProps {
   collapsed: boolean;
   onCollapse: (collapsed: boolean) => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }
 import {
   LayoutDashboard,
@@ -35,7 +37,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Briefcase,
 };
 
-export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
+export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -57,9 +59,19 @@ export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
     : NAV_ITEMS;
 
   return (
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
     <aside
-      className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] transition-all duration-300 flex flex-col ${collapsed ? "w-[72px]" : "w-[260px]"
-        }`}
+      className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] flex flex-col transition-all duration-300
+        ${collapsed ? "w-[72px]" : "w-[260px]"}
+        ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+        md:translate-x-0`}
     >
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 dark:border-white/[0.06] px-5">
@@ -139,14 +151,15 @@ export default function Sidebar({ collapsed, onCollapse }: SidebarProps) {
         )}
       </div>
 
-      {/* Collapse button */}
+      {/* Collapse button — hidden on mobile */}
       <button
         onClick={() => onCollapse(!collapsed)}
-        className="flex items-center justify-center gap-2 border-t border-slate-200 dark:border-white/[0.06] p-4 text-xs text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.02] hover:text-slate-900 dark:hover:text-white transition-colors"
+        className="hidden md:flex items-center justify-center gap-2 border-t border-slate-200 dark:border-white/[0.06] p-4 text-xs text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.02] hover:text-slate-900 dark:hover:text-white transition-colors"
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         {!collapsed && <span>Collapse</span>}
       </button>
     </aside>
+    </>
   );
 }

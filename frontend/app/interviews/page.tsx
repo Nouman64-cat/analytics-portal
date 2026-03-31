@@ -416,7 +416,7 @@ export default function InterviewsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-white/[0.06]">
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Company</th>
@@ -576,7 +576,7 @@ export default function InterviewsPage() {
         title={editingId ? "Edit Interview" : "Add Interview"}
         size="lg"
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Company">
             <select
               value={formData.company_id}
@@ -618,7 +618,7 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Role">
               <input
                 value={formData.role}
@@ -648,7 +648,7 @@ export default function InterviewsPage() {
               ))}
             </select>
           </FormField>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Interview Date">
               <input
                 type="date"
@@ -682,7 +682,7 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Status">
               <select
                 value={formData.status || ""}
@@ -699,7 +699,7 @@ export default function InterviewsPage() {
               </select>
             </FormField>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Feedback">
               <textarea
                 value={formData.feedback || ""}
@@ -742,7 +742,7 @@ export default function InterviewsPage() {
       >
         {detailModal && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Company</p>
                 <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{detailModal.company_name}</p>

@@ -157,14 +157,14 @@ export default function BusinessDevelopersPage() {
 
       {/* Bar Chart */}
       {chartData.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-6 shadow-sm">
-          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">Leads Brought per Business Developer</h3>
-          <div className="h-[260px] w-full">
+        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm">
+          <h3 className="mb-4 sm:mb-6 text-sm font-semibold text-slate-900 dark:text-white">Leads Brought per Business Developer</h3>
+          <div className="h-[200px] sm:h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" interval={0} />
+                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff" }}
                   itemStyle={{ color: "#e2e8f0" }}
@@ -202,7 +202,7 @@ export default function BusinessDevelopersPage() {
                       <Briefcase size={18} />
                     </div>
                     {!cannotCRUD && (
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                         <button
                           onClick={() => openEdit(bd)}
                           className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
