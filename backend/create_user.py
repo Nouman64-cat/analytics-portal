@@ -61,3 +61,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     create_user(args.email, args.role)
+    # test
