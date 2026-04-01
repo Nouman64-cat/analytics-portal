@@ -121,20 +121,9 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="border-t border-slate-200 dark:border-white/[0.06] p-3">
-        <button
-          onClick={handleLogout}
-          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 ${collapsed ? "justify-center px-0" : ""}`}
-          title={collapsed ? "Sign out" : undefined}
-        >
-          <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>Sign out</span>}
-        </button>
-      </div>
-
-      {/* Theme Toggle bottom */}
-      <div className="border-t border-slate-200 dark:border-white/[0.06] p-3">
+      {/* Footer Actions */}
+      <div className="mt-auto border-t border-slate-200 dark:border-white/[0.06] p-3 space-y-1">
+        {/* Theme Toggle */}
         {mounted && (
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -149,16 +138,27 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
             {!collapsed && <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>}
           </button>
         )}
-      </div>
 
-      {/* Collapse button — hidden on mobile */}
-      <button
-        onClick={() => onCollapse(!collapsed)}
-        className="hidden md:flex items-center justify-center gap-2 border-t border-slate-200 dark:border-white/[0.06] p-4 text-xs text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.02] hover:text-slate-900 dark:hover:text-white transition-colors"
-      >
-        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        {!collapsed && <span>Collapse</span>}
-      </button>
+        {/* Collapse button — hidden on mobile */}
+        <button
+          onClick={() => onCollapse(!collapsed)}
+          className={`hidden md:flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white ${collapsed ? "justify-center px-0" : ""}`}
+          title={collapsed ? "Expand" : "Collapse"}
+        >
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          {!collapsed && <span>Collapse Sidebar</span>}
+        </button>
+
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 text-red-500/80 dark:text-red-400/80 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 ${collapsed ? "justify-center px-0" : ""}`}
+          title={collapsed ? "Sign out" : undefined}
+        >
+          <LogOut size={18} className="shrink-0" />
+          {!collapsed && <span>Sign out</span>}
+        </button>
+      </div>
     </aside>
     </>
   );
