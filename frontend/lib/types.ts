@@ -17,6 +17,7 @@ export interface ResumeProfile {
   is_active: boolean;
   linkedin_url: string | null;
   github_url: string | null;
+  portfolio_url: string | null;
   resume_url: string | null;
   created_at: string;
   updated_at: string;
@@ -155,4 +156,5 @@ export interface ResumeProfileFormData {
   is_active?: boolean;
   linkedin_url?: string;
   github_url?: string;
+  portfolio_url?: string;
 }

@@ -9,6 +9,7 @@ class ResumeProfileCreate(BaseModel):
     is_active: bool = True
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
 
 
@@ -17,6 +18,7 @@ class ResumeProfileUpdate(BaseModel):
     is_active: Optional[bool] = None
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
 
 
@@ -26,6 +28,7 @@ class ResumeProfileRead(BaseModel):
     is_active: bool
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime

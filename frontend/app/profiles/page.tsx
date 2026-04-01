@@ -107,6 +107,7 @@ export default function ProfilesPage() {
       is_active: true,
       linkedin_url: "",
       github_url: "",
+      portfolio_url: "",
     });
     setModalOpen(true);
   };
@@ -118,6 +119,7 @@ export default function ProfilesPage() {
       is_active: p.is_active ?? true,
       linkedin_url: p.linkedin_url || "",
       github_url: p.github_url || "",
+      portfolio_url: p.portfolio_url || "",
     });
     setModalOpen(true);
   };
@@ -516,6 +518,17 @@ export default function ProfilesPage() {
                       GitHub
                     </a>
                   )}
+                  {profile.portfolio_url && (
+                    <a
+                      href={profile.portfolio_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-fuchsia-50 dark:bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-500/20 transition-colors"
+                    >
+                      <Target size={11} />
+                      Portfolio
+                    </a>
+                  )}
                   {profile.resume_url ? (
                     <a
                       href={profile.resume_url}
@@ -623,6 +636,7 @@ export default function ProfilesPage() {
             </div>
             {viewModal.linkedin_url ||
             viewModal.github_url ||
+            viewModal.portfolio_url ||
             viewModal.resume_url ? (
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
@@ -648,6 +662,17 @@ export default function ProfilesPage() {
                   >
                     <FaGithub size={15} className="shrink-0" />
                     {viewModal.github_url}
+                  </a>
+                )}
+                {viewModal.portfolio_url && (
+                  <a
+                    href={viewModal.portfolio_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-fuchsia-200 dark:border-fuchsia-500/20 bg-fuchsia-50 dark:bg-fuchsia-500/10 px-3 py-2.5 text-sm text-fuchsia-600 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-500/20 transition-colors break-all"
+                  >
+                    <Target size={15} className="shrink-0" />
+                    {viewModal.portfolio_url}
                   </a>
                 )}
                 {viewModal.resume_url && (
@@ -758,6 +783,17 @@ export default function ProfilesPage() {
                 className={`${inputClass} pl-8`}
               />
             </div>
+          </FormField>
+
+          <FormField label="Portfolio URL">
+            <input
+              value={formData.portfolio_url || ""}
+              onChange={(e) =>
+                setFormData({ ...formData, portfolio_url: e.target.value })
+              }
+              placeholder="https://portfolio.example.com/..."
+              className={inputClass}
+            />
           </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">

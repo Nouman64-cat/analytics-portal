@@ -17,6 +17,7 @@ class ResumeProfile(SQLModel, table=True):
     is_active: bool = Field(default=True)
     linkedin_url: Optional[str] = Field(default=None, max_length=500)
     github_url: Optional[str] = Field(default=None, max_length=500)
+    portfolio_url: Optional[str] = Field(default=None, max_length=1000)
     resume_url: Optional[str] = Field(default=None, max_length=1000)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

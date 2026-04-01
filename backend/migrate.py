@@ -22,12 +22,12 @@ def migrate():
              "Migration successful! 'linkedin_url' column added to 'resume_profiles' table."),
             ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS github_url VARCHAR(500);",
              "Migration successful! 'github_url' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS portfolio_url VARCHAR(1000);",
+             "Migration successful! 'portfolio_url' column added to 'resume_profiles' table."),
             ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS resume_url VARCHAR(1000);",
              "Migration successful! 'resume_url' column added to 'resume_profiles' table."),
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_doc_url VARCHAR(1000);",
              "Migration successful! 'interview_doc_url' column added to 'interviews' table."),
-            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS resume_url VARCHAR(1000);",
-             "Migration successful! 'resume_url' column added to 'resume_profiles' table."),
         ]
         for sql, msg in migrations:
             try:
