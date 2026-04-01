@@ -1,3 +1,7 @@
+from starlette.status import HTTP_413_REQUEST_ENTITY_TOO_LARGE
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import JSONResponse
+from fastapi import Request, HTTPException
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,12 +24,38 @@ async def lifespan(app: FastAPI):
     yield
 
 
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_upload_size: int = 0):
+        super().__init__(app)
+        self.max_upload_size = max_upload_size
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > self.max_upload_size:
+                    raise HTTPException(
+                        status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Request body too large (limit {self.max_upload_size // (1024*1024)}MB)",
+                    )
+            except ValueError:
+                # if content-length is not an integer; skip explicit check
+                pass
+
+        response = await call_next(request)
+        return response
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     description="Interview analytics and tracking portal for RizViz",
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# enforce max request body
+app.add_middleware(RequestSizeLimitMiddleware,
+                   max_upload_size=settings.MAX_UPLOAD_SIZE)
 
 # CORS
 app.add_middleware(
