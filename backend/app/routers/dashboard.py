@@ -91,7 +91,13 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         {
             "id": str(i.id),
             "company": i.company.name if i.company else None,
+            "company_id": str(i.company_id) if i.company_id else None,
+            "company_detail": i.company.detail if i.company else None,
             "candidate": i.candidate.name if i.candidate else None,
+            "resume_profile_name": i.resume_profile.name if i.resume_profile else None,
+            "resume_profile_id": str(i.resume_profile_id) if i.resume_profile_id else None,
+            "linkedin_url": i.resume_profile.linkedin_url if i.resume_profile else None,
+            "github_url": i.resume_profile.github_url if i.resume_profile else None,
             "role": i.role,
             "round": i.round,
             "date": str(i.interview_date) if i.interview_date else None,
