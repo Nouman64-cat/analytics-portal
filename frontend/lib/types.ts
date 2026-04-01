@@ -14,9 +14,11 @@ export interface CandidateWithInterviews extends Candidate {
 export interface ResumeProfile {
   id: string;
   name: string;
+  is_active: boolean;
+  linkedin_url: string | null;
+  github_url: string | null;
   created_at: string;
   updated_at: string;
-  is_active: boolean;
 }
 
 export interface BusinessDeveloper {
@@ -140,4 +142,6 @@ export interface CompanyFormData {
 export interface ResumeProfileFormData {
   name: string;
   is_active?: boolean;
+  linkedin_url?: string;
+  github_url?: string;
 }

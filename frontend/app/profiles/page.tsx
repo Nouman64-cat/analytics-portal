@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileUser, Activity, Target, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FileUser, Activity, Target, Loader2, Eye } from "lucide-react";
+import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { profilesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { ResumeProfile, ResumeProfileFormData, Interview } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, selectClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
@@ -24,6 +26,7 @@ export default function ProfilesPage() {
   const [formData, setFormData] = useState<ResumeProfileFormData>({ name: "", is_active: true });
   const [deleteModal, setDeleteModal] = useState<ResumeProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [viewModal, setViewModal] = useState<ResumeProfile | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
 
@@ -48,15 +51,13 @@ export default function ProfilesPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    // Explicitly seed new profile status to True (Active) by default
-    setFormData({ name: "", is_active: true });
+    setFormData({ name: "", is_active: true, linkedin_url: "", github_url: "" });
     setModalOpen(true);
   };
 
   const openEdit = (p: ResumeProfile) => {
     setEditingId(p.id);
-    // Default undefined states dynamically default to true
-    setFormData({ name: p.name, is_active: p.is_active ?? true });
+    setFormData({ name: p.name, is_active: p.is_active ?? true, linkedin_url: p.linkedin_url || "", github_url: p.github_url || "" });
     setModalOpen(true);
   };
 
@@ -244,12 +245,15 @@ export default function ProfilesPage() {
                     </p>
                   </div>
                 </div>
-                {!cannotCRUD && (
-                  <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-                    <button onClick={() => openEdit(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="Edit Profile Details"><Pencil size={13} /></button>
-                    <button onClick={() => setDeleteModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
-                  </div>
-                )}
+                <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  <button onClick={() => setViewModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="View Profile"><Eye size={13} /></button>
+                  {!cannotCRUD && (
+                    <>
+                      <button onClick={() => openEdit(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="Edit Profile Details"><Pencil size={13} /></button>
+                      <button onClick={() => setDeleteModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Exact Statistics Pipeline Count */}
@@ -259,12 +263,82 @@ export default function ProfilesPage() {
                   <span className="font-semibold text-slate-900 dark:text-white text-base">{profileCounts[profile.id] || 0}</span>
                 </div>
               </div>
+
+              {/* LinkedIn / GitHub tags */}
+              {(profile.linkedin_url || profile.github_url) && (
+                <div className="flex gap-2 flex-wrap">
+                  {profile.linkedin_url && (
+                    <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+                      <FaLinkedin size={11} />
+                      LinkedIn
+                    </a>
+                  )}
+                  {profile.github_url && (
+                    <a href={profile.github_url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors">
+                      <FaGithub size={11} />
+                      GitHub
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )})}
       </div>
 
       {profiles.length === 0 && <EmptyState message="No robust profiles generated yet" />}
+
+      {/* View Profile Modal */}
+      <Modal open={!!viewModal} onClose={() => setViewModal(null)} title="Profile Details" size="sm">
+        {viewModal && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${viewModal.is_active !== false ? 'from-indigo-500/20 to-purple-500/20 text-indigo-400' : 'from-slate-500/20 to-slate-400/20 text-slate-400'}`}>
+                <FileUser size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{viewModal.name}</p>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${viewModal.is_active !== false ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                  {viewModal.is_active !== false ? "Active" : "Closed"}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Interviews</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{profileCounts[viewModal.id] || 0}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Added</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{formatDate(viewModal.created_at)}</p>
+              </div>
+            </div>
+            {(viewModal.linkedin_url || viewModal.github_url) ? (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Links</p>
+                {viewModal.linkedin_url && (
+                  <a href={viewModal.linkedin_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all">
+                    <FaLinkedin size={15} className="shrink-0" />
+                    {viewModal.linkedin_url}
+                  </a>
+                )}
+                {viewModal.github_url && (
+                  <a href={viewModal.github_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.03] px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors break-all">
+                    <FaGithub size={15} className="shrink-0" />
+                    {viewModal.github_url}
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 dark:text-slate-600 italic">No links added.</p>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
@@ -278,21 +352,45 @@ export default function ProfilesPage() {
       />
 
       {/* Profile Modification Framework Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit Profile Options" : "Register Profile Framework"} size="sm">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit Profile Options" : "Register Profile Framework"} size="md">
         <div className="space-y-4">
           <FormField label="Full Profile Name">
             <input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Ibrahim Jafri" className={inputClass} autoFocus />
           </FormField>
-          
+
           <FormField label="Global Usage Status">
-            <select 
-              value={formData.is_active !== false ? "true" : "false"} 
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.value === "true" })} 
+            <select
+              value={formData.is_active !== false ? "true" : "false"}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.value === "true" })}
               className={selectClass}
             >
               <option value="true">Active (Seeking Deployments)</option>
               <option value="false">Closed (Retired/Hired)</option>
             </select>
+          </FormField>
+
+          <FormField label="LinkedIn URL">
+            <div className="relative">
+              <FaLinkedin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <input
+                value={formData.linkedin_url || ""}
+                onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
+                placeholder="https://linkedin.com/in/..."
+                className={`${inputClass} pl-8`}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="GitHub URL">
+            <div className="relative">
+              <FaGithub size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={formData.github_url || ""}
+                onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
+                placeholder="https://github.com/..."
+                className={`${inputClass} pl-8`}
+              />
+            </div>
           </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">
