@@ -5,6 +5,7 @@ from app.database import get_session
 from app.models.interview import Interview
 from app.models.company import Company
 from app.models.candidate import Candidate
+from app.status_utils import compute_status
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 
@@ -27,19 +28,10 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
     all_statuses = session.exec(all_status_query).all()
     
     interviews_by_status_raw = {}
-    from datetime import date
-    today = date.today()
-    
     for status, int_date in all_statuses:
-        actual_val = status
-        if not status or not status.strip():
-            if int_date and int_date > today:
-                actual_val = "Upcoming"
-            else:
-                actual_val = "Unresponsed"
-        
-        interviews_by_status_raw[actual_val] = interviews_by_status_raw.get(actual_val, 0) + 1
-        
+        label = compute_status(status, int_date)
+        interviews_by_status_raw[label] = interviews_by_status_raw.get(label, 0) + 1
+
     interviews_by_status = interviews_by_status_raw
 
     # Interviews by company
@@ -104,6 +96,7 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
             "round": i.round,
             "date": str(i.interview_date) if i.interview_date else None,
             "status": i.status,
+            "computed_status": compute_status(i.status, i.interview_date),
             "time_est": i.time_est.strftime("%H:%M") if i.time_est else None,
             "time_pkt": i.time_pkt.strftime("%H:%M") if i.time_pkt else None,
             "bd_name": i.business_developer.name if i.business_developer else None,

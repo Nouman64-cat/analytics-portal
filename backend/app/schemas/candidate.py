@@ -28,6 +28,7 @@ class InterviewSummary(BaseModel):
     round: str
     interview_date: Optional[datetime] = None
     status: Optional[str] = None
+    computed_status: str = "Unresponsed"
     company_name: Optional[str] = None
 
     model_config = {"from_attributes": True}

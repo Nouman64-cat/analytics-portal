@@ -69,3 +69,4 @@ class InterviewReadWithDetails(InterviewRead):
     candidate_name: Optional[str] = None
     resume_profile_name: Optional[str] = None
     bd_name: Optional[str] = None
+    computed_status: str = "Unresponsed"

@@ -17,6 +17,7 @@ from app.schemas.interview import (
     InterviewUpdate,
     InterviewReadWithDetails,
 )
+from app.status_utils import compute_status
 
 router = APIRouter(prefix="/api/v1/interviews", tags=["Interviews"], dependencies=[Depends(get_current_user)])
 
@@ -40,6 +41,7 @@ def _enrich_interview(interview: Interview) -> dict:
         "interviewer": interview.interviewer,
         "interview_link": interview.interview_link,
         "is_phone_call": interview.is_phone_call,
+        "computed_status": compute_status(interview.status, interview.interview_date),
         "created_at": interview.created_at,
         "updated_at": interview.updated_at,
         "company_name": interview.company.name if interview.company else None,
