@@ -11,11 +11,17 @@ import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 
+function formatMonthLabel(ym: string) {
+  const [year, month] = ym.split("-");
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("default", { month: "long", year: "numeric" });
+}
+
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,13 +36,26 @@ export default function CandidatesPage() {
 
   const [search, setSearch] = useState("");
 
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    interviews.forEach(i => {
+      if (i.interview_date) months.add(i.interview_date.slice(0, 7));
+    });
+    return [...months].sort().reverse();
+  }, [interviews]);
+
+  const monthFilteredInterviews = useMemo(() => {
+    if (selectedMonth === "all") return interviews;
+    return interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
+  }, [interviews, selectedMonth]);
+
   const interviewCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    interviews.forEach((i) => {
+    monthFilteredInterviews.forEach((i) => {
       counts[i.candidate_id] = (counts[i.candidate_id] || 0) + 1;
     });
     return counts;
-  }, [interviews]);
+  }, [monthFilteredInterviews]);
 
   const filteredCandidates = useMemo(() => {
     if (!search.trim()) return candidates;
@@ -150,6 +169,30 @@ export default function CandidatesPage() {
           className={`${inputClass} pl-10`}
         />
       </div>
+
+      {/* Month Filter */}
+      {availableMonths.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Filter by month:</span>
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSelectedMonth("all")}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === "all" ? "bg-emerald-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+            >
+              All Time
+            </button>
+            {availableMonths.map(ym => (
+              <button
+                key={ym}
+                onClick={() => setSelectedMonth(ym)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === ym ? "bg-emerald-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+              >
+                {formatMonthLabel(ym)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {candidates.length === 0 ? (
         <EmptyState message="No candidates yet" />
