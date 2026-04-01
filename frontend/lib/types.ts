@@ -53,6 +53,9 @@ export interface Interview {
   feedback: string | null;
   bd_id: string | null;
   bd_name: string | null;
+  interviewer: string | null;
+  interview_link: string | null;
+  is_phone_call: boolean;
   created_at: string;
   updated_at: string;
   company_name: string | null;
@@ -111,6 +114,9 @@ export interface InterviewFormData {
   status?: string;
   feedback?: string;
   bd_id?: string;
+  interviewer?: string;
+  interview_link?: string;
+  is_phone_call?: boolean;
 }
 
 export interface BusinessDeveloperFormData {

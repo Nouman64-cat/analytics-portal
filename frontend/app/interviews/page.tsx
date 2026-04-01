@@ -106,6 +106,9 @@ export default function InterviewsPage() {
       role: "",
       round: "1st",
       bd_id: "",
+      interviewer: "",
+      interview_link: "",
+      is_phone_call: false,
     });
     setModalOpen(true);
   };
@@ -125,6 +128,9 @@ export default function InterviewsPage() {
       status: interview.status || "",
       feedback: interview.feedback || "",
       bd_id: interview.bd_id || "",
+      interviewer: interview.interviewer || "",
+      interview_link: interview.interview_link || "",
+      is_phone_call: interview.is_phone_call || false,
     });
     setModalOpen(true);
   };
@@ -142,6 +148,8 @@ export default function InterviewsPage() {
       if (!payload.status) payload.status = null;
       if (!payload.feedback) payload.feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
+      if (!payload.interviewer) payload.interviewer = null;
+      if (payload.is_phone_call || !payload.interview_link) payload.interview_link = null;
 
       if (editingId) {
         await interviewsService.update(editingId, payload);
@@ -662,6 +670,36 @@ export default function InterviewsPage() {
               ))}
             </select>
           </FormField>
+          <FormField label="Interviewer">
+            <input
+              value={formData.interviewer || ""}
+              onChange={(e) => setFormData({ ...formData, interviewer: e.target.value })}
+              placeholder="e.g., John Smith"
+              className={inputClass}
+            />
+          </FormField>
+          <div className="col-span-1 sm:col-span-2">
+            <div className="flex items-center gap-3 mb-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.is_phone_call || false}
+                  onChange={(e) => setFormData({ ...formData, is_phone_call: e.target.checked, interview_link: e.target.checked ? "" : formData.interview_link })}
+                  className="h-4 w-4 rounded border-slate-300 dark:border-white/20 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Phone Call</span>
+              </label>
+            </div>
+            <FormField label="Interview Link">
+              <input
+                value={formData.interview_link || ""}
+                onChange={(e) => setFormData({ ...formData, interview_link: e.target.value })}
+                placeholder="e.g., https://meet.google.com/..."
+                disabled={formData.is_phone_call || false}
+                className={`${inputClass} disabled:opacity-40 disabled:cursor-not-allowed`}
+              />
+            </FormField>
+          </div>
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Interview Date">
               <input
@@ -804,6 +842,29 @@ export default function InterviewsPage() {
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
                 <div className="mt-1"><StatusBadge status={detailModal.status} dateStr={detailModal.interview_date} /></div>
+              </div>
+              {detailModal.interviewer && (
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interviewer</p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.interviewer}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Medium</p>
+                {detailModal.is_phone_call ? (
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">Phone Call</p>
+                ) : detailModal.interview_link ? (
+                  <a
+                    href={detailModal.interview_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 text-sm text-indigo-500 hover:text-indigo-400 break-all"
+                  >
+                    {detailModal.interview_link}
+                  </a>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">—</p>
+                )}
               </div>
             </div>
             {detailModal.feedback && (

@@ -6,14 +6,24 @@ from app.database import engine
 
 def migrate():
     with Session(engine) as session:
-        # Use simple text to execute the migration
-        try:
-            session.exec(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR NOT NULL DEFAULT 'team-member';"))
-            session.commit()
-            print("Migration successful! 'role' column added to 'users' table.")
-        except Exception as e:
-            session.rollback()
-            print(f"Migration failed: {e}")
+        migrations = [
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR NOT NULL DEFAULT 'team-member';",
+             "Migration successful! 'role' column added to 'users' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interviewer VARCHAR(255);",
+             "Migration successful! 'interviewer' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_link VARCHAR(1000);",
+             "Migration successful! 'interview_link' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS is_phone_call BOOLEAN NOT NULL DEFAULT FALSE;",
+             "Migration successful! 'is_phone_call' column added to 'interviews' table."),
+        ]
+        for sql, msg in migrations:
+            try:
+                session.exec(text(sql))
+                session.commit()
+                print(msg)
+            except Exception as e:
+                session.rollback()
+                print(f"Migration failed: {e}")
 
 if __name__ == '__main__':
     migrate()

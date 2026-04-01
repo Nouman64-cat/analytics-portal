@@ -17,6 +17,9 @@ class InterviewCreate(BaseModel):
     status: Optional[str] = None
     feedback: Optional[str] = None
     bd_id: Optional[uuid.UUID] = None
+    interviewer: Optional[str] = None
+    interview_link: Optional[str] = None
+    is_phone_call: bool = False
 
 
 class InterviewUpdate(BaseModel):
@@ -32,6 +35,9 @@ class InterviewUpdate(BaseModel):
     status: Optional[str] = None
     feedback: Optional[str] = None
     bd_id: Optional[uuid.UUID] = None
+    interviewer: Optional[str] = None
+    interview_link: Optional[str] = None
+    is_phone_call: Optional[bool] = None
 
 
 class InterviewRead(BaseModel):
@@ -48,6 +54,9 @@ class InterviewRead(BaseModel):
     status: Optional[str] = None
     feedback: Optional[str] = None
     bd_id: Optional[uuid.UUID] = None
+    interviewer: Optional[str] = None
+    interview_link: Optional[str] = None
+    is_phone_call: bool = False
     created_at: datetime
     updated_at: datetime
 

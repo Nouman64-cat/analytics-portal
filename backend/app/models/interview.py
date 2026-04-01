@@ -26,6 +26,9 @@ class Interview(SQLModel, table=True):
     status: Optional[str] = Field(default=None, max_length=500)
     feedback: Optional[str] = Field(default=None)
     bd_id: Optional[uuid.UUID] = Field(default=None, foreign_key="business_developers.id", index=True)
+    interviewer: Optional[str] = Field(default=None, max_length=255)
+    interview_link: Optional[str] = Field(default=None, max_length=1000)
+    is_phone_call: bool = Field(default=False)
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
