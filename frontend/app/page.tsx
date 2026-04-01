@@ -11,9 +11,23 @@ import {
   Target,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
-import { dashboardService } from "@/lib/services";
+import { dashboardService, profilesService } from "@/lib/services";
 import { recordToChartData, formatDate, formatTime } from "@/lib/utils";
-import type { DashboardStats, RecentInterview } from "@/lib/types";
+import type { DashboardStats, RecentInterview, ResumeProfile } from "@/lib/types";
+
+/** Merge interview API fields with full resume profile (same source as interviews page). */
+function mergeResumeProfileLinks(
+  interview: RecentInterview,
+  profiles: ResumeProfile[],
+) {
+  const p = profiles.find((x) => x.id === interview.resume_profile_id);
+  return {
+    linkedin_url: p?.linkedin_url ?? interview.linkedin_url ?? null,
+    github_url: p?.github_url ?? interview.github_url ?? null,
+    portfolio_url: p?.portfolio_url ?? interview.portfolio_url ?? null,
+    resume_url: p?.resume_url ?? interview.resume_url ?? null,
+  };
+}
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
@@ -21,6 +35,7 @@ import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,8 +73,12 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await dashboardService.getStats();
+      const [data, profs] = await Promise.all([
+        dashboardService.getStats(),
+        profilesService.list().catch(() => [] as ResumeProfile[]),
+      ]);
       setStats(data);
+      setProfiles(profs);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -74,6 +93,10 @@ export default function DashboardPage() {
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchStats} />;
   if (!stats) return null;
+
+  const popoverProfileLinks = profilePopover
+    ? mergeResumeProfileLinks(profilePopover.interview, profiles)
+    : null;
 
   const companyData = recordToChartData(stats.interviews_by_company).slice(0, 12);
   const candidateData = recordToChartData(stats.interviews_by_candidate);
@@ -203,7 +226,9 @@ export default function DashboardPage() {
               Recent Interviews
             </h3>
             <div className="space-y-3">
-              {stats.recent_interviews.slice(0, 5).map((interview) => (
+              {stats.recent_interviews.slice(0, 5).map((interview) => {
+                const pl = mergeResumeProfileLinks(interview, profiles);
+                return (
                 <div
                   key={interview.id}
                   className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06]"
@@ -237,10 +262,10 @@ export default function DashboardPage() {
                         <button
                           onClick={(e) => {
                             if (
-                              !interview.linkedin_url &&
-                              !interview.github_url &&
-                              !interview.portfolio_url &&
-                              !interview.resume_url
+                              !pl.linkedin_url &&
+                              !pl.github_url &&
+                              !pl.portfolio_url &&
+                              !pl.resume_url
                             )
                               return;
                             const rect = (e.target as HTMLElement).getBoundingClientRect();
@@ -248,10 +273,10 @@ export default function DashboardPage() {
                             setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
                           }}
                           className={
-                            (interview.linkedin_url ||
-                              interview.github_url ||
-                              interview.portfolio_url ||
-                              interview.resume_url)
+                            (pl.linkedin_url ||
+                              pl.github_url ||
+                              pl.portfolio_url ||
+                              pl.resume_url)
                               ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
                               : "text-slate-400 dark:text-slate-500 cursor-default"
                           }
@@ -290,7 +315,8 @@ export default function DashboardPage() {
                     <StatusBadge status={interview.computed_status} />
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -322,29 +348,29 @@ export default function DashboardPage() {
             {profilePopover.interview.resume_profile_name}
           </p>
           <div className="space-y-2">
-            {profilePopover.interview.linkedin_url && (
-              <a href={profilePopover.interview.linkedin_url} target="_blank" rel="noopener noreferrer"
+            {popoverProfileLinks?.linkedin_url && (
+              <a href={popoverProfileLinks.linkedin_url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all">
                 <FaLinkedin size={13} className="shrink-0" />
                 LinkedIn Profile
               </a>
             )}
-            {profilePopover.interview.github_url && (
-              <a href={profilePopover.interview.github_url} target="_blank" rel="noopener noreferrer"
+            {popoverProfileLinks?.github_url && (
+              <a href={popoverProfileLinks.github_url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors break-all">
                 <FaGithub size={13} className="shrink-0" />
                 GitHub Profile
               </a>
             )}
-            {profilePopover.interview.portfolio_url && (
-              <a href={profilePopover.interview.portfolio_url} target="_blank" rel="noopener noreferrer"
+            {popoverProfileLinks?.portfolio_url && (
+              <a href={popoverProfileLinks.portfolio_url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg bg-fuchsia-50 dark:bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-600 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-500/20 transition-colors break-all">
                 <Target size={13} className="shrink-0" />
                 Portfolio
               </a>
             )}
-            {profilePopover.interview.resume_url && (
-              <a href={profilePopover.interview.resume_url} target="_blank" rel="noopener noreferrer"
+            {popoverProfileLinks?.resume_url && (
+              <a href={popoverProfileLinks.resume_url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors break-all">
                 <Eye size={13} className="shrink-0" />
                 Resume (PDF)
