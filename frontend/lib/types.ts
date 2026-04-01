@@ -57,6 +57,7 @@ export interface Interview {
   interviewer: string | null;
   interview_link: string | null;
   is_phone_call: boolean;
+  computed_status: string;
   created_at: string;
   updated_at: string;
   company_name: string | null;
@@ -70,6 +71,7 @@ export interface InterviewSummary {
   round: string;
   interview_date: string | null;
   status: string | null;
+  computed_status: string;
   company_name?: string | null;
   candidate_name?: string | null;
 }
@@ -95,6 +97,7 @@ export interface RecentInterview {
   round: string;
   date: string | null;
   status: string | null;
+  computed_status: string;
   time_est: string | null;
   time_pkt: string | null;
   bd_name: string | null;

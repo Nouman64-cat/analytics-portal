@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Ban, Users, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import * as xlsx from "xlsx";
 import { interviewsService, companiesService, candidatesService, profilesService, businessDevelopersService } from "@/lib/services";
-import { formatDate, formatTime, truncate, getStatusLabel } from "@/lib/utils";
+import { formatDate, formatTime, truncate } from "@/lib/utils";
 import type { Interview, Company, Candidate, ResumeProfile, BusinessDeveloper, InterviewFormData } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
@@ -242,8 +242,7 @@ export default function InterviewsPage() {
 
     let matchStatus = true;
     if (filters.status !== "All") {
-      const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
-      matchStatus = label === filters.status.toLowerCase() || (i.status?.toLowerCase() || "").includes(filters.status.toLowerCase());
+      matchStatus = i.computed_status.toLowerCase() === filters.status.toLowerCase();
     }
 
     return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchBd && matchStatus;
@@ -260,7 +259,7 @@ export default function InterviewsPage() {
       "Time (EST)": i.time_est ? formatTime(i.time_est) : "",
       "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
       "Salary Range": i.salary_range || "",
-      Status: getStatusLabel(i.status, i.interview_date),
+      Status: i.computed_status,
       Feedback: i.feedback || "",
     }));
 
@@ -274,11 +273,12 @@ export default function InterviewsPage() {
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
   // Computed distributions
-  const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0, Dropped: 0, Closed: 0 };
+  const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0, Dropped: 0, Closed: 0, Dead: 0 };
 
   filtered.forEach(i => {
-    const label = getStatusLabel(i.status, i.interview_date).toLowerCase();
+    const label = i.computed_status.toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
+    else if (label === "dead") statusCounts.Dead++;
     else if (label === "unresponsed") statusCounts.Unresponsed++;
     else if (label.includes("converted")) statusCounts.Converted++;
     else if (label.includes("rejected")) statusCounts.Rejected++;
@@ -315,7 +315,7 @@ export default function InterviewsPage() {
 
       {/* Status Cards */}
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">Pipeline Status</h3>
-      <StatsGrid cols={6}>
+      <StatsGrid cols={7}>
         <StatsCard
           title="Upcoming"
           value={statusCounts.Upcoming}
@@ -332,7 +332,7 @@ export default function InterviewsPage() {
           title="Converted"
           value={statusCounts.Converted}
           icon={CheckCircle2}
-          gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+          gradient="bg-gradient-to-br from-orange-500 to-amber-600"
         />
         <StatsCard
           title="Rejected"
@@ -344,13 +344,19 @@ export default function InterviewsPage() {
           title="Dropped"
           value={statusCounts.Dropped}
           icon={Ban}
-          gradient="bg-gradient-to-br from-amber-500 to-orange-600"
+          gradient="bg-gradient-to-br from-amber-500 to-yellow-600"
         />
         <StatsCard
           title="Closed"
           value={statusCounts.Closed}
-          icon={XCircle}
-          gradient="bg-gradient-to-br from-slate-500 to-slate-600"
+          icon={CheckCircle2}
+          gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+        />
+        <StatsCard
+          title="Dead"
+          value={statusCounts.Dead}
+          icon={Ban}
+          gradient="bg-gradient-to-br from-stone-500 to-stone-600"
         />
       </StatsGrid>
 
@@ -383,6 +389,7 @@ export default function InterviewsPage() {
               <option value="Closed">Closed</option>
               <option value="Upcoming">Upcoming</option>
               <option value="Unresponsed">Unresponsed</option>
+              <option value="Dead">Dead</option>
             </select>
 
             <select
@@ -470,10 +477,15 @@ export default function InterviewsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {paginatedInterviews.map((interview) => (
+                {paginatedInterviews.map((interview) => {
+                  const isUpcoming = interview.computed_status.toLowerCase() === "upcoming";
+                  return (
                   <tr
                     key={interview.id}
-                    className="transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.02]"
+                    className={`transition-colors ${isUpcoming
+                      ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                      : "hover:bg-slate-100 dark:hover:bg-white/[0.02]"
+                    }`}
                   >
                     <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
                       {(() => {
@@ -505,12 +517,20 @@ export default function InterviewsPage() {
                       {interview.resume_profile_name}
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center rounded-lg bg-slate-100 dark:bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+                      <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}>
                         {interview.round}
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                      {formatDate(interview.interview_date)}
+                      {isUpcoming ? (
+                        <span className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                          </span>
+                          {formatDate(interview.interview_date)}
+                        </span>
+                      ) : formatDate(interview.interview_date)}
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                       {interview.time_est ? formatTime(interview.time_est) : <span className="text-slate-400 dark:text-slate-600">—</span>}
@@ -522,7 +542,7 @@ export default function InterviewsPage() {
                       {interview.bd_name || <span className="text-slate-400 dark:text-slate-600">—</span>}
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={interview.status} dateStr={interview.interview_date} />
+                      <StatusBadge status={interview.computed_status} />
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
@@ -554,7 +574,8 @@ export default function InterviewsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -873,7 +894,7 @@ export default function InterviewsPage() {
               )}
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
-                <div className="mt-1"><StatusBadge status={detailModal.status} dateStr={detailModal.interview_date} /></div>
+                <div className="mt-1"><StatusBadge status={detailModal.computed_status} /></div>
               </div>
               {detailModal.interviewer && (
                 <div>

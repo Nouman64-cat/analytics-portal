@@ -176,7 +176,7 @@ export default function ProfilesPage() {
       <StatsGrid>
         <StatsCard title="Total Profiles" value={profiles.length} icon={FileUser} gradient="bg-gradient-to-br from-indigo-500 to-purple-600" />
         <StatsCard title="Active" value={activeProfiles} icon={Activity} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
-        <StatsCard title="Closed" value={closedProfiles} icon={Target} gradient="bg-gradient-to-br from-slate-500 to-slate-600" />
+        <StatsCard title="Closed Profiles" value={closedProfiles} icon={Target} gradient="bg-gradient-to-br from-slate-500 to-slate-600" />
         <StatsCard title="Total Placements" value={totalInterviews} icon={Activity} gradient="bg-gradient-to-br from-fuchsia-500 to-pink-600" />
       </StatsGrid>
 

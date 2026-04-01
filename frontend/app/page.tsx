@@ -56,6 +56,7 @@ export default function DashboardPage() {
     else if (lower.includes("closed")) key = "Closed";
     else if (lower === "upcoming") key = "Upcoming";
     else if (lower === "unresponsed" || lower === "no status" || lower === "") key = "Unresponsed";
+    else if (lower === "dead") key = "Dead";
     else key = "Other";
     statusMap[key] = (statusMap[key] || 0) + count;
   });
@@ -67,12 +68,13 @@ export default function DashboardPage() {
     : 0;
 
   const STATUS_HEX_COLORS: Record<string, string> = {
-    "Converted": "#10b981", // emerald-500
+    "Converted": "#f97316", // orange-500 — enthusiastic/energized
     "Rejected": "#ef4444",  // red-500
     "Dropped": "#f59e0b",   // amber-500
-    "Closed": "#64748b",    // slate-500
+    "Closed": "#10b981",    // emerald-500 — success/job landed
     "Upcoming": "#3b82f6",  // blue-500
     "Unresponsed": "#94a3b8", // slate-400
+    "Dead": "#78716c",      // stone-500 — warm grey, faded/inactive
     "Other": "#8b5cf6",     // violet-500
   };
 
@@ -211,7 +213,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="shrink-0">
-                    <StatusBadge status={interview.status} dateStr={interview.date} />
+                    <StatusBadge status={interview.computed_status} />
                   </div>
                 </Link>
               ))}
