@@ -20,7 +20,9 @@ import type {
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${API_V1}${path}`, {
@@ -57,7 +59,10 @@ export const authService = {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(err.detail || "Login failed");
       }
-      return res.json() as Promise<{ access_token: string; must_change_password: boolean }>;
+      return res.json() as Promise<{
+        access_token: string;
+        must_change_password: boolean;
+      }>;
     }),
 
   changePassword: (newPassword: string) =>
@@ -125,6 +130,28 @@ export const profilesService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  uploadResume: async (id: string, file: File) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_V1}/resume-profiles/${id}/resume`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      if (res.status === 401) {
+        clearToken();
+        window.location.href = "/login";
+      }
+      throw new Error(error.detail || `API Error: ${res.status}`);
+    }
+
+    return res.json() as Promise<ResumeProfile>;
+  },
   delete: (id: string) =>
     apiFetch<void>(`/resume-profiles/${id}`, { method: "DELETE" }),
 };
@@ -152,9 +179,7 @@ export const companiesService = {
 
 export const interviewsService = {
   list: (params?: Record<string, string>) => {
-    const query = params
-      ? "?" + new URLSearchParams(params).toString()
-      : "";
+    const query = params ? "?" + new URLSearchParams(params).toString() : "";
     return apiFetch<Interview[]>(`/interviews/${query}`);
   },
   get: (id: string) => apiFetch<Interview>(`/interviews/${id}`),

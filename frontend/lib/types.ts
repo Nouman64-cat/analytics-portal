@@ -17,6 +17,7 @@ export interface ResumeProfile {
   is_active: boolean;
   linkedin_url: string | null;
   github_url: string | null;
+  resume_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,7 +88,10 @@ export interface DashboardStats {
   interviews_by_status: Record<string, number>;
   interviews_by_company: Record<string, number>;
   interviews_by_candidate: Record<string, number>;
-  candidate_metrics: Record<string, { total: number; total_resolved: number; converted: number; rate: number }>;
+  candidate_metrics: Record<
+    string,
+    { total: number; total_resolved: number; converted: number; rate: number }
+  >;
   recent_interviews: RecentInterview[];
 }
 

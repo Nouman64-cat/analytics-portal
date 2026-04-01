@@ -1,22 +1,58 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, FileUser, Activity, Target, Loader2, Eye } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo, ChangeEvent } from "react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  FileUser,
+  Activity,
+  Target,
+  Loader2,
+  Eye,
+} from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { profilesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
-import type { ResumeProfile, ResumeProfileFormData, Interview } from "@/lib/types";
-import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
-import Modal, { FormField, inputClass, selectClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import type {
+  ResumeProfile,
+  ResumeProfileFormData,
+  Interview,
+} from "@/lib/types";
+import {
+  PageLoader,
+  ErrorState,
+  PageHeader,
+  EmptyState,
+} from "@/components/PageStates";
+import Modal, {
+  FormField,
+  inputClass,
+  selectClass,
+  buttonPrimary,
+  buttonSecondary,
+} from "@/components/Modal";
 
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 function formatMonthLabel(ym: string) {
   const [year, month] = ym.split("-");
-  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("default", { month: "long", year: "numeric" });
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
+    "default",
+    { month: "long", year: "numeric" },
+  );
 }
 
 export default function ProfilesPage() {
@@ -29,10 +65,17 @@ export default function ProfilesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<ResumeProfileFormData>({ name: "", is_active: true });
+  const [formData, setFormData] = useState<ResumeProfileFormData>({
+    name: "",
+    is_active: true,
+  });
   const [deleteModal, setDeleteModal] = useState<ResumeProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [viewModal, setViewModal] = useState<ResumeProfile | null>(null);
+  const [uploadingProfileId, setUploadingProfileId] = useState<string | null>(
+    null,
+  );
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
 
@@ -42,7 +85,7 @@ export default function ProfilesPage() {
       setError(null);
       const [pData, iData] = await Promise.all([
         profilesService.list(),
-        interviewsService.list()
+        interviewsService.list(),
       ]);
       setProfiles(pData);
       setInterviews(iData);
@@ -53,17 +96,29 @@ export default function ProfilesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: "", is_active: true, linkedin_url: "", github_url: "" });
+    setFormData({
+      name: "",
+      is_active: true,
+      linkedin_url: "",
+      github_url: "",
+    });
     setModalOpen(true);
   };
 
   const openEdit = (p: ResumeProfile) => {
     setEditingId(p.id);
-    setFormData({ name: p.name, is_active: p.is_active ?? true, linkedin_url: p.linkedin_url || "", github_url: p.github_url || "" });
+    setFormData({
+      name: p.name,
+      is_active: p.is_active ?? true,
+      linkedin_url: p.linkedin_url || "",
+      github_url: p.github_url || "",
+    });
     setModalOpen(true);
   };
 
@@ -99,13 +154,32 @@ export default function ProfilesPage() {
     }
   };
 
+  const handleResumeUpload = async (profileId: string, file?: File) => {
+    if (!file) return;
+    setUploadError(null);
+    setUploadingProfileId(profileId);
+    try {
+      if (file.type !== "application/pdf") {
+        throw new Error("Please upload a PDF file.");
+      }
+      await profilesService.uploadResume(profileId, file);
+      await fetchData();
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Failed to upload resume",
+      );
+    } finally {
+      setUploadingProfileId(null);
+    }
+  };
+
   // ─── Dashboard Configuration ─────────────────────────────────────
-  const activeProfiles = profiles.filter(p => p.is_active !== false).length;
-  const closedProfiles = profiles.filter(p => p.is_active === false).length;
+  const activeProfiles = profiles.filter((p) => p.is_active !== false).length;
+  const closedProfiles = profiles.filter((p) => p.is_active === false).length;
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
-    interviews.forEach(i => {
+    interviews.forEach((i) => {
       if (i.interview_date) months.add(i.interview_date.slice(0, 7));
     });
     return [...months].sort().reverse();
@@ -113,14 +187,16 @@ export default function ProfilesPage() {
 
   const filteredInterviews = useMemo(() => {
     if (selectedMonth === "all") return interviews;
-    return interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
+    return interviews.filter((i) =>
+      i.interview_date?.startsWith(selectedMonth),
+    );
   }, [interviews, selectedMonth]);
 
   const totalInterviews = filteredInterviews.length;
 
   const profileCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    filteredInterviews.forEach(i => {
+    filteredInterviews.forEach((i) => {
       counts[i.resume_profile_id] = (counts[i.resume_profile_id] || 0) + 1;
     });
     return counts;
@@ -132,43 +208,65 @@ export default function ProfilesPage() {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30);
       cutoff.setHours(0, 0, 0, 0);
-      relevant = interviews.filter(i => {
+      relevant = interviews.filter((i) => {
         if (!i.interview_date) return false;
         return new Date(i.interview_date + "T00:00:00") >= cutoff;
       });
     } else {
-      relevant = interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
+      relevant = interviews.filter((i) =>
+        i.interview_date?.startsWith(selectedMonth),
+      );
     }
 
     const recentCounts: Record<string, number> = {};
-    relevant.forEach(i => {
-      recentCounts[i.resume_profile_id] = (recentCounts[i.resume_profile_id] || 0) + 1;
+    relevant.forEach((i) => {
+      recentCounts[i.resume_profile_id] =
+        (recentCounts[i.resume_profile_id] || 0) + 1;
     });
     const topProfiles = [...profiles]
       .sort((a, b) => (recentCounts[b.id] || 0) - (recentCounts[a.id] || 0))
       .slice(0, 4);
     if (topProfiles.length === 0) return [];
 
-    const timeline: Record<string, any> = {};
+    type TimelineEntry = {
+      name: string;
+      _sortKey: string;
+      [profileName: string]: string | number;
+    };
+
+    const timeline: Record<string, TimelineEntry> = {};
     [...relevant]
-      .sort((a, b) => new Date(a.interview_date!).getTime() - new Date(b.interview_date!).getTime())
-      .forEach(i => {
+      .sort(
+        (a, b) =>
+          new Date(a.interview_date!).getTime() -
+          new Date(b.interview_date!).getTime(),
+      )
+      .forEach((i) => {
         const dayKey = i.interview_date!;
         if (!timeline[dayKey]) {
           const d = new Date(dayKey + "T00:00:00");
           timeline[dayKey] = {
-            name: d.toLocaleDateString("default", { month: "short", day: "numeric" }),
+            name: d.toLocaleDateString("default", {
+              month: "short",
+              day: "numeric",
+            }),
             _sortKey: dayKey,
-          };
-          topProfiles.forEach(p => { timeline[dayKey][p.name] = 0; });
+          } as TimelineEntry;
+          topProfiles.forEach((p) => {
+            timeline[dayKey][p.name] = 0;
+          });
         }
         const pName = i.resume_profile_name || "";
-        if (topProfiles.find(tp => tp.name === pName)) {
-          timeline[dayKey][pName] += 1;
+        if (topProfiles.find((tp) => tp.name === pName)) {
+          const current = timeline[dayKey][pName];
+          timeline[dayKey][pName] =
+            (typeof current === "number" ? current : 0) + 1;
         }
       });
 
-    return Object.values(timeline).sort((a, b) => a._sortKey.localeCompare(b._sortKey));
+    return Object.values(timeline).sort((a, b) =>
+      a._sortKey.localeCompare(b._sortKey),
+    );
   }, [profiles, interviews, selectedMonth]);
 
   const LINE_COLORS = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b"];
@@ -196,7 +294,9 @@ export default function ProfilesPage() {
       {/* Month Filter */}
       {availableMonths.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Filter by month:</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">
+            Filter by month:
+          </span>
           <div className="flex gap-1.5 flex-wrap">
             <button
               onClick={() => setSelectedMonth("all")}
@@ -204,7 +304,7 @@ export default function ProfilesPage() {
             >
               All Time
             </button>
-            {availableMonths.map(ym => (
+            {availableMonths.map((ym) => (
               <button
                 key={ym}
                 onClick={() => setSelectedMonth(ym)}
@@ -218,41 +318,91 @@ export default function ProfilesPage() {
       )}
 
       <StatsGrid>
-        <StatsCard title="Total Profiles" value={profiles.length} icon={FileUser} gradient="bg-gradient-to-br from-indigo-500 to-purple-600" />
-        <StatsCard title="Active" value={activeProfiles} icon={Activity} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
-        <StatsCard title="Closed Profiles" value={closedProfiles} icon={Target} gradient="bg-gradient-to-br from-slate-500 to-slate-600" />
-        <StatsCard title="Total Placements" value={totalInterviews} icon={Activity} gradient="bg-gradient-to-br from-fuchsia-500 to-pink-600" />
+        <StatsCard
+          title="Total Profiles"
+          value={profiles.length}
+          icon={FileUser}
+          gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
+        />
+        <StatsCard
+          title="Active"
+          value={activeProfiles}
+          icon={Activity}
+          gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+        />
+        <StatsCard
+          title="Closed Profiles"
+          value={closedProfiles}
+          icon={Target}
+          gradient="bg-gradient-to-br from-slate-500 to-slate-600"
+        />
+        <StatsCard
+          title="Total Placements"
+          value={totalInterviews}
+          icon={Activity}
+          gradient="bg-gradient-to-br from-fuchsia-500 to-pink-600"
+        />
       </StatsGrid>
 
       {/* Line Chart Analytics Showcase */}
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-6 shadow-sm overflow-hidden">
           <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">
-            {selectedMonth === "all" ? "Profile Performance — Last 30 Days" : `Profile Performance — ${formatMonthLabel(selectedMonth)}`}
+            {selectedMonth === "all"
+              ? "Profile Performance — Last 30 Days"
+              : `Profile Performance — ${formatMonthLabel(selectedMonth)}`}
           </h3>
           <div className="h-[300px] w-full ml-[-20px] sm:ml-0">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                  cursor={{stroke: '#334155', strokeWidth: 1}}
+              <LineChart
+                data={chartData}
+                margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#334155"
+                  opacity={0.2}
+                  vertical={false}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
-                {Object.keys(chartData[0] || {}).filter(k => k !== 'name' && k !== '_sortKey').map((key, index) => (
-                  <Line 
-                    key={key} 
-                    type="monotone" 
-                    dataKey={key} 
-                    stroke={LINE_COLORS[index % LINE_COLORS.length]} 
-                    strokeWidth={3} 
-                    dot={{ r: 4, strokeWidth: 2 }} 
-                    activeDot={{ r: 6 }} 
-                  />
-                ))}
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1e293b",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#fff",
+                  }}
+                  itemStyle={{ color: "#e2e8f0" }}
+                  cursor={{ stroke: "#334155", strokeWidth: 1 }}
+                />
+                <Legend
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: "12px", color: "#94a3b8" }}
+                />
+                {Object.keys(chartData[0] || {})
+                  .filter((k) => k !== "name" && k !== "_sortKey")
+                  .map((key, index) => (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      stroke={LINE_COLORS[index % LINE_COLORS.length]}
+                      strokeWidth={3}
+                      dot={{ r: 4, strokeWidth: 2 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -260,126 +410,262 @@ export default function ProfilesPage() {
       )}
 
       {/* Profiles Modular Grid */}
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">Deployed Profiles</h3>
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">
+        Deployed Profiles
+      </h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
         {profiles.map((profile) => {
-          const isActive = profile.is_active !== false; 
+          const isActive = profile.is_active !== false;
           return (
-          <div
-            key={profile.id}
-            className={`group relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg ${isActive ? 'border-indigo-100 hover:border-indigo-300 dark:border-indigo-500/20 dark:hover:border-indigo-500/50' : 'border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.1] opacity-70'}`}
-          >
-            <div className={`absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-all group-hover:opacity-60 ${isActive ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20' : 'bg-slate-500/10'}`} />
-            
-            <div className="relative flex flex-col gap-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${isActive ? 'from-indigo-500/20 to-purple-500/20 text-indigo-400' : 'from-slate-500/20 to-slate-400/20 text-slate-400'}`}>
-                    <FileUser size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                      {profile.name}
-                      {isActive ? 
-                        <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded-full font-medium shadow-sm">Active</span> :
-                        <span className="bg-slate-500/10 text-slate-500 text-[10px] px-2 py-0.5 rounded-full font-medium">Closed</span>
-                      }
-                    </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-500">
-                      Added {formatDate(profile.created_at)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-                  <button onClick={() => setViewModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="View Profile"><Eye size={13} /></button>
-                  {!cannotCRUD && (
-                    <>
-                      <button onClick={() => openEdit(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors" title="Edit Profile Details"><Pencil size={13} /></button>
-                      <button onClick={() => setDeleteModal(profile)} className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete Locally"><Trash2 size={13} /></button>
-                    </>
-                  )}
-                </div>
-              </div>
+            <div
+              key={profile.id}
+              className={`group relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg ${isActive ? "border-indigo-100 hover:border-indigo-300 dark:border-indigo-500/20 dark:hover:border-indigo-500/50" : "border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.1] opacity-70"}`}
+            >
+              <div
+                className={`absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-all group-hover:opacity-60 ${isActive ? "bg-gradient-to-br from-indigo-500/20 to-purple-500/20" : "bg-slate-500/10"}`}
+              />
 
-              {/* Exact Statistics Pipeline Count */}
-              <div className="mt-2 text-sm bg-slate-50 dark:bg-white/[0.02] rounded-xl p-3 border border-slate-100 dark:border-white/[0.04]">
-                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="text-xs font-medium uppercase tracking-wider">Total Interviews Loaded</span>
-                  <span className="font-semibold text-slate-900 dark:text-white text-base">{profileCounts[profile.id] || 0}</span>
+              <div className="relative flex flex-col gap-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${isActive ? "from-indigo-500/20 to-purple-500/20 text-indigo-400" : "from-slate-500/20 to-slate-400/20 text-slate-400"}`}
+                    >
+                      <FileUser size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        {profile.name}
+                        {isActive ? (
+                          <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded-full font-medium shadow-sm">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="bg-slate-500/10 text-slate-500 text-[10px] px-2 py-0.5 rounded-full font-medium">
+                            Closed
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                        Added {formatDate(profile.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                    <button
+                      onClick={() => setViewModal(profile)}
+                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                      title="View Profile"
+                    >
+                      <Eye size={13} />
+                    </button>
+                    {!cannotCRUD && (
+                      <>
+                        <button
+                          onClick={() => openEdit(profile)}
+                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                          title="Edit Profile Details"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteModal(profile)}
+                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          title="Delete Locally"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* LinkedIn / GitHub tags */}
-              {(profile.linkedin_url || profile.github_url) && (
+                {/* Exact Statistics Pipeline Count */}
+                <div className="mt-2 text-sm bg-slate-50 dark:bg-white/[0.02] rounded-xl p-3 border border-slate-100 dark:border-white/[0.04]">
+                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                    <span className="text-xs font-medium uppercase tracking-wider">
+                      Total Interviews Loaded
+                    </span>
+                    <span className="font-semibold text-slate-900 dark:text-white text-base">
+                      {profileCounts[profile.id] || 0}
+                    </span>
+                  </div>
+                </div>
+
+                {/* LinkedIn / GitHub / Resume tags */}
                 <div className="flex gap-2 flex-wrap">
                   {profile.linkedin_url && (
-                    <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+                    <a
+                      href={profile.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+                    >
                       <FaLinkedin size={11} />
                       LinkedIn
                     </a>
                   )}
                   {profile.github_url && (
-                    <a href={profile.github_url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors">
+                    <a
+                      href={profile.github_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors"
+                    >
                       <FaGithub size={11} />
                       GitHub
                     </a>
                   )}
+                  {profile.resume_url ? (
+                    <a
+                      href={profile.resume_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors break-all"
+                    >
+                      <Eye size={11} />
+                      Resume
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 dark:bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      <FileUser size={11} />
+                      No resume yet
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {!cannotCRUD && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      id={`resume-input-${profile.id}`}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleResumeUpload(profile.id, f);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        document
+                          .getElementById(`resume-input-${profile.id}`)
+                          ?.click()
+                      }
+                      className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-all"
+                      disabled={uploadingProfileId === profile.id}
+                    >
+                      {uploadingProfileId === profile.id
+                        ? "Uploading..."
+                        : profile.resume_url
+                          ? "Replace Resume"
+                          : "Upload Resume"}
+                    </button>
+                  </div>
+                )}
+                {uploadError && uploadingProfileId === profile.id && (
+                  <p className="text-[11px] text-red-500 mt-1">{uploadError}</p>
+                )}
+              </div>
             </div>
-          </div>
-        )})}
+          );
+        })}
       </div>
 
-      {profiles.length === 0 && <EmptyState message="No robust profiles generated yet" />}
+      {profiles.length === 0 && (
+        <EmptyState message="No robust profiles generated yet" />
+      )}
 
       {/* View Profile Modal */}
-      <Modal open={!!viewModal} onClose={() => setViewModal(null)} title="Profile Details" size="sm">
+      <Modal
+        open={!!viewModal}
+        onClose={() => setViewModal(null)}
+        title="Profile Details"
+        size="sm"
+      >
         {viewModal && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${viewModal.is_active !== false ? 'from-indigo-500/20 to-purple-500/20 text-indigo-400' : 'from-slate-500/20 to-slate-400/20 text-slate-400'}`}>
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${viewModal.is_active !== false ? "from-indigo-500/20 to-purple-500/20 text-indigo-400" : "from-slate-500/20 to-slate-400/20 text-slate-400"}`}
+              >
                 <FileUser size={20} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{viewModal.name}</p>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${viewModal.is_active !== false ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {viewModal.name}
+                </p>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${viewModal.is_active !== false ? "bg-emerald-500/10 text-emerald-500" : "bg-slate-500/10 text-slate-500"}`}
+                >
                   {viewModal.is_active !== false ? "Active" : "Closed"}
                 </span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Interviews</p>
-                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{profileCounts[viewModal.id] || 0}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                  Interviews
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {profileCounts[viewModal.id] || 0}
+                </p>
               </div>
               <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Added</p>
-                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{formatDate(viewModal.created_at)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                  Added
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {formatDate(viewModal.created_at)}
+                </p>
               </div>
             </div>
-            {(viewModal.linkedin_url || viewModal.github_url) ? (
+            {viewModal.linkedin_url ||
+            viewModal.github_url ||
+            viewModal.resume_url ? (
               <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Links</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                  Links
+                </p>
                 {viewModal.linkedin_url && (
-                  <a href={viewModal.linkedin_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all">
+                  <a
+                    href={viewModal.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all"
+                  >
                     <FaLinkedin size={15} className="shrink-0" />
                     {viewModal.linkedin_url}
                   </a>
                 )}
                 {viewModal.github_url && (
-                  <a href={viewModal.github_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.03] px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors break-all">
+                  <a
+                    href={viewModal.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.03] px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors break-all"
+                  >
                     <FaGithub size={15} className="shrink-0" />
                     {viewModal.github_url}
                   </a>
                 )}
+                {viewModal.resume_url && (
+                  <a
+                    href={viewModal.resume_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors break-all"
+                  >
+                    <Eye size={15} className="shrink-0" />
+                    Download Resume
+                  </a>
+                )}
               </div>
             ) : (
-              <p className="text-sm text-slate-400 dark:text-slate-600 italic">No links added.</p>
+              <p className="text-sm text-slate-400 dark:text-slate-600 italic">
+                No links added.
+              </p>
             )}
           </div>
         )}
@@ -393,20 +679,46 @@ export default function ProfilesPage() {
         isDeleting={isDeleting}
         title="Delete Profile"
         itemName={deleteModal?.name ?? ""}
-        itemDetail={deleteModal ? (deleteModal.is_active !== false ? "Active" : "Closed") : undefined}
+        itemDetail={
+          deleteModal
+            ? deleteModal.is_active !== false
+              ? "Active"
+              : "Closed"
+            : undefined
+        }
       />
 
       {/* Profile Modification Framework Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Edit Profile Options" : "Register Profile Framework"} size="md">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={
+          editingId ? "Edit Profile Options" : "Register Profile Framework"
+        }
+        size="md"
+      >
         <div className="space-y-4">
           <FormField label="Full Profile Name">
-            <input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Ibrahim Jafri" className={inputClass} autoFocus />
+            <input
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+              placeholder="e.g., Ibrahim Jafri"
+              className={inputClass}
+              autoFocus
+            />
           </FormField>
 
           <FormField label="Global Usage Status">
             <select
               value={formData.is_active !== false ? "true" : "false"}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.value === "true" })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  is_active: e.target.value === "true",
+                })
+              }
               className={selectClass}
             >
               <option value="true">Active (Seeking Deployments)</option>
@@ -416,10 +728,15 @@ export default function ProfilesPage() {
 
           <FormField label="LinkedIn URL">
             <div className="relative">
-              <FaLinkedin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+              <FaLinkedin
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"
+              />
               <input
                 value={formData.linkedin_url || ""}
-                onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, linkedin_url: e.target.value })
+                }
                 placeholder="https://linkedin.com/in/..."
                 className={`${inputClass} pl-8`}
               />
@@ -428,10 +745,15 @@ export default function ProfilesPage() {
 
           <FormField label="GitHub URL">
             <div className="relative">
-              <FaGithub size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <FaGithub
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 value={formData.github_url || ""}
-                onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, github_url: e.target.value })
+                }
                 placeholder="https://github.com/..."
                 className={`${inputClass} pl-8`}
               />
@@ -439,10 +761,25 @@ export default function ProfilesPage() {
           </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
+          <button
+            onClick={() => setModalOpen(false)}
+            className={buttonSecondary}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}
+          >
             {isSubmitting && <Loader2 className="animate-spin" size={16} />}
-            {editingId ? (isSubmitting ? "Applying..." : "Apply Update") : (isSubmitting ? "Deploying..." : "Deploy")}
+            {editingId
+              ? isSubmitting
+                ? "Applying..."
+                : "Apply Update"
+              : isSubmitting
+                ? "Deploying..."
+                : "Deploy"}
           </button>
         </div>
       </Modal>
