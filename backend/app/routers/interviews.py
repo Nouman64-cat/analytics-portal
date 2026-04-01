@@ -181,10 +181,13 @@ def upload_interview_document(
     allowed_types = {
         "application/msword": "doc",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+        "application/pdf": "pdf",
     }
     if file.content_type not in allowed_types:
         raise HTTPException(
-            status_code=400, detail="Only DOC and DOCX files are allowed")
+            status_code=400,
+            detail="Only DOC, DOCX, and PDF files are allowed",
+        )
 
     extension = allowed_types[file.content_type]
     key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.{extension}"
