@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Ban, Users, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import * as xlsx from "xlsx";
 import { interviewsService, companiesService, candidatesService, profilesService, businessDevelopersService } from "@/lib/services";
@@ -44,6 +44,21 @@ export default function InterviewsPage() {
   const [detailModal, setDetailModal] = useState<Interview | null>(null);
   const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Company popover
+  const [companyPopover, setCompanyPopover] = useState<{ company: Company; x: number; y: number } | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!companyPopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setCompanyPopover(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [companyPopover]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
@@ -463,20 +478,20 @@ export default function InterviewsPage() {
                     <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
                       {(() => {
                         const company = companies.find(c => c.id === interview.company_id);
-                        return company?.detail ? (
-                          <div className="relative group/tooltip inline-block">
-                            <span className="cursor-default underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2">
-                              {interview.company_name}
-                            </span>
-                            <div className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 hidden group-hover/tooltip:block">
-                              <div className="w-64 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-xl p-3">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 mb-1">{company.is_staffing_firm ? "Staffing Firm" : "Direct Client"}</p>
-                                <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{company.detail}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <span>{interview.company_name}</span>
+                        if (!company?.detail) return <span>{interview.company_name}</span>;
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = (e.target as HTMLElement).getBoundingClientRect();
+                              setCompanyPopover(prev =>
+                                prev?.company.id === company.id ? null : { company, x: rect.left, y: rect.bottom + 6 }
+                              );
+                            }}
+                            className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                          >
+                            {interview.company_name}
+                          </button>
                         );
                       })()}
                     </td>
@@ -895,6 +910,25 @@ export default function InterviewsPage() {
           </div>
         )}
       </Modal>
+
+      {/* Company detail popover — fixed positioned to avoid table overflow clipping */}
+      {companyPopover && (
+        <div
+          ref={popoverRef}
+          style={{ position: "fixed", top: companyPopover.y, left: companyPopover.x, zIndex: 9999 }}
+          className="w-72 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl p-4"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{companyPopover.company.name}</p>
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              {companyPopover.company.is_staffing_firm ? "Staffing Firm" : "Direct Client"}
+            </span>
+          </div>
+          <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+            {companyPopover.company.detail}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
