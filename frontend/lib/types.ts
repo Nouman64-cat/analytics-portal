@@ -30,6 +30,7 @@ export interface Company {
   id: string;
   name: string;
   is_staffing_firm: boolean;
+  detail: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -130,6 +131,7 @@ export interface CandidateFormData {
 export interface CompanyFormData {
   name: string;
   is_staffing_firm?: boolean;
+  detail?: string;
 }
 
 export interface ResumeProfileFormData {

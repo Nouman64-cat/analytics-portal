@@ -6,7 +6,7 @@ import { companiesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { Company, CompanyFormData, Interview } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
-import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import Modal, { FormField, inputClass, textareaClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 
@@ -60,13 +60,13 @@ export default function CompaniesPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: "", is_staffing_firm: false });
+    setFormData({ name: "", is_staffing_firm: false, detail: "" });
     setModalOpen(true);
   };
 
   const openEdit = (company: Company) => {
     setEditingId(company.id);
-    setFormData({ name: company.name, is_staffing_firm: company.is_staffing_firm });
+    setFormData({ name: company.name, is_staffing_firm: company.is_staffing_firm, detail: company.detail || "" });
     setModalOpen(true);
   };
 
@@ -187,6 +187,11 @@ export default function CompaniesPage() {
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                       Added {formatDate(company.created_at)}
                     </p>
+                    {company.detail && (
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">
+                        {company.detail}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -212,7 +217,7 @@ export default function CompaniesPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingId ? "Edit Company" : "Add Company"}
-        size="sm"
+        size="md"
       >
         <div className="space-y-4">
           <FormField label="Company Name">
@@ -234,6 +239,15 @@ export default function CompaniesPage() {
               />
               Is this a Staffing Firm?
             </label>
+          </FormField>
+          <FormField label="Company Detail">
+            <textarea
+              value={formData.detail || ""}
+              onChange={(e) => setFormData({ ...formData, detail: e.target.value })}
+              placeholder="e.g., Notes about the company, recruiter contact, specialization..."
+              rows={4}
+              className={textareaClass}
+            />
           </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">

@@ -7,17 +7,20 @@ from typing import Optional
 class CompanyCreate(BaseModel):
     name: str
     is_staffing_firm: bool = False
+    detail: Optional[str] = None
 
 
 class CompanyUpdate(BaseModel):
     name: Optional[str] = None
     is_staffing_firm: Optional[bool] = None
+    detail: Optional[str] = None
 
 
 class CompanyRead(BaseModel):
     id: uuid.UUID
     name: str
     is_staffing_firm: bool = False
+    detail: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
