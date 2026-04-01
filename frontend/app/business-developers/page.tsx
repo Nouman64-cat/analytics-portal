@@ -16,11 +16,17 @@ import {
 
 const BAR_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#f97316", "#eab308"];
 
+function formatMonthLabel(ym: string) {
+  const [year, month] = ym.split("-");
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("default", { month: "long", year: "numeric" });
+}
+
 export default function BusinessDevelopersPage() {
   const [bds, setBds] = useState<BusinessDeveloper[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,9 +100,22 @@ export default function BusinessDevelopersPage() {
   };
 
   // ─── Analytics ───────────────────────────────────────────────────
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    interviews.forEach(i => {
+      if (i.interview_date) months.add(i.interview_date.slice(0, 7));
+    });
+    return [...months].sort().reverse();
+  }, [interviews]);
+
+  const filteredInterviews = useMemo(() => {
+    if (selectedMonth === "all") return interviews;
+    return interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
+  }, [interviews, selectedMonth]);
+
   const bdCounts = useMemo(() => {
     const companySets: Record<string, Set<string>> = {};
-    interviews.forEach(i => {
+    filteredInterviews.forEach(i => {
       if (i.bd_id) {
         if (!companySets[i.bd_id]) companySets[i.bd_id] = new Set();
         companySets[i.bd_id].add(i.company_id);
@@ -105,7 +124,7 @@ export default function BusinessDevelopersPage() {
     const counts: Record<string, number> = {};
     Object.entries(companySets).forEach(([bdId, set]) => { counts[bdId] = set.size; });
     return counts;
-  }, [interviews]);
+  }, [filteredInterviews]);
 
   const totalBdCompanies = useMemo(
     () => Object.values(bdCounts).reduce((s, n) => s + n, 0),
@@ -147,6 +166,30 @@ export default function BusinessDevelopersPage() {
         }
       />
 
+      {/* Month Filter */}
+      {availableMonths.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Filter by month:</span>
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSelectedMonth("all")}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === "all" ? "bg-amber-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+            >
+              All Time
+            </button>
+            {availableMonths.map(ym => (
+              <button
+                key={ym}
+                onClick={() => setSelectedMonth(ym)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === ym ? "bg-amber-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+              >
+                {formatMonthLabel(ym)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <StatsGrid>
         <StatsCard title="Total BDs" value={bds.length} icon={Users} gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
@@ -158,7 +201,9 @@ export default function BusinessDevelopersPage() {
       {/* Bar Chart */}
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm">
-          <h3 className="mb-4 sm:mb-6 text-sm font-semibold text-slate-900 dark:text-white">Leads Brought per Business Developer</h3>
+          <h3 className="mb-4 sm:mb-6 text-sm font-semibold text-slate-900 dark:text-white">
+            {selectedMonth === "all" ? "Leads Brought per Business Developer" : `Leads Brought — ${formatMonthLabel(selectedMonth)}`}
+          </h3>
           <div className="h-[200px] sm:h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>

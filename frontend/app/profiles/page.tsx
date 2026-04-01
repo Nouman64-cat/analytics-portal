@@ -14,12 +14,18 @@ import { getUserRole } from "@/lib/auth";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+function formatMonthLabel(ym: string) {
+  const [year, month] = ym.split("-");
+  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("default", { month: "long", year: "numeric" });
+}
+
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,34 +100,48 @@ export default function ProfilesPage() {
   };
 
   // ─── Dashboard Configuration ─────────────────────────────────────
-  // A newly created/migrated profile defaults is_active safely if null
   const activeProfiles = profiles.filter(p => p.is_active !== false).length;
   const closedProfiles = profiles.filter(p => p.is_active === false).length;
-  const totalInterviews = interviews.length;
 
-  // Compute profile counts mapping exactly
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    interviews.forEach(i => {
+      if (i.interview_date) months.add(i.interview_date.slice(0, 7));
+    });
+    return [...months].sort().reverse();
+  }, [interviews]);
+
+  const filteredInterviews = useMemo(() => {
+    if (selectedMonth === "all") return interviews;
+    return interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
+  }, [interviews, selectedMonth]);
+
+  const totalInterviews = filteredInterviews.length;
+
   const profileCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    interviews.forEach(i => {
+    filteredInterviews.forEach(i => {
       counts[i.resume_profile_id] = (counts[i.resume_profile_id] || 0) + 1;
     });
     return counts;
-  }, [interviews]);
+  }, [filteredInterviews]);
 
-  // Line Chart Data Prep — last 30 days
   const chartData = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-    cutoff.setHours(0, 0, 0, 0);
+    let relevant: Interview[];
+    if (selectedMonth === "all") {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      cutoff.setHours(0, 0, 0, 0);
+      relevant = interviews.filter(i => {
+        if (!i.interview_date) return false;
+        return new Date(i.interview_date + "T00:00:00") >= cutoff;
+      });
+    } else {
+      relevant = interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
+    }
 
-    const recentInterviews = interviews.filter(i => {
-      if (!i.interview_date) return false;
-      return new Date(i.interview_date + "T00:00:00") >= cutoff;
-    });
-
-    // Top 4 profiles by count within the last 30 days
     const recentCounts: Record<string, number> = {};
-    recentInterviews.forEach(i => {
+    relevant.forEach(i => {
       recentCounts[i.resume_profile_id] = (recentCounts[i.resume_profile_id] || 0) + 1;
     });
     const topProfiles = [...profiles]
@@ -129,12 +149,11 @@ export default function ProfilesPage() {
       .slice(0, 4);
     if (topProfiles.length === 0) return [];
 
-    // Group by day
     const timeline: Record<string, any> = {};
-    [...recentInterviews]
+    [...relevant]
       .sort((a, b) => new Date(a.interview_date!).getTime() - new Date(b.interview_date!).getTime())
       .forEach(i => {
-        const dayKey = i.interview_date!; // "YYYY-MM-DD"
+        const dayKey = i.interview_date!;
         if (!timeline[dayKey]) {
           const d = new Date(dayKey + "T00:00:00");
           timeline[dayKey] = {
@@ -150,7 +169,7 @@ export default function ProfilesPage() {
       });
 
     return Object.values(timeline).sort((a, b) => a._sortKey.localeCompare(b._sortKey));
-  }, [profiles, interviews]);
+  }, [profiles, interviews, selectedMonth]);
 
   const LINE_COLORS = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b"];
 
@@ -174,6 +193,30 @@ export default function ProfilesPage() {
         }
       />
 
+      {/* Month Filter */}
+      {availableMonths.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Filter by month:</span>
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSelectedMonth("all")}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === "all" ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+            >
+              All Time
+            </button>
+            {availableMonths.map(ym => (
+              <button
+                key={ym}
+                onClick={() => setSelectedMonth(ym)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === ym ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+              >
+                {formatMonthLabel(ym)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <StatsGrid>
         <StatsCard title="Total Profiles" value={profiles.length} icon={FileUser} gradient="bg-gradient-to-br from-indigo-500 to-purple-600" />
         <StatsCard title="Active" value={activeProfiles} icon={Activity} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
@@ -184,7 +227,9 @@ export default function ProfilesPage() {
       {/* Line Chart Analytics Showcase */}
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-6 shadow-sm overflow-hidden">
-          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">Profile Performance — Last 30 Days</h3>
+          <h3 className="mb-6 text-sm font-semibold text-slate-900 dark:text-white">
+            {selectedMonth === "all" ? "Profile Performance — Last 30 Days" : `Profile Performance — ${formatMonthLabel(selectedMonth)}`}
+          </h3>
           <div className="h-[300px] w-full ml-[-20px] sm:ml-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
