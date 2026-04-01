@@ -7,6 +7,8 @@ import {
   Building2,
   Users,
   TrendingUp,
+  Eye,
+  Target,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { dashboardService } from "@/lib/services";
@@ -234,13 +236,22 @@ export default function DashboardPage() {
                       <p className="text-xs mt-0.5">
                         <button
                           onClick={(e) => {
-                            if (!interview.linkedin_url && !interview.github_url) return;
+                            if (
+                              !interview.linkedin_url &&
+                              !interview.github_url &&
+                              !interview.portfolio_url &&
+                              !interview.resume_url
+                            )
+                              return;
                             const rect = (e.target as HTMLElement).getBoundingClientRect();
                             setCompanyPopover(null);
                             setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
                           }}
                           className={
-                            (interview.linkedin_url || interview.github_url)
+                            (interview.linkedin_url ||
+                              interview.github_url ||
+                              interview.portfolio_url ||
+                              interview.resume_url)
                               ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
                               : "text-slate-400 dark:text-slate-500 cursor-default"
                           }
@@ -323,6 +334,20 @@ export default function DashboardPage() {
                 className="flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors break-all">
                 <FaGithub size={13} className="shrink-0" />
                 GitHub Profile
+              </a>
+            )}
+            {profilePopover.interview.portfolio_url && (
+              <a href={profilePopover.interview.portfolio_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-fuchsia-50 dark:bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-600 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-500/20 transition-colors break-all">
+                <Target size={13} className="shrink-0" />
+                Portfolio
+              </a>
+            )}
+            {profilePopover.interview.resume_url && (
+              <a href={profilePopover.interview.resume_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors break-all">
+                <Eye size={13} className="shrink-0" />
+                Resume (PDF)
               </a>
             )}
           </div>

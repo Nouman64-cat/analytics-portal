@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Target,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -327,9 +328,10 @@ export default function InterviewsPage() {
           ![
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/pdf",
           ].includes(interviewDocFile.type)
         ) {
-          throw new Error("Only DOC and DOCX files are allowed.");
+          throw new Error("Only DOC, DOCX, and PDF files are allowed.");
         }
 
         setUploadingInterviewId(savedInterview.id);
@@ -857,7 +859,12 @@ export default function InterviewsPage() {
                           const profile = profiles.find(
                             (p) => p.id === interview.resume_profile_id,
                           );
-                          if (!profile?.linkedin_url && !profile?.github_url)
+                          if (
+                            !profile?.linkedin_url &&
+                            !profile?.github_url &&
+                            !profile?.portfolio_url &&
+                            !profile?.resume_url
+                          )
                             return <span>{interview.resume_profile_name}</span>;
                           return (
                             <button
@@ -1419,6 +1426,28 @@ export default function InterviewsPage() {
                             <FaGithub size={14} />
                           </a>
                         )}
+                        {profile.portfolio_url && (
+                          <a
+                            href={profile.portfolio_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors"
+                            title="Portfolio"
+                          >
+                            <Target size={14} />
+                          </a>
+                        )}
+                        {profile.resume_url && (
+                          <a
+                            href={profile.resume_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                            title="Resume (PDF)"
+                          >
+                            <Eye size={14} />
+                          </a>
+                        )}
                       </div>
                     );
                   })()}
@@ -1623,6 +1652,28 @@ export default function InterviewsPage() {
               >
                 <FaGithub size={13} className="shrink-0" />
                 GitHub Profile
+              </a>
+            )}
+            {profilePopover.profile.portfolio_url && (
+              <a
+                href={profilePopover.profile.portfolio_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-fuchsia-50 dark:bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-600 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-500/20 transition-colors break-all"
+              >
+                <Target size={13} className="shrink-0" />
+                Portfolio
+              </a>
+            )}
+            {profilePopover.profile.resume_url && (
+              <a
+                href={profilePopover.profile.resume_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors break-all"
+              >
+                <Eye size={13} className="shrink-0" />
+                Resume (PDF)
               </a>
             )}
           </div>

@@ -98,6 +98,8 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
             "resume_profile_id": str(i.resume_profile_id) if i.resume_profile_id else None,
             "linkedin_url": i.resume_profile.linkedin_url if i.resume_profile else None,
             "github_url": i.resume_profile.github_url if i.resume_profile else None,
+            "portfolio_url": i.resume_profile.portfolio_url if i.resume_profile else None,
+            "resume_url": i.resume_profile.resume_url if i.resume_profile else None,
             "role": i.role,
             "round": i.round,
             "date": str(i.interview_date) if i.interview_date else None,
