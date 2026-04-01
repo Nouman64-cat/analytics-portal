@@ -59,6 +59,7 @@ export interface Interview {
   bd_name: string | null;
   interviewer: string | null;
   interview_link: string | null;
+  interview_doc_url?: string | null;
   is_phone_call: boolean;
   computed_status: string;
   created_at: string;

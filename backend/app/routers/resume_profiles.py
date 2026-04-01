@@ -1,4 +1,5 @@
 import uuid
+import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
@@ -81,6 +82,19 @@ def upload_resume_pdf(
     if file.content_type != "application/pdf":
         raise HTTPException(
             status_code=400, detail="Only PDF files are accepted")
+
+    try:
+        file.file.seek(0, os.SEEK_END)
+        upload_size = file.file.tell()
+        file.file.seek(0)
+    except Exception:
+        upload_size = None
+
+    if upload_size is not None and upload_size > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File is too large (limit {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB)",
+        )
 
     s3_client = _get_s3_client(settings)
     key = f"resume_profiles/{profile_id}/resume-{uuid.uuid4()}.pdf"

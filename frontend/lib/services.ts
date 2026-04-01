@@ -193,6 +193,28 @@ export const interviewsService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  uploadInterviewDoc: async (id: string, file: File) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_V1}/interviews/${id}/document`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      if (res.status === 401) {
+        clearToken();
+        window.location.href = "/login";
+      }
+      throw new Error(error.detail || `API Error: ${res.status}`);
+    }
+
+    return res.json() as Promise<Interview>;
+  },
   delete: (id: string) =>
     apiFetch<void>(`/interviews/${id}`, { method: "DELETE" }),
 };

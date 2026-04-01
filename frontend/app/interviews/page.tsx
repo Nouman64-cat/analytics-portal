@@ -1,15 +1,63 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Ban, Users, ChevronLeft, ChevronRight, Download, Loader2} from "lucide-react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  ChangeEvent,
+} from "react";
+import {
+  Plus,
+  Search,
+  Eye,
+  Pencil,
+  Trash2,
+  CalendarCheck,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Ban,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+} from "lucide-react";
 import * as xlsx from "xlsx";
-import { interviewsService, companiesService, candidatesService, profilesService, businessDevelopersService } from "@/lib/services";
+import {
+  interviewsService,
+  companiesService,
+  candidatesService,
+  profilesService,
+  businessDevelopersService,
+} from "@/lib/services";
 import { formatDate, formatTime, truncate } from "@/lib/utils";
-import type { Interview, Company, Candidate, ResumeProfile, BusinessDeveloper, InterviewFormData } from "@/lib/types";
+import type {
+  Interview,
+  Company,
+  Candidate,
+  ResumeProfile,
+  BusinessDeveloper,
+  InterviewFormData,
+} from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
-import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
+import {
+  PageLoader,
+  ErrorState,
+  PageHeader,
+  EmptyState,
+} from "@/components/PageStates";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
-import Modal, { FormField, inputClass, selectClass, textareaClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import Modal, {
+  FormField,
+  inputClass,
+  selectClass,
+  textareaClass,
+  buttonPrimary,
+  buttonSecondary,
+} from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 import { FaLinkedin } from "react-icons/fa";
@@ -34,20 +82,35 @@ export default function InterviewsPage() {
     resume_profile_id: "All",
     round: "All",
     bd_id: "All",
-    month: "All"
+    month: "All",
   });
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
-    interviews.forEach(i => {
+    interviews.forEach((i) => {
       if (i.interview_date) {
         const d = new Date(i.interview_date + "T12:00:00");
         const monthName = d.toLocaleString("default", { month: "long" });
         months.add(monthName);
       }
     });
-    const monthsOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    return Array.from(months).sort((a, b) => monthsOrder.indexOf(a) - monthsOrder.indexOf(b));
+    const monthsOrder = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return Array.from(months).sort(
+      (a, b) => monthsOrder.indexOf(a) - monthsOrder.indexOf(b),
+    );
   }, [interviews]);
 
   // Reset page to 1 when search or filters change
@@ -60,15 +123,30 @@ export default function InterviewsPage() {
   const [detailModal, setDetailModal] = useState<Interview | null>(null);
   const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [uploadingInterviewId, setUploadingInterviewId] = useState<
+    string | null
+  >(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [interviewDocFile, setInterviewDocFile] = useState<File | null>(null);
+  const [interviewDocError, setInterviewDocError] = useState<string | null>(
+    null,
+  );
 
   // Company popover
-  const [companyPopover, setCompanyPopover] = useState<{ company: Company; x: number; y: number } | null>(null);
+  const [companyPopover, setCompanyPopover] = useState<{
+    company: Company;
+    x: number;
+    y: number;
+  } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!companyPopover) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
         setCompanyPopover(null);
       }
     };
@@ -77,13 +155,20 @@ export default function InterviewsPage() {
   }, [companyPopover]);
 
   // Profile popover
-  const [profilePopover, setProfilePopover] = useState<{ profile: ResumeProfile; x: number; y: number } | null>(null);
+  const [profilePopover, setProfilePopover] = useState<{
+    profile: ResumeProfile;
+    x: number;
+    y: number;
+  } | null>(null);
   const profilePopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!profilePopover) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (profilePopoverRef.current && !profilePopoverRef.current.contains(e.target as Node)) {
+      if (
+        profilePopoverRef.current &&
+        !profilePopoverRef.current.contains(e.target as Node)
+      ) {
         setProfilePopover(null);
       }
     };
@@ -106,7 +191,13 @@ export default function InterviewsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [interviewsData, companiesData, candidatesData, profilesData, bdsData] = await Promise.all([
+      const [
+        interviewsData,
+        companiesData,
+        candidatesData,
+        profilesData,
+        bdsData,
+      ] = await Promise.all([
         interviewsService.list(),
         companiesService.list(),
         candidatesService.list(),
@@ -124,16 +215,18 @@ export default function InterviewsPage() {
         const params = new URLSearchParams(window.location.search);
         const targetId = params.get("id");
         if (targetId) {
-          const target = interviewsData.find(i => i.id === targetId);
+          const target = interviewsData.find((i) => i.id === targetId);
           if (target) {
             setDetailModal(target);
             // Clean URL to prevent re-opening on manual refresh
-            window.history.replaceState({}, '', '/interviews');
+            window.history.replaceState({}, "", "/interviews");
           }
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load interviews");
+      setError(
+        err instanceof Error ? err.message : "Failed to load interviews",
+      );
     } finally {
       setLoading(false);
     }
@@ -156,6 +249,8 @@ export default function InterviewsPage() {
       interview_link: "",
       is_phone_call: false,
     });
+    setInterviewDocFile(null);
+    setInterviewDocError(null);
     setModalOpen(true);
   };
 
@@ -178,6 +273,8 @@ export default function InterviewsPage() {
       interview_link: interview.interview_link || "",
       is_phone_call: interview.is_phone_call || false,
     });
+    setInterviewDocFile(null);
+    setInterviewDocError(null);
     setModalOpen(true);
   };
 
@@ -185,7 +282,9 @@ export default function InterviewsPage() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const payload: any = { ...formData };
+      const payload: Partial<InterviewFormData> & Record<string, unknown> = {
+        ...formData,
+      };
       // Send null to accurately clear fields in the database
       if (!payload.salary_range) payload.salary_range = null;
       if (!payload.interview_date) payload.interview_date = null;
@@ -195,14 +294,37 @@ export default function InterviewsPage() {
       if (!payload.feedback) payload.feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
       if (!payload.interviewer) payload.interviewer = null;
-      if (payload.is_phone_call || !payload.interview_link) payload.interview_link = null;
+      if (payload.is_phone_call || !payload.interview_link)
+        payload.interview_link = null;
 
+      let savedInterview;
       if (editingId) {
-        await interviewsService.update(editingId, payload);
+        savedInterview = await interviewsService.update(editingId, payload);
       } else {
-        await interviewsService.create(payload);
+        savedInterview = await interviewsService.create(payload);
       }
+
+      if (interviewDocFile && savedInterview?.id) {
+        if (
+          ![
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ].includes(interviewDocFile.type)
+        ) {
+          throw new Error("Only DOC and DOCX files are allowed.");
+        }
+
+        setUploadingInterviewId(savedInterview.id);
+        await interviewsService.uploadInterviewDoc(
+          savedInterview.id,
+          interviewDocFile,
+        );
+        setUploadingInterviewId(null);
+      }
+
       setModalOpen(false);
+      setInterviewDocFile(null);
+      setInterviewDocError(null);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
@@ -217,9 +339,9 @@ export default function InterviewsPage() {
     const d = new Date(dateStr + "T12:00:00");
     const year = d.getFullYear();
     const dstStart = new Date(year, 2, 1); // March 1
-    dstStart.setDate(1 + (7 - dstStart.getDay()) % 7 + 7); // 2nd Sunday of March
+    dstStart.setDate(1 + ((7 - dstStart.getDay()) % 7) + 7); // 2nd Sunday of March
     const dstEnd = new Date(year, 10, 1); // November 1
-    dstEnd.setDate(1 + (7 - dstEnd.getDay()) % 7); // 1st Sunday of November
+    dstEnd.setDate(1 + ((7 - dstEnd.getDay()) % 7)); // 1st Sunday of November
     return d >= dstStart && d < dstEnd;
   };
 
@@ -232,7 +354,8 @@ export default function InterviewsPage() {
 
   const shiftTime = (timeStr: string, hours: number): string => {
     const [h, m] = timeStr.split(":").map(Number);
-    const total = ((h * 60 + m + hours * 60) % (24 * 60) + 24 * 60) % (24 * 60);
+    const total =
+      (((h * 60 + m + hours * 60) % (24 * 60)) + 24 * 60) % (24 * 60);
     return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
   };
 
@@ -250,6 +373,38 @@ export default function InterviewsPage() {
     }
   };
 
+  const handleInterviewDocUpload = async (interviewId: string, file?: File) => {
+    if (!file) return;
+    setUploadError(null);
+    setUploadingInterviewId(interviewId);
+
+    if (
+      ![
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ].includes(file.type)
+    ) {
+      setUploadError("Only DOC and DOCX files are allowed.");
+      setUploadingInterviewId(null);
+      return;
+    }
+
+    try {
+      await interviewsService.uploadInterviewDoc(interviewId, file);
+      const updated = await interviewsService.get(interviewId);
+      setDetailModal(updated);
+      await fetchData();
+    } catch (err) {
+      setUploadError(
+        err instanceof Error
+          ? err.message
+          : "Failed to upload interview document",
+      );
+    } finally {
+      setUploadingInterviewId(null);
+    }
+  };
+
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -260,20 +415,26 @@ export default function InterviewsPage() {
       i.status?.toLowerCase().includes(q) ||
       i.resume_profile_name?.toLowerCase().includes(q);
 
-    const interviewCompany = companies.find(c => c.id === i.company_id);
+    const interviewCompany = companies.find((c) => c.id === i.company_id);
     const matchCompany =
       filters.company_id === "All" ||
-      (filters.company_id === "staffing" && interviewCompany?.is_staffing_firm === true) ||
-      (filters.company_id === "direct" && interviewCompany?.is_staffing_firm === false) ||
+      (filters.company_id === "staffing" &&
+        interviewCompany?.is_staffing_firm === true) ||
+      (filters.company_id === "direct" &&
+        interviewCompany?.is_staffing_firm === false) ||
       i.company_id === filters.company_id;
-    const matchCandidate = filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
-    const matchProfile = filters.resume_profile_id === "All" || i.resume_profile_id === filters.resume_profile_id;
+    const matchCandidate =
+      filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
+    const matchProfile =
+      filters.resume_profile_id === "All" ||
+      i.resume_profile_id === filters.resume_profile_id;
     const matchRound = filters.round === "All" || i.round === filters.round;
     const matchBd = filters.bd_id === "All" || i.bd_id === filters.bd_id;
 
     let matchStatus = true;
     if (filters.status !== "All") {
-      matchStatus = i.computed_status.toLowerCase() === filters.status.toLowerCase();
+      matchStatus =
+        i.computed_status.toLowerCase() === filters.status.toLowerCase();
     }
 
     let matchMonth = true;
@@ -287,11 +448,20 @@ export default function InterviewsPage() {
       }
     }
 
-    return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchBd && matchStatus && matchMonth;
+    return (
+      matchSearch &&
+      matchCompany &&
+      matchCandidate &&
+      matchProfile &&
+      matchRound &&
+      matchBd &&
+      matchStatus &&
+      matchMonth
+    );
   });
 
   const handleExport = () => {
-    const dataToExport = filtered.map(i => ({
+    const dataToExport = filtered.map((i) => ({
       Company: i.company_name,
       Role: i.role,
       Candidate: i.candidate_name,
@@ -308,16 +478,27 @@ export default function InterviewsPage() {
     const worksheet = xlsx.utils.json_to_sheet(dataToExport);
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "Interviews");
-    xlsx.writeFile(workbook, `Interviews_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    xlsx.writeFile(
+      workbook,
+      `Interviews_Export_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
   };
 
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
   // Computed distributions
-  const statusCounts = { Upcoming: 0, Unresponsed: 0, Converted: 0, Rejected: 0, Dropped: 0, Closed: 0, Dead: 0 };
+  const statusCounts = {
+    Upcoming: 0,
+    Unresponsed: 0,
+    Converted: 0,
+    Rejected: 0,
+    Dropped: 0,
+    Closed: 0,
+    Dead: 0,
+  };
 
-  filtered.forEach(i => {
+  filtered.forEach((i) => {
     const label = i.computed_status.toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
     else if (label === "dead") statusCounts.Dead++;
@@ -331,7 +512,7 @@ export default function InterviewsPage() {
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginatedInterviews = filtered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    currentPage * ITEMS_PER_PAGE,
   );
 
   return (
@@ -356,7 +537,9 @@ export default function InterviewsPage() {
       />
 
       {/* Status Cards */}
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">Pipeline Status</h3>
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">
+        Pipeline Status
+      </h3>
       <StatsGrid cols={7}>
         <StatsCard
           title="Upcoming"
@@ -407,7 +590,10 @@ export default function InterviewsPage() {
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search */}
           <div className="relative sm:max-w-md w-full">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
+            <Search
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500"
+            />
             <input
               type="text"
               placeholder="Search interviews..."
@@ -421,7 +607,9 @@ export default function InterviewsPage() {
           <div className="flex flex-wrap items-center gap-2 w-full">
             <select
               value={filters.status}
-              onChange={e => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, status: e.target.value })
+              }
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
             >
               <option value="All">All Statuses</option>
@@ -436,7 +624,9 @@ export default function InterviewsPage() {
 
             <select
               value={filters.company_id}
-              onChange={e => setFilters({ ...filters, company_id: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, company_id: e.target.value })
+              }
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
             >
               <option value="All">All Companies</option>
@@ -446,58 +636,100 @@ export default function InterviewsPage() {
 
             <select
               value={filters.candidate_id}
-              onChange={e => setFilters({ ...filters, candidate_id: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, candidate_id: e.target.value })
+              }
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
             >
               <option value="All">All Candidates</option>
-              {candidates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-
-            <select
-              value={filters.resume_profile_id}
-              onChange={e => setFilters({ ...filters, resume_profile_id: e.target.value })}
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
-            >
-              <option value="All">All Profiles</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-
-            <select
-              value={filters.round}
-              onChange={e => setFilters({ ...filters, round: e.target.value })}
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
-            >
-              <option value="All">All Rounds</option>
-              {Array.from(new Set(interviews.map(i => i.round))).filter(Boolean).map(r => (
-                <option key={r} value={r}>{r}</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
 
             <select
+              value={filters.resume_profile_id}
+              onChange={(e) =>
+                setFilters({ ...filters, resume_profile_id: e.target.value })
+              }
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+            >
+              <option value="All">All Profiles</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filters.round}
+              onChange={(e) =>
+                setFilters({ ...filters, round: e.target.value })
+              }
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
+            >
+              <option value="All">All Rounds</option>
+              {Array.from(new Set(interviews.map((i) => i.round)))
+                .filter(Boolean)
+                .map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+            </select>
+
+            <select
               value={filters.bd_id}
-              onChange={e => setFilters({ ...filters, bd_id: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, bd_id: e.target.value })
+              }
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
             >
               <option value="All">All BDs</option>
-              {businessDevs.map(bd => (
-                <option key={bd.id} value={bd.id}>{bd.name}</option>
+              {businessDevs.map((bd) => (
+                <option key={bd.id} value={bd.id}>
+                  {bd.name}
+                </option>
               ))}
             </select>
 
             <select
               value={filters.month}
-              onChange={e => setFilters({ ...filters, month: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, month: e.target.value })
+              }
               className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
             >
               <option value="All">All Months</option>
-              {availableMonths.map(m => (
-                <option key={m} value={m}>{m}</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
               ))}
             </select>
 
-            {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All" || filters.bd_id !== "All" || filters.month !== "All") && (
+            {(filters.status !== "All" ||
+              filters.company_id !== "All" ||
+              filters.candidate_id !== "All" ||
+              filters.resume_profile_id !== "All" ||
+              filters.round !== "All" ||
+              filters.bd_id !== "All" ||
+              filters.month !== "All") && (
               <button
-                onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All", bd_id: "All", month: "All" })}
+                onClick={() =>
+                  setFilters({
+                    status: "All",
+                    company_id: "All",
+                    candidate_id: "All",
+                    resume_profile_id: "All",
+                    round: "All",
+                    bd_id: "All",
+                    month: "All",
+                  })
+                }
                 className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"
               >
                 Clear Filters
@@ -516,134 +748,200 @@ export default function InterviewsPage() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-white/[0.06]">
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Company</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Role</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Candidate</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Profile</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Round</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Date</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">EST</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">PKT</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">BD</th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
-                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Company
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Role
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Candidate
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Profile
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Round
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Date
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    EST
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    PKT
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    BD
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Status
+                  </th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
                 {paginatedInterviews.map((interview) => {
-                  const isUpcoming = interview.computed_status.toLowerCase() === "upcoming";
+                  const isUpcoming =
+                    interview.computed_status.toLowerCase() === "upcoming";
                   return (
-                  <tr
-                    key={interview.id}
-                    className={`transition-colors ${isUpcoming
-                      ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
-                      : "hover:bg-slate-100 dark:hover:bg-white/[0.02]"
-                    }`}
-                  >
-                    <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
-                      {(() => {
-                        const company = companies.find(c => c.id === interview.company_id);
-                        if (!company?.detail) return <span>{interview.company_name}</span>;
-                        return (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const rect = (e.target as HTMLElement).getBoundingClientRect();
-                              setCompanyPopover(prev =>
-                                prev?.company.id === company.id ? null : { company, x: rect.left, y: rect.bottom + 6 }
-                              );
-                            }}
-                            className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                          >
-                            {interview.company_name}
-                          </button>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
-                      {truncate(interview.role, 40)}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">
-                      {interview.candidate_name}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                      {(() => {
-                        const profile = profiles.find(p => p.id === interview.resume_profile_id);
-                        if (!profile?.linkedin_url && !profile?.github_url) return <span>{interview.resume_profile_name}</span>;
-                        return (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const rect = (e.target as HTMLElement).getBoundingClientRect();
-                              setProfilePopover(prev =>
-                                prev?.profile.id === profile.id ? null : { profile, x: rect.left, y: rect.bottom + 6 }
-                              );
-                            }}
-                            className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                          >
-                            {interview.resume_profile_name}
-                          </button>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}>
-                        {interview.round}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                      {isUpcoming ? (
-                        <span className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                          </span>
-                          {formatDate(interview.interview_date)}
-                        </span>
-                      ) : formatDate(interview.interview_date)}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                      {interview.time_est ? formatTime(interview.time_est) : <span className="text-slate-400 dark:text-slate-600">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                      {interview.time_pkt ? formatTime(interview.time_pkt) : <span className="text-slate-400 dark:text-slate-600">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                      {interview.bd_name || <span className="text-slate-400 dark:text-slate-600">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusBadge status={interview.computed_status} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setDetailModal(interview)}
-                          className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                          title="View details"
+                    <tr
+                      key={interview.id}
+                      className={`transition-colors ${
+                        isUpcoming
+                          ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                          : "hover:bg-slate-100 dark:hover:bg-white/[0.02]"
+                      }`}
+                    >
+                      <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
+                        {(() => {
+                          const company = companies.find(
+                            (c) => c.id === interview.company_id,
+                          );
+                          if (!company?.detail)
+                            return <span>{interview.company_name}</span>;
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const rect = (
+                                  e.target as HTMLElement
+                                ).getBoundingClientRect();
+                                setCompanyPopover((prev) =>
+                                  prev?.company.id === company.id
+                                    ? null
+                                    : {
+                                        company,
+                                        x: rect.left,
+                                        y: rect.bottom + 6,
+                                      },
+                                );
+                              }}
+                              className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                            >
+                              {interview.company_name}
+                            </button>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
+                        {truncate(interview.role, 40)}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">
+                        {interview.candidate_name}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                        {(() => {
+                          const profile = profiles.find(
+                            (p) => p.id === interview.resume_profile_id,
+                          );
+                          if (!profile?.linkedin_url && !profile?.github_url)
+                            return <span>{interview.resume_profile_name}</span>;
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const rect = (
+                                  e.target as HTMLElement
+                                ).getBoundingClientRect();
+                                setProfilePopover((prev) =>
+                                  prev?.profile.id === profile.id
+                                    ? null
+                                    : {
+                                        profile,
+                                        x: rect.left,
+                                        y: rect.bottom + 6,
+                                      },
+                                );
+                              }}
+                              className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                            >
+                              {interview.resume_profile_name}
+                            </button>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span
+                          className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
                         >
-                          <Eye size={14} />
-                        </button>
-                        {!cannotCRUD && (
-                          <>
-                            <button
-                              onClick={() => openEditModal(interview)}
-                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                              title="Edit"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              onClick={() => setDeleteModal(interview)}
-                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </>
+                          {interview.round}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                        {isUpcoming ? (
+                          <span className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                            </span>
+                            {formatDate(interview.interview_date)}
+                          </span>
+                        ) : (
+                          formatDate(interview.interview_date)
                         )}
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                        {interview.time_est ? (
+                          formatTime(interview.time_est)
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-600">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                        {interview.time_pkt ? (
+                          formatTime(interview.time_pkt)
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-600">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
+                        {interview.bd_name || (
+                          <span className="text-slate-400 dark:text-slate-600">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={interview.computed_status} />
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setDetailModal(interview)}
+                            className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                            title="View details"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          {!cannotCRUD && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(interview)}
+                                className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteModal(interview)}
+                                className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -654,14 +952,16 @@ export default function InterviewsPage() {
             <div className="flex items-center justify-between border-t border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] px-4 py-3 sm:px-6">
               <div className="flex flex-1 justify-between sm:hidden">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                   className="relative inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
                 >
                   Previous
                 </button>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
                   className="relative ml-3 inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
                 >
@@ -671,14 +971,25 @@ export default function InterviewsPage() {
               <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm text-slate-700 dark:text-slate-400">
-                    Showing <span className="font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}</span> of{' '}
-                    <span className="font-medium">{filtered.length}</span> results
+                    Showing{" "}
+                    <span className="font-medium">
+                      {(currentPage - 1) * ITEMS_PER_PAGE + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-medium">
+                      {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}
+                    </span>{" "}
+                    of <span className="font-medium">{filtered.length}</span>{" "}
+                    results
                   </p>
                 </div>
                 <div>
-                  <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <nav
+                    className="isolate inline-flex -space-x-px rounded-md shadow-sm"
+                    aria-label="Pagination"
+                  >
                     <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
                       className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                     >
@@ -690,16 +1001,19 @@ export default function InterviewsPage() {
                       <button
                         key={i + 1}
                         onClick={() => setCurrentPage(i + 1)}
-                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${currentPage === i + 1
-                          ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                          : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                          }`}
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
+                          currentPage === i + 1
+                            ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                            : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                        }`}
                       >
                         {i + 1}
                       </button>
                     ))}
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(totalPages, p + 1))
+                      }
                       disabled={currentPage === totalPages}
                       className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                     >
@@ -725,40 +1039,54 @@ export default function InterviewsPage() {
           <FormField label="Company">
             <select
               value={formData.company_id}
-              onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, company_id: e.target.value })
+              }
               className={selectClass}
             >
               {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </FormField>
           <FormField label="Candidate">
             <select
               value={formData.candidate_id}
-              onChange={(e) => setFormData({ ...formData, candidate_id: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, candidate_id: e.target.value })
+              }
               className={selectClass}
             >
               {candidates.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </FormField>
           <FormField label="Resume Profile">
             <select
               value={formData.resume_profile_id}
-              onChange={(e) => setFormData({ ...formData, resume_profile_id: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, resume_profile_id: e.target.value })
+              }
               className={selectClass}
             >
               {profiles.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
               ))}
             </select>
           </FormField>
           <FormField label="Round">
             <input
               value={formData.round}
-              onChange={(e) => setFormData({ ...formData, round: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, round: e.target.value })
+              }
               placeholder="e.g., 1st, 2nd, Recruiter's Call"
               className={inputClass}
             />
@@ -767,7 +1095,9 @@ export default function InterviewsPage() {
             <FormField label="Role">
               <input
                 value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, role: e.target.value })
+                }
                 placeholder="e.g., Senior ML Engineer"
                 className={inputClass}
               />
@@ -776,7 +1106,9 @@ export default function InterviewsPage() {
           <FormField label="Salary Range">
             <input
               value={formData.salary_range || ""}
-              onChange={(e) => setFormData({ ...formData, salary_range: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, salary_range: e.target.value })
+              }
               placeholder="e.g., $150k - $180k"
               className={inputClass}
             />
@@ -784,19 +1116,25 @@ export default function InterviewsPage() {
           <FormField label="Business Developer">
             <select
               value={formData.bd_id || ""}
-              onChange={(e) => setFormData({ ...formData, bd_id: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, bd_id: e.target.value })
+              }
               className={selectClass}
             >
               <option value="">None</option>
               {businessDevs.map((bd) => (
-                <option key={bd.id} value={bd.id}>{bd.name}</option>
+                <option key={bd.id} value={bd.id}>
+                  {bd.name}
+                </option>
               ))}
             </select>
           </FormField>
           <FormField label="Interviewer">
             <input
               value={formData.interviewer || ""}
-              onChange={(e) => setFormData({ ...formData, interviewer: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, interviewer: e.target.value })
+              }
               placeholder="e.g., John Smith"
               className={inputClass}
             />
@@ -807,16 +1145,28 @@ export default function InterviewsPage() {
                 <input
                   type="checkbox"
                   checked={formData.is_phone_call || false}
-                  onChange={(e) => setFormData({ ...formData, is_phone_call: e.target.checked, interview_link: e.target.checked ? "" : formData.interview_link })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      is_phone_call: e.target.checked,
+                      interview_link: e.target.checked
+                        ? ""
+                        : formData.interview_link,
+                    })
+                  }
                   className="h-4 w-4 rounded border-slate-300 dark:border-white/20 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Phone Call</span>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Phone Call
+                </span>
               </label>
             </div>
             <FormField label="Interview Link">
               <input
                 value={formData.interview_link || ""}
-                onChange={(e) => setFormData({ ...formData, interview_link: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, interview_link: e.target.value })
+                }
                 placeholder="e.g., https://meet.google.com/..."
                 disabled={formData.is_phone_call || false}
                 className={`${inputClass} disabled:opacity-40 disabled:cursor-not-allowed`}
@@ -828,7 +1178,9 @@ export default function InterviewsPage() {
               <input
                 type="date"
                 value={formData.interview_date || ""}
-                onChange={(e) => setFormData({ ...formData, interview_date: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, interview_date: e.target.value })
+                }
                 className={inputClass}
               />
             </FormField>
@@ -840,7 +1192,11 @@ export default function InterviewsPage() {
               onChange={(e) => {
                 const est = e.target.value;
                 const offset = estToPktOffset(formData.interview_date);
-                setFormData({ ...formData, time_est: est, time_pkt: est ? shiftTime(est, offset) : "" });
+                setFormData({
+                  ...formData,
+                  time_est: est,
+                  time_pkt: est ? shiftTime(est, offset) : "",
+                });
               }}
               className={inputClass}
             />
@@ -852,7 +1208,11 @@ export default function InterviewsPage() {
               onChange={(e) => {
                 const pkt = e.target.value;
                 const offset = estToPktOffset(formData.interview_date);
-                setFormData({ ...formData, time_pkt: pkt, time_est: pkt ? shiftTime(pkt, -offset) : "" });
+                setFormData({
+                  ...formData,
+                  time_pkt: pkt,
+                  time_est: pkt ? shiftTime(pkt, -offset) : "",
+                });
               }}
               className={inputClass}
             />
@@ -861,7 +1221,9 @@ export default function InterviewsPage() {
             <FormField label="Status">
               <select
                 value={formData.status || ""}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value })
+                }
                 className={selectClass}
               >
                 <option value="">Select a status...</option>
@@ -875,10 +1237,51 @@ export default function InterviewsPage() {
             </FormField>
           </div>
           <div className="col-span-1 sm:col-span-2">
+            <FormField label="Interview Document (DOC/DOCX)">
+              <input
+                type="file"
+                accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file) {
+                    if (
+                      ![
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                      ].includes(file.type)
+                    ) {
+                      setInterviewDocError(
+                        "Only DOC and DOCX files are allowed.",
+                      );
+                      setInterviewDocFile(null);
+                      return;
+                    }
+                    setInterviewDocError(null);
+                    setInterviewDocFile(file);
+                  } else {
+                    setInterviewDocFile(null);
+                    setInterviewDocError(null);
+                  }
+                }}
+                className={inputClass}
+              />
+              {interviewDocFile && (
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Selected file: {interviewDocFile.name}
+                </p>
+              )}
+              {interviewDocError && (
+                <p className="mt-1 text-sm text-red-500">{interviewDocError}</p>
+              )}
+            </FormField>
+          </div>
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Feedback">
               <textarea
                 value={formData.feedback || ""}
-                onChange={(e) => setFormData({ ...formData, feedback: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, feedback: e.target.value })
+                }
                 placeholder="Interview notes and feedback..."
                 rows={4}
                 className={textareaClass}
@@ -887,12 +1290,25 @@ export default function InterviewsPage() {
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setModalOpen(false)} className={buttonSecondary}>
+          <button
+            onClick={() => setModalOpen(false)}
+            className={buttonSecondary}
+          >
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}
+          >
             {isSubmitting && <Loader2 className="animate-spin" size={16} />}
-            {editingId ? (isSubmitting ? "Updating..." : "Update") : (isSubmitting ? "Creating..." : "Create")}
+            {editingId
+              ? isSubmitting
+                ? "Updating..."
+                : "Update"
+              : isSubmitting
+                ? "Creating..."
+                : "Create"}
           </button>
         </div>
       </Modal>
@@ -904,8 +1320,14 @@ export default function InterviewsPage() {
         onConfirm={handleDelete}
         isDeleting={isDeleting}
         title="Delete Interview"
-        itemName={deleteModal ? `${deleteModal.company_name} — ${deleteModal.role}` : ""}
-        itemDetail={deleteModal ? `${deleteModal.candidate_name} · ${deleteModal.round}` : undefined}
+        itemName={
+          deleteModal ? `${deleteModal.company_name} — ${deleteModal.role}` : ""
+        }
+        itemDetail={
+          deleteModal
+            ? `${deleteModal.candidate_name} · ${deleteModal.round}`
+            : undefined
+        }
       />
 
       {/* Detail Modal */}
@@ -919,41 +1341,59 @@ export default function InterviewsPage() {
           <div className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Company</p>
-                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{detailModal.company_name}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Company
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {detailModal.company_name}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Role</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.role}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Role
+                </p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                  {detailModal.role}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Candidate</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.candidate_name}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Candidate
+                </p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                  {detailModal.candidate_name}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Profile</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Profile
+                </p>
                 <div className="mt-1 flex items-center gap-2">
-                  <p className="text-sm text-slate-900 dark:text-white">{detailModal.resume_profile_name}</p>
+                  <p className="text-sm text-slate-900 dark:text-white">
+                    {detailModal.resume_profile_name}
+                  </p>
                   {(() => {
-                    const profile = profiles.find(p => p.id === detailModal.resume_profile_id);
+                    const profile = profiles.find(
+                      (p) => p.id === detailModal.resume_profile_id,
+                    );
                     if (!profile) return null;
                     return (
                       <div className="flex gap-2">
                         {profile.linkedin_url && (
-                          <a 
-                            href={profile.linkedin_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <a
+                            href={profile.linkedin_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="text-blue-500 hover:text-blue-400 transition-colors"
                           >
                             <FaLinkedin size={14} />
                           </a>
                         )}
                         {profile.github_url && (
-                          <a 
-                            href={profile.github_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <a
+                            href={profile.github_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="text-slate-400 hover:text-slate-300 transition-colors"
                           >
                             <FaGithub size={14} />
@@ -965,47 +1405,83 @@ export default function InterviewsPage() {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Round</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.round}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Round
+                </p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                  {detailModal.round}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Date</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatDate(detailModal.interview_date)}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Date
+                </p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                  {formatDate(detailModal.interview_date)}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (EST)</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_est)}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Time (EST)
+                </p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                  {formatTime(detailModal.time_est)}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (PKT)</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_pkt)}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Time (PKT)
+                </p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                  {formatTime(detailModal.time_pkt)}
+                </p>
               </div>
               {detailModal.salary_range && (
                 <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Salary Range</p>
-                  <p className="mt-1 text-sm text-emerald-400">{detailModal.salary_range}</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Salary Range
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-400">
+                    {detailModal.salary_range}
+                  </p>
                 </div>
               )}
               {detailModal.bd_name && (
                 <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Business Developer</p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.bd_name}</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Business Developer
+                  </p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {detailModal.bd_name}
+                  </p>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
-                <div className="mt-1"><StatusBadge status={detailModal.computed_status} /></div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Status
+                </p>
+                <div className="mt-1">
+                  <StatusBadge status={detailModal.computed_status} />
+                </div>
               </div>
               {detailModal.interviewer && (
                 <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interviewer</p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.interviewer}</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Interviewer
+                  </p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {detailModal.interviewer}
+                  </p>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Medium</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Interview Medium
+                </p>
                 {detailModal.is_phone_call ? (
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">Phone Call</p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    Phone Call
+                  </p>
                 ) : detailModal.interview_link ? (
                   <a
                     href={detailModal.interview_link}
@@ -1016,13 +1492,72 @@ export default function InterviewsPage() {
                     {detailModal.interview_link}
                   </a>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">—</p>
+                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
+                    —
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Interview Detail Document
+                </p>
+                {detailModal.interview_doc_url ? (
+                  <a
+                    href={detailModal.interview_doc_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
+                  >
+                    <Download size={14} />
+                    Download Document
+                  </a>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
+                    Not uploaded
+                  </p>
+                )}
+                {!cannotCRUD && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      id={`interview-doc-input-${detailModal.id}`}
+                      type="file"
+                      accept=".doc,.docx"
+                      className="hidden"
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                        const file = e.target.files?.[0];
+                        if (file)
+                          handleInterviewDocUpload(detailModal.id, file);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        document
+                          .getElementById(
+                            `interview-doc-input-${detailModal.id}`,
+                          )
+                          ?.click()
+                      }
+                      className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
+                      disabled={uploadingInterviewId === detailModal.id}
+                    >
+                      {uploadingInterviewId === detailModal.id
+                        ? "Uploading..."
+                        : "Upload Document"}
+                    </button>
+                  </div>
+                )}
+                {uploadError && uploadingInterviewId === detailModal.id && (
+                  <p className="mt-1 text-sm text-red-500">{uploadError}</p>
                 )}
               </div>
             </div>
             {detailModal.feedback && (
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Feedback</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Feedback
+                </p>
                 <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white dark:bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                   {detailModal.feedback}
                 </p>
@@ -1036,21 +1571,36 @@ export default function InterviewsPage() {
       {profilePopover && (
         <div
           ref={profilePopoverRef}
-          style={{ position: "fixed", top: profilePopover.y, left: profilePopover.x, zIndex: 9999 }}
+          style={{
+            position: "fixed",
+            top: profilePopover.y,
+            left: profilePopover.x,
+            zIndex: 9999,
+          }}
           className="w-72 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl p-4"
         >
-          <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">{profilePopover.profile.name}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+            {profilePopover.profile.name}
+          </p>
           <div className="space-y-2">
             {profilePopover.profile.linkedin_url && (
-              <a href={profilePopover.profile.linkedin_url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all">
+              <a
+                href={profilePopover.profile.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all"
+              >
                 <FaLinkedin size={13} className="shrink-0" />
                 LinkedIn Profile
               </a>
             )}
             {profilePopover.profile.github_url && (
-              <a href={profilePopover.profile.github_url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors break-all">
+              <a
+                href={profilePopover.profile.github_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors break-all"
+              >
                 <FaGithub size={13} className="shrink-0" />
                 GitHub Profile
               </a>
@@ -1063,13 +1613,22 @@ export default function InterviewsPage() {
       {companyPopover && (
         <div
           ref={popoverRef}
-          style={{ position: "fixed", top: companyPopover.y, left: companyPopover.x, zIndex: 9999 }}
+          style={{
+            position: "fixed",
+            top: companyPopover.y,
+            left: companyPopover.x,
+            zIndex: 9999,
+          }}
           className="w-72 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl p-4"
         >
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">{companyPopover.company.name}</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+              {companyPopover.company.name}
+            </p>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-              {companyPopover.company.is_staffing_firm ? "Staffing Firm" : "Direct Client"}
+              {companyPopover.company.is_staffing_firm
+                ? "Staffing Firm"
+                : "Direct Client"}
             </span>
           </div>
           <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">

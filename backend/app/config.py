@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     AWS_IAM_KEY: Optional[str] = Field(None, env="AWS_IAM_KEY")
     AWS_IAM_SECRET: Optional[str] = Field(None, env="AWS_IAM_SECRET")
 
+    # maximum upload size in bytes for file uploads
+    MAX_UPLOAD_SIZE: int = Field(10 * 1024 * 1024, env="MAX_UPLOAD_SIZE")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
