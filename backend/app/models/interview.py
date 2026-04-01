@@ -14,7 +14,8 @@ class Interview(SQLModel, table=True):
     # Foreign keys
     company_id: uuid.UUID = Field(foreign_key="companies.id", index=True)
     candidate_id: uuid.UUID = Field(foreign_key="candidates.id", index=True)
-    resume_profile_id: uuid.UUID = Field(foreign_key="resume_profiles.id", index=True)
+    resume_profile_id: uuid.UUID = Field(
+        foreign_key="resume_profiles.id", index=True)
 
     # Interview details
     role: str = Field(max_length=500)
@@ -25,9 +26,11 @@ class Interview(SQLModel, table=True):
     time_pkt: Optional[time] = Field(default=None)
     status: Optional[str] = Field(default=None, max_length=500)
     feedback: Optional[str] = Field(default=None)
-    bd_id: Optional[uuid.UUID] = Field(default=None, foreign_key="business_developers.id", index=True)
+    bd_id: Optional[uuid.UUID] = Field(
+        default=None, foreign_key="business_developers.id", index=True)
     interviewer: Optional[str] = Field(default=None, max_length=255)
     interview_link: Optional[str] = Field(default=None, max_length=1000)
+    interview_doc_url: Optional[str] = Field(default=None, max_length=1000)
     is_phone_call: bool = Field(default=False)
 
     # Timestamps
@@ -36,8 +39,10 @@ class Interview(SQLModel, table=True):
 
     # Relationships
     company: Optional["Company"] = Relationship(back_populates="interviews")
-    candidate: Optional["Candidate"] = Relationship(back_populates="interviews")
-    resume_profile: Optional["ResumeProfile"] = Relationship(back_populates="interviews")
+    candidate: Optional["Candidate"] = Relationship(
+        back_populates="interviews")
+    resume_profile: Optional["ResumeProfile"] = Relationship(
+        back_populates="interviews")
     business_developer: Optional["BusinessDeveloper"] = Relationship()
 
 

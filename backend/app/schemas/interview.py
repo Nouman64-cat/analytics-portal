@@ -19,6 +19,7 @@ class InterviewCreate(BaseModel):
     bd_id: Optional[uuid.UUID] = None
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
+    interview_doc_url: Optional[str] = None
     is_phone_call: bool = False
 
 
@@ -37,6 +38,7 @@ class InterviewUpdate(BaseModel):
     bd_id: Optional[uuid.UUID] = None
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
+    interview_doc_url: Optional[str] = None
     is_phone_call: Optional[bool] = None
 
 
@@ -57,6 +59,7 @@ class InterviewRead(BaseModel):
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
     is_phone_call: bool = False
+    interview_doc_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
