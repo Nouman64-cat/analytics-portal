@@ -4,6 +4,7 @@ import os
 from sqlmodel import Session, text
 from app.database import engine
 
+
 def migrate():
     with Session(engine) as session:
         migrations = [
@@ -21,6 +22,8 @@ def migrate():
              "Migration successful! 'linkedin_url' column added to 'resume_profiles' table."),
             ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS github_url VARCHAR(500);",
              "Migration successful! 'github_url' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS resume_url VARCHAR(1000);",
+             "Migration successful! 'resume_url' column added to 'resume_profiles' table."),
         ]
         for sql, msg in migrations:
             try:
@@ -30,6 +33,7 @@ def migrate():
             except Exception as e:
                 session.rollback()
                 print(f"Migration failed: {e}")
+
 
 if __name__ == '__main__':
     migrate()
