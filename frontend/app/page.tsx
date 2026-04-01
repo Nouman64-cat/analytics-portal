@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
   CalendarCheck,
@@ -8,9 +8,10 @@ import {
   Users,
   TrendingUp,
 } from "lucide-react";
+import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { dashboardService } from "@/lib/services";
 import { recordToChartData, formatDate, formatTime } from "@/lib/utils";
-import type { DashboardStats } from "@/lib/types";
+import type { DashboardStats, RecentInterview } from "@/lib/types";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
@@ -20,6 +21,36 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Company popover for recent interviews
+  const [companyPopover, setCompanyPopover] = useState<{ interview: RecentInterview; x: number; y: number } | null>(null);
+  const companyPopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!companyPopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (companyPopoverRef.current && !companyPopoverRef.current.contains(e.target as Node)) {
+        setCompanyPopover(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [companyPopover]);
+
+  // Profile popover for recent interviews
+  const [profilePopover, setProfilePopover] = useState<{ interview: RecentInterview; x: number; y: number } | null>(null);
+  const profilePopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!profilePopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profilePopoverRef.current && !profilePopoverRef.current.contains(e.target as Node)) {
+        setProfilePopover(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profilePopover]);
 
   const fetchStats = async () => {
     try {
@@ -170,22 +201,54 @@ export default function DashboardPage() {
               Recent Interviews
             </h3>
             <div className="space-y-3">
-              {stats.recent_interviews.map((interview) => (
-                <Link
-                  href={`/interviews?id=${interview.id}`}
+              {stats.recent_interviews.slice(0, 5).map((interview) => (
+                <div
                   key={interview.id}
-                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06] cursor-pointer"
+                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06]"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-500 dark:text-indigo-400">
+                  <Link
+                    href={`/interviews?id=${interview.id}`}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-500 dark:text-indigo-400"
+                  >
                     {interview.company?.[0] || "?"}
-                  </div>
+                  </Link>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                      {interview.company} — {interview.role}
+                      <button
+                        onClick={(e) => {
+                          if (!interview.company_detail) return;
+                          const rect = (e.target as HTMLElement).getBoundingClientRect();
+                          setProfilePopover(null);
+                          setCompanyPopover({ interview, x: rect.left, y: rect.bottom + 6 });
+                        }}
+                        className={interview.company_detail ? "hover:underline cursor-pointer" : "cursor-default"}
+                      >
+                        {interview.company}
+                      </button>
+                      {" — "}{interview.role}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-500">
                       {interview.candidate} · Round {interview.round} · {formatDate(interview.date)}
                     </p>
+                    {interview.resume_profile_name && (
+                      <p className="text-xs mt-0.5">
+                        <button
+                          onClick={(e) => {
+                            if (!interview.linkedin_url && !interview.github_url) return;
+                            const rect = (e.target as HTMLElement).getBoundingClientRect();
+                            setCompanyPopover(null);
+                            setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
+                          }}
+                          className={
+                            (interview.linkedin_url || interview.github_url)
+                              ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
+                              : "text-slate-400 dark:text-slate-500 cursor-default"
+                          }
+                        >
+                          {interview.resume_profile_name}
+                        </button>
+                      </p>
+                    )}
                     <div className="mt-1 flex items-center gap-2 flex-wrap">
                       {interview.time_est && (
                         <span className="text-[11px] text-slate-400 dark:text-slate-500">
@@ -215,12 +278,56 @@ export default function DashboardPage() {
                   <div className="shrink-0">
                     <StatusBadge status={interview.computed_status} />
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           </div>
         </div>
       </div>
+      {/* Company detail popover */}
+      {companyPopover && (
+        <div
+          ref={companyPopoverRef}
+          style={{ position: "fixed", top: companyPopover.y, left: companyPopover.x, zIndex: 9999 }}
+          className="w-72 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl p-4"
+        >
+          <p className="text-sm font-semibold text-slate-900 dark:text-white mb-2">
+            {companyPopover.interview.company}
+          </p>
+          <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+            {companyPopover.interview.company_detail}
+          </p>
+        </div>
+      )}
+
+      {/* Profile links popover */}
+      {profilePopover && (
+        <div
+          ref={profilePopoverRef}
+          style={{ position: "fixed", top: profilePopover.y, left: profilePopover.x, zIndex: 9999 }}
+          className="w-72 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl p-4"
+        >
+          <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+            {profilePopover.interview.resume_profile_name}
+          </p>
+          <div className="space-y-2">
+            {profilePopover.interview.linkedin_url && (
+              <a href={profilePopover.interview.linkedin_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors break-all">
+                <FaLinkedin size={13} className="shrink-0" />
+                LinkedIn Profile
+              </a>
+            )}
+            {profilePopover.interview.github_url && (
+              <a href={profilePopover.interview.github_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors break-all">
+                <FaGithub size={13} className="shrink-0" />
+                GitHub Profile
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

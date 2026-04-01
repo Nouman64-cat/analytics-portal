@@ -94,7 +94,13 @@ export interface DashboardStats {
 export interface RecentInterview {
   id: string;
   company: string | null;
+  company_id: string | null;
+  company_detail: string | null;
   candidate: string | null;
+  resume_profile_name: string | null;
+  resume_profile_id: string | null;
+  linkedin_url: string | null;
+  github_url: string | null;
   role: string;
   round: string;
   date: string | null;
