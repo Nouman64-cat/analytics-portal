@@ -21,9 +21,13 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(
         None, env="AWS_SECRET_ACCESS_KEY")
 
+    # AWS SES (legacy) variables: some environments still include these.
+    AWS_SES_USERNAME: Optional[str] = Field(None, env="AWS_SES_USERNAME")
+    AWS_SES_PASSWORD: Optional[str] = Field(None, env="AWS_SES_PASSWORD")
+
     # Backwards compatibility for existing .env variable names
-    AWS_IAM_KEY: str = Field(None, env="AWS_IAM_KEY")
-    AWS_IAM_SECRET: str = Field(None, env="AWS_IAM_SECRET")
+    AWS_IAM_KEY: Optional[str] = Field(None, env="AWS_IAM_KEY")
+    AWS_IAM_SECRET: Optional[str] = Field(None, env="AWS_IAM_SECRET")
 
     @property
     def cors_origins_list(self) -> list[str]:
