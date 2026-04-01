@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Plus, Search, Eye, Pencil, Trash2, CalendarCheck, Clock, CheckCircle2, XCircle, Ban, Users, ChevronLeft, ChevronRight, Download, Loader2} from "lucide-react";
 import * as xlsx from "xlsx";
 import { interviewsService, companiesService, candidatesService, profilesService, businessDevelopersService } from "@/lib/services";
@@ -29,12 +29,26 @@ export default function InterviewsPage() {
 
   const [filters, setFilters] = useState({
     status: "All",
-    company_id: "All",  
+    company_id: "All",
     candidate_id: "All",
     resume_profile_id: "All",
     round: "All",
-    bd_id: "All"
+    bd_id: "All",
+    month: "All"
   });
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    interviews.forEach(i => {
+      if (i.interview_date) {
+        const d = new Date(i.interview_date + "T12:00:00");
+        const monthName = d.toLocaleString("default", { month: "long" });
+        months.add(monthName);
+      }
+    });
+    const monthsOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    return Array.from(months).sort((a, b) => monthsOrder.indexOf(a) - monthsOrder.indexOf(b));
+  }, [interviews]);
 
   // Reset page to 1 when search or filters change
   useEffect(() => {
@@ -262,7 +276,18 @@ export default function InterviewsPage() {
       matchStatus = i.computed_status.toLowerCase() === filters.status.toLowerCase();
     }
 
-    return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchBd && matchStatus;
+    let matchMonth = true;
+    if (filters.month !== "All") {
+      if (!i.interview_date) {
+        matchMonth = false;
+      } else {
+        const d = new Date(i.interview_date + "T12:00:00");
+        const m = d.toLocaleString("default", { month: "long" });
+        matchMonth = m === filters.month;
+      }
+    }
+
+    return matchSearch && matchCompany && matchCandidate && matchProfile && matchRound && matchBd && matchStatus && matchMonth;
   });
 
   const handleExport = () => {
@@ -459,9 +484,20 @@ export default function InterviewsPage() {
               ))}
             </select>
 
-            {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All" || filters.bd_id !== "All") && (
+            <select
+              value={filters.month}
+              onChange={e => setFilters({ ...filters, month: e.target.value })}
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
+            >
+              <option value="All">All Months</option>
+              {availableMonths.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+
+            {(filters.status !== "All" || filters.company_id !== "All" || filters.candidate_id !== "All" || filters.resume_profile_id !== "All" || filters.round !== "All" || filters.bd_id !== "All" || filters.month !== "All") && (
               <button
-                onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All", bd_id: "All" })}
+                onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All", bd_id: "All", month: "All" })}
                 className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"
               >
                 Clear Filters
