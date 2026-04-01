@@ -282,9 +282,27 @@ export default function InterviewsPage() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const payload: Partial<InterviewFormData> & Record<string, unknown> = {
+      const payload = {
         ...formData,
+      } as {
+        company_id: string;
+        candidate_id: string;
+        resume_profile_id: string;
+        role: string;
+        round: string;
+        interview_date?: string | null;
+        time_est?: string | null;
+        time_pkt?: string | null;
+        status?: string | null;
+        feedback?: string | null;
+        bd_id?: string | null;
+        interviewer?: string | null;
+        interview_link?: string | null;
+        is_phone_call?: boolean;
+        salary_range?: string | null;
+        [key: string]: string | boolean | null | undefined;
       };
+
       // Send null to accurately clear fields in the database
       if (!payload.salary_range) payload.salary_range = null;
       if (!payload.interview_date) payload.interview_date = null;
@@ -347,7 +365,7 @@ export default function InterviewsPage() {
 
   // EST (UTC-5) → PKT (UTC+5) = +10h; EDT (UTC-4) → PKT (UTC+5) = +9h
   // Falls back to today's date when no interview date is set yet
-  const estToPktOffset = (dateStr?: string) => {
+  const estToPktOffset = (dateStr?: string | null) => {
     const d = dateStr || new Date().toISOString().split("T")[0];
     return isUsDst(d) ? 9 : 10;
   };
@@ -382,9 +400,10 @@ export default function InterviewsPage() {
       ![
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/pdf",
       ].includes(file.type)
     ) {
-      setUploadError("Only DOC and DOCX files are allowed.");
+      setUploadError("Only DOC, DOCX, and PDF files are allowed.");
       setUploadingInterviewId(null);
       return;
     }
@@ -1237,10 +1256,10 @@ export default function InterviewsPage() {
             </FormField>
           </div>
           <div className="col-span-1 sm:col-span-2">
-            <FormField label="Interview Document (DOC/DOCX)">
+            <FormField label="Interview Document (DOC/DOCX/PDF)">
               <input
                 type="file"
-                accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const file = e.target.files?.[0] ?? null;
                   if (file) {
@@ -1248,10 +1267,11 @@ export default function InterviewsPage() {
                       ![
                         "application/msword",
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/pdf",
                       ].includes(file.type)
                     ) {
                       setInterviewDocError(
-                        "Only DOC and DOCX files are allowed.",
+                        "Only DOC, DOCX, and PDF files are allowed.",
                       );
                       setInterviewDocFile(null);
                       return;
@@ -1522,7 +1542,7 @@ export default function InterviewsPage() {
                     <input
                       id={`interview-doc-input-${detailModal.id}`}
                       type="file"
-                      accept=".doc,.docx"
+                      accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                       className="hidden"
                       onChange={(e: ChangeEvent<HTMLInputElement>) => {
                         const file = e.target.files?.[0];

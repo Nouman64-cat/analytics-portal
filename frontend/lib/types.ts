@@ -123,16 +123,16 @@ export interface InterviewFormData {
   candidate_id: string;
   resume_profile_id: string;
   role: string;
-  salary_range?: string;
+  salary_range?: string | null;
   round: string;
-  interview_date?: string;
-  time_est?: string;
-  time_pkt?: string;
-  status?: string;
-  feedback?: string;
-  bd_id?: string;
-  interviewer?: string;
-  interview_link?: string;
+  interview_date?: string | null;
+  time_est?: string | null;
+  time_pkt?: string | null;
+  status?: string | null;
+  feedback?: string | null;
+  bd_id?: string | null;
+  interviewer?: string | null;
+  interview_link?: string | null;
   is_phone_call?: boolean;
 }
 
