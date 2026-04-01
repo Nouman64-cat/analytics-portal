@@ -461,7 +461,24 @@ export default function InterviewsPage() {
                     className="transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.02]"
                   >
                     <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
-                      {interview.company_name}
+                      {(() => {
+                        const company = companies.find(c => c.id === interview.company_id);
+                        return company?.detail ? (
+                          <div className="relative group/tooltip inline-block">
+                            <span className="cursor-default underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2">
+                              {interview.company_name}
+                            </span>
+                            <div className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 hidden group-hover/tooltip:block">
+                              <div className="w-64 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-xl p-3">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 mb-1">{company.is_staffing_firm ? "Staffing Firm" : "Direct Client"}</p>
+                                <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{company.detail}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span>{interview.company_name}</span>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
                       {truncate(interview.role, 40)}

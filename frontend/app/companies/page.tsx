@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Building2, Loader2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Loader2, Search, Eye } from "lucide-react";
 import { companiesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { Company, CompanyFormData, Interview } from "@/lib/types";
@@ -22,6 +22,7 @@ export default function CompaniesPage() {
   const [formData, setFormData] = useState<CompanyFormData>({ name: "" });
   const [deleteModal, setDeleteModal] = useState<Company | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [viewModal, setViewModal] = useState<Company | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
 
@@ -148,22 +149,31 @@ export default function CompaniesPage() {
               >
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-cyan-500/10 to-blue-500/10 blur-2xl transition-all group-hover:opacity-80" />
                 <div className="relative">
-                  {!cannotCRUD && (
-                    <div className="flex justify-end gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 mb-2">
-                      <button
-                        onClick={() => openEdit(company)}
-                        className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteModal(company)}
-                        className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex justify-end gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 mb-2">
+                    <button
+                      onClick={() => setViewModal(company)}
+                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                      title="View details"
+                    >
+                      <Eye size={13} />
+                    </button>
+                    {!cannotCRUD && (
+                      <>
+                        <button
+                          onClick={() => openEdit(company)}
+                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteModal(company)}
+                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col items-start gap-1.5">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-2xl font-bold text-cyan-300">
@@ -211,6 +221,50 @@ export default function CompaniesPage() {
         itemName={deleteModal?.name ?? ""}
         itemDetail={deleteModal?.is_staffing_firm ? "Staffing Firm" : undefined}
       />
+
+      {/* View Detail Modal */}
+      <Modal
+        open={!!viewModal}
+        onClose={() => setViewModal(null)}
+        title="Company Details"
+        size="md"
+      >
+        {viewModal && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-2xl font-bold text-cyan-300">
+                {viewModal.name[0]}
+              </div>
+              <div>
+                <p className="text-base font-semibold text-slate-900 dark:text-white">{viewModal.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-500">Added {formatDate(viewModal.created_at)}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Type</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {viewModal.is_staffing_firm ? "Staffing Firm" : "Direct Client"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Interviews</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {interviewCounts[viewModal.id] || 0}
+                </p>
+              </div>
+            </div>
+            {viewModal.detail ? (
+              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 mb-2">Details</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-300">{viewModal.detail}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 dark:text-slate-600 italic">No details added.</p>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Modal */}
       <Modal
