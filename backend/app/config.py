@@ -29,8 +29,9 @@ class Settings(BaseSettings):
     AWS_IAM_KEY: Optional[str] = Field(None, env="AWS_IAM_KEY")
     AWS_IAM_SECRET: Optional[str] = Field(None, env="AWS_IAM_SECRET")
 
-    # maximum upload size in bytes for file uploads
-    MAX_UPLOAD_SIZE: int = Field(10 * 1024 * 1024, env="MAX_UPLOAD_SIZE")
+    # Maximum request body size in bytes (multipart uploads). Default 50MB for PDFs / interview docs.
+    # If you use nginx, set client_max_body_size to at least this value or requests never reach the app.
+    MAX_UPLOAD_SIZE: int = Field(50 * 1024 * 1024, env="MAX_UPLOAD_SIZE")
 
     @property
     def cors_origins_list(self) -> list[str]:
