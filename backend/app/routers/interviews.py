@@ -245,7 +245,7 @@ def update_interview(
     session: Session = Depends(get_session),
 ):
     """Update an interview record."""
-    interview = session.get(Interview, interview_id)
+    interview = _get_interview_for_enrichment(session, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
 
