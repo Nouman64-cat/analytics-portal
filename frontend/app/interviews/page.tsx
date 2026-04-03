@@ -249,6 +249,8 @@ export default function InterviewsPage() {
       interviewer: "",
       interview_link: "",
       is_phone_call: false,
+      feedback: "",
+      recruiter_feedback: "",
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -269,6 +271,7 @@ export default function InterviewsPage() {
       time_pkt: interview.time_pkt || "",
       status: interview.status || "",
       feedback: interview.feedback || "",
+      recruiter_feedback: interview.recruiter_feedback || "",
       bd_id: interview.bd_id || "",
       interviewer: interview.interviewer || "",
       interview_link: interview.interview_link || "",
@@ -296,6 +299,7 @@ export default function InterviewsPage() {
         time_pkt?: string | null;
         status?: string | null;
         feedback?: string | null;
+        recruiter_feedback?: string | null;
         bd_id?: string | null;
         interviewer?: string | null;
         interview_link?: string | null;
@@ -311,6 +315,7 @@ export default function InterviewsPage() {
       if (!payload.time_pkt) payload.time_pkt = null;
       if (!payload.status) payload.status = null;
       if (!payload.feedback) payload.feedback = null;
+      if (!payload.recruiter_feedback) payload.recruiter_feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
       if (!payload.interviewer) payload.interviewer = null;
       if (payload.is_phone_call || !payload.interview_link)
@@ -434,7 +439,9 @@ export default function InterviewsPage() {
       i.candidate_name?.toLowerCase().includes(q) ||
       i.role.toLowerCase().includes(q) ||
       i.status?.toLowerCase().includes(q) ||
-      i.resume_profile_name?.toLowerCase().includes(q);
+      i.resume_profile_name?.toLowerCase().includes(q) ||
+      i.feedback?.toLowerCase().includes(q) ||
+      i.recruiter_feedback?.toLowerCase().includes(q);
 
     const interviewCompany = companies.find((c) => c.id === i.company_id);
     const matchCompany =
@@ -493,7 +500,8 @@ export default function InterviewsPage() {
       "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
       "Salary Range": i.salary_range || "",
       Status: i.computed_status,
-      Feedback: i.feedback || "",
+      "Our notes (presentation)": i.feedback || "",
+      "Recruiter notes": i.recruiter_feedback || "",
     }));
 
     const worksheet = xlsx.utils.json_to_sheet(dataToExport);
@@ -1303,14 +1311,30 @@ export default function InterviewsPage() {
             </FormField>
           </div>
           <div className="col-span-1 sm:col-span-2">
-            <FormField label="Feedback">
+            <FormField label="Our notes (after presentation)">
               <textarea
                 value={formData.feedback || ""}
                 onChange={(e) =>
                   setFormData({ ...formData, feedback: e.target.value })
                 }
-                placeholder="Interview notes and feedback..."
+                placeholder="Internal SOP: how the interview went on your side, what to improve…"
                 rows={4}
+                className={textareaClass}
+              />
+            </FormField>
+          </div>
+          <div className="col-span-1 sm:col-span-2">
+            <FormField label="Recruiter update">
+              <textarea
+                value={formData.recruiter_feedback || ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    recruiter_feedback: e.target.value,
+                  })
+                }
+                placeholder="What the recruiter shared (outcome context). Pipeline outcome stays in Status above."
+                rows={3}
                 className={textareaClass}
               />
             </FormField>
@@ -1602,14 +1626,28 @@ export default function InterviewsPage() {
                 )}
               </div>
             </div>
-            {detailModal.feedback && (
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Feedback
-                </p>
-                <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white dark:bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-                  {detailModal.feedback}
-                </p>
+            {(detailModal.feedback || detailModal.recruiter_feedback) && (
+              <div className="space-y-4">
+                {detailModal.feedback && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                      Our notes (after presentation)
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white dark:bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      {detailModal.feedback}
+                    </p>
+                  </div>
+                )}
+                {detailModal.recruiter_feedback && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                      Recruiter update
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 dark:bg-white/[0.04] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300 border border-slate-100 dark:border-white/[0.06]">
+                      {detailModal.recruiter_feedback}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

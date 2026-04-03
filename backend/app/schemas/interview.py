@@ -16,6 +16,7 @@ class InterviewCreate(BaseModel):
     time_pkt: Optional[time] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
+    recruiter_feedback: Optional[str] = None
     bd_id: Optional[uuid.UUID] = None
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
@@ -35,6 +36,7 @@ class InterviewUpdate(BaseModel):
     time_pkt: Optional[time] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
+    recruiter_feedback: Optional[str] = None
     bd_id: Optional[uuid.UUID] = None
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
@@ -55,6 +57,7 @@ class InterviewRead(BaseModel):
     time_pkt: Optional[time] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
+    recruiter_feedback: Optional[str] = None
     bd_id: Optional[uuid.UUID] = None
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None

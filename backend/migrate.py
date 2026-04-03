@@ -28,6 +28,8 @@ def migrate():
              "Migration successful! 'resume_url' column added to 'resume_profiles' table."),
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_doc_url VARCHAR(1000);",
              "Migration successful! 'interview_doc_url' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS recruiter_feedback TEXT;",
+             "Migration successful! 'recruiter_feedback' column added to 'interviews' table."),
         ]
         for sql, msg in migrations:
             try:

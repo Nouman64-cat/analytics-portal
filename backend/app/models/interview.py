@@ -25,7 +25,10 @@ class Interview(SQLModel, table=True):
     time_est: Optional[time] = Field(default=None)
     time_pkt: Optional[time] = Field(default=None)
     status: Optional[str] = Field(default=None, max_length=500)
+    # Internal notes after your presentation (SOP)
     feedback: Optional[str] = Field(default=None)
+    # Notes from the recruiter (outcome context, separate from pipeline status)
+    recruiter_feedback: Optional[str] = Field(default=None)
     bd_id: Optional[uuid.UUID] = Field(
         default=None, foreign_key="business_developers.id", index=True)
     interviewer: Optional[str] = Field(default=None, max_length=255)

@@ -63,6 +63,7 @@ def _enrich_interview(interview: Interview) -> dict:
         "time_pkt": interview.time_pkt,
         "status": interview.status,
         "feedback": interview.feedback,
+        "recruiter_feedback": interview.recruiter_feedback,
         "bd_id": interview.bd_id,
         "interviewer": interview.interviewer,
         "interview_link": interview.interview_link,

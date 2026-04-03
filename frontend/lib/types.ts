@@ -55,7 +55,10 @@ export interface Interview {
   time_est: string | null;
   time_pkt: string | null;
   status: string | null;
+  /** Internal notes after your presentation (SOP). */
   feedback: string | null;
+  /** Notes from the recruiter (separate from pipeline status). */
+  recruiter_feedback: string | null;
   bd_id: string | null;
   bd_name: string | null;
   interviewer: string | null;
@@ -133,6 +136,7 @@ export interface InterviewFormData {
   time_pkt?: string | null;
   status?: string | null;
   feedback?: string | null;
+  recruiter_feedback?: string | null;
   bd_id?: string | null;
   interviewer?: string | null;
   interview_link?: string | null;
