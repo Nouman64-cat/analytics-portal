@@ -7,7 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user
 from sqlmodel import Session, select, col
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
 from app.models.interview import Interview
 from app.models.company import Company
@@ -79,6 +79,23 @@ def _enrich_interview(interview: Interview) -> dict:
     return data
 
 
+def _get_interview_for_enrichment(
+    session: Session, interview_id: uuid.UUID
+) -> Optional[Interview]:
+    """Load interview with relationships so _enrich_interview does not N+1 query."""
+    stmt = (
+        select(Interview)
+        .where(Interview.id == interview_id)
+        .options(
+            selectinload(Interview.company),
+            selectinload(Interview.candidate),
+            selectinload(Interview.resume_profile),
+            selectinload(Interview.business_developer),
+        )
+    )
+    return session.exec(stmt).first()
+
+
 @router.get("/", response_model=list[InterviewReadWithDetails])
 def list_interviews(
     candidate_id: Optional[uuid.UUID] = Query(
@@ -139,14 +156,16 @@ def create_interview(data: InterviewCreate, session: Session = Depends(get_sessi
     interview = Interview(**data.model_dump())
     session.add(interview)
     session.commit()
-    session.refresh(interview)
-    return _enrich_interview(interview)
+    loaded = _get_interview_for_enrichment(session, interview.id)
+    if not loaded:
+        raise HTTPException(status_code=500, detail="Interview reload failed")
+    return _enrich_interview(loaded)
 
 
 @router.get("/{interview_id}", response_model=InterviewReadWithDetails)
 def get_interview(interview_id: uuid.UUID, session: Session = Depends(get_session)):
     """Get an interview by ID with full details."""
-    interview = session.get(Interview, interview_id)
+    interview = _get_interview_for_enrichment(session, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     return _enrich_interview(interview)
@@ -212,9 +231,11 @@ def upload_interview_document(
     interview.updated_at = datetime.utcnow()
     session.add(interview)
     session.commit()
-    session.refresh(interview)
+    loaded = _get_interview_for_enrichment(session, interview_id)
+    if not loaded:
+        raise HTTPException(status_code=500, detail="Interview reload failed")
 
-    return _enrich_interview(interview)
+    return _enrich_interview(loaded)
 
 
 @router.put("/{interview_id}", response_model=InterviewReadWithDetails)
@@ -247,8 +268,10 @@ def update_interview(
 
     session.add(interview)
     session.commit()
-    session.refresh(interview)
-    return _enrich_interview(interview)
+    loaded = _get_interview_for_enrichment(session, interview_id)
+    if not loaded:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return _enrich_interview(loaded)
 
 
 @router.delete("/{interview_id}", status_code=status.HTTP_204_NO_CONTENT)
