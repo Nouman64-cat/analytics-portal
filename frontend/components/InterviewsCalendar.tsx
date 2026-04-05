@@ -3,8 +3,9 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Interview } from "@/lib/types";
-import { formatTime } from "@/lib/utils";
+import { formatDate, formatTime } from "@/lib/utils";
 import StatusBadge from "@/components/StatusBadge";
+import Modal from "@/components/Modal";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 /** Narrow screens: short labels so columns stay readable */
@@ -89,6 +90,12 @@ export default function InterviewsCalendar({
 
   const smUp = useMinWidthSm();
   const maxPerDay = smUp ? 3 : 2;
+
+  /** Full-day list when "+N more" is used */
+  const [dayListModal, setDayListModal] = useState<{
+    date: Date;
+    interviews: Interview[];
+  } | null>(null);
 
   const goPrev = () => setCursor(new Date(year, month - 1, 1));
   const goNext = () => setCursor(new Date(year, month + 1, 1));
@@ -202,15 +209,67 @@ export default function InterviewsCalendar({
                   ))}
                 </ul>
                 {rest > 0 && (
-                  <p className="mt-0.5 px-px text-[8px] font-medium text-indigo-600 sm:mt-1 sm:px-0.5 sm:text-[10px] dark:text-indigo-400">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDayListModal({ date: day, interviews: dayInterviews })
+                    }
+                    className="mt-0.5 w-full rounded px-0.5 py-0.5 text-left text-[8px] font-semibold text-indigo-600 underline decoration-indigo-500/50 underline-offset-2 hover:bg-indigo-500/10 hover:text-indigo-700 sm:mt-1 sm:px-0.5 sm:text-[10px] dark:text-indigo-400 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
+                    aria-label={`Show ${rest} more interview${rest === 1 ? "" : "s"} for this day`}
+                  >
                     +{rest} more
-                  </p>
+                  </button>
                 )}
               </div>
             );
           })}
         </div>
       </div>
+
+      <Modal
+        open={!!dayListModal}
+        onClose={() => setDayListModal(null)}
+        title={
+          dayListModal
+            ? formatDate(toISODate(dayListModal.date))
+            : "Interviews"
+        }
+        size="sm"
+      >
+        {dayListModal && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {dayListModal.interviews.length} interview
+              {dayListModal.interviews.length !== 1 ? "s" : ""} on this day —
+              open one for details.
+            </p>
+            <ul className="max-h-[min(60vh,20rem)] space-y-2 overflow-y-auto">
+              {dayListModal.interviews.map((inv) => (
+                <li key={inv.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectInterview(inv);
+                      setDayListModal(null);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-900 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/80 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15"
+                  >
+                    <div className="font-medium text-slate-900 dark:text-white">
+                      {inv.time_est ? formatTime(inv.time_est) : "—"}{" "}
+                      <span className="font-normal text-slate-600 dark:text-slate-300">
+                        {inv.company_name || "Company"}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {inv.candidate_name || "Candidate"} · {inv.role || "—"}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Modal>
 
       {undated.length > 0 && (
         <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 sm:p-4 dark:border-amber-500/20 dark:bg-amber-500/5">
