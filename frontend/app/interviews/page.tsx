@@ -78,6 +78,17 @@ function isRejectedInterview(interview: Interview): boolean {
   return interview.computed_status.toLowerCase().includes("rejected");
 }
 
+/** Best-effort label from S3 URL path for the interview document field. */
+function filenameFromInterviewDocUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    const seg = path.split("/").filter(Boolean).pop() || "document";
+    return decodeURIComponent(seg);
+  } catch {
+    return "Uploaded document";
+  }
+}
+
 /** Match `max-h-[min(52vh,17.5rem)]` and width for viewport clamping / flip-above. */
 const PIPELINE_POPOVER_MAX_H_PX = () =>
   Math.min(window.innerHeight * 0.52, 17.5 * 16);
@@ -597,6 +608,13 @@ export default function InterviewsPage() {
     }
     return pipelineParentOptions;
   }, [pipelineParentOptions, formData.parent_interview_id, interviews]);
+
+  const editingInterviewForDoc = useMemo(
+    () => (editingId ? interviews.find((i) => i.id === editingId) : null),
+    [editingId, interviews],
+  );
+  const existingInterviewDocUrl =
+    editingInterviewForDoc?.interview_doc_url ?? null;
 
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
@@ -1581,6 +1599,29 @@ export default function InterviewsPage() {
           </div>
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Interview Document (DOC/DOCX/PDF)">
+              {existingInterviewDocUrl && !interviewDocFile ? (
+                <div className="mb-2 rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-3 py-2 text-sm dark:border-emerald-500/25 dark:bg-emerald-500/10">
+                  <p className="font-medium text-emerald-900 dark:text-emerald-100">
+                    Document on file
+                  </p>
+                  <a
+                    href={existingInterviewDocUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex items-center gap-1 text-emerald-800 underline decoration-emerald-600/40 underline-offset-2 hover:text-emerald-700 dark:text-emerald-200 dark:hover:text-emerald-100"
+                  >
+                    {filenameFromInterviewDocUrl(existingInterviewDocUrl)}
+                  </a>
+                  <p className="mt-1 text-xs text-emerald-800/90 dark:text-emerald-200/80">
+                    Choose a file below only if you want to replace it.
+                  </p>
+                </div>
+              ) : null}
+              {existingInterviewDocUrl && interviewDocFile ? (
+                <p className="mb-2 text-xs text-amber-800 dark:text-amber-200/90">
+                  New file below will replace the current document when you save.
+                </p>
+              ) : null}
               <input
                 type="file"
                 accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
