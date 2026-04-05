@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     # AWS SES SMTP (verified sender domain/email required in SES console)
     AWS_SES_USERNAME: Optional[str] = Field(None, env="AWS_SES_USERNAME")
     AWS_SES_PASSWORD: Optional[str] = Field(None, env="AWS_SES_PASSWORD")
-    AWS_SES_FROM_EMAIL: Optional[str] = Field(None, env="AWS_SES_FROM_EMAIL")
+    AWS_SES_FROM_EMAIL: str = Field(
+        "info@zygotrix.com", env="AWS_SES_FROM_EMAIL"
+    )
 
     # Backwards compatibility for existing .env variable names
     AWS_IAM_KEY: Optional[str] = Field(None, env="AWS_IAM_KEY")
