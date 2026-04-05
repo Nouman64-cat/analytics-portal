@@ -21,9 +21,10 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(
         None, env="AWS_SECRET_ACCESS_KEY")
 
-    # AWS SES (legacy) variables: some environments still include these.
+    # AWS SES SMTP (verified sender domain/email required in SES console)
     AWS_SES_USERNAME: Optional[str] = Field(None, env="AWS_SES_USERNAME")
     AWS_SES_PASSWORD: Optional[str] = Field(None, env="AWS_SES_PASSWORD")
+    AWS_SES_FROM_EMAIL: Optional[str] = Field(None, env="AWS_SES_FROM_EMAIL")
 
     # Backwards compatibility for existing .env variable names
     AWS_IAM_KEY: Optional[str] = Field(None, env="AWS_IAM_KEY")

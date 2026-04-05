@@ -26,7 +26,7 @@ def list_candidates(session: Session = Depends(get_session)):
 @router.post("/", response_model=CandidateRead, status_code=status.HTTP_201_CREATED)
 def create_candidate(data: CandidateCreate, session: Session = Depends(get_session)):
     """Create a new candidate."""
-    candidate = Candidate(name=data.name)
+    candidate = Candidate(name=data.name, email=data.email)
     session.add(candidate)
     session.commit()
     session.refresh(candidate)
@@ -56,6 +56,7 @@ def get_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_sessio
     return CandidateReadWithInterviews(
         id=candidate.id,
         name=candidate.name,
+        email=candidate.email,
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
         interviews=interview_summaries,

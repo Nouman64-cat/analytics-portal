@@ -1,20 +1,37 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 
 
 class CandidateCreate(BaseModel):
     name: str
+    email: Optional[EmailStr] = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_str_email_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 
 class CandidateUpdate(BaseModel):
     name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_str_email_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 
 class CandidateRead(BaseModel):
     id: uuid.UUID
     name: str
+    email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

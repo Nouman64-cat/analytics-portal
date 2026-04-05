@@ -3,6 +3,8 @@
 export interface Candidate {
   id: string;
   name: string;
+  /** Used for interview notification emails (SES). */
+  email: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +158,7 @@ export interface BusinessDeveloperFormData {
 
 export interface CandidateFormData {
   name: string;
+  email?: string | null;
 }
 
 export interface CompanyFormData {

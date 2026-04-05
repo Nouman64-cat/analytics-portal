@@ -21,6 +21,7 @@ from app.schemas.interview import (
     InterviewReadWithDetails,
 )
 from app.status_utils import compute_status
+from app.email_ses import try_send_interview_created_email
 
 router = APIRouter(prefix="/api/v1/interviews",
                    tags=["Interviews"], dependencies=[Depends(get_current_user)])
@@ -251,6 +252,23 @@ def create_interview(data: InterviewCreate, session: Session = Depends(get_sessi
     loaded = _get_interview_for_enrichment(session, interview.id)
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
+
+    cand = loaded.candidate
+    try_send_interview_created_email(
+        get_settings(),
+        to_email=cand.email if cand else None,
+        candidate_name=cand.name if cand else "Candidate",
+        company_name=loaded.company.name if loaded.company else "",
+        role=loaded.role,
+        round_name=loaded.round,
+        interview_date=loaded.interview_date,
+        time_est=loaded.time_est,
+        time_pkt=loaded.time_pkt,
+        interviewer=loaded.interviewer,
+        interview_link=loaded.interview_link,
+        is_phone_call=loaded.is_phone_call,
+    )
+
     return _enrich_interview(loaded)
 
 

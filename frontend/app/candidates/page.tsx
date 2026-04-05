@@ -25,7 +25,10 @@ export default function CandidatesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<CandidateFormData>({ name: "" });
+  const [formData, setFormData] = useState<CandidateFormData>({
+    name: "",
+    email: "",
+  });
   const [detailData, setDetailData] = useState<CandidateWithInterviews | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -98,13 +101,13 @@ export default function CandidatesPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: "" });
+    setFormData({ name: "", email: "" });
     setModalOpen(true);
   };
 
   const openEdit = (c: Candidate) => {
     setEditingId(c.id);
-    setFormData({ name: c.name });
+    setFormData({ name: c.name, email: c.email ?? "" });
     setModalOpen(true);
   };
 
@@ -112,10 +115,14 @@ export default function CandidatesPage() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+      const payload = {
+        name: formData.name,
+        email: formData.email?.trim() || null,
+      };
       if (editingId) {
-        await candidatesService.update(editingId, formData);
+        await candidatesService.update(editingId, payload);
       } else {
-        await candidatesService.create(formData);
+        await candidatesService.create(payload);
       }
       setModalOpen(false);
       fetchData();
@@ -239,6 +246,11 @@ export default function CandidatesPage() {
                   </div>
                   <div className="mt-4 border-t border-slate-100 dark:border-white/[0.04] pt-3">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</p>
+                    {candidate.email ? (
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+                        {candidate.email}
+                      </p>
+                    ) : null}
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                       Added {formatDate(candidate.created_at)}
                     </p>
@@ -260,10 +272,22 @@ export default function CandidatesPage() {
         <FormField label="Full Name">
           <input
             value={formData.name}
-            onChange={(e) => setFormData({ name: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g., Nouman Ejaz"
             className={inputClass}
             autoFocus
+          />
+        </FormField>
+        <FormField label="Email (for interview notifications)">
+          <input
+            type="email"
+            value={formData.email ?? ""}
+            onChange={(e) =>
+              setFormData({ ...formData, email: e.target.value })
+            }
+            placeholder="candidate@example.com"
+            className={inputClass}
+            autoComplete="email"
           />
         </FormField>
         <div className="mt-6 flex justify-end gap-3">

@@ -38,6 +38,10 @@ def migrate():
              "Migration successful! Backfilled 'thread_id' for existing interviews."),
             ("ALTER TABLE interviews ALTER COLUMN thread_id SET NOT NULL;",
              "Migration successful! 'thread_id' NOT NULL enforced."),
+            ("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS email VARCHAR(255);",
+             "Migration successful! 'email' column added to 'candidates' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_candidates_email ON candidates (email);",
+             "Migration successful! Index on candidates.email ensured."),
         ]
         for sql, msg in migrations:
             try:
