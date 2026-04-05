@@ -185,6 +185,41 @@ export default function InterviewsPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [profilePopover]);
+
+  /** Hover preview for multi-step pipeline (conversion path) */
+  const [pipelinePopover, setPipelinePopover] = useState<{
+    interview: Interview;
+    chain: Interview[];
+    x: number;
+    y: number;
+  } | null>(null);
+  const pipelinePopoverRef = useRef<HTMLDivElement>(null);
+  const pipelineHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!pipelinePopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        pipelinePopoverRef.current &&
+        !pipelinePopoverRef.current.contains(e.target as Node)
+      ) {
+        setPipelinePopover(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [pipelinePopover]);
+
+  useEffect(() => {
+    return () => {
+      if (pipelineHoverTimerRef.current) {
+        clearTimeout(pipelineHoverTimerRef.current);
+      }
+    };
+  }, []);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
@@ -919,6 +954,8 @@ export default function InterviewsPage() {
                                 const rect = (
                                   e.target as HTMLElement
                                 ).getBoundingClientRect();
+                                setProfilePopover(null);
+                                setPipelinePopover(null);
                                 setCompanyPopover((prev) =>
                                   prev?.company.id === company.id
                                     ? null
@@ -961,6 +998,8 @@ export default function InterviewsPage() {
                                 const rect = (
                                   e.target as HTMLElement
                                 ).getBoundingClientRect();
+                                setCompanyPopover(null);
+                                setPipelinePopover(null);
                                 setProfilePopover((prev) =>
                                   prev?.profile.id === profile.id
                                     ? null
@@ -995,17 +1034,66 @@ export default function InterviewsPage() {
                               </span>
                             );
                           }
+                          const tid = interview.thread_id ?? interview.id;
+                          const chain =
+                            interviewsByThread.get(tid) || [interview];
                           return (
-                            <span
-                              className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400"
-                              title="Step in this opportunity pipeline"
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors cursor-help"
+                              title="Hover for pipeline details"
+                              aria-label={`Pipeline step ${step} of ${total}, hover or focus for conversion path`}
+                              onMouseEnter={(e) => {
+                                if (pipelineHoverTimerRef.current) {
+                                  clearTimeout(pipelineHoverTimerRef.current);
+                                  pipelineHoverTimerRef.current = null;
+                                }
+                                setCompanyPopover(null);
+                                setProfilePopover(null);
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                setPipelinePopover({
+                                  interview,
+                                  chain,
+                                  x: rect.left,
+                                  y: rect.bottom + 6,
+                                });
+                              }}
+                              onMouseLeave={() => {
+                                pipelineHoverTimerRef.current = setTimeout(
+                                  () => setPipelinePopover(null),
+                                  200,
+                                );
+                              }}
+                              onFocus={(e) => {
+                                if (pipelineHoverTimerRef.current) {
+                                  clearTimeout(pipelineHoverTimerRef.current);
+                                  pipelineHoverTimerRef.current = null;
+                                }
+                                setCompanyPopover(null);
+                                setProfilePopover(null);
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                setPipelinePopover({
+                                  interview,
+                                  chain,
+                                  x: rect.left,
+                                  y: rect.bottom + 6,
+                                });
+                              }}
+                              onBlur={() => {
+                                pipelineHoverTimerRef.current = setTimeout(
+                                  () => setPipelinePopover(null),
+                                  150,
+                                );
+                              }}
                             >
                               <GitBranch
                                 className="size-3.5 shrink-0 opacity-85"
                                 aria-hidden
                               />
                               {step}/{total}
-                            </span>
+                            </button>
                           );
                         })()}
                       </td>
@@ -1813,6 +1901,54 @@ export default function InterviewsPage() {
           </div>
         )}
       </Modal>
+
+      {/* Pipeline conversion preview (hover on step/total cell) */}
+      {pipelinePopover && (
+        <div
+          ref={pipelinePopoverRef}
+          style={{
+            position: "fixed",
+            top: pipelinePopover.y,
+            left: pipelinePopover.x,
+            zIndex: 10000,
+          }}
+          className="w-[min(calc(100vw-1.25rem),16.5rem)] max-h-[min(52vh,17.5rem)] overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl px-2.5 py-2 sm:px-3 sm:py-2.5"
+          onMouseEnter={() => {
+            if (pipelineHoverTimerRef.current) {
+              clearTimeout(pipelineHoverTimerRef.current);
+              pipelineHoverTimerRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            pipelineHoverTimerRef.current = setTimeout(
+              () => setPipelinePopover(null),
+              200,
+            );
+          }}
+        >
+          <header className="mb-2 border-b border-slate-100 dark:border-white/[0.06] pb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+              Conversion pipeline
+            </p>
+            <p
+              className="mt-0.5 text-[11px] leading-snug text-slate-700 dark:text-slate-200 line-clamp-3"
+              title={`${pipelinePopover.interview.candidate_name} · ${pipelinePopover.interview.company_name} — ${pipelinePopover.interview.role}`}
+            >
+              {pipelinePopover.interview.candidate_name} ·{" "}
+              {pipelinePopover.interview.company_name} —{" "}
+              {pipelinePopover.interview.role}
+            </p>
+          </header>
+          <InterviewChainTimeline
+            chain={pipelinePopover.chain}
+            highlightId={pipelinePopover.interview.id}
+            compact
+          />
+          <p className="mt-2 text-[10px] leading-tight text-slate-500 dark:text-slate-500">
+            Linked rounds · status = outcome at each step.
+          </p>
+        </div>
+      )}
 
       {/* Profile links popover */}
       {profilePopover && (

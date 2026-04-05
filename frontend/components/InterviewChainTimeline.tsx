@@ -8,11 +8,61 @@ import { Link2 } from "lucide-react";
 export function InterviewChainTimeline({
   chain,
   highlightId,
+  /** Denser layout for hover popovers and tight columns */
+  compact = false,
 }: {
   chain: Interview[];
   highlightId?: string;
+  compact?: boolean;
 }) {
   if (chain.length === 0) return null;
+
+  if (compact) {
+    return (
+      <div className="relative pl-0.5">
+        <div
+          className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-indigo-300/90 dark:bg-indigo-600/80"
+          aria-hidden
+        />
+        <ul className="space-y-1.5">
+          {chain.map((step) => {
+            const active = step.id === highlightId;
+            return (
+              <li key={step.id} className="relative flex gap-2 pl-5">
+                <span
+                  className={`absolute left-0 top-1.5 z-[1] h-2 w-2 shrink-0 rounded-full border border-white dark:border-[#1a1d2a] ${
+                    active
+                      ? "bg-indigo-500 ring-1 ring-indigo-400/60"
+                      : "bg-indigo-300 dark:bg-indigo-600"
+                  }`}
+                  aria-hidden
+                />
+                <div
+                  className={`min-w-0 flex-1 rounded-md px-2 py-1.5 ${
+                    active
+                      ? "bg-indigo-50 dark:bg-indigo-500/15 ring-1 ring-indigo-200/80 dark:ring-indigo-500/30"
+                      : "bg-slate-50/90 dark:bg-white/[0.04]"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                      {step.round}
+                    </span>
+                    <StatusBadge status={step.computed_status} />
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
+                      {step.interview_date
+                        ? formatDate(step.interview_date)
+                        : "TBD"}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50/80 dark:bg-white/[0.02] p-4">
