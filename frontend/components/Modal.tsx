@@ -36,7 +36,7 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
@@ -46,21 +46,25 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
 
       {/* Panel */}
       <div
-        className={`relative w-full ${SIZE_MAP[size]} rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl shadow-black/50 animate-in zoom-in-95 duration-200`}
+        className={`relative flex max-h-[min(92dvh,calc(100vh-1.5rem))] w-full flex-col ${SIZE_MAP[size]} overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl shadow-black/50 animate-in zoom-in-95 duration-200`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/[0.06] px-6 py-4">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h2>
+        <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-200 dark:border-white/[0.06] px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 dark:text-white sm:text-base">
+            <span className="line-clamp-3">{title}</span>
+          </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          {children}
+        </div>
       </div>
     </div>
   );
