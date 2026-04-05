@@ -737,10 +737,6 @@ export default function InterviewsPage() {
         }
       />
 
-      {/* Status Cards */}
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">
-        Pipeline Status
-      </h3>
       <StatsGrid cols={7}>
         <StatsCard
           title="Upcoming"
