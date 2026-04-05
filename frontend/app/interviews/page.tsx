@@ -42,6 +42,7 @@ import {
   truncate,
   sortInterviewsInChain,
   suggestNextRoundLabel,
+  collectDescendantInterviewIds,
 } from "@/lib/utils";
 import type {
   Interview,
@@ -348,7 +349,7 @@ export default function InterviewsPage() {
       interviewer: interview.interviewer || "",
       interview_link: interview.interview_link || "",
       is_phone_call: interview.is_phone_call || false,
-      parent_interview_id: undefined,
+      parent_interview_id: interview.parent_interview_id ?? undefined,
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -394,7 +395,8 @@ export default function InterviewsPage() {
 
       delete (payload as { thread_id?: string }).thread_id;
       if (editingId) {
-        delete (payload as { parent_interview_id?: string }).parent_interview_id;
+        (payload as { parent_interview_id?: string | null }).parent_interview_id =
+          formData.parent_interview_id || null;
       } else if (!payload.parent_interview_id) {
         delete (payload as { parent_interview_id?: string }).parent_interview_id;
       }
@@ -537,6 +539,38 @@ export default function InterviewsPage() {
     },
     [interviewsByThread],
   );
+
+  /** Eligible "previous round" rows when editing (same company, candidate, profile; no cycles). */
+  const pipelineParentOptions = useMemo(() => {
+    if (!editingId) return [] as Interview[];
+    const descendants = collectDescendantInterviewIds(interviews, editingId);
+    const rows = interviews.filter(
+      (i) =>
+        i.id !== editingId &&
+        !descendants.has(i.id) &&
+        i.company_id === formData.company_id &&
+        i.candidate_id === formData.candidate_id &&
+        i.resume_profile_id === formData.resume_profile_id,
+    );
+    rows.sort(sortInterviewsInChain);
+    return rows;
+  }, [
+    editingId,
+    interviews,
+    formData.company_id,
+    formData.candidate_id,
+    formData.resume_profile_id,
+  ]);
+
+  const pipelineParentSelectOptions = useMemo(() => {
+    const pid = formData.parent_interview_id;
+    if (!pid) return pipelineParentOptions;
+    const current = interviews.find((i) => i.id === pid);
+    if (current && !pipelineParentOptions.some((x) => x.id === current.id)) {
+      return [current, ...pipelineParentOptions];
+    }
+    return pipelineParentOptions;
+  }, [pipelineParentOptions, formData.parent_interview_id, interviews]);
 
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
@@ -1331,6 +1365,37 @@ export default function InterviewsPage() {
               ))}
             </select>
           </FormField>
+          {editingId ? (
+            <div className="col-span-1 sm:col-span-2">
+              <FormField label="Previous round (pipeline)">
+                <select
+                  value={formData.parent_interview_id ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      parent_interview_id: e.target.value || null,
+                    })
+                  }
+                  className={selectClass}
+                >
+                  <option value="">
+                    None — not linked to a prior round
+                  </option>
+                  {pipelineParentSelectOptions.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.round} · {formatDate(i.interview_date)} ·{" "}
+                      {i.computed_status || i.status || "—"}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Connect this row to an existing interview for the same company,
+                  candidate, and profile. Rounds that come after this one in the
+                  chain cannot be selected.
+                </p>
+              </FormField>
+            </div>
+          ) : null}
           <FormField label="Round">
             <input
               value={formData.round}

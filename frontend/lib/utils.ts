@@ -84,6 +84,29 @@ export function sortInterviewsInChain(a: Interview, b: Interview): number {
   return a.created_at.localeCompare(b.created_at);
 }
 
+/** Interview IDs that are later rounds in the chain (children of rootId). */
+export function collectDescendantInterviewIds(
+  interviews: Interview[],
+  rootId: string,
+): Set<string> {
+  const byParent = new Map<string, string[]>();
+  for (const i of interviews) {
+    if (!i.parent_interview_id) continue;
+    const list = byParent.get(i.parent_interview_id) ?? [];
+    list.push(i.id);
+    byParent.set(i.parent_interview_id, list);
+  }
+  const out = new Set<string>();
+  const stack = [...(byParent.get(rootId) ?? [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (out.has(id)) continue;
+    out.add(id);
+    stack.push(...(byParent.get(id) ?? []));
+  }
+  return out;
+}
+
 /** Suggested label for the next round (user can edit). */
 export function suggestNextRoundLabel(currentRound: string): string {
   const lower = currentRound.trim().toLowerCase();

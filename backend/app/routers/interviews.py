@@ -99,6 +99,45 @@ def _get_interview_for_enrichment(
     return session.exec(stmt).first()
 
 
+def _collect_descendant_ids(session: Session, root_id: uuid.UUID) -> set[uuid.UUID]:
+    """All interviews that list root_id as an ancestor (follow child links)."""
+    out: set[uuid.UUID] = set()
+    stack = [root_id]
+    while stack:
+        nid = stack.pop()
+        children = session.exec(
+            select(Interview).where(Interview.parent_interview_id == nid)
+        ).all()
+        for ch in children:
+            if ch.id not in out:
+                out.add(ch.id)
+                stack.append(ch.id)
+    return out
+
+
+def _propagate_thread_id(
+    session: Session, root_id: uuid.UUID, new_thread_id: uuid.UUID
+) -> None:
+    """Set thread_id on root_id and every descendant (via parent_interview_id children)."""
+    stack = [root_id]
+    seen: set[uuid.UUID] = set()
+    while stack:
+        nid = stack.pop()
+        if nid in seen:
+            continue
+        seen.add(nid)
+        row = session.get(Interview, nid)
+        if not row:
+            continue
+        row.thread_id = new_thread_id
+        session.add(row)
+        children = session.exec(
+            select(Interview).where(Interview.parent_interview_id == nid)
+        ).all()
+        for ch in children:
+            stack.append(ch.id)
+
+
 @router.get("/", response_model=list[InterviewReadWithDetails])
 def list_interviews(
     candidate_id: Optional[uuid.UUID] = Query(
@@ -303,6 +342,8 @@ def update_interview(
         raise HTTPException(status_code=404, detail="Interview not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    # Thread is derived from the parent chain; clients should not set it directly.
+    update_data.pop("thread_id", None)
 
     # Validate FK updates if provided
     if "company_id" in update_data and not session.get(Company, update_data["company_id"]):
@@ -315,22 +356,33 @@ def update_interview(
         raise HTTPException(
             status_code=404, detail="Business developer not found")
 
-    if "parent_interview_id" in update_data and update_data["parent_interview_id"]:
-        par = session.get(Interview, update_data["parent_interview_id"])
-        if not par:
-            raise HTTPException(status_code=404, detail="Parent interview not found")
+    if "parent_interview_id" in update_data:
+        new_parent = update_data["parent_interview_id"]
         tgt_company = update_data.get("company_id", interview.company_id)
         tgt_candidate = update_data.get("candidate_id", interview.candidate_id)
         tgt_profile = update_data.get("resume_profile_id", interview.resume_profile_id)
-        if (
-            par.company_id != tgt_company
-            or par.candidate_id != tgt_candidate
-            or par.resume_profile_id != tgt_profile
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Parent interview must match company, candidate, and resume profile",
-            )
+        if new_parent is None:
+            _propagate_thread_id(session, interview_id, uuid.uuid4())
+        else:
+            par = session.get(Interview, new_parent)
+            if not par:
+                raise HTTPException(status_code=404, detail="Parent interview not found")
+            if (
+                par.company_id != tgt_company
+                or par.candidate_id != tgt_candidate
+                or par.resume_profile_id != tgt_profile
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Parent interview must match company, candidate, and resume profile",
+                )
+            descendants = _collect_descendant_ids(session, interview_id)
+            if new_parent == interview_id or new_parent in descendants:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid parent interview (would create a cycle)",
+                )
+            _propagate_thread_id(session, interview_id, par.thread_id)
 
     for key, value in update_data.items():
         setattr(interview, key, value)
