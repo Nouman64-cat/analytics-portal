@@ -9,6 +9,10 @@ class InterviewCreate(BaseModel):
     candidate_id: uuid.UUID
     resume_profile_id: uuid.UUID
     role: str
+    # Link to previous round (same company / candidate / profile required); inherits thread_id from parent
+    parent_interview_id: Optional[uuid.UUID] = None
+    # Optional explicit thread when not using parent (advanced); otherwise a new thread is created
+    thread_id: Optional[uuid.UUID] = None
     salary_range: Optional[str] = None
     round: str
     interview_date: Optional[date] = None
@@ -28,6 +32,8 @@ class InterviewUpdate(BaseModel):
     company_id: Optional[uuid.UUID] = None
     candidate_id: Optional[uuid.UUID] = None
     resume_profile_id: Optional[uuid.UUID] = None
+    thread_id: Optional[uuid.UUID] = None
+    parent_interview_id: Optional[uuid.UUID] = None
     role: Optional[str] = None
     salary_range: Optional[str] = None
     round: Optional[str] = None
@@ -49,6 +55,8 @@ class InterviewRead(BaseModel):
     company_id: uuid.UUID
     candidate_id: uuid.UUID
     resume_profile_id: uuid.UUID
+    thread_id: uuid.UUID
+    parent_interview_id: Optional[uuid.UUID] = None
     role: str
     salary_range: Optional[str] = None
     round: str

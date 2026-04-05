@@ -11,6 +11,12 @@ class Interview(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
+    # Pipeline chain: all rounds for one opportunity share thread_id; parent links the previous step
+    thread_id: uuid.UUID = Field(default_factory=uuid.uuid4, index=True)
+    parent_interview_id: Optional[uuid.UUID] = Field(
+        default=None, foreign_key="interviews.id", index=True
+    )
+
     # Foreign keys
     company_id: uuid.UUID = Field(foreign_key="companies.id", index=True)
     candidate_id: uuid.UUID = Field(foreign_key="candidates.id", index=True)

@@ -55,6 +55,8 @@ def _enrich_interview(interview: Interview) -> dict:
         "company_id": interview.company_id,
         "candidate_id": interview.candidate_id,
         "resume_profile_id": interview.resume_profile_id,
+        "thread_id": interview.thread_id,
+        "parent_interview_id": interview.parent_interview_id,
         "role": interview.role,
         "salary_range": interview.salary_range,
         "round": interview.round,
@@ -140,6 +142,32 @@ def list_interviews(
     return [_enrich_interview(i) for i in interviews]
 
 
+@router.get("/thread/{thread_id}", response_model=list[InterviewReadWithDetails])
+def list_interviews_by_thread(
+    thread_id: uuid.UUID, session: Session = Depends(get_session)
+):
+    """All interviews in one pipeline thread, ordered from earliest round to latest."""
+    query = (
+        select(Interview)
+        .where(Interview.thread_id == thread_id)
+        .options(
+            joinedload(Interview.company),
+            joinedload(Interview.candidate),
+            joinedload(Interview.resume_profile),
+            joinedload(Interview.business_developer),
+        )
+    )
+    rows = session.exec(query).all()
+    by_id: dict[uuid.UUID, Interview] = {}
+    for row in rows:
+        by_id[row.id] = row
+    ordered = sorted(
+        by_id.values(),
+        key=lambda x: (x.interview_date or date.max, x.created_at),
+    )
+    return [_enrich_interview(i) for i in ordered]
+
+
 @router.post("/", response_model=InterviewReadWithDetails, status_code=status.HTTP_201_CREATED)
 def create_interview(data: InterviewCreate, session: Session = Depends(get_session)):
     """Create a new interview record."""
@@ -154,7 +182,31 @@ def create_interview(data: InterviewCreate, session: Session = Depends(get_sessi
         raise HTTPException(
             status_code=404, detail="Business developer not found")
 
-    interview = Interview(**data.model_dump())
+    payload = data.model_dump()
+    parent_id = payload.pop("parent_interview_id", None)
+    explicit_thread = payload.pop("thread_id", None)
+
+    if parent_id:
+        parent = session.get(Interview, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=404, detail="Parent interview not found")
+        if (
+            payload["company_id"] != parent.company_id
+            or payload["candidate_id"] != parent.candidate_id
+            or payload["resume_profile_id"] != parent.resume_profile_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="company_id, candidate_id, and resume_profile_id must match the parent interview when adding a follow-up round",
+            )
+        payload["thread_id"] = parent.thread_id
+        payload["parent_interview_id"] = parent_id
+    else:
+        payload["parent_interview_id"] = None
+        payload["thread_id"] = explicit_thread or uuid.uuid4()
+
+    interview = Interview(**payload)
     session.add(interview)
     session.commit()
     loaded = _get_interview_for_enrichment(session, interview.id)
@@ -262,6 +314,23 @@ def update_interview(
     if "bd_id" in update_data and update_data["bd_id"] and not session.get(BusinessDeveloper, update_data["bd_id"]):
         raise HTTPException(
             status_code=404, detail="Business developer not found")
+
+    if "parent_interview_id" in update_data and update_data["parent_interview_id"]:
+        par = session.get(Interview, update_data["parent_interview_id"])
+        if not par:
+            raise HTTPException(status_code=404, detail="Parent interview not found")
+        tgt_company = update_data.get("company_id", interview.company_id)
+        tgt_candidate = update_data.get("candidate_id", interview.candidate_id)
+        tgt_profile = update_data.get("resume_profile_id", interview.resume_profile_id)
+        if (
+            par.company_id != tgt_company
+            or par.candidate_id != tgt_candidate
+            or par.resume_profile_id != tgt_profile
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Parent interview must match company, candidate, and resume profile",
+            )
 
     for key, value in update_data.items():
         setattr(interview, key, value)

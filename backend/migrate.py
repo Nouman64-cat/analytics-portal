@@ -30,6 +30,14 @@ def migrate():
              "Migration successful! 'interview_doc_url' column added to 'interviews' table."),
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS recruiter_feedback TEXT;",
              "Migration successful! 'recruiter_feedback' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS thread_id UUID;",
+             "Migration successful! 'thread_id' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS parent_interview_id UUID REFERENCES interviews(id) ON DELETE SET NULL;",
+             "Migration successful! 'parent_interview_id' column added to 'interviews' table."),
+            ("UPDATE interviews SET thread_id = id WHERE thread_id IS NULL;",
+             "Migration successful! Backfilled 'thread_id' for existing interviews."),
+            ("ALTER TABLE interviews ALTER COLUMN thread_id SET NOT NULL;",
+             "Migration successful! 'thread_id' NOT NULL enforced."),
         ]
         for sql, msg in migrations:
             try:

@@ -182,6 +182,8 @@ export const interviewsService = {
     const query = params ? "?" + new URLSearchParams(params).toString() : "";
     return apiFetch<Interview[]>(`/interviews/${query}`);
   },
+  listByThread: (threadId: string) =>
+    apiFetch<Interview[]>(`/interviews/thread/${threadId}`),
   get: (id: string) => apiFetch<Interview>(`/interviews/${id}`),
   create: (data: InterviewFormData) =>
     apiFetch<Interview>("/interviews/", {

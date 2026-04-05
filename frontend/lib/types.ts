@@ -48,6 +48,10 @@ export interface Interview {
   company_id: string;
   candidate_id: string;
   resume_profile_id: string;
+  /** Shared by all rounds of the same opportunity (pipeline). */
+  thread_id?: string;
+  /** Previous round in the chain, if any. */
+  parent_interview_id: string | null;
   role: string;
   salary_range: string | null;
   round: string;
@@ -141,6 +145,9 @@ export interface InterviewFormData {
   interviewer?: string | null;
   interview_link?: string | null;
   is_phone_call?: boolean;
+  /** Set when creating a follow-up round (next step in the pipeline). */
+  parent_interview_id?: string | null;
+  thread_id?: string | null;
 }
 
 export interface BusinessDeveloperFormData {

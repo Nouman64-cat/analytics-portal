@@ -1,4 +1,5 @@
 import { STATUS_COLORS } from "./constants";
+import type { Interview } from "./types";
 
 /**
  * Format an ISO date string to a human-readable format.
@@ -73,4 +74,23 @@ export function recordToChartData(record: Record<string, number>): { name: strin
  */
 export function titleCase(str: string): string {
   return str.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Order interviews in a pipeline: by date, then created_at. Missing dates sort last. */
+export function sortInterviewsInChain(a: Interview, b: Interview): number {
+  const da = a.interview_date ?? "9999-12-31";
+  const db = b.interview_date ?? "9999-12-31";
+  if (da !== db) return da.localeCompare(db);
+  return a.created_at.localeCompare(b.created_at);
+}
+
+/** Suggested label for the next round (user can edit). */
+export function suggestNextRoundLabel(currentRound: string): string {
+  const lower = currentRound.trim().toLowerCase();
+  if (/recruiter|screen|phone|intro/.test(lower)) return "1st";
+  if (lower === "1st" || lower === "first") return "2nd";
+  if (lower === "2nd" || lower === "second") return "3rd";
+  if (lower === "3rd" || lower === "third") return "4th";
+  if (lower === "4th") return "5th";
+  return "";
 }

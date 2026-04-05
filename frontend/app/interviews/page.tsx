@@ -25,6 +25,8 @@ import {
   Download,
   Loader2,
   Target,
+  GitBranch,
+  ArrowRight,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -34,7 +36,13 @@ import {
   profilesService,
   businessDevelopersService,
 } from "@/lib/services";
-import { formatDate, formatTime, truncate } from "@/lib/utils";
+import {
+  formatDate,
+  formatTime,
+  truncate,
+  sortInterviewsInChain,
+  suggestNextRoundLabel,
+} from "@/lib/utils";
 import type {
   Interview,
   Company,
@@ -60,6 +68,7 @@ import Modal, {
   buttonSecondary,
 } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
@@ -251,9 +260,37 @@ export default function InterviewsPage() {
       is_phone_call: false,
       feedback: "",
       recruiter_feedback: "",
+      parent_interview_id: undefined,
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
+    setModalOpen(true);
+  };
+
+  const openCreateNextRound = (parent: Interview) => {
+    setEditingId(null);
+    setFormData({
+      company_id: parent.company_id,
+      candidate_id: parent.candidate_id,
+      resume_profile_id: parent.resume_profile_id,
+      role: parent.role,
+      salary_range: parent.salary_range || "",
+      round: suggestNextRoundLabel(parent.round) || "",
+      interview_date: "",
+      time_est: "",
+      time_pkt: "",
+      status: "",
+      feedback: "",
+      recruiter_feedback: "",
+      bd_id: parent.bd_id || "",
+      interviewer: "",
+      interview_link: "",
+      is_phone_call: false,
+      parent_interview_id: parent.id,
+    });
+    setInterviewDocFile(null);
+    setInterviewDocError(null);
+    setDetailModal(null);
     setModalOpen(true);
   };
 
@@ -276,6 +313,7 @@ export default function InterviewsPage() {
       interviewer: interview.interviewer || "",
       interview_link: interview.interview_link || "",
       is_phone_call: interview.is_phone_call || false,
+      parent_interview_id: undefined,
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -300,6 +338,7 @@ export default function InterviewsPage() {
         status?: string | null;
         feedback?: string | null;
         recruiter_feedback?: string | null;
+        parent_interview_id?: string | null;
         bd_id?: string | null;
         interviewer?: string | null;
         interview_link?: string | null;
@@ -317,6 +356,13 @@ export default function InterviewsPage() {
       if (!payload.feedback) payload.feedback = null;
       if (!payload.recruiter_feedback) payload.recruiter_feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
+
+      delete (payload as { thread_id?: string }).thread_id;
+      if (editingId) {
+        delete (payload as { parent_interview_id?: string }).parent_interview_id;
+      } else if (!payload.parent_interview_id) {
+        delete (payload as { parent_interview_id?: string }).parent_interview_id;
+      }
       if (!payload.interviewer) payload.interviewer = null;
       if (payload.is_phone_call || !payload.interview_link)
         payload.interview_link = null;
@@ -431,6 +477,32 @@ export default function InterviewsPage() {
     }
   };
 
+  const interviewsByThread = useMemo(() => {
+    const m = new Map<string, Interview[]>();
+    for (const i of interviews) {
+      const tid = i.thread_id ?? i.id;
+      if (!m.has(tid)) m.set(tid, []);
+      m.get(tid)!.push(i);
+    }
+    for (const arr of m.values()) {
+      arr.sort(sortInterviewsInChain);
+    }
+    return m;
+  }, [interviews]);
+
+  const chainStep = useCallback(
+    (interview: Interview) => {
+      const tid = interview.thread_id ?? interview.id;
+      const chain = interviewsByThread.get(tid) || [interview];
+      const idx = chain.findIndex((x) => x.id === interview.id);
+      return {
+        step: idx >= 0 ? idx + 1 : 1,
+        total: Math.max(chain.length, 1),
+      };
+    },
+    [interviewsByThread],
+  );
+
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -500,6 +572,11 @@ export default function InterviewsPage() {
       "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
       "Salary Range": i.salary_range || "",
       Status: i.computed_status,
+      "Pipeline step": (() => {
+        const { step, total } = chainStep(i);
+        return total > 1 ? `${step} of ${total}` : "—";
+      })(),
+      "Thread ID": i.thread_id ?? i.id,
       "Our notes (presentation)": i.feedback || "",
       "Recruiter notes": i.recruiter_feedback || "",
     }));
@@ -774,7 +851,7 @@ export default function InterviewsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-white/[0.06]">
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
@@ -791,6 +868,9 @@ export default function InterviewsPage() {
                   </th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                     Round
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    Pipeline
                   </th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                     Date
@@ -904,6 +984,30 @@ export default function InterviewsPage() {
                         >
                           {interview.round}
                         </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {(() => {
+                          const { step, total } = chainStep(interview);
+                          if (total <= 1) {
+                            return (
+                              <span className="text-slate-400 dark:text-slate-600">
+                                —
+                              </span>
+                            );
+                          }
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400"
+                              title="Step in this opportunity pipeline"
+                            >
+                              <GitBranch
+                                className="size-3.5 shrink-0 opacity-85"
+                                aria-hidden
+                              />
+                              {step}/{total}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                         {isUpcoming ? (
@@ -1066,9 +1170,21 @@ export default function InterviewsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? "Edit Interview" : "Add Interview"}
+        title={
+          editingId
+            ? "Edit Interview"
+            : formData.parent_interview_id
+              ? "Add next round"
+              : "Add Interview"
+        }
         size="lg"
       >
+        {formData.parent_interview_id && !editingId ? (
+          <p className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/90 dark:bg-indigo-500/10 px-3 py-2.5 text-sm text-indigo-900 dark:text-indigo-100">
+            This round is linked after a previous step in the same pipeline.
+            Company, candidate, and profile must stay aligned with that step.
+          </p>
+        ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Company">
             <select
@@ -1076,6 +1192,7 @@ export default function InterviewsPage() {
               onChange={(e) =>
                 setFormData({ ...formData, company_id: e.target.value })
               }
+              disabled={!!formData.parent_interview_id && !editingId}
               className={selectClass}
             >
               {companies.map((c) => (
@@ -1091,6 +1208,7 @@ export default function InterviewsPage() {
               onChange={(e) =>
                 setFormData({ ...formData, candidate_id: e.target.value })
               }
+              disabled={!!formData.parent_interview_id && !editingId}
               className={selectClass}
             >
               {candidates.map((c) => (
@@ -1106,6 +1224,7 @@ export default function InterviewsPage() {
               onChange={(e) =>
                 setFormData({ ...formData, resume_profile_id: e.target.value })
               }
+              disabled={!!formData.parent_interview_id && !editingId}
               className={selectClass}
             >
               {profiles.map((p) => (
@@ -1390,6 +1509,29 @@ export default function InterviewsPage() {
       >
         {detailModal && (
           <div className="space-y-5">
+            {(() => {
+              const tid = detailModal.thread_id ?? detailModal.id;
+              const chain =
+                interviewsByThread.get(tid) || [detailModal];
+              return (
+                <>
+                  <InterviewChainTimeline
+                    chain={chain}
+                    highlightId={detailModal.id}
+                  />
+                  {!cannotCRUD && (
+                    <button
+                      type="button"
+                      onClick={() => openCreateNextRound(detailModal)}
+                      className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-500/35 bg-indigo-50/90 dark:bg-indigo-500/10 px-4 py-2.5 text-sm font-medium text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                    >
+                      <ArrowRight size={16} aria-hidden />
+                      Add next round
+                    </button>
+                  )}
+                </>
+              );
+            })()}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
