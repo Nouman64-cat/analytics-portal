@@ -14,6 +14,7 @@ interface SidebarProps {
 import {
   LayoutDashboard,
   CalendarCheck,
+  Calendar,
   Building2,
   Users,
   FileUser,
@@ -31,6 +32,7 @@ import { useRouter } from "next/navigation";
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
   CalendarCheck,
+  Calendar,
   Building2,
   Users,
   FileUser,
