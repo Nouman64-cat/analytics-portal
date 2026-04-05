@@ -78,6 +78,27 @@ function isRejectedInterview(interview: Interview): boolean {
   return interview.computed_status.toLowerCase().includes("rejected");
 }
 
+/** Match `max-h-[min(52vh,17.5rem)]` and width for viewport clamping / flip-above. */
+const PIPELINE_POPOVER_MAX_H_PX = () =>
+  Math.min(window.innerHeight * 0.52, 17.5 * 16);
+const PIPELINE_POPOVER_WIDTH_PX = () =>
+  Math.min(window.innerWidth - 20, 16.5 * 16);
+
+function getPipelinePopoverLayout(rect: DOMRect) {
+  const GAP = 6;
+  const maxH = PIPELINE_POPOVER_MAX_H_PX();
+  const spaceBelow = window.innerHeight - rect.bottom - GAP;
+  const spaceAbove = rect.top - GAP;
+  let flipAbove = false;
+  if (spaceBelow < maxH) {
+    flipAbove = spaceAbove > spaceBelow;
+  }
+  const w = PIPELINE_POPOVER_WIDTH_PX();
+  const x = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
+  const y = flipAbove ? rect.top - GAP : rect.bottom + GAP;
+  return { x, y, flipAbove };
+}
+
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -197,6 +218,7 @@ export default function InterviewsPage() {
     chain: Interview[];
     x: number;
     y: number;
+    flipAbove: boolean;
   } | null>(null);
   const pipelinePopoverRef = useRef<HTMLDivElement>(null);
   const pipelineHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -1090,11 +1112,13 @@ export default function InterviewsPage() {
                                 setProfilePopover(null);
                                 const rect =
                                   e.currentTarget.getBoundingClientRect();
+                                const layout = getPipelinePopoverLayout(rect);
                                 setPipelinePopover({
                                   interview,
                                   chain,
-                                  x: rect.left,
-                                  y: rect.bottom + 6,
+                                  x: layout.x,
+                                  y: layout.y,
+                                  flipAbove: layout.flipAbove,
                                 });
                               }}
                               onMouseLeave={() => {
@@ -1112,11 +1136,13 @@ export default function InterviewsPage() {
                                 setProfilePopover(null);
                                 const rect =
                                   e.currentTarget.getBoundingClientRect();
+                                const layout = getPipelinePopoverLayout(rect);
                                 setPipelinePopover({
                                   interview,
                                   chain,
-                                  x: rect.left,
-                                  y: rect.bottom + 6,
+                                  x: layout.x,
+                                  y: layout.y,
+                                  flipAbove: layout.flipAbove,
                                 });
                               }}
                               onBlur={() => {
@@ -1981,6 +2007,7 @@ export default function InterviewsPage() {
             position: "fixed",
             top: pipelinePopover.y,
             left: pipelinePopover.x,
+            transform: pipelinePopover.flipAbove ? "translateY(-100%)" : undefined,
             zIndex: 10000,
           }}
           className="w-[min(calc(100vw-1.25rem),16.5rem)] max-h-[min(52vh,17.5rem)] overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl px-2.5 py-2 sm:px-3 sm:py-2.5"
