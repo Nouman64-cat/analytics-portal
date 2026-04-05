@@ -74,6 +74,10 @@ import { getUserRole } from "@/lib/auth";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
 
+function isRejectedInterview(interview: Interview): boolean {
+  return interview.computed_status.toLowerCase().includes("rejected");
+}
+
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -1183,15 +1187,17 @@ export default function InterviewsPage() {
                           </button>
                           {!cannotCRUD && (
                             <>
-                              <button
-                                type="button"
-                                onClick={() => openCreateNextRound(interview)}
-                                className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
-                                title="Add next round (same pipeline)"
-                              >
-                                <ArrowRight size={14} aria-hidden />
-                                <span className="sr-only">Add next round</span>
-                              </button>
+                              {!isRejectedInterview(interview) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openCreateNextRound(interview)}
+                                  className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                                  title="Add next round (same pipeline)"
+                                >
+                                  <ArrowRight size={14} aria-hidden />
+                                  <span className="sr-only">Add next round</span>
+                                </button>
+                              )}
                               <button
                                 onClick={() => openEditModal(interview)}
                                 className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
@@ -1671,7 +1677,7 @@ export default function InterviewsPage() {
       >
         {detailModal && (
           <div className="space-y-5">
-            {!cannotCRUD && (
+            {!cannotCRUD && !isRejectedInterview(detailModal) && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-indigo-200/80 dark:border-indigo-500/30 bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-500/10 dark:to-[#151821] px-4 py-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   <span className="font-medium text-slate-900 dark:text-white">
