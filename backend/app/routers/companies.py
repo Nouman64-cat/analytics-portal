@@ -80,6 +80,7 @@ def update_company(
     company_id: uuid.UUID,
     data: CompanyUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a company."""
     company = session.get(Company, company_id)
@@ -94,14 +95,36 @@ def update_company(
     session.add(company)
     session.commit()
     session.refresh(company)
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_company",
+        entity_type="company",
+        entity_id=company.id,
+        message=f"Updated company '{company.name}'",
+    )
+    session.commit()
     return company
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_company(company_id: uuid.UUID, session: Session = Depends(get_session)):
+def delete_company(
+    company_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Delete a company."""
     company = session.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
+    company_name = company.name
     session.delete(company)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_company",
+        entity_type="company",
+        entity_id=company_id,
+        message=f"Deleted company '{company_name}'",
+    )
     session.commit()

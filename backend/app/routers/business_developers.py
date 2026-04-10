@@ -50,6 +50,7 @@ def update_business_developer(
     bd_id: uuid.UUID,
     data: BusinessDeveloperUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a business developer."""
     bd = session.get(BusinessDeveloper, bd_id)
@@ -64,14 +65,36 @@ def update_business_developer(
     session.add(bd)
     session.commit()
     session.refresh(bd)
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_business_developer",
+        entity_type="business_developer",
+        entity_id=bd.id,
+        message=f"Updated business developer '{bd.name}'",
+    )
+    session.commit()
     return bd
 
 
 @router.delete("/{bd_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_business_developer(bd_id: uuid.UUID, session: Session = Depends(get_session)):
+def delete_business_developer(
+    bd_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Delete a business developer."""
     bd = session.get(BusinessDeveloper, bd_id)
     if not bd:
         raise HTTPException(status_code=404, detail="Business developer not found")
+    bd_name = bd.name
     session.delete(bd)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_business_developer",
+        entity_type="business_developer",
+        entity_id=bd_id,
+        message=f"Deleted business developer '{bd_name}'",
+    )
     session.commit()

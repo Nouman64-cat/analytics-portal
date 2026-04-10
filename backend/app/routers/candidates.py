@@ -83,6 +83,7 @@ def update_candidate(
     candidate_id: uuid.UUID,
     data: CandidateUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a candidate."""
     candidate = session.get(Candidate, candidate_id)
@@ -97,14 +98,36 @@ def update_candidate(
     session.add(candidate)
     session.commit()
     session.refresh(candidate)
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_candidate",
+        entity_type="candidate",
+        entity_id=candidate.id,
+        message=f"Updated candidate '{candidate.name}'",
+    )
+    session.commit()
     return candidate
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_session)):
+def delete_candidate(
+    candidate_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Delete a candidate."""
     candidate = session.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    candidate_name = candidate.name
     session.delete(candidate)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_candidate",
+        entity_type="candidate",
+        entity_id=candidate_id,
+        message=f"Deleted candidate '{candidate_name}'",
+    )
     session.commit()

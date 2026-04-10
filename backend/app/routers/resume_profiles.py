@@ -141,6 +141,7 @@ def update_resume_profile(
     profile_id: uuid.UUID,
     data: ResumeProfileUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a resume profile."""
     profile = session.get(ResumeProfile, profile_id)
@@ -155,14 +156,36 @@ def update_resume_profile(
     session.add(profile)
     session.commit()
     session.refresh(profile)
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_resume_profile",
+        entity_type="resume_profile",
+        entity_id=profile.id,
+        message=f"Updated resume profile '{profile.name}'",
+    )
+    session.commit()
     return profile
 
 
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_resume_profile(profile_id: uuid.UUID, session: Session = Depends(get_session)):
+def delete_resume_profile(
+    profile_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Delete a resume profile."""
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
+    profile_name = profile.name
     session.delete(profile)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_resume_profile",
+        entity_type="resume_profile",
+        entity_id=profile_id,
+        message=f"Deleted resume profile '{profile_name}'",
+    )
     session.commit()
