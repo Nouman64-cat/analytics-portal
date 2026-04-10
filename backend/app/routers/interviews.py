@@ -233,17 +233,18 @@ def create_interview(
     parent_id = payload.pop("parent_interview_id", None)
     explicit_thread = payload.pop("thread_id", None)
 
+    parent_for_followup: Optional[Interview] = None
     if parent_id:
-        parent = session.get(Interview, parent_id)
-        if not parent:
+        parent_for_followup = session.get(Interview, parent_id)
+        if not parent_for_followup:
             raise HTTPException(
                 status_code=404, detail="Parent interview not found")
-        if payload["company_id"] != parent.company_id:
+        if payload["company_id"] != parent_for_followup.company_id:
             raise HTTPException(
                 status_code=400,
                 detail="company_id must match the parent interview when adding a follow-up round",
             )
-        payload["thread_id"] = parent.thread_id
+        payload["thread_id"] = parent_for_followup.thread_id
         payload["parent_interview_id"] = parent_id
     else:
         payload["parent_interview_id"] = None
@@ -251,6 +252,10 @@ def create_interview(
 
     interview = Interview(**payload)
     session.add(interview)
+    if parent_for_followup:
+        parent_for_followup.status = "Converted"
+        parent_for_followup.updated_at = datetime.utcnow()
+        session.add(parent_for_followup)
     session.commit()
     loaded = _get_interview_for_enrichment(session, interview.id)
     if not loaded:
