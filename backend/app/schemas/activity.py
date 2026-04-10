@@ -15,10 +15,14 @@ class ActivityLogRead(BaseModel):
     message: str
     created_at: datetime
 
+    model_config = {"from_attributes": True}
+
 
 class ActivityLogPage(BaseModel):
     items: list[ActivityLogRead]
     total: int
     limit: int
     offset: int
+
+    model_config = {"from_attributes": True}
 
