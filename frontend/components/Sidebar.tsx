@@ -57,10 +57,12 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
   };
 
   const role = getUserRole();
-  const MANAGER_HIDDEN_HREFS = ["/", "/business-developers"];
-  const visibleNavItems = role === "manager"
-    ? NAV_ITEMS.filter((item) => !MANAGER_HIDDEN_HREFS.includes(item.href))
-    : NAV_ITEMS;
+  const HIDDEN_BY_ROLE: Record<string, string[]> = {
+    manager: ["/", "/business-developers", "/activities"],
+    bd: ["/activities"],
+  };
+  const hiddenHrefs = role ? HIDDEN_BY_ROLE[role] || [] : [];
+  const visibleNavItems = NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href));
 
   return (
     <>

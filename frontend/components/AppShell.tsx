@@ -33,7 +33,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/change-password");
       return;
     }
-    if (getUserRole() === "manager" && (pathname === "/" || pathname === "/business-developers")) {
+    const role = getUserRole();
+    if (role === "manager" && (pathname === "/" || pathname === "/business-developers" || pathname.startsWith("/activities"))) {
+      router.replace("/interviews");
+      return;
+    }
+    if (role === "bd" && pathname.startsWith("/activities")) {
       router.replace("/interviews");
       return;
     }

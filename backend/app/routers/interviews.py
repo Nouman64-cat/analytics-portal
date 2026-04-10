@@ -370,6 +370,7 @@ def update_interview(
     interview_id: uuid.UUID,
     data: InterviewUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Update an interview record."""
     interview = _get_interview_for_enrichment(session, interview_id)
@@ -428,11 +429,24 @@ def update_interview(
     loaded = _get_interview_for_enrichment(session, interview_id)
     if not loaded:
         raise HTTPException(status_code=404, detail="Interview not found")
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_interview",
+        entity_type="interview",
+        entity_id=loaded.id,
+        message=f"Updated interview '{loaded.role}' at '{loaded.company.name if loaded.company else 'Unknown company'}'",
+    )
+    session.commit()
     return _enrich_interview(loaded)
 
 
 @router.delete("/{interview_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_interview(interview_id: uuid.UUID, session: Session = Depends(get_session)):
+def delete_interview(
+    interview_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Delete an interview record."""
     interview = session.get(Interview, interview_id)
     if not interview:
@@ -447,5 +461,15 @@ def delete_interview(interview_id: uuid.UUID, session: Session = Depends(get_ses
     for row in reminder_logs:
         session.delete(row)
 
+    role_label = interview.role
+    company_label = interview.company.name if interview.company else "Unknown company"
     session.delete(interview)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_interview",
+        entity_type="interview",
+        entity_id=interview_id,
+        message=f"Deleted interview '{role_label}' at '{company_label}'",
+    )
     session.commit()
