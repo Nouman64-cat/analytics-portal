@@ -40,6 +40,53 @@ function toChronologicalChartData(record: Record<string, number>) {
     .map(([name, value]) => ({ name, value }));
 }
 
+function formatIsoWeekToWeekdayRange(isoWeekKey: string): string {
+  const m = isoWeekKey.match(/^(\d{4})-W(\d{2})$/);
+  if (!m) return isoWeekKey;
+  const year = Number(m[1]);
+  const week = Number(m[2]);
+  if (!year || !week) return isoWeekKey;
+
+  // ISO week start (Monday): Jan 4 is always in ISO week 1.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7; // 1..7 where Monday=1
+  const mondayWeek1 = new Date(jan4);
+  mondayWeek1.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+
+  const monday = new Date(mondayWeek1);
+  monday.setUTCDate(mondayWeek1.getUTCDate() + (week - 1) * 7);
+  const friday = new Date(monday);
+  friday.setUTCDate(monday.getUTCDate() + 4);
+
+  const label = (d: Date) =>
+    d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  return `${label(monday)} - ${label(friday)}`;
+}
+
+function getRecentInterviewCardStyle(status: string | null | undefined): string {
+  const s = (status || "").toLowerCase();
+  if (s.includes("closed")) {
+    return "border-emerald-200/80 dark:border-emerald-400/30 bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-500/15 dark:to-[#141a24] hover:from-emerald-100/80 hover:to-white dark:hover:from-emerald-500/25 dark:hover:to-[#18202a]";
+  }
+  if (s.includes("converted")) {
+    return "border-orange-200/80 dark:border-orange-400/30 bg-gradient-to-r from-orange-50 to-white dark:from-orange-500/15 dark:to-[#171822] hover:from-orange-100/80 hover:to-white dark:hover:from-orange-500/25 dark:hover:to-[#1b1b26]";
+  }
+  if (s.includes("rejected")) {
+    return "border-red-200/80 dark:border-red-400/30 bg-gradient-to-r from-red-50 to-white dark:from-red-500/15 dark:to-[#1a1720] hover:from-red-100/80 hover:to-white dark:hover:from-red-500/25 dark:hover:to-[#221823]";
+  }
+  if (s.includes("dropped")) {
+    return "border-amber-200/80 dark:border-amber-400/30 bg-gradient-to-r from-amber-50 to-white dark:from-amber-500/15 dark:to-[#1b1a20] hover:from-amber-100/80 hover:to-white dark:hover:from-amber-500/25 dark:hover:to-[#222025]";
+  }
+  if (s === "upcoming") {
+    return "border-blue-200/80 dark:border-blue-400/30 bg-gradient-to-r from-blue-50 to-white dark:from-blue-500/15 dark:to-[#141a26] hover:from-blue-100/80 hover:to-white dark:hover:from-blue-500/25 dark:hover:to-[#182030]";
+  }
+  return "border-slate-200/80 dark:border-white/[0.08] bg-gradient-to-r from-white to-slate-50 dark:from-[#181c27] dark:to-[#131722] hover:border-indigo-200 dark:hover:border-indigo-400/30 hover:from-indigo-50/50 hover:to-white dark:hover:from-indigo-500/10 dark:hover:to-[#171b27]";
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
@@ -106,7 +153,10 @@ export default function DashboardPage() {
     : null;
 
   const candidateData = recordToChartData(stats.interviews_by_candidate);
-  const leadsWeeklyData = toChronologicalChartData(stats.leads_frequency_weekly || {});
+  const leadsWeeklyData = toChronologicalChartData(stats.leads_frequency_weekly || {}).map((d) => ({
+    ...d,
+    name: formatIsoWeekToWeekdayRange(d.name),
+  }));
   const leadsMonthlyData = toChronologicalChartData(stats.leads_frequency_monthly || {});
 
   // Normalize statuses for the pie chart
@@ -126,9 +176,10 @@ export default function DashboardPage() {
   });
   const statusData = recordToChartData(statusMap);
 
-  const totalResolved = (statusMap["Converted"] || 0) + (statusMap["Rejected"] || 0) + (statusMap["Dropped"] || 0) + (statusMap["Closed"] || 0);
+  const totalConverted = (statusMap["Converted"] || 0) + (statusMap["Closed"] || 0);
+  const totalResolved = totalConverted + (statusMap["Rejected"] || 0) + (statusMap["Dropped"] || 0);
   const globalConversionRate = totalResolved > 0 
-    ? Math.round(((statusMap["Converted"] || 0) / totalResolved) * 100) 
+    ? Math.round((totalConverted / totalResolved) * 100) 
     : 0;
 
   const STATUS_HEX_COLORS: Record<string, string> = {
@@ -198,11 +249,11 @@ export default function DashboardPage() {
               return (
               <div
                 key={interview.id}
-                className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06]"
+                className={`flex items-center gap-4 rounded-xl p-3.5 shadow-sm transition-all ${getRecentInterviewCardStyle(interview.computed_status)}`}
               >
                 <Link
                   href={`/interviews?id=${interview.id}`}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-500 dark:text-indigo-400"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/25 to-purple-500/25 text-xs font-bold text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200/70 dark:ring-indigo-400/20"
                 >
                   {interview.company?.[0] || "?"}
                 </Link>

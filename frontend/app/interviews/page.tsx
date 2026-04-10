@@ -1005,12 +1005,16 @@ export default function InterviewsPage() {
                 {paginatedInterviews.map((interview) => {
                   const isUpcoming =
                     interview.computed_status.toLowerCase() === "upcoming";
+                  const isClosed =
+                    interview.computed_status.toLowerCase() === "closed";
                   return (
                     <tr
                       key={interview.id}
                       className={`transition-colors ${
                         isUpcoming
                           ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                          : isClosed
+                            ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
                           : "hover:bg-slate-100 dark:hover:bg-white/[0.02]"
                       }`}
                     >

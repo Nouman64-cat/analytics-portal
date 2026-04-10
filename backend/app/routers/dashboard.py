@@ -84,10 +84,10 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         candidate_metrics[name]["total"] += 1
         
         status_lower = (status or "").lower()
-        if "converted" in status_lower:
+        if "converted" in status_lower or "closed" in status_lower:
             candidate_metrics[name]["converted"] += 1
             candidate_metrics[name]["total_resolved"] += 1
-        elif "rejected" in status_lower or "dropped" in status_lower or "closed" in status_lower:
+        elif "rejected" in status_lower or "dropped" in status_lower:
             candidate_metrics[name]["total_resolved"] += 1
 
     for name, stats in candidate_metrics.items():
