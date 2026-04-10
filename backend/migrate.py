@@ -42,6 +42,29 @@ def migrate():
              "Migration successful! 'email' column added to 'candidates' table."),
             ("CREATE INDEX IF NOT EXISTS ix_candidates_email ON candidates (email);",
              "Migration successful! Index on candidates.email ensured."),
+            ("""
+            CREATE TABLE IF NOT EXISTS interview_reminder_logs (
+                id UUID PRIMARY KEY,
+                interview_id UUID NOT NULL REFERENCES interviews(id),
+                reminder_type VARCHAR(20) NOT NULL,
+                scheduled_for_utc TIMESTAMP NOT NULL,
+                sent_at_utc TIMESTAMP NOT NULL
+            );
+            """,
+             "Migration successful! 'interview_reminder_logs' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_interview_reminder_logs_interview_id ON interview_reminder_logs (interview_id);",
+             "Migration successful! Index on interview_reminder_logs.interview_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_interview_reminder_logs_reminder_type ON interview_reminder_logs (reminder_type);",
+             "Migration successful! Index on interview_reminder_logs.reminder_type ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_interview_reminder_logs_scheduled_for_utc ON interview_reminder_logs (scheduled_for_utc);",
+             "Migration successful! Index on interview_reminder_logs.scheduled_for_utc ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_interview_reminder_logs_sent_at_utc ON interview_reminder_logs (sent_at_utc);",
+             "Migration successful! Index on interview_reminder_logs.sent_at_utc ensured."),
+            ("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_interview_reminder_once
+            ON interview_reminder_logs (interview_id, reminder_type, scheduled_for_utc);
+            """,
+             "Migration successful! Unique de-dup index for reminders ensured."),
         ]
         for sql, msg in migrations:
             try:
