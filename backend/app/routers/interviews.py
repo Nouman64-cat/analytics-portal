@@ -14,6 +14,7 @@ from app.models.company import Company
 from app.models.candidate import Candidate
 from app.models.resume_profile import ResumeProfile
 from app.models.business_developer import BusinessDeveloper
+from app.models.interview_reminder_log import InterviewReminderLog
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -420,5 +421,15 @@ def delete_interview(interview_id: uuid.UUID, session: Session = Depends(get_ses
     interview = session.get(Interview, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+
+    # Remove dependent reminder logs first to avoid FK violations.
+    reminder_logs = session.exec(
+        select(InterviewReminderLog).where(
+            InterviewReminderLog.interview_id == interview_id
+        )
+    ).all()
+    for row in reminder_logs:
+        session.delete(row)
+
     session.delete(interview)
     session.commit()

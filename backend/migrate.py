@@ -45,13 +45,17 @@ def migrate():
             ("""
             CREATE TABLE IF NOT EXISTS interview_reminder_logs (
                 id UUID PRIMARY KEY,
-                interview_id UUID NOT NULL REFERENCES interviews(id),
+                interview_id UUID NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
                 reminder_type VARCHAR(20) NOT NULL,
                 scheduled_for_utc TIMESTAMP NOT NULL,
                 sent_at_utc TIMESTAMP NOT NULL
             );
             """,
              "Migration successful! 'interview_reminder_logs' table ensured."),
+            ("ALTER TABLE interview_reminder_logs DROP CONSTRAINT IF EXISTS interview_reminder_logs_interview_id_fkey;",
+             "Migration successful! Existing FK on interview_reminder_logs dropped (if present)."),
+            ("ALTER TABLE interview_reminder_logs ADD CONSTRAINT interview_reminder_logs_interview_id_fkey FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE;",
+             "Migration successful! FK with ON DELETE CASCADE ensured for interview reminders."),
             ("CREATE INDEX IF NOT EXISTS ix_interview_reminder_logs_interview_id ON interview_reminder_logs (interview_id);",
              "Migration successful! Index on interview_reminder_logs.interview_id ensured."),
             ("CREATE INDEX IF NOT EXISTS ix_interview_reminder_logs_reminder_type ON interview_reminder_logs (reminder_type);",
