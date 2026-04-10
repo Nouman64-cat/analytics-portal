@@ -1001,16 +1001,22 @@ export default function InterviewsPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody>
                 {paginatedInterviews.map((interview) => {
                   const isUpcoming =
                     interview.computed_status.toLowerCase() === "upcoming";
                   const isClosed =
                     interview.computed_status.toLowerCase() === "closed";
+                  const rowSep =
+                    isUpcoming
+                      ? "border-b border-blue-200 dark:border-white/[0.08]"
+                      : isClosed
+                        ? "border-b border-emerald-200 dark:border-white/[0.08]"
+                        : "border-b border-slate-200 dark:border-white/[0.08]";
                   return (
                     <tr
                       key={interview.id}
-                      className={`transition-colors ${
+                      className={`transition-colors ${rowSep} ${
                         isUpcoming
                           ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
                           : isClosed
