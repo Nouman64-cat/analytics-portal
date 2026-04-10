@@ -96,9 +96,12 @@ export interface DashboardStats {
   total_interviews: number;
   total_companies: number;
   total_candidates: number;
+  total_jobs_closed: number;
   interviews_by_status: Record<string, number>;
   interviews_by_company: Record<string, number>;
   interviews_by_candidate: Record<string, number>;
+  leads_frequency_weekly: Record<string, number>;
+  leads_frequency_monthly: Record<string, number>;
   candidate_metrics: Record<
     string,
     { total: number; total_resolved: number; converted: number; rate: number }

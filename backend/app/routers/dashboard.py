@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Depends
 from app.deps import get_current_user
 from sqlmodel import Session, select, func, col
@@ -33,6 +34,20 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         interviews_by_status_raw[label] = interviews_by_status_raw.get(label, 0) + 1
 
     interviews_by_status = interviews_by_status_raw
+    total_jobs_closed = interviews_by_status.get("Closed", 0)
+
+    # Lead frequency (weekly / monthly) using interview date
+    lead_dates = session.exec(select(Interview.interview_date)).all()
+    leads_frequency_weekly: dict[str, int] = {}
+    leads_frequency_monthly: dict[str, int] = {}
+    for d in lead_dates:
+        if not d or not isinstance(d, date):
+            continue
+        iso_year, iso_week, _ = d.isocalendar()
+        weekly_key = f"{iso_year}-W{iso_week:02d}"
+        monthly_key = d.strftime("%Y-%m")
+        leads_frequency_weekly[weekly_key] = leads_frequency_weekly.get(weekly_key, 0) + 1
+        leads_frequency_monthly[monthly_key] = leads_frequency_monthly.get(monthly_key, 0) + 1
 
     # Interviews by company
     company_query = (
@@ -116,9 +131,12 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         "total_interviews": total_interviews,
         "total_companies": total_companies,
         "total_candidates": total_candidates,
+        "total_jobs_closed": total_jobs_closed,
         "interviews_by_status": interviews_by_status,
         "interviews_by_company": interviews_by_company,
         "interviews_by_candidate": interviews_by_candidate,
+        "leads_frequency_weekly": leads_frequency_weekly,
+        "leads_frequency_monthly": leads_frequency_monthly,
         "candidate_metrics": candidate_metrics,
         "recent_interviews": recent,
     }

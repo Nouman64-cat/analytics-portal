@@ -51,7 +51,7 @@ interface StatsGridProps {
 /** Progressive columns so cards don’t squeeze into one tiny row on laptop-sized viewports. */
 const STATS_GRID_COLS: Record<4 | 5 | 6 | 7, string> = {
   4: "sm:grid-cols-2 lg:grid-cols-4",
-  5: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5",
+  5: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5",
   6: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6",
   7: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7",
 };

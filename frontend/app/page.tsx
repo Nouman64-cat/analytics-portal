@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Eye,
   Target,
+  CheckCircle2,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { dashboardService, profilesService } from "@/lib/services";
@@ -32,6 +33,12 @@ import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
+
+function toChronologicalChartData(record: Record<string, number>) {
+  return Object.entries(record)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, value]) => ({ name, value }));
+}
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -98,8 +105,9 @@ export default function DashboardPage() {
     ? mergeResumeProfileLinks(profilePopover.interview, profiles)
     : null;
 
-  const companyData = recordToChartData(stats.interviews_by_company).slice(0, 12);
   const candidateData = recordToChartData(stats.interviews_by_candidate);
+  const leadsWeeklyData = toChronologicalChartData(stats.leads_frequency_weekly || {});
+  const leadsMonthlyData = toChronologicalChartData(stats.leads_frequency_monthly || {});
 
   // Normalize statuses for the pie chart
   const statusMap: Record<string, number> = {};
@@ -142,7 +150,7 @@ export default function DashboardPage() {
       />
 
       {/* Stats Cards */}
-      <StatsGrid>
+      <StatsGrid cols={5}>
         <StatsCard
           title="Total Interviews"
           value={stats.total_interviews}
@@ -162,6 +170,12 @@ export default function DashboardPage() {
           gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
         />
         <StatsCard
+          title="Jobs Closed"
+          value={stats.total_jobs_closed}
+          icon={CheckCircle2}
+          gradient="bg-gradient-to-br from-emerald-500 to-green-600"
+        />
+        <StatsCard
           title="Conversion Rate"
           value={`${globalConversionRate}%`}
           icon={TrendingUp}
@@ -169,21 +183,21 @@ export default function DashboardPage() {
         />
       </StatsGrid>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <ChartCard
-            title="Interviews by Company"
-            subtitle={`Top ${companyData.length} companies`}
-          >
-            <BarChartWidget data={companyData} color="#818cf8" height={320} />
-          </ChartCard>
-        </div>
-        <div>
-          <ChartCard title="Status Distribution" subtitle="All interviews">
-            <PieChartWidget data={statusData} height={320} colorMapping={STATUS_HEX_COLORS} />
-          </ChartCard>
-        </div>
+      {/* Status chart */}
+      <div className="grid grid-cols-1">
+        <ChartCard title="Status Distribution" subtitle="All interviews">
+          <PieChartWidget data={statusData} height={320} colorMapping={STATUS_HEX_COLORS} />
+        </ChartCard>
+      </div>
+
+      {/* Lead frequency */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Lead Frequency (Weekly)" subtitle="Leads grouped by ISO week">
+          <BarChartWidget data={leadsWeeklyData} color="#22c55e" height={280} />
+        </ChartCard>
+        <ChartCard title="Lead Frequency (Monthly)" subtitle="Leads grouped by month">
+          <BarChartWidget data={leadsMonthlyData} color="#0ea5e9" height={280} />
+        </ChartCard>
       </div>
 
       {/* Candidate distribution + Recent */}
