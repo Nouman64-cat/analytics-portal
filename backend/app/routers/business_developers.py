@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
+from app.activity_log import record_activity
 from app.models.business_developer import BusinessDeveloper
+from app.models.user import User
 from app.schemas.business_developer import (
     BusinessDeveloperCreate,
     BusinessDeveloperRead,
@@ -21,10 +23,23 @@ def list_business_developers(session: Session = Depends(get_session)):
 
 
 @router.post("/", response_model=BusinessDeveloperRead, status_code=status.HTTP_201_CREATED)
-def create_business_developer(data: BusinessDeveloperCreate, session: Session = Depends(get_session)):
+def create_business_developer(
+    data: BusinessDeveloperCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Create a new business developer."""
     bd = BusinessDeveloper(name=data.name)
     session.add(bd)
+    session.flush()
+    record_activity(
+        session,
+        actor=current_user,
+        action="create_business_developer",
+        entity_type="business_developer",
+        entity_id=bd.id,
+        message=f"Created business developer '{bd.name}'",
+    )
     session.commit()
     session.refresh(bd)
     return bd

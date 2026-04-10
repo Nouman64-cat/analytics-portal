@@ -19,6 +19,7 @@ import {
   Users,
   FileUser,
   Briefcase,
+  History,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -37,6 +38,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Users,
   FileUser,
   Briefcase,
+  History,
 };
 
 export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {

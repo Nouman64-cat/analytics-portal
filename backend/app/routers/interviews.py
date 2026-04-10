@@ -9,12 +9,14 @@ from app.deps import get_current_user
 from sqlmodel import Session, select, col
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
+from app.activity_log import record_activity
 from app.models.interview import Interview
 from app.models.company import Company
 from app.models.candidate import Candidate
 from app.models.resume_profile import ResumeProfile
 from app.models.business_developer import BusinessDeveloper
 from app.models.interview_reminder_log import InterviewReminderLog
+from app.models.user import User
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -210,7 +212,11 @@ def list_interviews_by_thread(
 
 
 @router.post("/", response_model=InterviewReadWithDetails, status_code=status.HTTP_201_CREATED)
-def create_interview(data: InterviewCreate, session: Session = Depends(get_session)):
+def create_interview(
+    data: InterviewCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Create a new interview record."""
     # Validate foreign keys exist
     if not session.get(Company, data.company_id):
@@ -253,6 +259,16 @@ def create_interview(data: InterviewCreate, session: Session = Depends(get_sessi
     loaded = _get_interview_for_enrichment(session, interview.id)
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
+
+    record_activity(
+        session,
+        actor=current_user,
+        action="create_interview",
+        entity_type="interview",
+        entity_id=loaded.id,
+        message=f"Created interview '{loaded.role}' at '{loaded.company.name if loaded.company else 'Unknown company'}'",
+    )
+    session.commit()
 
     cand = loaded.candidate
     try_send_interview_created_email(

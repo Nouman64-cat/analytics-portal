@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
+from app.activity_log import record_activity
 from app.models.company import Company
+from app.models.user import User
 from app.schemas.company import (
     CompanyCreate,
     CompanyRead,
@@ -23,10 +25,23 @@ def list_companies(session: Session = Depends(get_session)):
 
 
 @router.post("/", response_model=CompanyRead, status_code=status.HTTP_201_CREATED)
-def create_company(data: CompanyCreate, session: Session = Depends(get_session)):
+def create_company(
+    data: CompanyCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Create a new company."""
     company = Company(name=data.name, is_staffing_firm=data.is_staffing_firm)
     session.add(company)
+    session.flush()
+    record_activity(
+        session,
+        actor=current_user,
+        action="create_company",
+        entity_type="company",
+        entity_id=company.id,
+        message=f"Created company '{company.name}'",
+    )
     session.commit()
     session.refresh(company)
     return company

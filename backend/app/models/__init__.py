@@ -5,6 +5,7 @@ from app.models.company import Company
 from app.models.business_developer import BusinessDeveloper
 from app.models.interview import Interview
 from app.models.interview_reminder_log import InterviewReminderLog
+from app.models.activity_log import ActivityLog
 from app.models.user import User
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "BusinessDeveloper",
     "Interview",
     "InterviewReminderLog",
+    "ActivityLog",
     "User",
 ]

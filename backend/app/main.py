@@ -12,9 +12,9 @@ from app.database import create_db_and_tables
 from app.reminder_worker import run_reminder_worker
 
 # Import all models so SQLModel registers them
-from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, User  # noqa: F401
+from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User  # noqa: F401
 
-from app.routers import candidates, resume_profiles, companies, interviews, dashboard, business_developers, auth
+from app.routers import candidates, resume_profiles, companies, interviews, dashboard, business_developers, auth, activities
 
 settings = get_settings()
 
@@ -79,6 +79,7 @@ app.include_router(resume_profiles.router)
 app.include_router(companies.router)
 app.include_router(interviews.router)
 app.include_router(business_developers.router)
+app.include_router(activities.router)
 app.include_router(dashboard.router)
 
 

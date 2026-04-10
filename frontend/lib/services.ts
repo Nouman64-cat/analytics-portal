@@ -14,6 +14,7 @@ import type {
   CompanyFormData,
   Interview,
   InterviewFormData,
+  ActivityLogPage,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -219,4 +220,21 @@ export const interviewsService = {
   },
   delete: (id: string) =>
     apiFetch<void>(`/interviews/${id}`, { method: "DELETE" }),
+};
+
+// ─── Activities ─────────────────────────────────────────────
+
+export const activitiesService = {
+  list: (params?: { limit?: number; offset?: number }) => {
+    const query = params
+      ? "?" +
+        new URLSearchParams(
+          Object.entries(params).reduce<Record<string, string>>((acc, [k, v]) => {
+            if (v !== undefined && v !== null) acc[k] = String(v);
+            return acc;
+          }, {}),
+        ).toString()
+      : "";
+    return apiFetch<ActivityLogPage>(`/activities/${query}`);
+  },
 };

@@ -131,6 +131,24 @@ export interface RecentInterview {
   bd_name: string | null;
 }
 
+export interface ActivityLog {
+  id: string;
+  actor_user_id: string | null;
+  actor_email: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  message: string;
+  created_at: string;
+}
+
+export interface ActivityLogPage {
+  items: ActivityLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 // ─── Form Payloads ──────────────────────────────────────────
 
 export interface InterviewFormData {

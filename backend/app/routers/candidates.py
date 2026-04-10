@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
+from app.activity_log import record_activity
 from app.models.candidate import Candidate
+from app.models.user import User
 from app.schemas.candidate import (
     CandidateCreate,
     CandidateRead,
@@ -24,10 +26,23 @@ def list_candidates(session: Session = Depends(get_session)):
 
 
 @router.post("/", response_model=CandidateRead, status_code=status.HTTP_201_CREATED)
-def create_candidate(data: CandidateCreate, session: Session = Depends(get_session)):
+def create_candidate(
+    data: CandidateCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Create a new candidate."""
     candidate = Candidate(name=data.name, email=data.email)
     session.add(candidate)
+    session.flush()
+    record_activity(
+        session,
+        actor=current_user,
+        action="create_candidate",
+        entity_type="candidate",
+        entity_id=candidate.id,
+        message=f"Created candidate '{candidate.name}'",
+    )
     session.commit()
     session.refresh(candidate)
     return candidate

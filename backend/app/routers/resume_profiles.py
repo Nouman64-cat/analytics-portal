@@ -7,7 +7,9 @@ from app.config import get_settings
 from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
+from app.activity_log import record_activity
 from app.models.resume_profile import ResumeProfile
+from app.models.user import User
 from app.schemas.resume_profile import (
     ResumeProfileCreate,
     ResumeProfileRead,
@@ -49,10 +51,23 @@ def list_resume_profiles(session: Session = Depends(get_session)):
 
 
 @router.post("/", response_model=ResumeProfileRead, status_code=status.HTTP_201_CREATED)
-def create_resume_profile(data: ResumeProfileCreate, session: Session = Depends(get_session)):
+def create_resume_profile(
+    data: ResumeProfileCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Create a new resume profile."""
     profile = ResumeProfile(name=data.name)
     session.add(profile)
+    session.flush()
+    record_activity(
+        session,
+        actor=current_user,
+        action="create_resume_profile",
+        entity_type="resume_profile",
+        entity_id=profile.id,
+        message=f"Created resume profile '{profile.name}'",
+    )
     session.commit()
     session.refresh(profile)
     return profile

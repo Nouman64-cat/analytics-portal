@@ -69,6 +69,31 @@ def migrate():
             ON interview_reminder_logs (interview_id, reminder_type, scheduled_for_utc);
             """,
              "Migration successful! Unique de-dup index for reminders ensured."),
+            ("""
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id UUID PRIMARY KEY,
+                actor_user_id UUID NULL,
+                actor_email VARCHAR(255) NOT NULL,
+                action VARCHAR(100) NOT NULL,
+                entity_type VARCHAR(100) NOT NULL,
+                entity_id UUID NULL,
+                message VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP NOT NULL
+            );
+            """,
+             "Migration successful! 'activity_logs' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_activity_logs_actor_user_id ON activity_logs (actor_user_id);",
+             "Migration successful! Index on activity_logs.actor_user_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_activity_logs_actor_email ON activity_logs (actor_email);",
+             "Migration successful! Index on activity_logs.actor_email ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_activity_logs_action ON activity_logs (action);",
+             "Migration successful! Index on activity_logs.action ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_activity_logs_entity_type ON activity_logs (entity_type);",
+             "Migration successful! Index on activity_logs.entity_type ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_activity_logs_entity_id ON activity_logs (entity_id);",
+             "Migration successful! Index on activity_logs.entity_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_activity_logs_created_at ON activity_logs (created_at);",
+             "Migration successful! Index on activity_logs.created_at ensured."),
         ]
         for sql, msg in migrations:
             try:
