@@ -391,22 +391,16 @@ def update_interview(
     if "parent_interview_id" in update_data:
         new_parent = update_data["parent_interview_id"]
         tgt_company = update_data.get("company_id", interview.company_id)
-        tgt_candidate = update_data.get("candidate_id", interview.candidate_id)
-        tgt_profile = update_data.get("resume_profile_id", interview.resume_profile_id)
         if new_parent is None:
             _propagate_thread_id(session, interview_id, uuid.uuid4())
         else:
             par = session.get(Interview, new_parent)
             if not par:
                 raise HTTPException(status_code=404, detail="Parent interview not found")
-            if (
-                par.company_id != tgt_company
-                or par.candidate_id != tgt_candidate
-                or par.resume_profile_id != tgt_profile
-            ):
+            if par.company_id != tgt_company:
                 raise HTTPException(
                     status_code=400,
-                    detail="Parent interview must match company, candidate, and resume profile",
+                    detail="Parent interview must be for the same company",
                 )
             descendants = _collect_descendant_ids(session, interview_id)
             if new_parent == interview_id or new_parent in descendants:
