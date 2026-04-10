@@ -1369,7 +1369,7 @@ export default function InterviewsPage() {
         {formData.parent_interview_id && !editingId ? (
           <p className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/90 dark:bg-indigo-500/10 px-3 py-2.5 text-sm text-indigo-900 dark:text-indigo-100">
             This round is linked after a previous step in the same pipeline.
-            Company, candidate, and profile must stay aligned with that step.
+            Company must match that step; you can change candidate and resume profile for this round if needed.
           </p>
         ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1395,7 +1395,6 @@ export default function InterviewsPage() {
               onChange={(e) =>
                 setFormData({ ...formData, candidate_id: e.target.value })
               }
-              disabled={!!formData.parent_interview_id && !editingId}
               className={selectClass}
             >
               {candidates.map((c) => (
@@ -1411,7 +1410,6 @@ export default function InterviewsPage() {
               onChange={(e) =>
                 setFormData({ ...formData, resume_profile_id: e.target.value })
               }
-              disabled={!!formData.parent_interview_id && !editingId}
               className={selectClass}
             >
               {profiles.map((p) => (
@@ -1758,7 +1756,7 @@ export default function InterviewsPage() {
                   </span>
                   <span className="hidden sm:inline"> — </span>
                   <span className="block sm:inline text-slate-600 dark:text-slate-400">
-                    Adds another round linked after this one (same company, candidate, profile).
+                    Adds another round linked after this one (same company; you can change candidate and profile in the form).
                   </span>
                 </p>
                 <button

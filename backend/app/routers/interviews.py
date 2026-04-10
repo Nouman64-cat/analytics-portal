@@ -238,14 +238,10 @@ def create_interview(
         if not parent:
             raise HTTPException(
                 status_code=404, detail="Parent interview not found")
-        if (
-            payload["company_id"] != parent.company_id
-            or payload["candidate_id"] != parent.candidate_id
-            or payload["resume_profile_id"] != parent.resume_profile_id
-        ):
+        if payload["company_id"] != parent.company_id:
             raise HTTPException(
                 status_code=400,
-                detail="company_id, candidate_id, and resume_profile_id must match the parent interview when adding a follow-up round",
+                detail="company_id must match the parent interview when adding a follow-up round",
             )
         payload["thread_id"] = parent.thread_id
         payload["parent_interview_id"] = parent_id
