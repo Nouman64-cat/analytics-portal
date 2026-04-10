@@ -28,7 +28,8 @@ def _pkt_to_utc(interview: Interview) -> datetime | None:
 
 def _process_due_reminders(settings: Settings) -> None:
     now_utc = datetime.utcnow().replace(second=0, microsecond=0)
-    lookback = now_utc - timedelta(minutes=2)
+    # Wider lookback prevents missing reminders during brief restarts/delays.
+    lookback = now_utc - timedelta(minutes=90)
 
     with Session(engine) as session:
         interviews = session.exec(
@@ -40,7 +41,8 @@ def _process_due_reminders(settings: Settings) -> None:
 
         for interview in interviews:
             status = compute_status(interview.status, interview.interview_date).lower()
-            if status != "upcoming":
+            # Skip clearly resolved/non-reminder statuses only.
+            if any(x in status for x in ("converted", "rejected", "dropped", "closed", "dead")):
                 continue
 
             interview_at_utc = _pkt_to_utc(interview)
@@ -83,12 +85,26 @@ def _process_due_reminders(settings: Settings) -> None:
                     reminder_minutes=minutes,
                 )
                 if sent:
+                    logger.info(
+                        "Interview reminder sent: interview_id=%s type=%s scheduled_for_utc=%s now_utc=%s",
+                        interview.id,
+                        reminder_type,
+                        scheduled_for_utc.isoformat(),
+                        now_utc.isoformat(),
+                    )
                     session.add(
                         InterviewReminderLog(
                             interview_id=interview.id,
                             reminder_type=reminder_type,
                             scheduled_for_utc=scheduled_for_utc,
                         )
+                    )
+                else:
+                    logger.warning(
+                        "Interview reminder skipped/failed send: interview_id=%s type=%s candidate_email=%s",
+                        interview.id,
+                        reminder_type,
+                        candidate.email if candidate else None,
                     )
 
         session.commit()
