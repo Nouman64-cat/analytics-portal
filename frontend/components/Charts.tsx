@@ -21,11 +21,12 @@ interface ChartCardProps {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  className?: string;
 }
 
-export function ChartCard({ title, subtitle, children }: ChartCardProps) {
+export function ChartCard({ title, subtitle, children, className }: ChartCardProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">
+    <div className={`rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 ${className ?? ""}`}>
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
         {subtitle && (

@@ -183,11 +183,109 @@ export default function DashboardPage() {
         />
       </StatsGrid>
 
-      {/* Status chart */}
-      <div className="grid grid-cols-1">
-        <ChartCard title="Status Distribution" subtitle="All interviews">
-          <PieChartWidget data={statusData} height={320} colorMapping={STATUS_HEX_COLORS} />
+      {/* Status + Recent interviews */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
+        <ChartCard title="Status Distribution" subtitle="All interviews" className="h-full">
+          <PieChartWidget data={statusData} height={360} colorMapping={STATUS_HEX_COLORS} />
         </ChartCard>
+        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+            Recent Interviews
+          </h3>
+          <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+            {stats.recent_interviews.slice(0, 5).map((interview) => {
+              const pl = mergeResumeProfileLinks(interview, profiles);
+              return (
+              <div
+                key={interview.id}
+                className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06]"
+              >
+                <Link
+                  href={`/interviews?id=${interview.id}`}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-500 dark:text-indigo-400"
+                >
+                  {interview.company?.[0] || "?"}
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                    <button
+                      onClick={(e) => {
+                        if (!interview.company_detail) return;
+                        const rect = (e.target as HTMLElement).getBoundingClientRect();
+                        setProfilePopover(null);
+                        setCompanyPopover({ interview, x: rect.left, y: rect.bottom + 6 });
+                      }}
+                      className={interview.company_detail ? "hover:underline cursor-pointer" : "cursor-default"}
+                    >
+                      {interview.company}
+                    </button>
+                    {" — "}{interview.role}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500">
+                    {interview.candidate} · Round {interview.round} · {formatDate(interview.date)}
+                  </p>
+                  {interview.resume_profile_name && (
+                    <p className="text-xs mt-0.5">
+                      <button
+                        onClick={(e) => {
+                          if (
+                            !pl.linkedin_url &&
+                            !pl.github_url &&
+                            !pl.portfolio_url &&
+                            !pl.resume_url
+                          )
+                            return;
+                          const rect = (e.target as HTMLElement).getBoundingClientRect();
+                          setCompanyPopover(null);
+                          setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
+                        }}
+                        className={
+                          (pl.linkedin_url ||
+                            pl.github_url ||
+                            pl.portfolio_url ||
+                            pl.resume_url)
+                            ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
+                            : "text-slate-400 dark:text-slate-500 cursor-default"
+                        }
+                      >
+                        {interview.resume_profile_name}
+                      </button>
+                    </p>
+                  )}
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    {interview.time_est && (
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                        EST {formatTime(interview.time_est)}
+                      </span>
+                    )}
+                    {interview.time_est && interview.time_pkt && (
+                      <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                    )}
+                    {interview.time_pkt && (
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                        PKT {formatTime(interview.time_pkt)}
+                      </span>
+                    )}
+                    {interview.bd_name && (
+                      <>
+                        {(interview.time_est || interview.time_pkt) && (
+                          <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                        )}
+                        <span className="text-[11px] text-indigo-400 dark:text-indigo-400">
+                          {interview.bd_name}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <StatusBadge status={interview.computed_status} />
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Lead frequency */}
@@ -200,138 +298,34 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* Candidate distribution + Recent */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div>
-          <div className="space-y-6">
-            <ChartCard title="Interviews by Candidate">
-              <BarChartWidget data={candidateData} color="#a78bfa" height={220} />
-            </ChartCard>
-            
-            <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">
-              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
-                Candidate Conversion
-              </h3>
-              <div className="space-y-4">
-                {Object.entries(stats.candidate_metrics || {}).map(([name, metrics]) => (
-                  <div key={name}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">{metrics.rate}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-white/[0.04] rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-emerald-400 h-full rounded-full transition-all duration-1000" 
-                        style={{ width: `${Math.max(1, metrics.rate)}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      {metrics.converted} out of {metrics.total_resolved} resolved (Total: {metrics.total})
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="lg:col-span-2">
-          <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5">
-            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
-              Recent Interviews
-            </h3>
-            <div className="space-y-3">
-              {stats.recent_interviews.slice(0, 5).map((interview) => {
-                const pl = mergeResumeProfileLinks(interview, profiles);
-                return (
-                <div
-                  key={interview.id}
-                  className="flex items-center gap-4 rounded-xl bg-slate-100 dark:bg-white/[0.02] p-3.5 transition-colors hover:bg-slate-200 dark:hover:bg-white/[0.06]"
-                >
-                  <Link
-                    href={`/interviews?id=${interview.id}`}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-500 dark:text-indigo-400"
-                  >
-                    {interview.company?.[0] || "?"}
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                      <button
-                        onClick={(e) => {
-                          if (!interview.company_detail) return;
-                          const rect = (e.target as HTMLElement).getBoundingClientRect();
-                          setProfilePopover(null);
-                          setCompanyPopover({ interview, x: rect.left, y: rect.bottom + 6 });
-                        }}
-                        className={interview.company_detail ? "hover:underline cursor-pointer" : "cursor-default"}
-                      >
-                        {interview.company}
-                      </button>
-                      {" — "}{interview.role}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-500">
-                      {interview.candidate} · Round {interview.round} · {formatDate(interview.date)}
-                    </p>
-                    {interview.resume_profile_name && (
-                      <p className="text-xs mt-0.5">
-                        <button
-                          onClick={(e) => {
-                            if (
-                              !pl.linkedin_url &&
-                              !pl.github_url &&
-                              !pl.portfolio_url &&
-                              !pl.resume_url
-                            )
-                              return;
-                            const rect = (e.target as HTMLElement).getBoundingClientRect();
-                            setCompanyPopover(null);
-                            setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
-                          }}
-                          className={
-                            (pl.linkedin_url ||
-                              pl.github_url ||
-                              pl.portfolio_url ||
-                              pl.resume_url)
-                              ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
-                              : "text-slate-400 dark:text-slate-500 cursor-default"
-                          }
-                        >
-                          {interview.resume_profile_name}
-                        </button>
-                      </p>
-                    )}
-                    <div className="mt-1 flex items-center gap-2 flex-wrap">
-                      {interview.time_est && (
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                          EST {formatTime(interview.time_est)}
-                        </span>
-                      )}
-                      {interview.time_est && interview.time_pkt && (
-                        <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
-                      )}
-                      {interview.time_pkt && (
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                          PKT {formatTime(interview.time_pkt)}
-                        </span>
-                      )}
-                      {interview.bd_name && (
-                        <>
-                          {(interview.time_est || interview.time_pkt) && (
-                            <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
-                          )}
-                          <span className="text-[11px] text-indigo-400 dark:text-indigo-400">
-                            {interview.bd_name}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    <StatusBadge status={interview.computed_status} />
-                  </div>
+      {/* Candidate charts */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
+        <ChartCard title="Interviews by Candidate" className="h-full">
+          <BarChartWidget data={candidateData} color="#a78bfa" height={360} />
+        </ChartCard>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+            Candidate Conversion
+          </h3>
+          <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
+            {Object.entries(stats.candidate_metrics || {}).map(([name, metrics]) => (
+              <div key={name}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{metrics.rate}%</span>
                 </div>
-                );
-              })}
-            </div>
+                <div className="w-full bg-slate-100 dark:bg-white/[0.04] rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-emerald-400 h-full rounded-full transition-all duration-1000"
+                    style={{ width: `${Math.max(1, metrics.rate)}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {metrics.converted} out of {metrics.total_resolved} resolved (Total: {metrics.total})
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
