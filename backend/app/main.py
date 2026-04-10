@@ -1,3 +1,4 @@
+import asyncio
 from starlette.status import HTTP_413_REQUEST_ENTITY_TOO_LARGE
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
@@ -8,9 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import create_db_and_tables
+from app.reminder_worker import run_reminder_worker
 
 # Import all models so SQLModel registers them
-from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, User  # noqa: F401
+from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, User  # noqa: F401
 
 from app.routers import candidates, resume_profiles, companies, interviews, dashboard, business_developers, auth
 
@@ -21,7 +23,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Startup: create tables. Shutdown: cleanup."""
     create_db_and_tables()
+    stop_event = asyncio.Event()
+    worker_task = asyncio.create_task(run_reminder_worker(stop_event, settings))
     yield
+    stop_event.set()
+    await worker_task
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
