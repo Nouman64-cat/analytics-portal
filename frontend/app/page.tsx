@@ -92,6 +92,7 @@ export default function DashboardPage() {
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [leadsFrequencyView, setLeadsFrequencyView] = useState<"weekly" | "monthly">("weekly");
 
   // Company popover for recent interviews
   const [companyPopover, setCompanyPopover] = useState<{ interview: RecentInterview; x: number; y: number } | null>(null);
@@ -158,6 +159,7 @@ export default function DashboardPage() {
     name: formatIsoWeekToWeekdayRange(d.name),
   }));
   const leadsMonthlyData = toChronologicalChartData(stats.leads_frequency_monthly || {});
+  const leadsChartData = leadsFrequencyView === "weekly" ? leadsWeeklyData : leadsMonthlyData;
 
   // Normalize statuses for the pie chart
   const statusMap: Record<string, number> = {};
@@ -340,12 +342,32 @@ export default function DashboardPage() {
       </div>
 
       {/* Lead frequency */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Lead Frequency (Weekly)" subtitle="Leads grouped by ISO week">
-          <BarChartWidget data={leadsWeeklyData} color="#22c55e" height={280} />
-        </ChartCard>
-        <ChartCard title="Lead Frequency (Monthly)" subtitle="Leads grouped by month">
-          <BarChartWidget data={leadsMonthlyData} color="#0ea5e9" height={280} />
+      <div className="grid grid-cols-1">
+        <ChartCard
+          title="Leads Frequency"
+          subtitle={
+            leadsFrequencyView === "weekly"
+              ? "Leads grouped by Monday-Friday range"
+              : "Leads grouped by month"
+          }
+        >
+          <div className="mb-3 flex justify-end">
+            <select
+              value={leadsFrequencyView}
+              onChange={(e) =>
+                setLeadsFrequencyView(e.target.value as "weekly" | "monthly")
+              }
+              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <BarChartWidget
+            data={leadsChartData}
+            color={leadsFrequencyView === "weekly" ? "#22c55e" : "#0ea5e9"}
+            height={300}
+          />
         </ChartCard>
       </div>
 
