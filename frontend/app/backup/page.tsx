@@ -95,7 +95,7 @@ export default function BackupPage() {
     <div className="space-y-8">
       <PageHeader
         title="Database backup"
-        subtitle="Runs pg_dump on the server, gzips the SQL, and uploads to S3 (prefix backups/). The pg_dump client major version must be ≥ the database server (set PG_DUMP_PATH in backend .env if you have multiple versions)."
+        subtitle="Runs pg_dump on the server, gzips the SQL, and uploads to S3 (prefix backups/). Use PG_DUMP_PATH if the client version must match the server; on Neon, neon_auth is excluded by default (PG_DUMP_EXCLUDE_SCHEMAS)."
         action={
           <div className="flex flex-wrap gap-2">
             <button

@@ -26,23 +26,41 @@ def normalize_database_url_for_pg_dump(database_url: str) -> str:
     return u
 
 
+def _pg_dump_exclude_schema_args(exclude_schemas_csv: str) -> list[str]:
+    """Build pg_dump --exclude-schema=... argv fragments (comma-separated)."""
+    if not exclude_schemas_csv or not exclude_schemas_csv.strip():
+        return []
+    out: list[str] = []
+    for part in exclude_schemas_csv.split(","):
+        name = part.strip()
+        if name:
+            out.append(f"--exclude-schema={name}")
+    return out
+
+
 def build_backup_s3_key(prefix: str = "backups/") -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
     p = prefix if prefix.endswith("/") else prefix + "/"
     return f"{p}rizviz-db-{ts}.sql.gz"
 
 
-def run_pg_dump_gzip(database_url: str, *, pg_dump_bin: str = "pg_dump") -> bytes:
+def run_pg_dump_gzip(
+    database_url: str,
+    *,
+    pg_dump_bin: str = "pg_dump",
+    exclude_schemas: str = "neon_auth",
+) -> bytes:
     """Run pg_dump and return gzip-compressed SQL bytes."""
     url = normalize_database_url_for_pg_dump(database_url)
     if not url.startswith("postgresql://"):
         raise ValueError("Database backup requires a PostgreSQL DATABASE_URL")
 
     bin_path = (pg_dump_bin or "pg_dump").strip() or "pg_dump"
+    cmd = [bin_path, url, "--no-owner", "--no-acl", *_pg_dump_exclude_schema_args(exclude_schemas)]
 
     try:
         proc = subprocess.run(
-            [bin_path, url, "--no-owner", "--no-acl"],
+            cmd,
             capture_output=True,
             timeout=3600,
         )
@@ -68,6 +86,16 @@ def run_pg_dump_gzip(database_url: str, *, pg_dump_bin: str = "pg_dump") -> byte
                 "Example (Homebrew): `brew install postgresql@16`, then set PG_DUMP_PATH to "
                 "`/opt/homebrew/opt/postgresql@16/bin/pg_dump` (Apple Silicon) or "
                 "`/usr/local/opt/postgresql@16/bin/pg_dump` (Intel)."
+            )
+        elif "permission denied for schema" in el and "neon_auth" in err:
+            extra = (
+                " Neon's managed schema `neon_auth` is not readable by your DB user. "
+                "The app excludes it via PG_DUMP_EXCLUDE_SCHEMAS (default: neon_auth). "
+                "If you see this anyway, ensure your backend .env includes PG_DUMP_EXCLUDE_SCHEMAS=neon_auth and restart."
+            )
+        elif "permission denied for schema" in el:
+            extra = (
+                " Add that schema name to PG_DUMP_EXCLUDE_SCHEMAS (comma-separated) in backend .env, then restart."
             )
         raise RuntimeError(f"pg_dump failed: {err.strip()}{extra}")
 

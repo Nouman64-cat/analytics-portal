@@ -35,6 +35,7 @@ def create_database_backup(
         blob = run_pg_dump_gzip(
             settings.DATABASE_URL,
             pg_dump_bin=settings.PG_DUMP_PATH,
+            exclude_schemas=settings.PG_DUMP_EXCLUDE_SCHEMAS,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
