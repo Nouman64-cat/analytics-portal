@@ -10,6 +10,10 @@ import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 
+function getInitials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,8 +186,8 @@ export default function UsersPage() {
               </div>
 
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400">
-                  <UserCog size={24} />
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-sm font-bold text-white shadow-md">
+                  {getInitials(user.full_name)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="mb-3">

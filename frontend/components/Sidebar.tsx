@@ -26,6 +26,7 @@ import {
   Moon,
   LogOut,
   UserCog,
+  User,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole } from "@/lib/auth";
@@ -41,6 +42,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Briefcase,
   History,
   UserCog,
+  User,
 };
 
 export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {

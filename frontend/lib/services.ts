@@ -68,11 +68,19 @@ export const authService = {
       }>;
     }),
 
-  changePassword: (newPassword: string) =>
+  changePassword: (data: { current_password: string; new_password: string }) =>
     apiFetch<{ message: string }>("/auth/change-password", {
       method: "POST",
-      body: JSON.stringify({ new_password: newPassword }),
+      body: JSON.stringify(data),
     }),
+
+  updateProfile: (data: { full_name: string }) =>
+    apiFetch<User>("/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getMe: () => apiFetch<User>("/auth/me"),
 };
 
 // ─── Dashboard ──────────────────────────────────────────────
