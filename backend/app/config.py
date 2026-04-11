@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # If you use nginx, set client_max_body_size to at least this value or requests never reach the app.
     MAX_UPLOAD_SIZE: int = Field(50 * 1024 * 1024, env="MAX_UPLOAD_SIZE")
 
+    # pg_dump major version must be >= PostgreSQL server major version (e.g. use postgresql@16 client for PG16).
+    # Default "pg_dump" uses whatever is first on PATH; set full path if multiple versions are installed.
+    PG_DUMP_PATH: str = Field("pg_dump", env="PG_DUMP_PATH")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

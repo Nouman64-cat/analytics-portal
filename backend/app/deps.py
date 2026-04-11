@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from sqlmodel import Session
 
 from app.database import get_session
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.config import get_settings
 
 bearer_scheme = HTTPBearer()
@@ -29,3 +29,15 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+def require_superadmin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Reject non–superadmin users (403)."""
+    if current_user.role != UserRole.SUPERADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmins can access this resource",
+        )
+    return current_user

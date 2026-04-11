@@ -189,6 +189,26 @@ export interface InterviewFormData {
   thread_id?: string | null;
 }
 
+/** Superadmin: POST /api/v1/admin/backup/ */
+export interface DatabaseBackupResult {
+  bucket: string;
+  s3_key: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface DatabaseBackupListItem {
+  s3_key: string;
+  size_bytes: number | null;
+  last_modified: string | null;
+}
+
+export interface DatabaseBackupListResponse {
+  items: DatabaseBackupListItem[];
+  /** Present when S3 ListBucket was denied; PutObject backups may still succeed. */
+  list_unavailable_reason?: string | null;
+}
+
 export interface BusinessDeveloperFormData {
   name: string;
 }

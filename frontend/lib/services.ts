@@ -17,6 +17,8 @@ import type {
   ActivityLogPage,
   User,
   UserFormData,
+  DatabaseBackupResult,
+  DatabaseBackupListResponse,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -265,4 +267,14 @@ export const usersService = {
     }),
   delete: (id: string) =>
     apiFetch<void>(`/users/${id}`, { method: "DELETE" }),
+};
+
+// ─── Database backup (Superadmin only) ───────────────────────
+
+export const backupService = {
+  create: () =>
+    apiFetch<DatabaseBackupResult>("/admin/backup/", {
+      method: "POST",
+    }),
+  list: () => apiFetch<DatabaseBackupListResponse>("/admin/backup/"),
 };
