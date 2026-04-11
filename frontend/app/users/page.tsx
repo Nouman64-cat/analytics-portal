@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil } from "lucide-react";
+import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil, Trash2 } from "lucide-react";
 import { usersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 
 export default function UsersPage() {
@@ -22,6 +23,8 @@ export default function UsersPage() {
     role: "team-member",
   });
   const [search, setSearch] = useState("");
+  const [deleteModal, setDeleteModal] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
@@ -98,6 +101,20 @@ export default function UsersPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    setIsDeleting(true);
+    try {
+      await usersService.delete(deleteModal.id);
+      setDeleteModal(null);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete user");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!isSuperadmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -147,24 +164,33 @@ export default function UsersPage() {
               key={user.id}
               className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-indigo-300/50 dark:hover:border-indigo-500/30 hover:shadow-lg"
             >
+              <div className="absolute right-3 top-3 flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); openEdit(user); }}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                  title="Edit User"
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteModal(user); }}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                  title="Delete User"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400">
                   <UserCog size={24} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="mb-3">
                     <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
                       {user.full_name}
                     </h3>
-                    <div className="flex items-center gap-2">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); openEdit(user); }}
-                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                       user.role === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
                       user.role === 'manager' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
                       'bg-slate-500/10 text-slate-400 border border-slate-500/20'
@@ -172,7 +198,7 @@ export default function UsersPage() {
                       {user.role}
                     </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
                     <div className="flex items-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
                       <Mail size={14} className="shrink-0" />
                       <span className="truncate">{user.email}</span>
@@ -262,6 +288,17 @@ export default function UsersPage() {
           </button>
         </div>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={!!deleteModal}
+        onClose={() => setDeleteModal(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title="Delete User"
+        itemName={deleteModal?.full_name ?? ""}
+        itemDetail={deleteModal?.email}
+      />
     </div>
   );
 }

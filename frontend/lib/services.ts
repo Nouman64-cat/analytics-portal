@@ -255,4 +255,6 @@ export const usersService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  delete: (id: string) =>
+    apiFetch<void>(`/users/${id}`, { method: "DELETE" }),
 };
