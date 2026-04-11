@@ -12,9 +12,9 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
-import { dashboardService, profilesService } from "@/lib/services";
 import { recordToChartData, formatDate, formatTime } from "@/lib/utils";
-import type { DashboardStats, RecentInterview, ResumeProfile } from "@/lib/types";
+import type { DashboardStats, RecentInterview, ResumeProfile, User as UserType } from "@/lib/types";
+import { authService, dashboardService, profilesService } from "@/lib/services";
 
 /** Merge interview API fields with full resume profile (same source as interviews page). */
 function mergeResumeProfileLinks(
@@ -90,6 +90,7 @@ function getRecentInterviewCardStyle(status: string | null | undefined): string 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
+  const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [leadsFrequencyView, setLeadsFrequencyView] = useState<"weekly" | "monthly">("weekly");
@@ -128,12 +129,14 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [data, profs] = await Promise.all([
+      const [data, profs, userData] = await Promise.all([
         dashboardService.getStats(),
         profilesService.list().catch(() => [] as ResumeProfile[]),
+        authService.getMe().catch(() => null),
       ]);
       setStats(data);
       setProfiles(profs);
+      setUser(userData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -198,7 +201,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
-        title="Dashboard"
+        title={user ? `Hi, ${user.full_name.split(' ')[0]}` : "Dashboard"}
         subtitle="Overview of your interview pipeline"
       />
 

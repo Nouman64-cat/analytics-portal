@@ -4,7 +4,6 @@ export const API_V1 = `${API_BASE_URL}/api/v1`;
 
 // Navigation
 export const NAV_ITEMS = [
-  { label: "Profile", href: "/profile", icon: "User" },
   { label: "Dashboard", href: "/", icon: "LayoutDashboard" },
   { label: "Interviews", href: "/interviews", icon: "CalendarCheck" },
   { label: "Calendar", href: "/calendar", icon: "Calendar" },
@@ -14,6 +13,7 @@ export const NAV_ITEMS = [
   { label: "Business Devs", href: "/business-developers", icon: "Briefcase" },
   { label: "Activities", href: "/activities", icon: "History" },
   { label: "User Management", href: "/users", icon: "UserCog" },
+  { label: "Profile", href: "/profile", icon: "User" },
 ] as const;
 
 // Chart colors — premium palette

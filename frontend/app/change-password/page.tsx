@@ -8,8 +8,10 @@ import { mustChangePassword, isAuthenticated, setToken } from "@/lib/auth";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,10 @@ export default function ChangePasswordPage() {
     }
     setLoading(true);
     try {
-      await authService.changePassword(newPassword);
+      await authService.changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
       // Clear must_change_password flag
       const token = localStorage.getItem("auth_token")!;
       setToken(token, false);
@@ -63,6 +68,28 @@ export default function ChangePasswordPage() {
           className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 sm:p-8 shadow-sm space-y-5"
         >
           <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Current (Temporary) Password</label>
+            <div className="relative">
+              <input
+                type={showCurrent ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                autoFocus
+                placeholder="Enter password from email"
+                className="w-full rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.03] px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-white outline-none transition focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-slate-400 dark:placeholder:text-slate-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrent((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                tabIndex={-1}
+              >
+                {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-400">New Password</label>
             <div className="relative">
               <input
@@ -70,7 +97,6 @@ export default function ChangePasswordPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                autoFocus
                 placeholder="Min. 8 characters"
                 className="w-full rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.03] px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-white outline-none transition focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
