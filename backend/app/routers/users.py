@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.deps import get_current_user
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.config import get_settings
 from app.email_ses import try_send_welcome_email
 
@@ -91,4 +91,46 @@ def create_user(
         # In a real app, you might want a more robust way to handle this
         pass
 
+    return user
+
+
+@router.put("/{user_id}", response_model=UserRead)
+def update_user(
+    user_id: str,
+    user_in: UserUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a user's details (Superadmin only)."""
+    if current_user.role != UserRole.SUPERADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmins can manage users",
+        )
+
+    import uuid
+    user = session.get(User, uuid.UUID(user_id))
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Check for email uniqueness if email is being updated
+    if user_in.email and user_in.email != user.email:
+        existing = session.exec(select(User).where(User.email == user_in.email)).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A user with this email already exists",
+            )
+
+    # Update fields
+    update_data = user_in.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user

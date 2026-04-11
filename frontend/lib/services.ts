@@ -250,4 +250,9 @@ export const usersService = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  update: (id: string, data: Partial<UserFormData>) =>
+    apiFetch<User>(`/users/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 };

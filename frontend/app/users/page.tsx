@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar } from "lucide-react";
+import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil } from "lucide-react";
 import { usersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData } from "@/lib/types";
@@ -14,6 +14,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<UserFormData>({
     full_name: "",
@@ -59,7 +60,18 @@ export default function UsersPage() {
   }, [fetchData, isSuperadmin]);
 
   const openCreate = () => {
+    setEditingId(null);
     setFormData({ full_name: "", email: "", role: "team-member" });
+    setModalOpen(true);
+  };
+
+  const openEdit = (user: User) => {
+    setEditingId(user.id);
+    setFormData({
+      full_name: user.full_name,
+      email: user.email,
+      role: user.role,
+    });
     setModalOpen(true);
   };
 
@@ -72,11 +84,15 @@ export default function UsersPage() {
     
     setIsSubmitting(true);
     try {
-      await usersService.create(formData);
+      if (editingId) {
+        await usersService.update(editingId, formData);
+      } else {
+        await usersService.create(formData);
+      }
       setModalOpen(false);
       fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create user");
+      alert(err instanceof Error ? err.message : `Failed to ${editingId ? 'update' : 'create'} user`);
     } finally {
       setIsSubmitting(false);
     }
@@ -140,6 +156,14 @@ export default function UsersPage() {
                     <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
                       {user.full_name}
                     </h3>
+                    <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); openEdit(user); }}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                       user.role === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
                       user.role === 'manager' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
@@ -175,7 +199,7 @@ export default function UsersPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Add New User"
+        title={editingId ? "Edit User" : "Add New User"}
         size="sm"
       >
         <div className="space-y-4">
@@ -210,12 +234,20 @@ export default function UsersPage() {
             </select>
           </FormField>
           
-          <div className="mt-2 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-            <p className="text-[12px] text-indigo-400 leading-relaxed font-medium">
-              A temporary password will be automatically generated and emailed to the user. 
-              They will be required to change it upon their first login.
-            </p>
-          </div>
+          {editingId ? (
+            <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <p className="text-[12px] text-amber-500 leading-relaxed font-medium">
+                Note: Updating user details will not reset their password.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-2 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+              <p className="text-[12px] text-indigo-400 leading-relaxed font-medium">
+                A temporary password will be automatically generated and emailed to the user. 
+                They will be required to change it upon their first login.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 flex justify-end gap-3">
@@ -226,7 +258,7 @@ export default function UsersPage() {
             className={`${buttonPrimary} disabled:opacity-70 flex items-center gap-2`}
           >
             {isSubmitting && <Loader2 className="animate-spin" size={16} />}
-            {isSubmitting ? "Creating..." : "Create User"}
+            {isSubmitting ? (editingId ? "Updating..." : "Creating...") : (editingId ? "Update User" : "Create User")}
           </button>
         </div>
       </Modal>

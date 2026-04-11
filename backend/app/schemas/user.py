@@ -15,6 +15,12 @@ class UserCreate(UserBase):
     pass
 
 
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    role: Optional[UserRole] = None
+
+
 class UserRead(UserBase):
     id: UUID
     must_change_password: bool
