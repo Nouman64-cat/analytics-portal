@@ -15,6 +15,8 @@ import type {
   Interview,
   InterviewFormData,
   ActivityLogPage,
+  User,
+  UserFormData,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -237,4 +239,15 @@ export const activitiesService = {
       : "";
     return apiFetch<ActivityLogPage>(`/activities/${query}`);
   },
+};
+
+// ─── Users (Superadmin only) ────────────────────────────────
+
+export const usersService = {
+  list: () => apiFetch<User[]>("/users/"),
+  create: (data: UserFormData) =>
+    apiFetch<User>("/users/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };

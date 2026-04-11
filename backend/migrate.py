@@ -10,6 +10,8 @@ def migrate():
         migrations = [
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR NOT NULL DEFAULT 'team-member';",
              "Migration successful! 'role' column added to 'users' table."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR NOT NULL DEFAULT 'User';",
+             "Migration successful! 'full_name' column added to 'users' table."),
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interviewer VARCHAR(255);",
              "Migration successful! 'interviewer' column added to 'interviews' table."),
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_link VARCHAR(1000);",

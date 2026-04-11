@@ -22,7 +22,7 @@ def generate_password(length: int = 12) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-def create_user(email: str, role: str) -> None:
+def create_user(email: str, role: str, full_name: str = "User") -> None:
     import bcrypt
     from app.models.user import UserRole
     
@@ -41,12 +41,13 @@ def create_user(email: str, role: str) -> None:
             print(f"[ERROR] A user with email '{email}' already exists.")
             sys.exit(1)
 
-        user = User(email=email, hashed_password=hashed, role=user_role, must_change_password=True)
+        user = User(email=email, full_name=full_name, hashed_password=hashed, role=user_role, must_change_password=True)
         session.add(user)
         session.commit()
 
     print(f"  User created:  {email}")
     print(f"  Role:          {user_role.value}")
+    print(f"  Name:          {full_name}")
     print(f"  Password:      {password}")
     print(f"  Note: user must change password on first login.")
 
@@ -57,8 +58,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create a new user")
     parser.add_argument("email", type=str, help="Email of the new user")
     parser.add_argument("--role", type=str, default="team-member", choices=["superadmin", "bd", "manager", "team-member"], help="Role of the user")
+    parser.add_argument("--name", type=str, default="User", help="Full name of the user")
     
     args = parser.parse_args()
 
-    create_user(args.email, args.role)
+    create_user(args.email, args.role, args.name)
     # test

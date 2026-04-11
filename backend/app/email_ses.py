@@ -141,6 +141,86 @@ def interview_notification_html(
 """
 
 
+def welcome_notification_html(
+    *,
+    full_name: str,
+    email: str,
+    password: str,
+    app_link: str,
+    title: str = "Welcome to RizViz Analytics Portal",
+) -> str:
+    safe = html_module.escape
+    brand = "#4f46e5"
+    card_bg = "#ffffff"
+    soft_bg = "#f8fafc"
+    border = "#e2e8f0"
+    text_main = "#0f172a"
+    text_muted = "#64748b"
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;color:{text_main};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:{card_bg};border:1px solid {border};border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(90deg,#4f46e5,#7c3aed);padding:24px;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;line-height:1.3;font-weight:700;">{safe(title)}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px;font-size:16px;font-weight:600;">Hi {safe(full_name)},</p>
+              <p style="margin:0 0 16px;font-size:15px;color:{text_main};">
+                Your account has been created on the RizViz Analytics Portal. You can now log in using the credentials below:
+              </p>
+              
+              <div style="background:{soft_bg};border:1px solid {border};border-radius:10px;padding:16px;margin-bottom:20px;">
+                <table width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td style="padding:4px 0;font-size:14px;color:{text_muted};width:80px;">Email:</td>
+                    <td style="padding:4px 0;font-size:14px;font-weight:600;color:{text_main};">{safe(email)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:4px 0;font-size:14px;color:{text_muted};">Password:</td>
+                    <td style="padding:4px 0;font-size:14px;font-weight:600;color:#4f46e5;font-family:monospace;">{safe(password)}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="margin:0 0 20px;font-size:14px;color:{text_muted};">
+                <strong>Important:</strong> You will be required to change your password upon your first login for security reasons.
+              </p>
+
+              <div style="margin-bottom:24px;">
+                <a href="{safe(app_link)}" 
+                   style="display:inline-block;background:{brand};color:#ffffff;text-decoration:none;
+                   padding:12px 24px;border-radius:10px;font-weight:600;font-size:15px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.2);">
+                  Log in to Portal
+                </a>
+              </div>
+
+              <p style="margin:0;font-size:14px;color:{text_muted};">
+                If you have any questions, please reach out to the administrator.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:{soft_bg};border-top:1px solid {border};">
+              <p style="margin:0;color:{text_muted};font-size:12px;text-align:center;">&copy; 2026 RizViz Analytics. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
 def send_interview_created_email(
     settings: "Settings",
     *,
@@ -366,4 +446,66 @@ def try_send_interview_reminder_email(
         return True
     except Exception:
         logger.exception("Failed to send interview reminder email")
+        return False
+
+
+def send_welcome_email(
+    settings: "Settings",
+    *,
+    to_email: str,
+    full_name: str,
+    password: str,
+) -> None:
+    """Raise on SMTP failure; caller should catch and log."""
+    if not settings.AWS_SES_FROM_EMAIL:
+        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        raise RuntimeError("AWS_SES SMTP credentials are not set")
+
+    app_link = settings.CLIENT_URL
+    html = welcome_notification_html(
+        full_name=full_name,
+        email=to_email,
+        password=password,
+        app_link=app_link,
+    )
+    plain = (
+        f"Hi {full_name},\n\n"
+        f"Welcome to RizViz Analytics Portal! Your account has been created.\n\n"
+        f"Log in at: {app_link}\n"
+        f"Email: {to_email}\n"
+        f"Password: {password}\n\n"
+        f"You will be required to change your password upon your first login."
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Welcome to RizViz Analytics Portal"
+    msg["From"] = settings.AWS_SES_FROM_EMAIL
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    host = _ses_smtp_host(settings.AWS_REGION)
+    context = ssl.create_default_context()
+    with smtplib.SMTP(host, 587, timeout=30) as server:
+        server.starttls(context=context)
+        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
+        server.send_message(msg)
+
+    logger.info("Sent welcome email to %s", to_email)
+
+
+def try_send_welcome_email(
+    settings: "Settings",
+    *,
+    to_email: str,
+    full_name: str,
+    password: str,
+) -> bool:
+    """Logs errors, does not raise."""
+    try:
+        send_welcome_email(settings, to_email=to_email, full_name=full_name, password=password)
+        return True
+    except Exception:
+        logger.exception("Failed to send welcome email to %s", to_email)
         return False

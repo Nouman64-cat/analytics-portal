@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     JWT_SECRET_KEY: str = "change-me-in-production"
+    CLIENT_URL: str = "http://localhost:3000"
 
     AWS_S3_BUCKET_NAME: str = Field(
         "rizviz-interviews", env="AWS_S3_BUCKET_NAME")

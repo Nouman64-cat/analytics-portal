@@ -16,6 +16,7 @@ class User(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     email: str = Field(unique=True, index=True)
+    full_name: str = Field(default="User")
     hashed_password: str
     role: UserRole = Field(default=UserRole.TEAM_MEMBER)
     must_change_password: bool = Field(default=True)

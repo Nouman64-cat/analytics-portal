@@ -149,6 +149,22 @@ export interface ActivityLogPage {
   offset: number;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  must_change_password: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserFormData {
+  email: string;
+  full_name: string;
+  role: string;
+}
+
 // ─── Form Payloads ──────────────────────────────────────────
 
 export interface InterviewFormData {
