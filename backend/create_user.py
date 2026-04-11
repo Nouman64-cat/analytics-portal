@@ -56,7 +56,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Create a new user")
     parser.add_argument("email", type=str, help="Email of the new user")
-    parser.add_argument("--role", type=str, default="team-member", choices=["bd", "manager", "team-member"], help="Role of the user")
+    parser.add_argument("--role", type=str, default="team-member", choices=["superadmin", "bd", "manager", "team-member"], help="Role of the user")
     
     args = parser.parse_args()
 

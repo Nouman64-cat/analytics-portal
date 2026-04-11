@@ -5,6 +5,7 @@ from enum import Enum
 
 
 class UserRole(str, Enum):
+    SUPERADMIN = "superadmin"
     BD = "bd"
     MANAGER = "manager"
     TEAM_MEMBER = "team-member"
