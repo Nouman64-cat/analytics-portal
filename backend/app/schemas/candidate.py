@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 
@@ -44,6 +44,7 @@ class InterviewSummary(BaseModel):
     role: str
     round: str
     interview_date: Optional[datetime] = None
+    time_est: Optional[time] = None
     status: Optional[str] = None
     computed_status: str = "Unresponsed"
     company_name: Optional[str] = None

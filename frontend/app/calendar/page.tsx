@@ -10,7 +10,11 @@ import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { interviewsService } from "@/lib/services";
 import type { Interview } from "@/lib/types";
-import { formatDate, formatTime, truncate } from "@/lib/utils";
+import {
+  formatInterviewDateEst,
+  formatTime,
+  truncate,
+} from "@/lib/utils";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
 import Modal, { buttonPrimary, buttonSecondary } from "@/components/Modal";
 import StatusBadge from "@/components/StatusBadge";
@@ -85,7 +89,7 @@ export default function CalendarPage() {
     <div className="mx-auto min-w-0 max-w-full space-y-6 sm:space-y-8">
       <PageHeader
         title="Interview calendar"
-        subtitle="Scheduled interviews by day. Tap an entry for a quick summary, or open full details on the interviews page."
+        subtitle="Days follow each interview’s scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid use Eastern Time (EST/ET). The preview shows both EST and PKT clock times."
       />
       <InterviewsCalendar
         interviews={interviews}
@@ -115,8 +119,11 @@ export default function CalendarPage() {
               <PreviewField label="Business developer">
                 {preview.bd_name || "—"}
               </PreviewField>
-              <PreviewField label="Date">
-                {formatDate(preview.interview_date)}
+              <PreviewField label="Date (EST)">
+                {formatInterviewDateEst(
+                  preview.interview_date,
+                  preview.time_est,
+                )}
               </PreviewField>
               <PreviewField label="Time (EST / PKT)">
                 {preview.time_est || preview.time_pkt ? (

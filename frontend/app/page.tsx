@@ -12,7 +12,12 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
-import { recordToChartData, formatDate, formatTime } from "@/lib/utils";
+import {
+  recordToChartData,
+  formatDate,
+  formatInterviewDateEst,
+  formatTime,
+} from "@/lib/utils";
 import type { DashboardStats, RecentInterview, ResumeProfile, User as UserType } from "@/lib/types";
 import { authService, dashboardService, profilesService } from "@/lib/services";
 
@@ -287,7 +292,8 @@ export default function DashboardPage() {
                     {" — "}{interview.role}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-500">
-                    {interview.candidate} · Round {interview.round} · {formatDate(interview.date)}
+                    {interview.candidate} · Round {interview.round} ·{" "}
+                    {formatInterviewDateEst(interview.date, interview.time_est)}
                   </p>
                   {interview.resume_profile_name && (
                     <p className="text-xs mt-0.5">

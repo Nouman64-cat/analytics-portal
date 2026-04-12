@@ -63,6 +63,7 @@ def get_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_sessio
             "role": interview.role,
             "round": interview.round,
             "interview_date": interview.interview_date,
+            "time_est": interview.time_est,
             "status": interview.status,
             "computed_status": compute_status(interview.status, interview.interview_date),
             "company_name": interview.company.name if interview.company else None,

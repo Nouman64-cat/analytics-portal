@@ -87,6 +87,8 @@ export interface InterviewSummary {
   role: string;
   round: string;
   interview_date: string | null;
+  /** Used with interview_date for Date (EST) display */
+  time_est?: string | null;
   status: string | null;
   computed_status: string;
   company_name?: string | null;

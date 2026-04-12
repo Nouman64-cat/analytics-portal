@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Pencil, Trash2, CalendarCheck, Loader2, Search } from "lucide-react";
 import { candidatesService, interviewsService } from "@/lib/services";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatInterviewDateEst } from "@/lib/utils";
 import type { Candidate, CandidateWithInterviews, CandidateFormData, Interview } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
@@ -336,7 +336,11 @@ export default function CandidatesPage() {
                       {interview.company_name} — {interview.role}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-500">
-                      Round {interview.round} · {formatDate(interview.interview_date)}
+                      Round {interview.round} ·{" "}
+                      {formatInterviewDateEst(
+                        interview.interview_date,
+                        interview.time_est,
+                      )}
                     </p>
                   </div>
                   <StatusBadge status={interview.computed_status} />

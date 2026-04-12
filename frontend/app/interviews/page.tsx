@@ -38,7 +38,7 @@ import {
   authService,
 } from "@/lib/services";
 import {
-  formatDate,
+  formatInterviewDateEst,
   formatTime,
   truncate,
   sortInterviewsInChain,
@@ -760,7 +760,9 @@ export default function InterviewsPage() {
       Candidate: i.candidate_name,
       Profile: i.resume_profile_name,
       Round: i.round,
-      "Interview Date": i.interview_date ? formatDate(i.interview_date) : "",
+      "Interview Date": i.interview_date
+        ? formatInterviewDateEst(i.interview_date, i.time_est)
+        : "",
       "Time (EST)": i.time_est ? formatTime(i.time_est) : "",
       "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
       "Salary Range": i.salary_range || "",
@@ -1060,6 +1062,23 @@ export default function InterviewsPage() {
       {filtered.length === 0 ? (
         <EmptyState message="No interviews found" />
       ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed px-0.5">
+            <span className="font-medium text-slate-600 dark:text-slate-300">
+              Date (EST)
+            </span>{" "}
+            is the calendar day in US Eastern for this interview, using the
+            interview date and EST time (stable regardless of your computer&apos;s
+            timezone).{" "}
+            <span className="font-medium text-slate-600 dark:text-slate-300">
+              EST
+            </span>{" "}
+            and{" "}
+            <span className="font-medium text-slate-600 dark:text-slate-300">
+              PKT
+            </span>{" "}
+            columns show the same moment as clock times in each region.
+          </p>
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px]">
@@ -1083,13 +1102,22 @@ export default function InterviewsPage() {
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                     Pipeline
                   </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Date
+                  <th
+                    className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                    title="Calendar day in US Eastern (from interview date + EST time)"
+                  >
+                    Date (EST)
                   </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                  <th
+                    className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                    title="Wall-clock time in US Eastern (same instant as PKT column)"
+                  >
                     EST
                   </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                  <th
+                    className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                    title="Wall-clock time in Pakistan (same instant as EST column)"
+                  >
                     PKT
                   </th>
                   <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
@@ -1294,10 +1322,16 @@ export default function InterviewsPage() {
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
                             </span>
-                            {formatDate(interview.interview_date)}
+                            {formatInterviewDateEst(
+                              interview.interview_date,
+                              interview.time_est,
+                            )}
                           </span>
                         ) : (
-                          formatDate(interview.interview_date)
+                          formatInterviewDateEst(
+                            interview.interview_date,
+                            interview.time_est,
+                          )
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
@@ -1453,6 +1487,7 @@ export default function InterviewsPage() {
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* Create/Edit Modal */}
@@ -1553,7 +1588,8 @@ export default function InterviewsPage() {
                   </option>
                   {pipelineParentSelectOptions.map((i) => (
                     <option key={i.id} value={i.id}>
-                      {i.round} · {formatDate(i.interview_date)} ·{" "}
+                      {i.round} ·{" "}
+                      {formatInterviewDateEst(i.interview_date, i.time_est)} ·{" "}
                       {i.computed_status || i.status || "—"}
                     </option>
                   ))}
@@ -1998,7 +2034,10 @@ export default function InterviewsPage() {
                   Date
                 </p>
                 <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {formatDate(detailModal.interview_date)}
+                  {formatInterviewDateEst(
+                    detailModal.interview_date,
+                    detailModal.time_est,
+                  )}
                 </p>
               </div>
               <div>

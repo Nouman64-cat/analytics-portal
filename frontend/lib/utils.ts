@@ -1,8 +1,13 @@
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { STATUS_COLORS } from "./constants";
 import type { Interview } from "./types";
 
+/** IANA zone for interview scheduling (US Eastern, handles EST/EDT). */
+export const INTERVIEW_SCHEDULE_TZ = "America/New_York";
+
 /**
- * Format an ISO date string to a human-readable format.
+ * Format an ISO date string to a human-readable format (browser local timezone).
+ * Prefer {@link formatInterviewDateEst} for interview calendar dates.
  */
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
@@ -12,6 +17,42 @@ export function formatDate(dateStr: string | null | undefined): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function parseTimePartsForEst(
+  timeStr: string | null | undefined,
+): { h: number; m: number; s: number } {
+  if (!timeStr || !timeStr.trim()) return { h: 12, m: 0, s: 0 };
+  const parts = timeStr.trim().split(":").map((p) => parseInt(p, 10));
+  return {
+    h: Number.isFinite(parts[0]) ? parts[0]! : 12,
+    m: Number.isFinite(parts[1]) ? parts[1]! : 0,
+    s: Number.isFinite(parts[2]) ? parts[2]! : 0,
+  };
+}
+
+/**
+ * Calendar date of the interview in US Eastern (interviews are scheduled in EST/ET).
+ * Uses `interview_date` + `time_est` as wall-clock time in {@link INTERVIEW_SCHEDULE_TZ},
+ * then formats that instant's date in the same zone — stable across user system timezones.
+ */
+export function formatInterviewDateEst(
+  interviewDate: string | null | undefined,
+  timeEst?: string | null,
+): string {
+  if (!interviewDate) return "—";
+  const ymd = interviewDate.split("T")[0]!;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+    const d = new Date(interviewDate);
+    if (Number.isNaN(d.getTime())) return "—";
+    return formatInTimeZone(d, INTERVIEW_SCHEDULE_TZ, "MMM d, yyyy");
+  }
+  const { h, m, s } = parseTimePartsForEst(timeEst ?? null);
+  const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const zonedLocalStr = `${ymd} ${timeStr}`;
+  const utcInstant = fromZonedTime(zonedLocalStr, INTERVIEW_SCHEDULE_TZ);
+  if (Number.isNaN(utcInstant.getTime())) return "—";
+  return formatInTimeZone(utcInstant, INTERVIEW_SCHEDULE_TZ, "MMM d, yyyy");
 }
 
 /**

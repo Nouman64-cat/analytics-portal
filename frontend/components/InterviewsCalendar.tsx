@@ -137,6 +137,15 @@ export default function InterviewsCalendar({
         </button>
       </div>
 
+      <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-left">
+        <span className="font-medium text-slate-600 dark:text-slate-300">
+          Times shown in Eastern (EST/ET)
+        </span>{" "}
+        — same as the EST column. Day cells use each row&apos;s interview date
+        (aligned with Date (EST) on the list); within a day, entries sort by EST
+        time.
+      </p>
+
       <div className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/[0.08] dark:bg-[#12141c]">
         <div
           className="grid w-full grid-cols-7 border-b border-slate-200 dark:border-white/[0.06]"

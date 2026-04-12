@@ -1,7 +1,7 @@
 "use client";
 
 import type { Interview } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { formatInterviewDateEst } from "@/lib/utils";
 import StatusBadge from "@/components/StatusBadge";
 import { Link2 } from "lucide-react";
 
@@ -51,7 +51,10 @@ export function InterviewChainTimeline({
                     <StatusBadge status={step.computed_status} />
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
                       {step.interview_date
-                        ? formatDate(step.interview_date)
+                        ? formatInterviewDateEst(
+                            step.interview_date,
+                            step.time_est,
+                          )
                         : "TBD"}
                     </span>
                   </div>
@@ -99,7 +102,10 @@ export function InterviewChainTimeline({
                     <StatusBadge status={step.computed_status} />
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       {step.interview_date
-                        ? formatDate(step.interview_date)
+                        ? formatInterviewDateEst(
+                            step.interview_date,
+                            step.time_est,
+                          )
                         : "Date TBD"}
                     </span>
                   </div>
