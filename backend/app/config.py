@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     """Application settings loaded from .env file."""
 
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/rizviz-interviews-ai"
+    # PostgreSQL schema for app tables (public, moeed, …). Same table names can exist in each schema;
+    # switch via env to point the app at different data. Requires identical DDL in that schema.
+    DATABASE_SCHEMA: str = Field("public", env="DATABASE_SCHEMA")
     APP_NAME: str = "RizViz Analytics Portal"
     APP_ENV: str = "development"
     DEBUG: bool = True
