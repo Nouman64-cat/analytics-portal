@@ -84,3 +84,6 @@ class InterviewReadWithDetails(InterviewRead):
     resume_profile_name: Optional[str] = None
     bd_name: Optional[str] = None
     computed_status: str = "Unresponsed"
+    # 1-based position in the full thread (all rounds); set when API scopes list per user
+    pipeline_thread_step: Optional[int] = None
+    pipeline_thread_total: Optional[int] = None

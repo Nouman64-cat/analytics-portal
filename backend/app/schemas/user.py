@@ -29,3 +29,9 @@ class UserRead(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class UserMeRead(UserRead):
+    """GET /auth/me — includes linked candidate id for team-member accounts (email match)."""
+
+    candidate_id: Optional[UUID] = None

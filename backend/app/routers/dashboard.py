@@ -1,33 +1,73 @@
 from datetime import date
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import joinedload
 from app.deps import get_current_user
-from sqlmodel import Session, select, func, col
+from sqlmodel import Session, select, func
 from app.database import get_session
 from app.models.interview import Interview
 from app.models.company import Company
 from app.models.candidate import Candidate
+from app.models.user import User, UserRole
 from app.status_utils import compute_status
+from app.team_member_scope import candidate_id_for_team_member
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 
 
+def _empty_team_member_dashboard():
+    return {
+        "total_interviews": 0,
+        "total_companies": 0,
+        "total_candidates": 0,
+        "total_jobs_closed": 0,
+        "interviews_by_status": {},
+        "interviews_by_company": {},
+        "interviews_by_candidate": {},
+        "leads_frequency_weekly": {},
+        "leads_frequency_monthly": {},
+        "candidate_metrics": {},
+        "recent_interviews": [],
+    }
+
+
 @router.get("/stats")
-def get_dashboard_stats(session: Session = Depends(get_session)):
-    """Get summary statistics for the dashboard."""
+def get_dashboard_stats(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Get summary statistics for the dashboard. Team members only see their own interviews."""
+    scope_candidate_id = None
+    if current_user.role == UserRole.TEAM_MEMBER:
+        scope_candidate_id = candidate_id_for_team_member(session, current_user)
+        if scope_candidate_id is None:
+            return _empty_team_member_dashboard()
+
+    def iv_where(stmt):
+        if scope_candidate_id:
+            return stmt.where(Interview.candidate_id == scope_candidate_id)
+        return stmt
 
     # Total interviews
-    total_interviews = session.exec(select(func.count(Interview.id))).one()
+    total_interviews = session.exec(
+        iv_where(select(func.count(Interview.id)))
+    ).one()
 
-    # Total unique companies
-    total_companies = session.exec(select(func.count(Company.id))).one()
-
-    # Total candidates
-    total_candidates = session.exec(select(func.count(Candidate.id))).one()
+    # Total unique companies (from interviews in scope)
+    if scope_candidate_id:
+        total_companies = session.exec(
+            select(func.count(func.distinct(Interview.company_id))).where(
+                Interview.candidate_id == scope_candidate_id
+            )
+        ).one()
+        total_candidates = 1
+    else:
+        total_companies = session.exec(select(func.count(Company.id))).one()
+        total_candidates = session.exec(select(func.count(Candidate.id))).one()
 
     # Interviews by status with exact date intelligence
-    all_status_query = select(Interview.status, Interview.interview_date)
+    all_status_query = iv_where(select(Interview.status, Interview.interview_date))
     all_statuses = session.exec(all_status_query).all()
-    
+
     interviews_by_status_raw = {}
     for status, int_date in all_statuses:
         label = compute_status(status, int_date)
@@ -37,7 +77,7 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
     total_jobs_closed = interviews_by_status.get("Closed", 0)
 
     # Lead frequency (weekly / monthly) using interview date
-    lead_dates = session.exec(select(Interview.interview_date)).all()
+    lead_dates = session.exec(iv_where(select(Interview.interview_date))).all()
     leads_frequency_weekly: dict[str, int] = {}
     leads_frequency_monthly: dict[str, int] = {}
     for d in lead_dates:
@@ -56,6 +96,8 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         .group_by(Company.name)
         .order_by(func.count(Interview.id).desc())
     )
+    if scope_candidate_id:
+        company_query = company_query.where(Interview.candidate_id == scope_candidate_id)
     company_results = session.exec(company_query).all()
     interviews_by_company = {name: count for name, count in company_results}
 
@@ -66,6 +108,8 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         .group_by(Candidate.name)
         .order_by(func.count(Interview.id).desc())
     )
+    if scope_candidate_id:
+        candidate_query = candidate_query.where(Interview.candidate_id == scope_candidate_id)
     candidate_results = session.exec(candidate_query).all()
     interviews_by_candidate = {name: count for name, count in candidate_results}
 
@@ -74,15 +118,19 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
         select(Candidate.name, Interview.status)
         .join(Interview, Interview.candidate_id == Candidate.id)
     )
+    if scope_candidate_id:
+        candidate_interviews_query = candidate_interviews_query.where(
+            Interview.candidate_id == scope_candidate_id
+        )
     candidate_interviews = session.exec(candidate_interviews_query).all()
-    
+
     candidate_metrics = {}
     for name, status in candidate_interviews:
         if name not in candidate_metrics:
             candidate_metrics[name] = {"total_resolved": 0, "converted": 0, "total": 0}
-        
+
         candidate_metrics[name]["total"] += 1
-        
+
         status_lower = (status or "").lower()
         if "converted" in status_lower or "closed" in status_lower:
             candidate_metrics[name]["converted"] += 1
@@ -91,16 +139,22 @@ def get_dashboard_stats(session: Session = Depends(get_session)):
             candidate_metrics[name]["total_resolved"] += 1
 
     for name, stats in candidate_metrics.items():
-        # Exclude Unresponsed from the conversion rate calculation
-        rate = round((stats["converted"] / stats["total_resolved"]) * 100) if stats["total_resolved"] > 0 else 0
+        rate = (
+            round((stats["converted"] / stats["total_resolved"]) * 100)
+            if stats["total_resolved"] > 0
+            else 0
+        )
         stats["rate"] = rate
 
     # Recent interviews (last 7)
-    recent_query = (
-        select(Interview)
-        .order_by(Interview.interview_date.desc())  # type: ignore
-        .limit(7)
+    recent_query = select(Interview).options(
+        joinedload(Interview.company),
+        joinedload(Interview.candidate),
+        joinedload(Interview.resume_profile),
+        joinedload(Interview.business_developer),
     )
+    recent_query = iv_where(recent_query).order_by(Interview.interview_date.desc())  # type: ignore
+    recent_query = recent_query.limit(7)
     recent_interviews = session.exec(recent_query).all()
     recent = [
         {

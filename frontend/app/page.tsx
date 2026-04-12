@@ -33,6 +33,7 @@ import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
+import { getUserRole } from "@/lib/auth";
 
 function toChronologicalChartData(record: Record<string, number>) {
   return Object.entries(record)
@@ -152,6 +153,8 @@ export default function DashboardPage() {
   if (error) return <ErrorState message={error} onRetry={fetchStats} />;
   if (!stats) return null;
 
+  const isTeamMember = getUserRole() === "team-member";
+
   const popoverProfileLinks = profilePopover
     ? mergeResumeProfileLinks(profilePopover.interview, profiles)
     : null;
@@ -205,7 +208,7 @@ export default function DashboardPage() {
         subtitle="Overview of your interview pipeline"
       />
 
-      {/* Stats Cards */}
+      {/* Stats Cards — backend scopes stats for team members to their interviews only */}
       <StatsGrid cols={5}>
         <StatsCard
           title="Total Interviews"
@@ -232,7 +235,7 @@ export default function DashboardPage() {
           gradient="bg-gradient-to-br from-emerald-500 to-green-600"
         />
         <StatsCard
-          title="Conversion Rate"
+          title={isTeamMember ? "Your conversion rate" : "Conversion Rate"}
           value={`${globalConversionRate}%`}
           icon={TrendingUp}
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
@@ -241,7 +244,11 @@ export default function DashboardPage() {
 
       {/* Status + Recent interviews */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
-        <ChartCard title="Status Distribution" subtitle="All interviews" className="h-full">
+        <ChartCard
+          title="Status Distribution"
+          subtitle={isTeamMember ? "Your interviews" : "All interviews"}
+          className="h-full"
+        >
           <PieChartWidget data={statusData} height={360} colorMapping={STATUS_HEX_COLORS} />
         </ChartCard>
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
@@ -344,7 +351,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Lead frequency */}
+      {/* Lead frequency + candidate analytics — hidden for team members (org-wide metrics) */}
+      {!isTeamMember && (
+      <>
       <div className="grid grid-cols-1">
         <ChartCard
           title="Leads Frequency"
@@ -374,7 +383,6 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* Candidate charts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
         <ChartCard title="Interviews by Candidate" className="h-full">
           <BarChartWidget data={candidateData} color="#a78bfa" height={360} />
@@ -405,6 +413,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
       {/* Company detail popover */}
       {companyPopover && (
         <div

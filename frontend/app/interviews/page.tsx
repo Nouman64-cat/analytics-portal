@@ -35,6 +35,7 @@ import {
   candidatesService,
   profilesService,
   businessDevelopersService,
+  authService,
 } from "@/lib/services";
 import {
   formatDate,
@@ -112,6 +113,10 @@ function getPipelinePopoverLayout(rect: DOMRect) {
 
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  /** Full thread chains for team members (main list is scoped per candidate). */
+  const [pipelineThreadChains, setPipelineThreadChains] = useState<
+    Record<string, Interview[]>
+  >({});
   const [companies, setCompanies] = useState<Company[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
@@ -261,6 +266,9 @@ export default function InterviewsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
+  const isTeamMember = role === "team-member";
+  const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
+  const canAddPipelineRound = !isTeamMember || !!meCandidateId;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<InterviewFormData>({
     company_id: "",
@@ -280,18 +288,38 @@ export default function InterviewsPage() {
         candidatesData,
         profilesData,
         bdsData,
+        me,
       ] = await Promise.all([
         interviewsService.list(),
         companiesService.list(),
         candidatesService.list(),
         profilesService.list(),
         businessDevelopersService.list(),
+        authService.getMe(),
       ]);
+
+      let pipelineChains: Record<string, Interview[]> = {};
+      if (me.role === "team-member") {
+        const tids = [
+          ...new Set(interviewsData.map((i) => i.thread_id ?? i.id)),
+        ];
+        if (tids.length > 0) {
+          const results = await Promise.all(
+            tids.map((tid) => interviewsService.listByThread(tid)),
+          );
+          tids.forEach((tid, idx) => {
+            pipelineChains[tid] = results[idx];
+          });
+        }
+      }
+      setPipelineThreadChains(pipelineChains);
+
       setInterviews(interviewsData);
       setCompanies(companiesData);
       setCandidates(candidatesData);
       setProfiles(profilesData);
       setBusinessDevs(bdsData);
+      setMeCandidateId(me.candidate_id ?? null);
 
       // Handle deep-linked interview from Dashboard
       if (typeof window !== "undefined") {
@@ -321,9 +349,12 @@ export default function InterviewsPage() {
 
   const openCreateModal = () => {
     setEditingId(null);
+    const defaultCandidate = isTeamMember
+      ? meCandidateId || ""
+      : candidates[0]?.id || "";
     setFormData({
       company_id: companies[0]?.id || "",
-      candidate_id: candidates[0]?.id || "",
+      candidate_id: defaultCandidate,
       resume_profile_id: profiles[0]?.id || "",
       role: "",
       round: "1st",
@@ -342,9 +373,12 @@ export default function InterviewsPage() {
 
   const openCreateNextRound = (parent: Interview) => {
     setEditingId(null);
+    const nextCandidate = isTeamMember
+      ? meCandidateId || parent.candidate_id
+      : parent.candidate_id;
     setFormData({
       company_id: parent.company_id,
-      candidate_id: parent.candidate_id,
+      candidate_id: nextCandidate,
       resume_profile_id: parent.resume_profile_id,
       role: parent.role,
       salary_range: parent.salary_range || "",
@@ -395,10 +429,19 @@ export default function InterviewsPage() {
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
+    if (isTeamMember && !meCandidateId && !editingId) {
+      alert(
+        "No candidate record matches your login email. Ask an admin to add a candidate with the same email as your user account.",
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       const payload = {
         ...formData,
+        ...(isTeamMember && meCandidateId
+          ? { candidate_id: meCandidateId }
+          : {}),
       } as {
         company_id: string;
         candidate_id: string;
@@ -564,17 +607,54 @@ export default function InterviewsPage() {
     return m;
   }, [interviews]);
 
+  /** Full thread for pipeline UI; for team members merges GET /interviews/thread/:id (list is per-candidate). */
+  const chainByThreadId = useMemo(() => {
+    const fromList = new Map<string, Interview[]>();
+    for (const i of interviews) {
+      const tid = i.thread_id ?? i.id;
+      if (!fromList.has(tid)) fromList.set(tid, []);
+      fromList.get(tid)!.push(i);
+    }
+    for (const arr of fromList.values()) {
+      arr.sort(sortInterviewsInChain);
+    }
+    const merged = new Map<string, Interview[]>();
+    const allTids = new Set<string>([
+      ...fromList.keys(),
+      ...Object.keys(pipelineThreadChains),
+    ]);
+    for (const tid of allTids) {
+      const full = pipelineThreadChains[tid];
+      if (full && full.length > 0) {
+        merged.set(tid, [...full].sort(sortInterviewsInChain));
+      } else {
+        const partial = fromList.get(tid);
+        if (partial) merged.set(tid, partial);
+      }
+    }
+    return merged;
+  }, [interviews, pipelineThreadChains]);
+
   const chainStep = useCallback(
     (interview: Interview) => {
+      if (
+        interview.pipeline_thread_step != null &&
+        interview.pipeline_thread_total != null
+      ) {
+        return {
+          step: interview.pipeline_thread_step,
+          total: interview.pipeline_thread_total,
+        };
+      }
       const tid = interview.thread_id ?? interview.id;
-      const chain = interviewsByThread.get(tid) || [interview];
+      const chain = chainByThreadId.get(tid) || [interview];
       const idx = chain.findIndex((x) => x.id === interview.id);
       return {
         step: idx >= 0 ? idx + 1 : 1,
         total: Math.max(chain.length, 1),
       };
     },
-    [interviewsByThread],
+    [chainByThreadId],
   );
 
   /** Eligible "previous round" rows when editing (same company, candidate, profile; no cycles). */
@@ -746,7 +826,16 @@ export default function InterviewsPage() {
               Export
             </button>
             {!cannotCRUD && (
-              <button onClick={openCreateModal} className={buttonPrimary}>
+              <button
+                onClick={openCreateModal}
+                className={buttonPrimary}
+                disabled={isTeamMember && !meCandidateId}
+                title={
+                  isTeamMember && !meCandidateId
+                    ? "Link a candidate with your email first"
+                    : undefined
+                }
+              >
                 <Plus size={16} />
                 Add Interview
               </button>
@@ -754,6 +843,17 @@ export default function InterviewsPage() {
           </div>
         }
       />
+
+      {isTeamMember && !meCandidateId && (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100/90">
+          <p className="font-medium text-amber-900 dark:text-amber-50">
+            Candidate link required
+          </p>
+          <p className="mt-1 text-amber-900/85 dark:text-amber-100/75">
+            Add a candidate in the system whose email matches your login email so interviews can be tied to your account.
+          </p>
+        </div>
+      )}
 
       <StatsGrid cols={7}>
         <StatsCard
@@ -849,20 +949,22 @@ export default function InterviewsPage() {
               <option value="direct">Direct Client</option>
             </select>
 
-            <select
-              value={filters.candidate_id}
-              onChange={(e) =>
-                setFilters({ ...filters, candidate_id: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
-            >
-              <option value="All">All Candidates</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            {!isTeamMember && (
+              <select
+                value={filters.candidate_id}
+                onChange={(e) =>
+                  setFilters({ ...filters, candidate_id: e.target.value })
+                }
+                className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+              >
+                <option value="All">All Candidates</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               value={filters.resume_profile_id}
@@ -1120,7 +1222,7 @@ export default function InterviewsPage() {
                           }
                           const tid = interview.thread_id ?? interview.id;
                           const chain =
-                            interviewsByThread.get(tid) || [interview];
+                            chainByThreadId.get(tid) || [interview];
                           return (
                             <button
                               type="button"
@@ -1237,7 +1339,7 @@ export default function InterviewsPage() {
                           </button>
                           {!cannotCRUD && (
                             <>
-                              {!isRejectedInterview(interview) && (
+                              {!isRejectedInterview(interview) && canAddPipelineRound && (
                                 <button
                                   type="button"
                                   onClick={() => openCreateNextRound(interview)}
@@ -1369,7 +1471,10 @@ export default function InterviewsPage() {
         {formData.parent_interview_id && !editingId ? (
           <p className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/90 dark:bg-indigo-500/10 px-3 py-2.5 text-sm text-indigo-900 dark:text-indigo-100">
             This round is linked after a previous step in the same pipeline.
-            Company must match that step; you can change candidate and resume profile for this round if needed.
+            Company must match that step.
+            {isTeamMember
+              ? " Your candidate is fixed to your account."
+              : " You can change candidate and resume profile for this round if needed."}
           </p>
         ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1390,19 +1495,30 @@ export default function InterviewsPage() {
             </select>
           </FormField>
           <FormField label="Candidate">
-            <select
-              value={formData.candidate_id}
-              onChange={(e) =>
-                setFormData({ ...formData, candidate_id: e.target.value })
-              }
-              className={selectClass}
-            >
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            {isTeamMember ? (
+              <div
+                className={`${selectClass} flex items-center text-slate-700 dark:text-slate-200 bg-slate-100/80 dark:bg-white/[0.04] cursor-not-allowed`}
+              >
+                {meCandidateId
+                  ? candidates.find((c) => c.id === meCandidateId)?.name ||
+                    "You (linked)"
+                  : "No candidate linked to your email — contact an admin."}
+              </div>
+            ) : (
+              <select
+                value={formData.candidate_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, candidate_id: e.target.value })
+                }
+                className={selectClass}
+              >
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </FormField>
           <FormField label="Resume Profile">
             <select
@@ -1748,7 +1864,7 @@ export default function InterviewsPage() {
       >
         {detailModal && (
           <div className="space-y-5">
-            {!cannotCRUD && !isRejectedInterview(detailModal) && (
+            {!cannotCRUD && !isRejectedInterview(detailModal) && canAddPipelineRound && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-indigo-200/80 dark:border-indigo-500/30 bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-500/10 dark:to-[#151821] px-4 py-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   <span className="font-medium text-slate-900 dark:text-white">
@@ -1756,7 +1872,9 @@ export default function InterviewsPage() {
                   </span>
                   <span className="hidden sm:inline"> — </span>
                   <span className="block sm:inline text-slate-600 dark:text-slate-400">
-                    Adds another round linked after this one (same company; you can change candidate and profile in the form).
+                    {isTeamMember
+                      ? "Adds another round after this step (same company; your candidate is fixed to your account)."
+                      : "Adds another round linked after this one (same company; you can change candidate and profile in the form)."}
                   </span>
                 </p>
                 <button
@@ -1772,7 +1890,7 @@ export default function InterviewsPage() {
             {(() => {
               const tid = detailModal.thread_id ?? detailModal.id;
               const chain =
-                interviewsByThread.get(tid) || [detailModal];
+                chainByThreadId.get(tid) || [detailModal];
               return (
                 <InterviewChainTimeline
                   chain={chain}

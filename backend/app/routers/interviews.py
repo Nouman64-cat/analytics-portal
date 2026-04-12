@@ -16,7 +16,14 @@ from app.models.candidate import Candidate
 from app.models.resume_profile import ResumeProfile
 from app.models.business_developer import BusinessDeveloper
 from app.models.interview_reminder_log import InterviewReminderLog
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.team_member_scope import (
+    apply_team_member_interview_list_filter,
+    candidate_id_for_team_member,
+    team_member_can_access_thread,
+    team_member_can_read_interview,
+    team_member_must_own_interview,
+)
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -84,6 +91,69 @@ def _enrich_interview(interview: Interview) -> dict:
         "bd_name": interview.business_developer.name if interview.business_developer else None,
     }
     return data
+
+
+def _enrich_interview_for_reader(
+    session: Session, interview: Interview, current_user: User
+) -> dict:
+    """Full fields for the interview's candidate owner; pipeline-only summary for other team members."""
+    data = _enrich_interview(interview)
+    if current_user.role != UserRole.TEAM_MEMBER:
+        return data
+    cid = candidate_id_for_team_member(session, current_user)
+    if cid is None or interview.candidate_id == cid:
+        return data
+    data["feedback"] = None
+    data["recruiter_feedback"] = None
+    data["interview_doc_url"] = None
+    data["interview_link"] = None
+    data["salary_range"] = None
+    return data
+
+
+def _pipeline_step_total_map(
+    session: Session, thread_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, tuple[int, int]]:
+    """Map interview id -> (1-based step, total rounds) in thread order (all candidates)."""
+    out: dict[uuid.UUID, tuple[int, int]] = {}
+    if not thread_ids:
+        return out
+    rows = session.exec(
+        select(Interview).where(Interview.thread_id.in_(thread_ids))
+    ).all()
+    by_thread: dict[uuid.UUID, list[Interview]] = {}
+    for r in rows:
+        by_thread.setdefault(r.thread_id, []).append(r)
+    for arr in by_thread.values():
+        ordered = sorted(
+            arr,
+            key=lambda x: (x.interview_date or date.max, x.created_at),
+        )
+        n = len(ordered)
+        for i, r in enumerate(ordered):
+            out[r.id] = (i + 1, n)
+    return out
+
+
+def _attach_pipeline_meta(
+    data: dict,
+    interview_id: uuid.UUID,
+    pipe_map: dict[uuid.UUID, tuple[int, int]],
+) -> dict:
+    if interview_id in pipe_map:
+        step, total = pipe_map[interview_id]
+        data["pipeline_thread_step"] = step
+        data["pipeline_thread_total"] = total
+    return data
+
+
+def _finalize_interview_response(
+    session: Session, interview: Interview, current_user: User
+) -> dict:
+    tids = {interview.thread_id} if interview.thread_id else set()
+    pipe_map = _pipeline_step_total_map(session, tids)
+    data = _enrich_interview_for_reader(session, interview, current_user)
+    return _attach_pipeline_meta(data, interview.id, pipe_map)
 
 
 def _get_interview_for_enrichment(
@@ -157,14 +227,17 @@ def list_interviews(
     date_to: Optional[date] = Query(
         None, description="Filter interviews up to this date"),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    """List interviews with optional filters."""
+    """List interviews with optional filters. Team members only see their candidate's rows; pipeline step/total reflects the full thread."""
     query = select(Interview).options(
         joinedload(Interview.company),
         joinedload(Interview.candidate),
         joinedload(Interview.resume_profile),
         joinedload(Interview.business_developer),
     )
+
+    query = apply_team_member_interview_list_filter(session, current_user, query)
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)
@@ -182,14 +255,29 @@ def list_interviews(
     query = query.order_by(Interview.interview_date.desc())  # type: ignore
     interviews = session.exec(query).all()
 
-    return [_enrich_interview(i) for i in interviews]
+    thread_ids = {i.thread_id for i in interviews if i.thread_id}
+    pipe_map = _pipeline_step_total_map(session, thread_ids)
+    return [
+        _attach_pipeline_meta(
+            _enrich_interview_for_reader(session, i, current_user),
+            i.id,
+            pipe_map,
+        )
+        for i in interviews
+    ]
 
 
 @router.get("/thread/{thread_id}", response_model=list[InterviewReadWithDetails])
 def list_interviews_by_thread(
-    thread_id: uuid.UUID, session: Session = Depends(get_session)
+    thread_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    """All interviews in one pipeline thread, ordered from earliest round to latest."""
+    """All rounds in one thread. Team members see full chain for pipeline UI; non-owned rows omit sensitive fields."""
+    if current_user.role == UserRole.TEAM_MEMBER and not team_member_can_access_thread(
+        session, current_user, thread_id
+    ):
+        raise HTTPException(status_code=404, detail="Interview not found")
     query = (
         select(Interview)
         .where(Interview.thread_id == thread_id)
@@ -208,7 +296,15 @@ def list_interviews_by_thread(
         by_id.values(),
         key=lambda x: (x.interview_date or date.max, x.created_at),
     )
-    return [_enrich_interview(i) for i in ordered]
+    pipe_map = _pipeline_step_total_map(session, {thread_id})
+    return [
+        _attach_pipeline_meta(
+            _enrich_interview_for_reader(session, i, current_user),
+            i.id,
+            pipe_map,
+        )
+        for i in ordered
+    ]
 
 
 @router.post("/", response_model=InterviewReadWithDetails, status_code=status.HTTP_201_CREATED)
@@ -218,18 +314,27 @@ def create_interview(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new interview record."""
+    payload = data.model_dump()
+    tm_cid = candidate_id_for_team_member(session, current_user)
+    if current_user.role == UserRole.TEAM_MEMBER:
+        if tm_cid is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No candidate record matches your login email. Ask an admin to add a candidate with the same email as your user account.",
+            )
+        payload["candidate_id"] = tm_cid
+
     # Validate foreign keys exist
-    if not session.get(Company, data.company_id):
+    if not session.get(Company, payload["company_id"]):
         raise HTTPException(status_code=404, detail="Company not found")
-    if not session.get(Candidate, data.candidate_id):
+    if not session.get(Candidate, payload["candidate_id"]):
         raise HTTPException(status_code=404, detail="Candidate not found")
-    if not session.get(ResumeProfile, data.resume_profile_id):
+    if not session.get(ResumeProfile, payload["resume_profile_id"]):
         raise HTTPException(status_code=404, detail="Resume profile not found")
-    if data.bd_id and not session.get(BusinessDeveloper, data.bd_id):
+    if payload.get("bd_id") and not session.get(BusinessDeveloper, payload["bd_id"]):
         raise HTTPException(
             status_code=404, detail="Business developer not found")
 
-    payload = data.model_dump()
     parent_id = payload.pop("parent_interview_id", None)
     explicit_thread = payload.pop("thread_id", None)
 
@@ -243,6 +348,15 @@ def create_interview(
             raise HTTPException(
                 status_code=400,
                 detail="company_id must match the parent interview when adding a follow-up round",
+            )
+        if (
+            current_user.role == UserRole.TEAM_MEMBER
+            and tm_cid is not None
+            and parent_for_followup.candidate_id != tm_cid
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Parent interview is not part of your candidate pipeline.",
             )
         payload["thread_id"] = parent_for_followup.thread_id
         payload["parent_interview_id"] = parent_id
@@ -287,16 +401,22 @@ def create_interview(
         is_phone_call=loaded.is_phone_call,
     )
 
-    return _enrich_interview(loaded)
+    return _finalize_interview_response(session, loaded, current_user)
 
 
 @router.get("/{interview_id}", response_model=InterviewReadWithDetails)
-def get_interview(interview_id: uuid.UUID, session: Session = Depends(get_session)):
+def get_interview(
+    interview_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Get an interview by ID with full details."""
     interview = _get_interview_for_enrichment(session, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
-    return _enrich_interview(interview)
+    if not team_member_can_read_interview(session, current_user, interview):
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return _finalize_interview_response(session, interview, current_user)
 
 
 @router.post("/{interview_id}/document", response_model=InterviewReadWithDetails)
@@ -305,11 +425,13 @@ def upload_interview_document(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload interview detail document (Word DOC or DOCX) to S3."""
     interview = session.get(Interview, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
 
     # Enforce a maximum upload size on server side
     try:
@@ -363,7 +485,7 @@ def upload_interview_document(
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
 
-    return _enrich_interview(loaded)
+    return _finalize_interview_response(session, loaded, current_user)
 
 
 @router.put("/{interview_id}", response_model=InterviewReadWithDetails)
@@ -377,8 +499,11 @@ def update_interview(
     interview = _get_interview_for_enrichment(session, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
 
     update_data = data.model_dump(exclude_unset=True)
+    if current_user.role == UserRole.TEAM_MEMBER:
+        update_data.pop("candidate_id", None)
     # Thread is derived from the parent chain; clients should not set it directly.
     update_data.pop("thread_id", None)
 
@@ -407,6 +532,16 @@ def update_interview(
                     status_code=400,
                     detail="Parent interview must be for the same company",
                 )
+            tm_cid = candidate_id_for_team_member(session, current_user)
+            if (
+                current_user.role == UserRole.TEAM_MEMBER
+                and tm_cid is not None
+                and par.candidate_id != tm_cid
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Parent interview is not part of your candidate pipeline.",
+                )
             descendants = _collect_descendant_ids(session, interview_id)
             if new_parent == interview_id or new_parent in descendants:
                 raise HTTPException(
@@ -433,7 +568,7 @@ def update_interview(
         message=f"Updated interview '{loaded.role}' at '{loaded.company.name if loaded.company else 'Unknown company'}'",
     )
     session.commit()
-    return _enrich_interview(loaded)
+    return _finalize_interview_response(session, loaded, current_user)
 
 
 @router.delete("/{interview_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -446,6 +581,7 @@ def delete_interview(
     interview = session.get(Interview, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
 
     # Remove dependent reminder logs first to avoid FK violations.
     reminder_logs = session.exec(

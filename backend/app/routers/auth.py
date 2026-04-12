@@ -7,10 +7,11 @@ from jose import jwt
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.config import get_settings
 from app.deps import get_current_user
-from app.schemas.user import UserRead
+from app.schemas.user import UserRead, UserMeRead
+from app.team_member_scope import candidate_id_for_team_member
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
@@ -110,7 +111,14 @@ def update_profile(
     return user
 
 
-@router.get("/me", response_model=UserRead)
-def get_me(current_user: User = Depends(get_current_user)):
+@router.get("/me", response_model=UserMeRead)
+def get_me(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
     """Retrieve the current authenticated user's profile."""
-    return current_user
+    base = UserRead.model_validate(current_user)
+    cid = None
+    if current_user.role == UserRole.TEAM_MEMBER:
+        cid = candidate_id_for_team_member(session, current_user)
+    return UserMeRead(**base.model_dump(), candidate_id=cid)

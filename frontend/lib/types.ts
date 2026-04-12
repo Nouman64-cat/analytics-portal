@@ -77,6 +77,9 @@ export interface Interview {
   company_name: string | null;
   candidate_name: string | null;
   resume_profile_name: string | null;
+  /** When set, use for pipeline badge (full thread size); list may be scoped per user. */
+  pipeline_thread_step?: number | null;
+  pipeline_thread_total?: number | null;
 }
 
 export interface InterviewSummary {
@@ -157,6 +160,8 @@ export interface User {
   must_change_password: boolean;
   created_at: string;
   updated_at: string;
+  /** Present for team-member role when a Candidate row matches this user's email. */
+  candidate_id?: string | null;
 }
 
 export interface UserFormData {
