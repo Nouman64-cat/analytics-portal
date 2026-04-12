@@ -209,7 +209,7 @@ export default function DashboardPage() {
       />
 
       {/* Stats Cards — backend scopes stats for team members to their interviews only */}
-      <StatsGrid cols={5}>
+      <StatsGrid cols={isTeamMember ? 4 : 5}>
         <StatsCard
           title="Total Interviews"
           value={stats.total_interviews}
@@ -222,12 +222,14 @@ export default function DashboardPage() {
           icon={Building2}
           gradient="bg-gradient-to-br from-cyan-500 to-blue-600"
         />
+        {!isTeamMember && (
         <StatsCard
           title="Candidates"
           value={stats.total_candidates}
           icon={Users}
           gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
         />
+        )}
         <StatsCard
           title="Jobs Closed"
           value={stats.total_jobs_closed}
