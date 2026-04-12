@@ -9,7 +9,7 @@ export const NAV_ITEMS = [
   { label: "Calendar", href: "/calendar", icon: "Calendar" },
   { label: "Companies", href: "/companies", icon: "Building2" },
   { label: "Candidates", href: "/candidates", icon: "Users" },
-  { label: "Resume Profiles", href: "/profiles", icon: "FileUser" },
+  { label: "Resume Profiles", href: "/resume-profiles", icon: "FileUser" },
   { label: "Business Devs", href: "/business-developers", icon: "Briefcase" },
   { label: "Activities", href: "/activities", icon: "History" },
   { label: "User Management", href: "/users", icon: "UserCog" },

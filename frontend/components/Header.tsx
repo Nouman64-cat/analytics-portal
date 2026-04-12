@@ -36,7 +36,7 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
     if (pathname.includes("/calendar")) return "Interview Schedule";
     if (pathname.includes("/companies")) return "Company Partners";
     if (pathname.includes("/candidates")) return "Candidates Pipeline";
-    if (pathname.includes("/profiles")) return "Resume Profiles";
+    if (pathname.startsWith("/resume-profiles")) return "Resume Profiles";
     if (pathname.includes("/business-developers")) return "Team Business Devs";
     if (pathname.includes("/activities")) return "Activity Logs";
     if (pathname.includes("/users")) return "User Management";
