@@ -16,6 +16,9 @@ if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", _schema):
         f"DATABASE_SCHEMA must be a simple PostgreSQL identifier, got: {_schema!r}"
     )
 
+# Quoted so mixed-case names match a single schema; safe: _schema has no " (validated above).
+_schema_sql = f'"{_schema}"'
+
 # libpq: space after -c is conventional; some clients ignore -csearch_path=... without it.
 _connect_args: dict = {"options": f"-c search_path={_schema}"}
 
@@ -33,15 +36,18 @@ engine = create_engine(
 def _set_search_path(dbapi_connection, _connection_record) -> None:
     """Ensure search_path is set for every pooled connection."""
     cursor = dbapi_connection.cursor()
-    cursor.execute(f"SET search_path TO {_schema}")
+    cursor.execute(f"SET search_path TO {_schema_sql}")
     cursor.close()
 
 
 def create_db_and_tables():
-    """Create all tables in DATABASE_SCHEMA (search_path must apply to DDL)."""
+    """Ensure schema exists, then create all tables in DATABASE_SCHEMA."""
     with engine.connect() as conn:
         conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-        conn.execute(text(f"SET search_path TO {_schema}"))
+        # If search_path points at a schema that does not exist yet, PostgreSQL has no place to
+        # create unqualified objects and raises InvalidSchemaName.
+        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {_schema_sql}"))
+        conn.execute(text(f"SET search_path TO {_schema_sql}"))
         SQLModel.metadata.create_all(bind=conn)
 
 
