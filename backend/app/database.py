@@ -1,6 +1,6 @@
 import re
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlmodel import SQLModel, Session, create_engine
 from app.config import get_settings
 
@@ -31,16 +31,18 @@ engine = create_engine(
 
 @event.listens_for(engine, "connect")
 def _set_search_path(dbapi_connection, _connection_record) -> None:
-    """Ensure search_path is set (CREATE TYPE / ENUM needs a selected schema)."""
+    """Ensure search_path is set for every pooled connection."""
     cursor = dbapi_connection.cursor()
-    # _schema validated as a single PG identifier above
-    cursor.execute(f'SET search_path TO "{_schema}"')
+    cursor.execute(f"SET search_path TO {_schema}")
     cursor.close()
 
 
 def create_db_and_tables():
-    """Create all tables defined by SQLModel metadata."""
-    SQLModel.metadata.create_all(engine)
+    """Create all tables in DATABASE_SCHEMA (search_path must apply to DDL)."""
+    with engine.connect() as conn:
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+        conn.execute(text(f"SET search_path TO {_schema}"))
+        SQLModel.metadata.create_all(bind=conn)
 
 
 def get_session():

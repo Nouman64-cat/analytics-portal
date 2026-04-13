@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlmodel import SQLModel, Field
 from enum import Enum
+
+from sqlalchemy import Column
+from sqlalchemy import Enum as SAEnum
+from sqlmodel import SQLModel, Field
 
 
 class UserRole(str, Enum):
@@ -18,7 +21,18 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     full_name: str = Field(default="User")
     hashed_password: str
-    role: UserRole = Field(default=UserRole.TEAM_MEMBER)
+    # VARCHAR + check, not PostgreSQL CREATE TYPE — avoids DDL/search_path bugs on new schemas
+    role: UserRole = Field(
+        default=UserRole.TEAM_MEMBER,
+        sa_column=Column(
+            SAEnum(
+                UserRole,
+                native_enum=False,
+                values_callable=lambda cls: [m.value for m in cls],
+            ),
+            nullable=False,
+        ),
+    )
     must_change_password: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
