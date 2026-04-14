@@ -1243,6 +1243,7 @@ export default function InterviewsPage() {
               <option value="Converted">Converted</option>
               <option value="Upcoming">Upcoming</option>
               <option value="Unresponsed">Unresponsed</option>
+              <option value="Dead">Dead</option>
               <option value="Rejected">Rejected</option>
             </select>
 

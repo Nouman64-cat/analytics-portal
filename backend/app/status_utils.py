@@ -20,13 +20,10 @@ def computed_status_for_interview_display(
 ) -> str:
     """
     Badge/status for a single interview round. Lead-only slugs are stripped before compute;
-    explicit round outcomes (e.g. Rejected) are kept; date-based Dead (no response) maps to Unresponsed for the badge.
+    explicit round outcomes (e.g. Rejected) are kept.
     """
     s = sanitize_status_for_interview_compute(status)
-    cs = compute_status(s, interview_date)
-    if cs == "Dead":
-        return "Unresponsed"
-    return cs
+    return compute_status(s, interview_date)
 
 
 def compute_status(status: Optional[str], interview_date: Optional[date_type]) -> str:
