@@ -108,8 +108,7 @@ export const leadsService = {
     if (params?.bd_id) sp.set("bd_id", params.bd_id);
     if (params?.resume_profile_id)
       sp.set("resume_profile_id", params.resume_profile_id);
-    if (params?.candidate && params.candidate !== "any")
-      sp.set("candidate", params.candidate);
+    if (params?.candidate_id) sp.set("candidate_id", params.candidate_id);
     if (params?.outcome?.trim()) sp.set("outcome", params.outcome.trim());
     if (params?.lead_source && params.lead_source !== "all")
       sp.set("lead_source", params.lead_source);

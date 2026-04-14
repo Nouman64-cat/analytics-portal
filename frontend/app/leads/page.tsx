@@ -169,9 +169,7 @@ export default function LeadsPage() {
   const isFirstDebouncedPageEffect = useRef(true);
   const [bdFilter, setBdFilter] = useState<string>("all");
   const [profileFilter, setProfileFilter] = useState<string>("all");
-  const [candidateFilter, setCandidateFilter] = useState<
-    "any" | "assigned" | "unassigned"
-  >("any");
+  const [candidateFilter, setCandidateFilter] = useState<string>("all");
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [sortFilter, setSortFilter] = useState<LeadListSort>(
     "last_activity_desc",
@@ -222,7 +220,7 @@ export default function LeadsPage() {
           bd_id: bdFilter !== "all" ? bdFilter : undefined,
           resume_profile_id:
             profileFilter !== "all" ? profileFilter : undefined,
-          candidate: candidateFilter,
+          candidate_id: candidateFilter !== "all" ? candidateFilter : undefined,
           outcome: outcomeFilter !== "all" ? outcomeFilter : undefined,
           sort: sortFilter,
         }),
@@ -271,13 +269,17 @@ export default function LeadsPage() {
       [...profiles].sort((a, b) => a.name.localeCompare(b.name)),
     [profiles],
   );
+  const candidateOptions = useMemo(
+    () => [...candidates].sort((a, b) => a.name.localeCompare(b.name)),
+    [candidates],
+  );
 
   const filtersAreDefault = useMemo(
     () =>
       !debouncedSearch.trim() &&
       bdFilter === "all" &&
       profileFilter === "all" &&
-      candidateFilter === "any" &&
+      candidateFilter === "all" &&
       outcomeFilter === "all" &&
       sortFilter === "last_activity_desc",
     [
@@ -297,7 +299,7 @@ export default function LeadsPage() {
     setSearchResetKey((k) => k + 1);
     setBdFilter("all");
     setProfileFilter("all");
-    setCandidateFilter("any");
+    setCandidateFilter("all");
     setOutcomeFilter("all");
     setSortFilter("last_activity_desc");
     setPage(1);
@@ -602,16 +604,17 @@ export default function LeadsPage() {
               <select
                 value={candidateFilter}
                 onChange={(e) => {
-                  setCandidateFilter(
-                    e.target.value as "any" | "assigned" | "unassigned",
-                  );
+                  setCandidateFilter(e.target.value);
                   setPage(1);
                 }}
                 className={filterSelectClass}
               >
-                <option value="any">Any</option>
-                <option value="assigned">Assigned</option>
-                <option value="unassigned">Unassigned</option>
+                <option value="all">All</option>
+                {candidateOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex min-w-0 flex-col gap-0.5">

@@ -194,7 +194,7 @@ export interface LeadListParams {
   status?: "all" | "open" | "terminal";
   bd_id?: string;
   resume_profile_id?: string;
-  candidate?: "any" | "assigned" | "unassigned";
+  candidate_id?: string;
   /** Exact `lead_outcome` slug (e.g. rejected, active). */
   outcome?: string;
   lead_source?: "all" | "explicit" | "derived";

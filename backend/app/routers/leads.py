@@ -270,7 +270,7 @@ def _filter_merged_leads(
     status: Literal["all", "open", "terminal"],
     bd_id: Optional[uuid.UUID],
     resume_profile_id: Optional[uuid.UUID],
-    candidate: Literal["any", "assigned", "unassigned"],
+    candidate_id: Optional[uuid.UUID],
     outcome: Optional[str],
     lead_source: Literal["all", "explicit", "derived"],
 ) -> list[LeadListItem]:
@@ -295,10 +295,8 @@ def _filter_merged_leads(
         rows = [l for l in rows if l.primary_bd_id == bd_id]
     if resume_profile_id is not None:
         rows = [l for l in rows if l.resume_profile_id == resume_profile_id]
-    if candidate == "assigned":
-        rows = [l for l in rows if l.candidate_id is not None]
-    elif candidate == "unassigned":
-        rows = [l for l in rows if l.candidate_id is None]
+    if candidate_id is not None:
+        rows = [l for l in rows if l.candidate_id == candidate_id]
     if outcome and outcome.strip():
         o = outcome.strip().lower()
         rows = [l for l in rows if (l.lead_outcome or "").lower() == o]
@@ -396,7 +394,7 @@ def list_leads(
     status: Annotated[Literal["all", "open", "terminal"], Query()] = "all",
     bd_id: Annotated[Optional[uuid.UUID], Query()] = None,
     resume_profile_id: Annotated[Optional[uuid.UUID], Query()] = None,
-    candidate: Annotated[Literal["any", "assigned", "unassigned"], Query()] = "any",
+    candidate_id: Annotated[Optional[uuid.UUID], Query()] = None,
     outcome: Annotated[Optional[str], Query()] = None,
     lead_source: Annotated[Literal["all", "explicit", "derived"], Query()] = "all",
     sort: Annotated[
@@ -479,7 +477,7 @@ def list_leads(
         status,
         bd_id,
         resume_profile_id,
-        candidate,
+        candidate_id,
         outcome,
         lead_source,
     )
