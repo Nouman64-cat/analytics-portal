@@ -6,7 +6,7 @@ from typing import Optional
 
 class InterviewCreate(BaseModel):
     company_id: uuid.UUID
-    candidate_id: uuid.UUID
+    candidate_id: Optional[uuid.UUID] = None
     resume_profile_id: uuid.UUID
     role: str
     # Link to previous round (same company / candidate / profile required); inherits thread_id from parent
@@ -53,7 +53,7 @@ class InterviewUpdate(BaseModel):
 class InterviewRead(BaseModel):
     id: uuid.UUID
     company_id: uuid.UUID
-    candidate_id: uuid.UUID
+    candidate_id: Optional[uuid.UUID] = None
     resume_profile_id: uuid.UUID
     thread_id: uuid.UUID
     parent_interview_id: Optional[uuid.UUID] = None
@@ -87,3 +87,9 @@ class InterviewReadWithDetails(InterviewRead):
     # 1-based position in the full thread (all rounds); set when API scopes list per user
     pipeline_thread_step: Optional[int] = None
     pipeline_thread_total: Optional[int] = None
+    # Thread-level lead (opportunity); duplicated on each round for convenience
+    lead_outcome: Optional[str] = None
+    lead_status_label: Optional[str] = None
+    lead_source: Optional[str] = None
+    lead_notes: Optional[str] = None
+    lead_closed_at: Optional[datetime] = None

@@ -108,43 +108,78 @@ export default function BusinessDevelopersPage() {
     return [...months].sort().reverse();
   }, [interviews]);
 
-  const filteredInterviews = useMemo(() => {
-    if (selectedMonth === "all") return interviews;
-    return interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
-  }, [interviews, selectedMonth]);
+  /** One entry per pipeline thread (lead); same definition as Dashboard → Total leads. */
+  const threadsMap = useMemo(() => {
+    const m = new Map<string, Interview[]>();
+    interviews.forEach((i) => {
+      const tid = i.thread_id || i.id;
+      if (!m.has(tid)) m.set(tid, []);
+      m.get(tid)!.push(i);
+    });
+    return m;
+  }, [interviews]);
 
-  const bdCounts = useMemo(() => {
-    const companySets: Record<string, Set<string>> = {};
-    filteredInterviews.forEach(i => {
-      if (i.bd_id) {
-        if (!companySets[i.bd_id]) companySets[i.bd_id] = new Set();
-        companySets[i.bd_id].add(i.company_id);
+  /** Threads with at least one interview in the selected month (or all). */
+  const threadsInSelectedPeriod = useMemo(() => {
+    if (selectedMonth === "all") return new Set(threadsMap.keys());
+    const s = new Set<string>();
+    threadsMap.forEach((rows, tid) => {
+      if (rows.some((r) => r.interview_date?.startsWith(selectedMonth))) {
+        s.add(tid);
       }
     });
-    const counts: Record<string, number> = {};
-    Object.entries(companySets).forEach(([bdId, set]) => { counts[bdId] = set.size; });
-    return counts;
-  }, [filteredInterviews]);
+    return s;
+  }, [threadsMap, selectedMonth]);
 
-  const totalBdCompanies = useMemo(
-    () => Object.values(bdCounts).reduce((s, n) => s + n, 0),
-    [bdCounts]
+  function primaryBdForThread(rows: Interview[]): string | null {
+    const sorted = [...rows].sort((a, b) => {
+      const da = a.interview_date || "";
+      const db = b.interview_date || "";
+      if (da !== db) return da.localeCompare(db);
+      return (a.created_at || "").localeCompare(b.created_at || "");
+    });
+    for (const r of sorted) {
+      if (r.bd_id) return r.bd_id;
+    }
+    return null;
+  }
+
+  /** Per BD: pipeline threads where this BD is the “primary” (first chronologically with bd_id). */
+  const bdThreadCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    threadsInSelectedPeriod.forEach((tid) => {
+      const rows = threadsMap.get(tid)!;
+      const pbd = primaryBdForThread(rows);
+      if (pbd) counts[pbd] = (counts[pbd] || 0) + 1;
+    });
+    return counts;
+  }, [threadsMap, threadsInSelectedPeriod]);
+
+  const totalLeadsInPeriod = threadsInSelectedPeriod.size;
+  const totalAttributedThreads = useMemo(
+    () => Object.values(bdThreadCounts).reduce((s, n) => s + n, 0),
+    [bdThreadCounts],
   );
 
   const topBd = useMemo(
-    () => bds.reduce<BusinessDeveloper | null>((top, bd) =>
-      (bdCounts[bd.id] || 0) > (top ? bdCounts[top.id] || 0 : -1) ? bd : top, null),
-    [bds, bdCounts]
+    () =>
+      bds.reduce<BusinessDeveloper | null>(
+        (top, bd) =>
+          (bdThreadCounts[bd.id] || 0) > (top ? bdThreadCounts[top.id] || 0 : -1) ? bd : top,
+        null,
+      ),
+    [bds, bdThreadCounts],
   );
 
-  const avgPerBd = bds.length > 0 ? (totalBdCompanies / bds.length).toFixed(1) : "0";
+  const avgPerBd =
+    bds.length > 0 ? (totalAttributedThreads / bds.length).toFixed(1) : "0";
 
-  // Bar chart data — all BDs sorted by count desc
-  const chartData = useMemo(() =>
-    [...bds]
-      .map(bd => ({ name: bd.name, companies: bdCounts[bd.id] || 0 }))
-      .sort((a, b) => b.companies - a.companies),
-    [bds, bdCounts]
+  const chartData = useMemo(
+    () =>
+      [...bds]
+        .map((bd) => ({ name: bd.name, leads: bdThreadCounts[bd.id] || 0 }))
+        .sort((a, b) => b.leads - a.leads),
+    [bds, bdThreadCounts],
   );
   // ─────────────────────────────────────────────────────────────────
 
@@ -193,16 +228,29 @@ export default function BusinessDevelopersPage() {
       {/* Stats */}
       <StatsGrid>
         <StatsCard title="Total BDs" value={bds.length} icon={Users} gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
-        <StatsCard title="Leads Brought" value={totalBdCompanies} icon={CalendarCheck} gradient="bg-gradient-to-br from-indigo-500 to-purple-600" />
+        <StatsCard
+          title="Pipeline leads (threads)"
+          value={totalLeadsInPeriod}
+          icon={CalendarCheck}
+          gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
+        />
         <StatsCard title="Top Performer" value={topBd?.name ?? "—"} icon={TrendingUp} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
         <StatsCard title="Avg per BD" value={avgPerBd} icon={Briefcase} gradient="bg-gradient-to-br from-fuchsia-500 to-pink-600" />
       </StatsGrid>
+      {totalLeadsInPeriod > totalAttributedThreads && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
+          {totalLeadsInPeriod - totalAttributedThreads} thread
+          {totalLeadsInPeriod - totalAttributedThreads === 1 ? "" : "s"} have no BD on any round (not counted toward a BD below). Same total as Dashboard → Total leads when the month filter is &quot;All Time&quot;.
+        </p>
+      )}
 
       {/* Bar Chart */}
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm">
           <h3 className="mb-4 sm:mb-6 text-sm font-semibold text-slate-900 dark:text-white">
-            {selectedMonth === "all" ? "Leads Brought per Business Developer" : `Leads Brought — ${formatMonthLabel(selectedMonth)}`}
+            {selectedMonth === "all"
+              ? "Pipeline leads per BD (thread attributed by first BD on timeline)"
+              : `Pipeline leads — ${formatMonthLabel(selectedMonth)}`}
           </h3>
           <div className="h-[200px] sm:h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -214,9 +262,9 @@ export default function BusinessDevelopersPage() {
                   contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff" }}
                   itemStyle={{ color: "#e2e8f0" }}
                   cursor={{ fill: "rgba(99,102,241,0.08)" }}
-                  formatter={(value) => [value ?? 0, "Companies"]}
+                  formatter={(value) => [value ?? 0, "Leads"]}
                 />
-                <Bar dataKey="companies" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="leads" radius={[6, 6, 0, 0]}>
                   {chartData.map((_, i) => (
                     <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
                   ))}
@@ -233,8 +281,8 @@ export default function BusinessDevelopersPage() {
         <EmptyState message="No business developers yet" />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
-          {[...bds].sort((a, b) => (bdCounts[b.id] || 0) - (bdCounts[a.id] || 0)).map((bd) => {
-            const count = bdCounts[bd.id] || 0;
+          {[...bds].sort((a, b) => (bdThreadCounts[b.id] || 0) - (bdThreadCounts[a.id] || 0)).map((bd) => {
+            const count = bdThreadCounts[bd.id] || 0;
             return (
               <div
                 key={bd.id}
@@ -267,7 +315,7 @@ export default function BusinessDevelopersPage() {
                   <div className="mt-4">
                     <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{count}</p>
                     <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                      {count === 1 ? "Lead" : "Leads"} brought
+                      {count === 1 ? "Attributed lead" : "Attributed leads"}
                     </p>
                   </div>
 

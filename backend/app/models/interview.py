@@ -19,7 +19,10 @@ class Interview(SQLModel, table=True):
 
     # Foreign keys
     company_id: uuid.UUID = Field(foreign_key="companies.id", index=True)
-    candidate_id: uuid.UUID = Field(foreign_key="candidates.id", index=True)
+    # Set on interview rounds; optional on the initial "Lead" row until a candidate is chosen.
+    candidate_id: Optional[uuid.UUID] = Field(
+        default=None, foreign_key="candidates.id", index=True
+    )
     resume_profile_id: uuid.UUID = Field(
         foreign_key="resume_profiles.id", index=True)
 

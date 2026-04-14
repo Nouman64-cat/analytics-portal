@@ -45,11 +45,12 @@ export default function StatsCard({ title, value, icon: Icon, trend, gradient }:
 
 interface StatsGridProps {
   children: ReactNode;
-  cols?: 4 | 5 | 6 | 7;
+  cols?: 3 | 4 | 5 | 6 | 7;
 }
 
 /** Progressive columns so cards don’t squeeze into one tiny row on laptop-sized viewports. */
-const STATS_GRID_COLS: Record<4 | 5 | 6 | 7, string> = {
+const STATS_GRID_COLS: Record<3 | 4 | 5 | 6 | 7, string> = {
+  3: "sm:grid-cols-2 lg:grid-cols-3",
   4: "sm:grid-cols-2 lg:grid-cols-4",
   5: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5",
   6: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6",

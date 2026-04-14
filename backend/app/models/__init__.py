@@ -7,6 +7,7 @@ from app.models.interview import Interview
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.models.activity_log import ActivityLog
 from app.models.user import User
+from app.models.lead_thread import LeadThread
 
 __all__ = [
     "Candidate",
@@ -17,4 +18,5 @@ __all__ = [
     "InterviewReminderLog",
     "ActivityLog",
     "User",
+    "LeadThread",
 ]

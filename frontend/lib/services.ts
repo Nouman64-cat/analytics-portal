@@ -14,6 +14,13 @@ import type {
   CompanyFormData,
   Interview,
   InterviewFormData,
+  LeadThreadRead,
+  LeadThreadUpdate,
+  LeadListItem,
+  LeadListPage,
+  LeadListParams,
+  LeadCreate,
+  LeadUpdate,
   ActivityLogPage,
   User,
   UserFormData,
@@ -89,6 +96,41 @@ export const authService = {
 
 export const dashboardService = {
   getStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
+};
+
+export const leadsService = {
+  list: (params?: LeadListParams) => {
+    const sp = new URLSearchParams();
+    if (params?.page != null) sp.set("page", String(params.page));
+    if (params?.page_size != null) sp.set("page_size", String(params.page_size));
+    if (params?.search?.trim()) sp.set("search", params.search.trim());
+    if (params?.status && params.status !== "all") sp.set("status", params.status);
+    if (params?.bd_id) sp.set("bd_id", params.bd_id);
+    if (params?.resume_profile_id)
+      sp.set("resume_profile_id", params.resume_profile_id);
+    if (params?.candidate && params.candidate !== "any")
+      sp.set("candidate", params.candidate);
+    if (params?.outcome?.trim()) sp.set("outcome", params.outcome.trim());
+    if (params?.lead_source && params.lead_source !== "all")
+      sp.set("lead_source", params.lead_source);
+    if (params?.sort && params.sort !== "last_activity_desc")
+      sp.set("sort", params.sort);
+    const q = sp.toString();
+    return apiFetch<LeadListPage>(`/leads/${q ? `?${q}` : ""}`);
+  },
+  create: (data: LeadCreate) =>
+    apiFetch<LeadListItem>("/leads/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  get: (threadId: string) => apiFetch<LeadListItem>(`/leads/${threadId}`),
+  update: (threadId: string, data: LeadUpdate) =>
+    apiFetch<LeadListItem>(`/leads/${threadId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  delete: (threadId: string) =>
+    apiFetch<void>(`/leads/${threadId}`, { method: "DELETE" }),
 };
 
 // ─── Business Developers ────────────────────────────────────
@@ -197,6 +239,13 @@ export const interviewsService = {
   },
   listByThread: (threadId: string) =>
     apiFetch<Interview[]>(`/interviews/thread/${threadId}`),
+  getLead: (threadId: string) =>
+    apiFetch<LeadThreadRead>(`/interviews/thread/${threadId}/lead`),
+  updateLead: (threadId: string, data: LeadThreadUpdate) =>
+    apiFetch<LeadThreadRead>(`/interviews/thread/${threadId}/lead`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
   get: (id: string) => apiFetch<Interview>(`/interviews/${id}`),
   create: (data: InterviewFormData) =>
     apiFetch<Interview>("/interviews/", {

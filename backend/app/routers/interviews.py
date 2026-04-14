@@ -16,7 +16,14 @@ from app.models.candidate import Candidate
 from app.models.resume_profile import ResumeProfile
 from app.models.business_developer import BusinessDeveloper
 from app.models.interview_reminder_log import InterviewReminderLog
+from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
+from app.lead_thread_utils import (
+    ALLOWED_LEAD_OUTCOMES,
+    ensure_lead_thread,
+    effective_lead_fields,
+    load_lead_map,
+)
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
@@ -30,7 +37,12 @@ from app.schemas.interview import (
     InterviewUpdate,
     InterviewReadWithDetails,
 )
-from app.status_utils import compute_status
+from app.schemas.lead_thread import LeadThreadRead, LeadThreadUpdate
+from app.status_utils import (
+    LEAD_ONLY_INTERVIEW_STATUSES,
+    computed_status_for_interview_display,
+    compute_status,
+)
 from app.email_ses import try_send_interview_created_email
 
 router = APIRouter(prefix="/api/v1/interviews",
@@ -59,6 +71,14 @@ def _get_s3_client(settings):
     )
 
 
+def _reject_lead_only_interview_status(status: Optional[str]) -> None:
+    if status and status.strip().lower() in LEAD_ONLY_INTERVIEW_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail="Dropped, closed, and dead are pipeline (lead) outcomes. Set them on the lead, not on this round's status field. Use Rejected on the round when that interview was a no.",
+        )
+
+
 def _enrich_interview(interview: Interview) -> dict:
     """Add human-readable names from relationships."""
     data = {
@@ -82,7 +102,9 @@ def _enrich_interview(interview: Interview) -> dict:
         "interview_link": interview.interview_link,
         "interview_doc_url": interview.interview_doc_url,
         "is_phone_call": interview.is_phone_call,
-        "computed_status": compute_status(interview.status, interview.interview_date),
+        "computed_status": computed_status_for_interview_display(
+            interview.status, interview.interview_date
+        ),
         "created_at": interview.created_at,
         "updated_at": interview.updated_at,
         "company_name": interview.company.name if interview.company else None,
@@ -147,13 +169,27 @@ def _attach_pipeline_meta(
     return data
 
 
+def _merge_lead_fields(
+    session: Session,
+    data: dict,
+    thread_id: uuid.UUID,
+    lead_map: dict[uuid.UUID, LeadThread],
+) -> dict:
+    lt = lead_map.get(thread_id)
+    eff = effective_lead_fields(session, thread_id, lt)
+    data.update(eff)
+    return data
+
+
 def _finalize_interview_response(
     session: Session, interview: Interview, current_user: User
 ) -> dict:
     tids = {interview.thread_id} if interview.thread_id else set()
     pipe_map = _pipeline_step_total_map(session, tids)
+    lead_map = load_lead_map(session, tids)
     data = _enrich_interview_for_reader(session, interview, current_user)
-    return _attach_pipeline_meta(data, interview.id, pipe_map)
+    data = _attach_pipeline_meta(data, interview.id, pipe_map)
+    return _merge_lead_fields(session, data, interview.thread_id, lead_map)
 
 
 def _get_interview_for_enrichment(
@@ -257,14 +293,105 @@ def list_interviews(
 
     thread_ids = {i.thread_id for i in interviews if i.thread_id}
     pipe_map = _pipeline_step_total_map(session, thread_ids)
-    return [
-        _attach_pipeline_meta(
-            _enrich_interview_for_reader(session, i, current_user),
-            i.id,
-            pipe_map,
+    lead_map = load_lead_map(session, thread_ids)
+    out = []
+    for i in interviews:
+        data = _enrich_interview_for_reader(session, i, current_user)
+        data = _attach_pipeline_meta(data, i.id, pipe_map)
+        out.append(_merge_lead_fields(session, data, i.thread_id, lead_map))
+    return out
+
+
+@router.get("/thread/{thread_id}/lead", response_model=LeadThreadRead)
+def get_lead_thread_status(
+    thread_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Thread-level lead (opportunity) status: explicit override or derived from latest round."""
+    if current_user.role == UserRole.TEAM_MEMBER and not team_member_can_access_thread(
+        session, current_user, thread_id
+    ):
+        raise HTTPException(status_code=404, detail="Interview not found")
+    exists = session.exec(
+        select(Interview.id).where(Interview.thread_id == thread_id).limit(1)
+    ).first()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    lt = session.get(LeadThread, thread_id)
+    eff = effective_lead_fields(session, thread_id, lt)
+    return LeadThreadRead(thread_id=thread_id, **eff)
+
+
+@router.patch("/thread/{thread_id}/lead", response_model=LeadThreadRead)
+def patch_lead_thread_status(
+    thread_id: uuid.UUID,
+    data: LeadThreadUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Set or clear lead outcome override and notes (superadmin and team members; BD/manager read-only)."""
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmin and team members can update lead thread status.",
         )
-        for i in interviews
-    ]
+    if current_user.role == UserRole.TEAM_MEMBER and not team_member_can_access_thread(
+        session, current_user, thread_id
+    ):
+        raise HTTPException(status_code=404, detail="Interview not found")
+    exists = session.exec(
+        select(Interview.id).where(Interview.thread_id == thread_id).limit(1)
+    ).first()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    row = ensure_lead_thread(session, thread_id)
+    prev_override = (row.outcome_override or "").strip().lower()
+
+    if data.clear_override:
+        row.outcome_override = None
+        row.unresponsive_since = None
+    elif data.outcome_override is not None:
+        o = data.outcome_override.strip().lower()
+        if not o:
+            row.outcome_override = None
+            row.unresponsive_since = None
+        elif o not in ALLOWED_LEAD_OUTCOMES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"outcome_override must be one of: {', '.join(sorted(ALLOWED_LEAD_OUTCOMES))}",
+            )
+        else:
+            row.outcome_override = o
+            if o == "unresponsive":
+                if prev_override != "unresponsive":
+                    row.unresponsive_since = datetime.utcnow()
+            else:
+                row.unresponsive_since = None
+
+    if data.notes is not None:
+        row.notes = data.notes
+    dump = data.model_dump(exclude_unset=True)
+    if "closed_at" in dump:
+        row.closed_at = data.closed_at
+
+    row.updated_at = datetime.utcnow()
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+
+    eff = effective_lead_fields(session, thread_id, row)
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_lead_thread",
+        entity_type="lead_thread",
+        entity_id=thread_id,
+        message=f"Updated lead thread {thread_id}",
+    )
+    session.commit()
+    return LeadThreadRead(thread_id=thread_id, **eff)
 
 
 @router.get("/thread/{thread_id}", response_model=list[InterviewReadWithDetails])
@@ -297,14 +424,13 @@ def list_interviews_by_thread(
         key=lambda x: (x.interview_date or date.max, x.created_at),
     )
     pipe_map = _pipeline_step_total_map(session, {thread_id})
-    return [
-        _attach_pipeline_meta(
-            _enrich_interview_for_reader(session, i, current_user),
-            i.id,
-            pipe_map,
-        )
-        for i in ordered
-    ]
+    lead_map = load_lead_map(session, {thread_id})
+    out = []
+    for i in ordered:
+        data = _enrich_interview_for_reader(session, i, current_user)
+        data = _attach_pipeline_meta(data, i.id, pipe_map)
+        out.append(_merge_lead_fields(session, data, i.thread_id, lead_map))
+    return out
 
 
 @router.post("/", response_model=InterviewReadWithDetails, status_code=status.HTTP_201_CREATED)
@@ -315,6 +441,8 @@ def create_interview(
 ):
     """Create a new interview record."""
     payload = data.model_dump()
+    _reject_lead_only_interview_status(payload.get("status"))
+
     tm_cid = candidate_id_for_team_member(session, current_user)
     if current_user.role == UserRole.TEAM_MEMBER:
         if tm_cid is None:
@@ -324,11 +452,9 @@ def create_interview(
             )
         payload["candidate_id"] = tm_cid
 
-    # Validate foreign keys exist
+    # Validate foreign keys exist (candidate resolved after parent chain below)
     if not session.get(Company, payload["company_id"]):
         raise HTTPException(status_code=404, detail="Company not found")
-    if not session.get(Candidate, payload["candidate_id"]):
-        raise HTTPException(status_code=404, detail="Candidate not found")
     if not session.get(ResumeProfile, payload["resume_profile_id"]):
         raise HTTPException(status_code=404, detail="Resume profile not found")
     if payload.get("bd_id") and not session.get(BusinessDeveloper, payload["bd_id"]):
@@ -352,20 +478,52 @@ def create_interview(
         if (
             current_user.role == UserRole.TEAM_MEMBER
             and tm_cid is not None
+            and parent_for_followup.candidate_id is not None
             and parent_for_followup.candidate_id != tm_cid
         ):
             raise HTTPException(
                 status_code=400,
                 detail="Parent interview is not part of your candidate pipeline.",
             )
+        eff_cand = payload.get("candidate_id")
+        if eff_cand is None:
+            eff_cand = parent_for_followup.candidate_id
+        payload["candidate_id"] = eff_cand
+        if payload["candidate_id"] is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Select a candidate for this interview round.",
+            )
         payload["thread_id"] = parent_for_followup.thread_id
         payload["parent_interview_id"] = parent_id
     else:
         payload["parent_interview_id"] = None
-        payload["thread_id"] = explicit_thread or uuid.uuid4()
+        new_tid = explicit_thread or uuid.uuid4()
+        if payload.get("candidate_id") is None:
+            raise HTTPException(
+                status_code=400,
+                detail="candidate_id is required.",
+            )
+        # One lead (pipeline) per company — do not start a second root thread.
+        if explicit_thread is None:
+            existing_company = session.exec(
+                select(Interview.id)
+                .where(Interview.company_id == payload["company_id"])
+                .limit(1)
+            ).first()
+            if existing_company:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A pipeline already exists for this company. Add rounds from Interviews and chain to the latest interview.",
+                )
+        payload["thread_id"] = new_tid
+
+    if not session.get(Candidate, payload["candidate_id"]):
+        raise HTTPException(status_code=404, detail="Candidate not found")
 
     interview = Interview(**payload)
     session.add(interview)
+    ensure_lead_thread(session, interview.thread_id)
     if parent_for_followup:
         parent_for_followup.status = "Converted"
         parent_for_followup.updated_at = datetime.utcnow()
@@ -502,6 +660,8 @@ def update_interview(
     team_member_must_own_interview(session, current_user, interview)
 
     update_data = data.model_dump(exclude_unset=True)
+    if "status" in update_data:
+        _reject_lead_only_interview_status(update_data.get("status"))
     if current_user.role == UserRole.TEAM_MEMBER:
         update_data.pop("candidate_id", None)
     # Thread is derived from the parent chain; clients should not set it directly.
@@ -536,6 +696,7 @@ def update_interview(
             if (
                 current_user.role == UserRole.TEAM_MEMBER
                 and tm_cid is not None
+                and par.candidate_id is not None
                 and par.candidate_id != tm_cid
             ):
                 raise HTTPException(

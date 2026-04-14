@@ -49,6 +49,44 @@ def create_db_and_tables():
         conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {_schema_sql}"))
         conn.execute(text(f"SET search_path TO {_schema_sql}"))
         SQLModel.metadata.create_all(bind=conn)
+        # Allow initial "Lead" rows without a candidate (candidate is chosen on interview rounds).
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.interviews ALTER COLUMN candidate_id DROP NOT NULL"
+                )
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.lead_threads "
+                    f"ADD COLUMN entertaining_candidate_id UUID "
+                    f"REFERENCES {_schema_sql}.candidates(id)"
+                )
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.lead_threads "
+                    f"ADD COLUMN unresponsive_since TIMESTAMP"
+                )
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                text(
+                    f"UPDATE {_schema_sql}.lead_threads "
+                    f"SET unresponsive_since = COALESCE(unresponsive_since, updated_at) "
+                    f"WHERE outcome_override = 'unresponsive' AND unresponsive_since IS NULL"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
   CalendarCheck,
-  Building2,
   Users,
   TrendingUp,
   Eye,
@@ -73,8 +72,11 @@ function formatIsoWeekToWeekdayRange(isoWeekKey: string): string {
   return `${label(monday)} - ${label(friday)}`;
 }
 
-function getRecentInterviewCardStyle(status: string | null | undefined): string {
-  const s = (status || "").toLowerCase();
+function getRecentInterviewCardStyle(
+  status: string | null | undefined,
+  leadLabel?: string | null,
+): string {
+  const s = ((leadLabel || "") + " " + (status || "")).toLowerCase();
   if (s.includes("closed")) {
     return "border-emerald-200/80 dark:border-emerald-400/30 bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-500/15 dark:to-[#141a24] hover:from-emerald-100/80 hover:to-white dark:hover:from-emerald-500/25 dark:hover:to-[#18202a]";
   }
@@ -172,28 +174,61 @@ export default function DashboardPage() {
   const leadsMonthlyData = toChronologicalChartData(stats.leads_frequency_monthly || {});
   const leadsChartData = leadsFrequencyView === "weekly" ? leadsWeeklyData : leadsMonthlyData;
 
-  // Normalize statuses for the pie chart
+  /** Map lead-centric labels (e.g. "Lead unresponsive") to pie buckets. */
+  function leadLabelToChartKey(label: string): string {
+    const lower = label.trim().toLowerCase();
+    if (lower.includes("converted")) return "Converted";
+    if (lower.includes("rejected")) return "Rejected";
+    if (lower.includes("dropped")) return "Dropped";
+    if (lower.includes("closed") && !lower.includes("unresponsive")) return "Closed";
+    if (lower.includes("unresponsive")) return "Unresponsed";
+    if (lower.includes("dead")) return "Dead";
+    if (lower.includes("active") || lower.includes("pipeline") || lower === "upcoming")
+      return "Upcoming";
+    return "Other";
+  }
+
+  const useLeadStatus =
+    stats.leads_by_status &&
+    Object.keys(stats.leads_by_status).length > 0;
+
   const statusMap: Record<string, number> = {};
-  Object.entries(stats.interviews_by_status).forEach(([status, count]) => {
-    const lower = status.trim().toLowerCase();
-    let key = "Other";
-    if (lower.includes("converted")) key = "Converted";
-    else if (lower.includes("rejected")) key = "Rejected";
-    else if (lower.includes("dropped")) key = "Dropped";
-    else if (lower.includes("closed")) key = "Closed";
-    else if (lower === "upcoming") key = "Upcoming";
-    else if (lower === "unresponsed" || lower === "no status" || lower === "") key = "Unresponsed";
-    else if (lower === "dead") key = "Dead";
-    else key = "Other";
+  const rawStatus = useLeadStatus ? stats.leads_by_status! : stats.interviews_by_status;
+  Object.entries(rawStatus).forEach(([status, count]) => {
+    let key: string;
+    if (useLeadStatus) {
+      key = leadLabelToChartKey(status);
+    } else {
+      const lower = status.trim().toLowerCase();
+      key = "Other";
+      if (lower.includes("converted")) key = "Converted";
+      else if (lower.includes("rejected")) key = "Rejected";
+      else if (lower.includes("dropped")) key = "Dropped";
+      else if (lower.includes("closed")) key = "Closed";
+      else if (lower === "upcoming") key = "Upcoming";
+      else if (lower === "unresponsed" || lower === "no status" || lower === "")
+        key = "Unresponsed";
+      else if (lower === "dead") key = "Dead";
+    }
     statusMap[key] = (statusMap[key] || 0) + count;
   });
   const statusData = recordToChartData(statusMap);
 
-  const totalConverted = (statusMap["Converted"] || 0) + (statusMap["Closed"] || 0);
-  const totalResolved = totalConverted + (statusMap["Rejected"] || 0) + (statusMap["Dropped"] || 0);
-  const globalConversionRate = totalResolved > 0 
-    ? Math.round((totalConverted / totalResolved) * 100) 
-    : 0;
+  /** Backend: (converted rounds + closed leads) / (that + rejected + dead leads only). */
+  const globalConversionRate =
+    typeof stats.conversion_rate_percent === "number"
+      ? stats.conversion_rate_percent
+      : (() => {
+          const totalConverted =
+            (statusMap["Converted"] || 0) + (statusMap["Closed"] || 0);
+          const totalResolved =
+            totalConverted +
+            (statusMap["Rejected"] || 0) +
+            (statusMap["Dropped"] || 0);
+          return totalResolved > 0
+            ? Math.round((totalConverted / totalResolved) * 100)
+            : 0;
+        })();
 
   const STATUS_HEX_COLORS: Record<string, string> = {
     "Converted": "#f97316", // orange-500 — enthusiastic/energized
@@ -214,19 +249,21 @@ export default function DashboardPage() {
       />
 
       {/* Stats Cards — backend scopes stats for team members to their interviews only */}
-      <StatsGrid cols={isTeamMember ? 4 : 5}>
+      <StatsGrid cols={isTeamMember ? (typeof stats.total_leads === "number" ? 4 : 3) : typeof stats.total_leads === "number" ? 5 : 4}>
         <StatsCard
           title="Total Interviews"
           value={stats.total_interviews}
           icon={CalendarCheck}
           gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
         />
-        <StatsCard
-          title="Companies"
-          value={stats.total_companies}
-          icon={Building2}
-          gradient="bg-gradient-to-br from-cyan-500 to-blue-600"
-        />
+        {typeof stats.total_leads === "number" && (
+          <StatsCard
+            title="Total leads (threads)"
+            value={stats.total_leads}
+            icon={Target}
+            gradient="bg-gradient-to-br from-violet-500 to-fuchsia-600"
+          />
+        )}
         {!isTeamMember && (
         <StatsCard
           title="Candidates"
@@ -248,12 +285,31 @@ export default function DashboardPage() {
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
         />
       </StatsGrid>
+      {stats.conversion_stats && stats.conversion_stats.denominator > 0 ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-4 max-w-3xl leading-relaxed">
+          Conversion rate = (converted interview rounds + closed leads) ÷ (that
+          + rejected + dead leads). Counts:{" "}
+          <span className="tabular-nums text-slate-600 dark:text-slate-300">
+            {stats.conversion_stats.converted_rounds} converted rounds,{" "}
+            {stats.conversion_stats.closed_leads} closed,{" "}
+            {stats.conversion_stats.rejected_leads} rejected,{" "}
+            {stats.conversion_stats.dead_leads} dead (denominator{" "}
+            {stats.conversion_stats.denominator}).
+          </span>
+        </p>
+      ) : null}
 
       {/* Status + Recent interviews */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
         <ChartCard
           title="Status Distribution"
-          subtitle={isTeamMember ? "Your interviews" : "All interviews"}
+          subtitle={
+            stats.leads_by_status && Object.keys(stats.leads_by_status).length > 0
+              ? "By lead (pipeline)"
+              : isTeamMember
+                ? "Your interviews"
+                : "All interviews"
+          }
           className="h-full"
         >
           <PieChartWidget data={statusData} height={360} colorMapping={STATUS_HEX_COLORS} />
@@ -268,7 +324,7 @@ export default function DashboardPage() {
               return (
               <div
                 key={interview.id}
-                className={`flex items-center gap-4 rounded-xl p-3.5 shadow-sm transition-all ${getRecentInterviewCardStyle(interview.computed_status)}`}
+                className={`flex items-center gap-4 rounded-xl p-3.5 shadow-sm transition-all ${getRecentInterviewCardStyle(interview.computed_status, interview.lead_status_label)}`}
               >
                 <Link
                   href={`/interviews?id=${interview.id}`}

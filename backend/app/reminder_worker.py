@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
+from app.activity_log import record_activity
 from app.config import Settings
 from app.database import engine
 from app.email_ses import try_send_interview_reminder_email
@@ -13,9 +14,46 @@ from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
 from app.models.interview_reminder_log import InterviewReminderLog
+from app.models.lead_thread import LeadThread
+from app.lead_thread_utils import effective_lead_fields, is_lead_terminal_outcome, load_lead_map
 from app.status_utils import compute_status
 
 logger = logging.getLogger(__name__)
+
+UNRESPONSIVE_TO_DEAD_DAYS = 30
+
+
+def _escalate_explicit_unresponsive_leads() -> None:
+    """Lead explicitly set to Unresponsive → Dead after 30 days with no change."""
+    cutoff = datetime.utcnow() - timedelta(days=UNRESPONSIVE_TO_DEAD_DAYS)
+    with Session(engine) as session:
+        rows = session.exec(
+            select(LeadThread).where(
+                LeadThread.outcome_override == "unresponsive",
+                LeadThread.unresponsive_since.isnot(None),
+                LeadThread.unresponsive_since <= cutoff,
+            )
+        ).all()
+        for row in rows:
+            row.outcome_override = "dead"
+            row.unresponsive_since = None
+            row.closed_at = datetime.utcnow()
+            row.updated_at = datetime.utcnow()
+            session.add(row)
+            record_activity(
+                session,
+                actor=None,
+                action="lead_unresponsive_escalated_dead",
+                entity_type="lead_thread",
+                entity_id=row.thread_id,
+                message="Lead was Unresponsive for 30+ days; marked Dead automatically.",
+            )
+        if rows:
+            session.commit()
+            logger.info(
+                "Escalated %s lead(s) from explicit Unresponsive to Dead (30+ days)",
+                len(rows),
+            )
 
 
 def _pkt_to_utc(interview: Interview) -> datetime | None:
@@ -39,7 +77,17 @@ def _process_due_reminders(settings: Settings) -> None:
             )
         ).all()
 
+        lead_map = load_lead_map(session, {i.thread_id for i in interviews if i.thread_id})
+
         for interview in interviews:
+            lt = lead_map.get(interview.thread_id)
+            eff = effective_lead_fields(session, interview.thread_id, lt)
+            if is_lead_terminal_outcome(eff["lead_outcome"]):
+                continue
+
+            if interview.candidate_id is None:
+                continue
+
             status = compute_status(interview.status, interview.interview_date).lower()
             # Skip clearly resolved/non-reminder statuses only.
             if any(x in status for x in ("converted", "rejected", "dropped", "closed", "dead")):
@@ -113,6 +161,10 @@ def _process_due_reminders(settings: Settings) -> None:
 async def run_reminder_worker(stop_event: asyncio.Event, settings: Settings) -> None:
     """Background loop that sends due interview reminders every minute."""
     while not stop_event.is_set():
+        try:
+            _escalate_explicit_unresponsive_leads()
+        except Exception:
+            logger.exception("Unresponsive lead escalation failed")
         try:
             _process_due_reminders(settings)
         except Exception:

@@ -17,8 +17,6 @@ import {
   CalendarCheck,
   Clock,
   CheckCircle2,
-  XCircle,
-  Ban,
   Users,
   ChevronLeft,
   ChevronRight,
@@ -27,6 +25,8 @@ import {
   Target,
   GitBranch,
   ArrowRight,
+  List,
+  Ban,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -36,6 +36,7 @@ import {
   profilesService,
   businessDevelopersService,
   authService,
+  leadsService,
 } from "@/lib/services";
 import {
   formatInterviewDateEst,
@@ -44,7 +45,10 @@ import {
   sortInterviewsInChain,
   suggestNextRoundLabel,
   collectDescendantInterviewIds,
+  getLeadOutcomeBadgeStyle,
+  getLeadOutcomeSelectShellClass,
 } from "@/lib/utils";
+import { INTERVIEW_STATS_GRADIENT } from "@/lib/constants";
 import type {
   Interview,
   Company,
@@ -52,6 +56,7 @@ import type {
   ResumeProfile,
   BusinessDeveloper,
   InterviewFormData,
+  LeadListItem,
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -76,6 +81,7 @@ import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
 
 function isRejectedInterview(interview: Interview): boolean {
+  if (interview.lead_outcome?.toLowerCase() === "rejected") return true;
   return interview.computed_status.toLowerCase().includes("rejected");
 }
 
@@ -109,6 +115,198 @@ function getPipelinePopoverLayout(rect: DOMRect) {
   const x = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
   const y = flipAbove ? rect.top - GAP : rect.bottom + GAP;
   return { x, y, flipAbove };
+}
+
+const LEAD_OUTCOME_OPTIONS: { value: string; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "unresponsive", label: "Unresponsive" },
+  { value: "dropped", label: "Dropped" },
+  { value: "dead", label: "Dead" },
+  { value: "rejected", label: "Rejected" },
+  { value: "closed", label: "Closed" },
+];
+
+function LeadThreadPanel({
+  threadId,
+  interview,
+  fetchData,
+  onUpdateDetail,
+  readOnly,
+  embedded,
+}: {
+  threadId: string;
+  interview: Interview;
+  fetchData: () => Promise<void>;
+  onUpdateDetail: (patch: Partial<Interview>) => void;
+  readOnly?: boolean;
+  /** Omit outer card and heading when wrapped in a parent lead/opportunity section. */
+  embedded?: boolean;
+}) {
+  const explicit = interview.lead_source === "explicit";
+  const [override, setOverride] = useState<string>(
+    explicit && interview.lead_outcome ? interview.lead_outcome : "",
+  );
+  const [notes, setNotes] = useState(interview.lead_notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const ex = interview.lead_source === "explicit";
+    setOverride(ex && interview.lead_outcome ? interview.lead_outcome : "");
+    setNotes(interview.lead_notes ?? "");
+  }, [
+    threadId,
+    interview.id,
+    interview.lead_source,
+    interview.lead_outcome,
+    interview.lead_notes,
+  ]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      let res;
+      if (!override) {
+        res = await interviewsService.updateLead(threadId, {
+          clear_override: true,
+          ...(notes.trim() !== "" ? { notes: notes.trim() } : {}),
+        });
+      } else {
+        res = await interviewsService.updateLead(threadId, {
+          outcome_override: override,
+          ...(notes.trim() !== "" ? { notes: notes.trim() } : {}),
+        });
+      }
+      onUpdateDetail({
+        lead_outcome: res.lead_outcome,
+        lead_status_label: res.lead_status_label,
+        lead_source: res.lead_source,
+        lead_notes: res.lead_notes ?? null,
+        lead_closed_at: res.lead_closed_at ?? null,
+      });
+      await fetchData();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sourceHint = (
+    <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+      ({interview.lead_source === "explicit" ? "manual override" : "from interviews"})
+    </span>
+  );
+
+  const embeddedLeadLbl =
+    "text-indigo-800 dark:text-indigo-200/90";
+  const cardLeadLbl =
+    "text-amber-800 dark:text-amber-200/90";
+
+  const leadBadge = (outcome: string | null | undefined, label: string | null | undefined) => {
+    const loStyle = getLeadOutcomeBadgeStyle(outcome);
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${loStyle.bg} ${loStyle.text}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${loStyle.dot}`} />
+        {label ?? "—"}
+      </span>
+    );
+  };
+
+  const body = (
+    <>
+      {embedded && readOnly ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span
+            className={`text-xs font-semibold uppercase tracking-wider shrink-0 ${embeddedLeadLbl}`}
+          >
+            Lead
+          </span>
+          {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+        </div>
+      ) : embedded ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span
+            className={`text-xs font-semibold uppercase tracking-wider shrink-0 ${embeddedLeadLbl}`}
+          >
+            Lead
+          </span>
+          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+            {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+            {sourceHint}
+          </span>
+        </div>
+      ) : (
+        <>
+          <h4
+            className={`text-xs font-semibold uppercase tracking-wider ${cardLeadLbl}`}
+          >
+            Lead
+          </h4>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+            {sourceHint}
+          </div>
+        </>
+      )}
+      {readOnly ? (
+        interview.lead_notes && (
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+            {interview.lead_notes}
+          </p>
+        )
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              Override outcome
+            </label>
+            <select
+              value={override}
+              onChange={(e) => setOverride(e.target.value)}
+              className={`${selectClass} ${getLeadOutcomeSelectShellClass(override || interview.lead_outcome)}`}
+            >
+              <option value="">Use status from interviews (clear override)</option>
+              {LEAD_OUTCOME_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              Notes (optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className={textareaClass}
+              placeholder="Context for this lead status…"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className={buttonPrimary + " text-sm py-2 px-4"}
+          >
+            {saving ? "Saving…" : "Save lead status"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-2">{body}</div>;
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200/80 dark:border-amber-500/25 bg-amber-50/40 dark:bg-amber-500/5 p-4">
+      {body}
+    </div>
+  );
 }
 
 export default function InterviewsPage() {
@@ -267,6 +465,7 @@ export default function InterviewsPage() {
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
   const isTeamMember = role === "team-member";
+  const canEditLeadThreadPanel = role === "superadmin" || role === "team-member";
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const canAddPipelineRound = !isTeamMember || !!meCandidateId;
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -277,6 +476,11 @@ export default function InterviewsPage() {
     role: "",
     round: "",
   });
+  const [leadsList, setLeadsList] = useState<LeadListItem[]>([]);
+  /** Matches `LeadListItem.thread_id` when creating from an existing lead or after "Add next round". */
+  const [selectedLeadThreadId, setSelectedLeadThreadId] = useState("");
+  /** True when the modal was opened via "Add next round" — lead / pipeline must not be changed. */
+  const [lockLeadPicker, setLockLeadPicker] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -288,6 +492,7 @@ export default function InterviewsPage() {
         candidatesData,
         profilesData,
         bdsData,
+        leadsData,
         me,
       ] = await Promise.all([
         interviewsService.list(),
@@ -295,6 +500,7 @@ export default function InterviewsPage() {
         candidatesService.list(),
         profilesService.list(),
         businessDevelopersService.list(),
+        leadsService.list({ page: 1, page_size: 500 }),
         authService.getMe(),
       ]);
 
@@ -319,6 +525,7 @@ export default function InterviewsPage() {
       setCandidates(candidatesData);
       setProfiles(profilesData);
       setBusinessDevs(bdsData);
+      setLeadsList(leadsData.items);
       setMeCandidateId(me.candidate_id ?? null);
 
       // Handle deep-linked interview from Dashboard
@@ -347,16 +554,22 @@ export default function InterviewsPage() {
     fetchData();
   }, [fetchData]);
 
+  const closeInterviewModal = () => {
+    setModalOpen(false);
+    setLockLeadPicker(false);
+  };
+
   const openCreateModal = () => {
     setEditingId(null);
-    const defaultCandidate = isTeamMember
-      ? meCandidateId || ""
-      : candidates[0]?.id || "";
+    setSelectedLeadThreadId("");
+    setLockLeadPicker(false);
+    const defaultCandidate = isTeamMember ? meCandidateId || "" : "";
     setFormData({
-      company_id: companies[0]?.id || "",
+      company_id: "",
       candidate_id: defaultCandidate,
-      resume_profile_id: profiles[0]?.id || "",
+      resume_profile_id: "",
       role: "",
+      salary_range: "",
       round: "1st",
       bd_id: "",
       interviewer: "",
@@ -373,9 +586,11 @@ export default function InterviewsPage() {
 
   const openCreateNextRound = (parent: Interview) => {
     setEditingId(null);
+    setSelectedLeadThreadId(parent.thread_id || "");
+    setLockLeadPicker(true);
     const nextCandidate = isTeamMember
-      ? meCandidateId || parent.candidate_id
-      : parent.candidate_id;
+      ? meCandidateId || parent.candidate_id || ""
+      : parent.candidate_id || "";
     setFormData({
       company_id: parent.company_id,
       candidate_id: nextCandidate,
@@ -403,9 +618,11 @@ export default function InterviewsPage() {
 
   const openEditModal = (interview: Interview) => {
     setEditingId(interview.id);
+    setSelectedLeadThreadId("");
+    setLockLeadPicker(false);
     setFormData({
       company_id: interview.company_id,
-      candidate_id: interview.candidate_id,
+      candidate_id: interview.candidate_id || "",
       resume_profile_id: interview.resume_profile_id,
       role: interview.role,
       salary_range: interview.salary_range || "",
@@ -433,6 +650,33 @@ export default function InterviewsPage() {
       alert(
         "No candidate record matches your login email. Ask an admin to add a candidate with the same email as your user account.",
       );
+      return;
+    }
+    if (!editingId) {
+      if (!formData.parent_interview_id) {
+        alert(
+          "Select a lead for this round. Create a new pipeline on the Leads page if you need a new opportunity.",
+        );
+        return;
+      }
+      if (
+        !formData.company_id ||
+        !formData.resume_profile_id ||
+        !formData.role?.trim()
+      ) {
+        alert(
+          "Opportunity details are incomplete. Select a lead again, or refresh the page.",
+        );
+        return;
+      }
+      const effectiveCid =
+        isTeamMember && meCandidateId ? meCandidateId : formData.candidate_id;
+      if (!effectiveCid?.trim()) {
+        alert("Select a candidate for this interview round.");
+        return;
+      }
+    } else if (!isTeamMember && !formData.candidate_id?.trim()) {
+      alert("Select a candidate for this interview.");
       return;
     }
     setIsSubmitting(true);
@@ -510,7 +754,7 @@ export default function InterviewsPage() {
         setUploadingInterviewId(null);
       }
 
-      setModalOpen(false);
+      closeInterviewModal();
       setInterviewDocFile(null);
       setInterviewDocError(null);
       fetchData();
@@ -689,6 +933,90 @@ export default function InterviewsPage() {
     return pipelineParentOptions;
   }, [pipelineParentOptions, formData.parent_interview_id, interviews]);
 
+  const leadsForInterviewPicker = useMemo(() => {
+    const withParent = leadsList.filter((l) => l.last_interview_id);
+    const scoped =
+      isTeamMember && meCandidateId
+        ? withParent.filter(
+            (l) => !l.candidate_id || l.candidate_id === meCandidateId,
+          )
+        : withParent;
+    return [...scoped].sort((a, b) => {
+      const ac = (a.company_name || "").localeCompare(b.company_name || "");
+      if (ac !== 0) return ac;
+      return (a.primary_bd_name || "").localeCompare(b.primary_bd_name || "");
+    });
+  }, [leadsList, isTeamMember, meCandidateId]);
+
+  /** Read-only opportunity row (managed on the Leads form / first round). */
+  const opportunitySnapshot = useMemo(() => {
+    if (editingId) {
+      const iv = interviews.find((i) => i.id === editingId);
+      if (iv) {
+        return {
+          company: iv.company_name ?? "—",
+          profile: iv.resume_profile_name ?? "—",
+          role: iv.role || "—",
+          salary: iv.salary_range?.trim() || "—",
+          bd: iv.bd_name || "—",
+        };
+      }
+      return {
+        company:
+          companies.find((c) => c.id === formData.company_id)?.name ?? "—",
+        profile:
+          profiles.find((p) => p.id === formData.resume_profile_id)?.name ??
+          "—",
+        role: formData.role || "—",
+        salary: formData.salary_range?.trim() || "—",
+        bd: formData.bd_id
+          ? businessDevs.find((b) => b.id === formData.bd_id)?.name ?? "—"
+          : "—",
+      };
+    }
+    if (formData.parent_interview_id) {
+      const iv = interviews.find(
+        (i) => i.id === formData.parent_interview_id,
+      );
+      if (iv) {
+        return {
+          company: iv.company_name ?? "—",
+          profile: iv.resume_profile_name ?? "—",
+          role: iv.role || "—",
+          salary: iv.salary_range?.trim() || "—",
+          bd: iv.bd_name || "—",
+        };
+      }
+      const lead = leadsForInterviewPicker.find(
+        (l) => l.thread_id === selectedLeadThreadId,
+      );
+      if (lead) {
+        return {
+          company: lead.company_name ?? "—",
+          profile: lead.resume_profile_name ?? "—",
+          role: lead.primary_role || "—",
+          salary: lead.salary_range?.trim() || "—",
+          bd: lead.primary_bd_name || "—",
+        };
+      }
+    }
+    return null;
+  }, [
+    editingId,
+    formData.parent_interview_id,
+    formData.company_id,
+    formData.resume_profile_id,
+    formData.role,
+    formData.salary_range,
+    formData.bd_id,
+    interviews,
+    companies,
+    profiles,
+    businessDevs,
+    leadsForInterviewPicker,
+    selectedLeadThreadId,
+  ]);
+
   const editingInterviewForDoc = useMemo(
     () => (editingId ? interviews.find((i) => i.id === editingId) : null),
     [editingId, interviews],
@@ -794,20 +1122,14 @@ export default function InterviewsPage() {
     Unresponsed: 0,
     Converted: 0,
     Rejected: 0,
-    Dropped: 0,
-    Closed: 0,
-    Dead: 0,
   };
 
   filtered.forEach((i) => {
     const label = i.computed_status.toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
-    else if (label === "dead") statusCounts.Dead++;
     else if (label === "unresponsed") statusCounts.Unresponsed++;
     else if (label.includes("converted")) statusCounts.Converted++;
     else if (label.includes("rejected")) statusCounts.Rejected++;
-    else if (label.includes("dropped")) statusCounts.Dropped++;
-    else if (label.includes("closed")) statusCounts.Closed++;
   });
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -820,7 +1142,7 @@ export default function InterviewsPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Interviews"
-        subtitle={`${interviews.length} total interviews`}
+        subtitle="Interview rounds, pipeline steps, and schedules"
         action={
           <div className="flex gap-2">
             <button onClick={handleExport} className={buttonSecondary}>
@@ -857,48 +1179,36 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      <StatsGrid cols={7}>
+      <StatsGrid cols={5}>
+        <StatsCard
+          title="Total interviews"
+          value={interviews.length}
+          icon={List}
+          gradient={INTERVIEW_STATS_GRADIENT.total}
+        />
         <StatsCard
           title="Upcoming"
           value={statusCounts.Upcoming}
           icon={CalendarCheck}
-          gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
+          gradient={INTERVIEW_STATS_GRADIENT.upcoming}
         />
         <StatsCard
           title="Unresponsed"
           value={statusCounts.Unresponsed}
           icon={Clock}
-          gradient="bg-gradient-to-br from-slate-500 to-slate-600"
+          gradient={INTERVIEW_STATS_GRADIENT.unresponsed}
+        />
+        <StatsCard
+          title="Rejected"
+          value={statusCounts.Rejected}
+          icon={Ban}
+          gradient={INTERVIEW_STATS_GRADIENT.rejected}
         />
         <StatsCard
           title="Converted"
           value={statusCounts.Converted}
           icon={CheckCircle2}
-          gradient="bg-gradient-to-br from-orange-500 to-amber-600"
-        />
-        <StatsCard
-          title="Rejected"
-          value={statusCounts.Rejected}
-          icon={XCircle}
-          gradient="bg-gradient-to-br from-red-500 to-rose-600"
-        />
-        <StatsCard
-          title="Dropped"
-          value={statusCounts.Dropped}
-          icon={Ban}
-          gradient="bg-gradient-to-br from-amber-500 to-yellow-600"
-        />
-        <StatsCard
-          title="Closed"
-          value={statusCounts.Closed}
-          icon={CheckCircle2}
-          gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
-        />
-        <StatsCard
-          title="Dead"
-          value={statusCounts.Dead}
-          icon={Ban}
-          gradient="bg-gradient-to-br from-stone-500 to-stone-600"
+          gradient={INTERVIEW_STATS_GRADIENT.converted}
         />
       </StatsGrid>
 
@@ -931,12 +1241,9 @@ export default function InterviewsPage() {
             >
               <option value="All">All Statuses</option>
               <option value="Converted">Converted</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Dropped">Dropped</option>
-              <option value="Closed">Closed</option>
               <option value="Upcoming">Upcoming</option>
               <option value="Unresponsed">Unresponsed</option>
-              <option value="Dead">Dead</option>
+              <option value="Rejected">Rejected</option>
             </select>
 
             <select
@@ -1493,7 +1800,7 @@ export default function InterviewsPage() {
       {/* Create/Edit Modal */}
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={closeInterviewModal}
         title={
           editingId
             ? "Edit Interview"
@@ -1503,73 +1810,185 @@ export default function InterviewsPage() {
         }
         size="lg"
       >
-        {formData.parent_interview_id && !editingId ? (
-          <p className="mb-4 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/90 dark:bg-indigo-500/10 px-3 py-2.5 text-sm text-indigo-900 dark:text-indigo-100">
-            This round is linked after a previous step in the same pipeline.
-            Company must match that step.
-            {isTeamMember
-              ? " Your candidate is fixed to your account."
-              : " You can change candidate and resume profile for this round if needed."}
-          </p>
-        ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Company">
-            <select
-              value={formData.company_id}
-              onChange={(e) =>
-                setFormData({ ...formData, company_id: e.target.value })
-              }
-              disabled={!!formData.parent_interview_id && !editingId}
-              className={selectClass}
-            >
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Candidate">
-            {isTeamMember ? (
-              <div
-                className={`${selectClass} flex items-center text-slate-700 dark:text-slate-200 bg-slate-100/80 dark:bg-white/[0.04] cursor-not-allowed`}
-              >
-                {meCandidateId
-                  ? candidates.find((c) => c.id === meCandidateId)?.name ||
-                    "You (linked)"
-                  : "No candidate linked to your email — contact an admin."}
-              </div>
-            ) : (
-              <select
-                value={formData.candidate_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, candidate_id: e.target.value })
-                }
-                className={selectClass}
-              >
-                {candidates.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </FormField>
-          <FormField label="Resume Profile">
-            <select
-              value={formData.resume_profile_id}
-              onChange={(e) =>
-                setFormData({ ...formData, resume_profile_id: e.target.value })
-              }
-              className={selectClass}
-            >
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
+          {!editingId ? (
+            <div className="col-span-1 sm:col-span-2">
+              <FormField label="Lead (required)">
+                {lockLeadPicker && selectedLeadThreadId ? (
+                  <div
+                    className={`${selectClass} flex items-center text-slate-700 dark:text-slate-200 bg-slate-100/80 dark:bg-white/[0.04] cursor-not-allowed`}
+                  >
+                    {(() => {
+                      const l = leadsForInterviewPicker.find(
+                        (x) => x.thread_id === selectedLeadThreadId,
+                      );
+                      return l
+                        ? `${l.company_name ?? "Company"}${
+                            l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""
+                          }`
+                        : "Selected pipeline";
+                    })()}
+                  </div>
+                ) : (
+                  <select
+                    value={selectedLeadThreadId}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedLeadThreadId(v);
+                      if (!v) {
+                        const defaultCandidate = isTeamMember
+                          ? meCandidateId || ""
+                          : "";
+                        setFormData({
+                          company_id: "",
+                          candidate_id: defaultCandidate,
+                          resume_profile_id: "",
+                          role: "",
+                          round: "1st",
+                          bd_id: "",
+                          interviewer: "",
+                          interview_link: "",
+                          is_phone_call: false,
+                          feedback: "",
+                          recruiter_feedback: "",
+                          parent_interview_id: undefined,
+                          salary_range: "",
+                          interview_date: "",
+                          time_est: "",
+                          time_pkt: "",
+                          status: "",
+                        });
+                        return;
+                      }
+                      const lead = leadsForInterviewPicker.find(
+                        (l) => l.thread_id === v,
+                      );
+                      if (!lead?.last_interview_id) return;
+                      setFormData({
+                        company_id: lead.company_id,
+                        candidate_id:
+                          isTeamMember && meCandidateId
+                            ? meCandidateId
+                            : lead.candidate_id || "",
+                        resume_profile_id: lead.resume_profile_id,
+                        role: lead.primary_role || "",
+                        salary_range: lead.salary_range || "",
+                        round:
+                          suggestNextRoundLabel(lead.last_round || "") ||
+                          "Next round",
+                        interview_date: "",
+                        time_est: "",
+                        time_pkt: "",
+                        status: "",
+                        feedback: "",
+                        recruiter_feedback: "",
+                        bd_id: lead.primary_bd_id || "",
+                        interviewer: "",
+                        interview_link: "",
+                        is_phone_call: false,
+                        parent_interview_id: lead.last_interview_id,
+                      });
+                    }}
+                    className={selectClass}
+                  >
+                    <option value="">Select a lead…</option>
+                    {leadsForInterviewPicker.map((l) => (
+                      <option key={l.thread_id} value={l.thread_id}>
+                        {l.company_name ?? "Company"}
+                        {l.primary_bd_name
+                          ? ` · ${l.primary_bd_name}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </FormField>
+              {lockLeadPicker && selectedLeadThreadId ? (
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  This round continues the pipeline from the interview you
+                  started from; the lead cannot be changed here. Use{" "}
+                  <span className="font-medium text-slate-600 dark:text-slate-300">
+                    Add Interview
+                  </span>{" "}
+                  if you need to attach to a different opportunity.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {opportunitySnapshot ? (
+            <div className="col-span-1 sm:col-span-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50/80 dark:bg-white/[0.03] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                lead
+              </p>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-slate-800 dark:text-slate-100">
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">
+                    Company
+                  </dt>
+                  <dd>{opportunitySnapshot.company}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">
+                    Resume profile
+                  </dt>
+                  <dd>{opportunitySnapshot.profile}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">
+                    Role
+                  </dt>
+                  <dd>{opportunitySnapshot.role}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">
+                    Salary range
+                  </dt>
+                  <dd>{opportunitySnapshot.salary}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">
+                    Business developer
+                  </dt>
+                  <dd>{opportunitySnapshot.bd}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+          {editingId || formData.parent_interview_id ? (
+            <div className="col-span-1 sm:col-span-2">
+              <FormField label="Candidate">
+                {isTeamMember ? (
+                  <div
+                    className={`${selectClass} flex items-center text-slate-700 dark:text-slate-200 bg-slate-100/80 dark:bg-white/[0.04] cursor-not-allowed`}
+                  >
+                    {meCandidateId
+                      ? candidates.find((c) => c.id === meCandidateId)?.name ||
+                        "You (linked)"
+                      : "No candidate linked to your email — contact an admin."}
+                  </div>
+                ) : (
+                  <select
+                    value={formData.candidate_id}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        candidate_id: e.target.value,
+                      })
+                    }
+                    className={selectClass}
+                    required
+                  >
+                    <option value="">Select candidate…</option>
+                    {candidates.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </FormField>
+            </div>
+          ) : null}
           {editingId ? (
             <div className="col-span-1 sm:col-span-2">
               <FormField label="Previous round (pipeline)">
@@ -1611,44 +2030,6 @@ export default function InterviewsPage() {
               placeholder="e.g., 1st, 2nd, Recruiter's Call"
               className={inputClass}
             />
-          </FormField>
-          <div className="col-span-1 sm:col-span-2">
-            <FormField label="Role">
-              <input
-                value={formData.role}
-                onChange={(e) =>
-                  setFormData({ ...formData, role: e.target.value })
-                }
-                placeholder="e.g., Senior ML Engineer"
-                className={inputClass}
-              />
-            </FormField>
-          </div>
-          <FormField label="Salary Range">
-            <input
-              value={formData.salary_range || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, salary_range: e.target.value })
-              }
-              placeholder="e.g., $150k - $180k"
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Business Developer">
-            <select
-              value={formData.bd_id || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, bd_id: e.target.value })
-              }
-              className={selectClass}
-            >
-              <option value="">None</option>
-              {businessDevs.map((bd) => (
-                <option key={bd.id} value={bd.id}>
-                  {bd.name}
-                </option>
-              ))}
-            </select>
           </FormField>
           <FormField label="Interviewer">
             <input
@@ -1739,7 +2120,7 @@ export default function InterviewsPage() {
             />
           </FormField>
           <div className="col-span-1 sm:col-span-2">
-            <FormField label="Status">
+            <FormField label="Round status">
               <select
                 value={formData.status || ""}
                 onChange={(e) =>
@@ -1749,12 +2130,16 @@ export default function InterviewsPage() {
               >
                 <option value="">Select a status...</option>
                 <option value="Converted">Converted</option>
-                <option value="Rejected">Rejected</option>
-                <option value="Dropped">Dropped</option>
-                <option value="Closed">Closed</option>
                 <option value="Upcoming">Upcoming</option>
                 <option value="Unresponsed">Unresponsed</option>
+                <option value="Rejected">Rejected</option>
               </select>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Use <span className="font-medium">Rejected</span> when this
+                round ended in a no — the pipeline lead will show Rejected when
+                this is the latest round. Dropped, closed, and dead are still
+                set on the lead (lead section when viewing a thread).
+              </p>
             </FormField>
           </div>
           <div className="col-span-1 sm:col-span-2">
@@ -1852,14 +2237,16 @@ export default function InterviewsPage() {
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button
-            onClick={() => setModalOpen(false)}
+            onClick={closeInterviewModal}
             className={buttonSecondary}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting || (!editingId && !formData.parent_interview_id)
+            }
             className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}
           >
             {isSubmitting && <Loader2 className="animate-spin" size={16} />}
@@ -1900,7 +2287,7 @@ export default function InterviewsPage() {
       >
         {detailModal && (
           <div className="space-y-5">
-            {!cannotCRUD && !isRejectedInterview(detailModal) && canAddPipelineRound && (
+            {/* {!cannotCRUD && !isRejectedInterview(detailModal) && canAddPipelineRound && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-indigo-200/80 dark:border-indigo-500/30 bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-500/10 dark:to-[#151821] px-4 py-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   <span className="font-medium text-slate-900 dark:text-white">
@@ -1922,7 +2309,7 @@ export default function InterviewsPage() {
                   Add next round
                 </button>
               </div>
-            )}
+            )} */}
             {(() => {
               const tid = detailModal.thread_id ?? detailModal.id;
               const chain =
@@ -1934,243 +2321,275 @@ export default function InterviewsPage() {
                 />
               );
             })()}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Company
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
-                  {detailModal.company_name}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Role
-                </p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {detailModal.role}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Candidate
-                </p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {detailModal.candidate_name}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Profile
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <p className="text-sm text-slate-900 dark:text-white">
-                    {detailModal.resume_profile_name}
-                  </p>
-                  {(() => {
-                    const profile = profiles.find(
-                      (p) => p.id === detailModal.resume_profile_id,
-                    );
-                    if (!profile) return null;
-                    return (
-                      <div className="flex gap-2">
-                        {profile.linkedin_url && (
-                          <a
-                            href={profile.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-500 hover:text-blue-400 transition-colors"
-                          >
-                            <FaLinkedin size={14} />
-                          </a>
-                        )}
-                        {profile.github_url && (
-                          <a
-                            href={profile.github_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-slate-400 hover:text-slate-300 transition-colors"
-                          >
-                            <FaGithub size={14} />
-                          </a>
-                        )}
-                        {profile.portfolio_url && (
-                          <a
-                            href={profile.portfolio_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors"
-                            title="Portfolio"
-                          >
-                            <Target size={14} />
-                          </a>
-                        )}
-                        {profile.resume_url && (
-                          <a
-                            href={profile.resume_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-emerald-500 hover:text-emerald-400 transition-colors"
-                            title="Resume (PDF)"
-                          >
-                            <Eye size={14} />
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Round
-                </p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {detailModal.round}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Date
-                </p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {formatInterviewDateEst(
-                    detailModal.interview_date,
-                    detailModal.time_est,
-                  )}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Time (EST)
-                </p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {formatTime(detailModal.time_est)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Time (PKT)
-                </p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                  {formatTime(detailModal.time_pkt)}
-                </p>
-              </div>
-              {detailModal.salary_range && (
+            <div className="rounded-xl border border-indigo-200/90 dark:border-indigo-500/35 bg-indigo-50/60 dark:bg-indigo-500/[0.08] p-4 space-y-4">
+              {detailModal.thread_id ? (
+                <LeadThreadPanel
+                  embedded
+                  threadId={detailModal.thread_id}
+                  interview={detailModal}
+                  fetchData={fetchData}
+                  readOnly={!canEditLeadThreadPanel}
+                  onUpdateDetail={(patch) =>
+                    setDetailModal((prev) => (prev ? { ...prev, ...patch } : null))
+                  }
+                />
+              ) : (
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-indigo-800 dark:text-indigo-200/90">
+                  Opportunity
+                </h4>
+              )}
+              <div
+                className={
+                  detailModal.thread_id
+                    ? "grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/70 dark:border-indigo-500/25"
+                    : "grid grid-cols-1 sm:grid-cols-2 gap-4"
+                }
+              >
                 <div>
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Salary Range
+                    Company
                   </p>
-                  <p className="mt-1 text-sm text-emerald-400">
-                    {detailModal.salary_range}
+                  <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                    {detailModal.company_name}
                   </p>
                 </div>
-              )}
-              {detailModal.bd_name && (
                 <div>
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Business Developer
+                    Role
                   </p>
                   <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {detailModal.bd_name}
+                    {detailModal.role}
                   </p>
                 </div>
-              )}
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Status
-                </p>
-                <div className="mt-1">
-                  <StatusBadge status={detailModal.computed_status} />
-                </div>
-              </div>
-              {detailModal.interviewer && (
                 <div>
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Interviewer
+                    Candidate
                   </p>
                   <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {detailModal.interviewer}
+                    {detailModal.candidate_name}
                   </p>
                 </div>
-              )}
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Interview Medium
-                </p>
-                {detailModal.is_phone_call ? (
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    Phone Call
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Profile
                   </p>
-                ) : detailModal.interview_link ? (
-                  <a
-                    href={detailModal.interview_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 text-sm text-indigo-500 hover:text-indigo-400 break-all"
-                  >
-                    {detailModal.interview_link}
-                  </a>
-                ) : (
-                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
-                    —
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Interview Detail Document
-                </p>
-                {detailModal.interview_doc_url ? (
-                  <a
-                    href={detailModal.interview_doc_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
-                  >
-                    <Download size={14} />
-                    Download Document
-                  </a>
-                ) : (
-                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
-                    Not uploaded
-                  </p>
-                )}
-                {!cannotCRUD && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      id={`interview-doc-input-${detailModal.id}`}
-                      type="file"
-                      accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-                      className="hidden"
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        const file = e.target.files?.[0];
-                        if (file)
-                          handleInterviewDocUpload(detailModal.id, file);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        document
-                          .getElementById(
-                            `interview-doc-input-${detailModal.id}`,
-                          )
-                          ?.click()
-                      }
-                      className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
-                      disabled={uploadingInterviewId === detailModal.id}
-                    >
-                      {uploadingInterviewId === detailModal.id
-                        ? "Uploading..."
-                        : "Upload Document"}
-                    </button>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-sm text-slate-900 dark:text-white">
+                      {detailModal.resume_profile_name}
+                    </p>
+                    {(() => {
+                      const profile = profiles.find(
+                        (p) => p.id === detailModal.resume_profile_id,
+                      );
+                      if (!profile) return null;
+                      return (
+                        <div className="flex gap-2">
+                          {profile.linkedin_url && (
+                            <a
+                              href={profile.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-400 transition-colors"
+                            >
+                              <FaLinkedin size={14} />
+                            </a>
+                          )}
+                          {profile.github_url && (
+                            <a
+                              href={profile.github_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-400 hover:text-slate-300 transition-colors"
+                            >
+                              <FaGithub size={14} />
+                            </a>
+                          )}
+                          {profile.portfolio_url && (
+                            <a
+                              href={profile.portfolio_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors"
+                              title="Portfolio"
+                            >
+                              <Target size={14} />
+                            </a>
+                          )}
+                          {profile.resume_url && (
+                            <a
+                              href={profile.resume_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                              title="Resume (PDF)"
+                            >
+                              <Eye size={14} />
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+                {detailModal.salary_range && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                      Salary Range
+                    </p>
+                    <p className="mt-1 text-sm text-emerald-400">
+                      {detailModal.salary_range}
+                    </p>
                   </div>
                 )}
-                {uploadError && uploadingInterviewId === detailModal.id && (
-                  <p className="mt-1 text-sm text-red-500">{uploadError}</p>
+                {detailModal.bd_name && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                      Business Developer
+                    </p>
+                    <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                      {detailModal.bd_name}
+                    </p>
+                  </div>
                 )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                This interview
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Round
+                  </p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {detailModal.round}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Date
+                  </p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {formatInterviewDateEst(
+                      detailModal.interview_date,
+                      detailModal.time_est,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Time (EST)
+                  </p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {formatTime(detailModal.time_est)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Time (PKT)
+                  </p>
+                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                    {formatTime(detailModal.time_pkt)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Status
+                  </p>
+                  <div className="mt-1">
+                    <StatusBadge status={detailModal.computed_status} />
+                  </div>
+                </div>
+                {detailModal.interviewer && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                      Interviewer
+                    </p>
+                    <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                      {detailModal.interviewer}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Interview Medium
+                  </p>
+                  {detailModal.is_phone_call ? (
+                    <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                      Phone Call
+                    </p>
+                  ) : detailModal.interview_link ? (
+                    <a
+                      href={detailModal.interview_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 text-sm text-indigo-500 hover:text-indigo-400 break-all"
+                    >
+                      {detailModal.interview_link}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
+                      —
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Interview Detail Document
+                  </p>
+                  {detailModal.interview_doc_url ? (
+                    <a
+                      href={detailModal.interview_doc_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
+                    >
+                      <Download size={14} />
+                      Download Document
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
+                      Not uploaded
+                    </p>
+                  )}
+                  {!cannotCRUD && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        id={`interview-doc-input-${detailModal.id}`}
+                        type="file"
+                        accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                        className="hidden"
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                          const file = e.target.files?.[0];
+                          if (file)
+                            handleInterviewDocUpload(detailModal.id, file);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          document
+                            .getElementById(
+                              `interview-doc-input-${detailModal.id}`,
+                            )
+                            ?.click()
+                        }
+                        className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
+                        disabled={uploadingInterviewId === detailModal.id}
+                      >
+                        {uploadingInterviewId === detailModal.id
+                          ? "Uploading..."
+                          : "Upload Document"}
+                      </button>
+                    </div>
+                  )}
+                  {uploadError && uploadingInterviewId === detailModal.id && (
+                    <p className="mt-1 text-sm text-red-500">{uploadError}</p>
+                  )}
+                </div>
               </div>
             </div>
             {(detailModal.feedback || detailModal.recruiter_feedback) && (

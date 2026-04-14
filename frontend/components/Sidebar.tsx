@@ -28,6 +28,7 @@ import {
   UserCog,
   User,
   Database,
+  Target,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole } from "@/lib/auth";
@@ -45,6 +46,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   UserCog,
   User,
   Database,
+  Target,
 };
 
 export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {

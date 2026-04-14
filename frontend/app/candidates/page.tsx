@@ -55,6 +55,7 @@ export default function CandidatesPage() {
   const interviewCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     monthFilteredInterviews.forEach((i) => {
+      if (!i.candidate_id) return;
       counts[i.candidate_id] = (counts[i.candidate_id] || 0) + 1;
     });
     return counts;

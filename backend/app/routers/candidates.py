@@ -13,7 +13,7 @@ from app.schemas.candidate import (
     CandidateUpdate,
     CandidateReadWithInterviews,
 )
-from app.status_utils import compute_status
+from app.status_utils import computed_status_for_interview_display
 
 router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"], dependencies=[Depends(get_current_user)])
 
@@ -65,7 +65,9 @@ def get_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_sessio
             "interview_date": interview.interview_date,
             "time_est": interview.time_est,
             "status": interview.status,
-            "computed_status": compute_status(interview.status, interview.interview_date),
+            "computed_status": computed_status_for_interview_display(
+                interview.status, interview.interview_date
+            ),
             "company_name": interview.company.name if interview.company else None,
         })
 
