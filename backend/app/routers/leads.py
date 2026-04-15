@@ -8,7 +8,7 @@ from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import joinedload
-from sqlmodel import Session, select
+from sqlmodel import Session, or_, select
 
 from app.activity_log import record_activity
 from app.database import get_session
@@ -436,7 +436,7 @@ def list_leads(
                 stats=empty,
             )
 
-    query = (
+    base_query = (
         select(Interview)
         .options(
             joinedload(Interview.company),
@@ -446,7 +446,27 @@ def list_leads(
         )
         .order_by(Interview.interview_date.desc())  # type: ignore
     )
-    query = apply_team_member_interview_list_filter(session, current_user, query)
+
+    if current_user.role == UserRole.TEAM_MEMBER:
+        cid = candidate_id_for_team_member(session, current_user)
+        # Threads visible to this team member:
+        #  1. Interview rows directly assigned to their candidate
+        #  2. Threads where the LeadThread.entertaining_candidate_id == their candidate
+        #     (covers leads created via the lead form before interview rows carried candidate_id)
+        threads_via_lt = session.exec(
+            select(LeadThread.thread_id).where(
+                LeadThread.entertaining_candidate_id == cid
+            )
+        ).all()
+        query = base_query.where(
+            or_(
+                Interview.candidate_id == cid,
+                Interview.thread_id.in_(threads_via_lt),
+            )
+        )
+    else:
+        query = apply_team_member_interview_list_filter(session, current_user, base_query)
+
     interviews = session.exec(query).all()
 
     by_thread: dict[uuid.UUID, list[Interview]] = {}
@@ -547,7 +567,9 @@ def create_lead(
         thread_id=thread_id,
         parent_interview_id=None,
         company_id=company_id,
-        candidate_id=None,
+        # Carry the candidate on the interview row so team-member scoping
+        # (filtered by Interview.candidate_id) can see their own lead.
+        candidate_id=data.candidate_id,
         resume_profile_id=resume_profile_id,
         role=role,
         round="Lead",

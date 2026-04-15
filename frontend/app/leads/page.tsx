@@ -32,6 +32,7 @@ import {
   businessDevelopersService,
   interviewsService,
   candidatesService,
+  authService,
 } from "@/lib/services";
 import type {
   LeadListItem,
@@ -190,6 +191,9 @@ export default function LeadsPage() {
   });
 
   const role = getUserRole();
+  const isTeamMember = role === "team-member";
+  /** Candidate row linked to the logged-in team member (null for other roles). */
+  const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   /** Create / edit / delete leads and lead status — superadmin and team member only. BD and manager: read-only. */
   const canMutateLeads = role === "superadmin" || role === "team-member";
   const canEditLeadStatus = canMutateLeads;
@@ -255,6 +259,14 @@ export default function LeadsPage() {
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  // Resolve the team member's own candidate_id once on mount
+  useEffect(() => {
+    if (role !== "team-member") return;
+    authService.getMe().then((me) => {
+      if (me?.candidate_id) setMeCandidateId(me.candidate_id);
+    }).catch(() => {/* silently ignore */});
+  }, [role]);
 
   const bdOptions = useMemo(
     () =>
@@ -342,7 +354,8 @@ export default function LeadsPage() {
       role: "",
       salary_range: "",
       bd_id: "",
-      candidate_id: "",
+      // Auto-select the team member's own candidate
+      candidate_id: isTeamMember && meCandidateId ? meCandidateId : "",
       notes: "",
     });
     setModalOpen(true);
@@ -918,23 +931,41 @@ export default function LeadsPage() {
             </select>
           </FormField>
           <FormField label="Entertains By (Candidate)">
-            <select
-              value={form.candidate_id || ""}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, candidate_id: e.target.value || "" }))
-              }
-              className={selectClass}
-            >
-              <option value="">—</option>
-              {candidates
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
+            {isTeamMember && modalMode === "create" && meCandidateId ? (
+              // Team member: show their own candidate as a read-only display
+              <div className={`${selectClass} flex items-center gap-2 bg-slate-50 dark:bg-white/[0.03] cursor-not-allowed opacity-80`}>
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
+                  {(candidates.find((c) => c.id === meCandidateId)?.name ?? "?")
+                    .split(" ")
+                    .filter(Boolean)
+                    .map((p) => p[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase()}
+                </span>
+                <span className="text-sm text-slate-800 dark:text-slate-200">
+                  {candidates.find((c) => c.id === meCandidateId)?.name ?? "Your candidate"}
+                </span>
+              </div>
+            ) : (
+              <select
+                value={form.candidate_id || ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, candidate_id: e.target.value || "" }))
+                }
+                className={selectClass}
+              >
+                <option value="">—</option>
+                {candidates
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            )}
           </FormField>
           <div className="sm:col-span-2">
             <FormField label="Notes (optional)">
