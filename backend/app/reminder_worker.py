@@ -88,7 +88,7 @@ def _process_due_reminders(settings: Settings) -> None:
             if interview.candidate_id is None:
                 continue
 
-            status = compute_status(interview.status, interview.interview_date).lower()
+            status = compute_status(interview.status, interview.interview_date, interview.created_at).lower()
             # Skip clearly resolved/non-reminder statuses only.
             if any(x in status for x in ("converted", "rejected", "dropped", "closed", "dead")):
                 continue

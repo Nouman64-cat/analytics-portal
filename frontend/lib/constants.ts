@@ -81,6 +81,7 @@ export const INTERVIEW_STATS_GRADIENT = {
   unresponsed: LEAD_STAT_CARD_GRADIENT.dropped,
   converted: "bg-gradient-to-br from-violet-600 to-fuchsia-600",
   rejected: LEAD_STAT_CARD_GRADIENT.rejected,
+  dead: LEAD_STAT_CARD_GRADIENT.dead,
 } as const;
 
 // Pagination

@@ -219,16 +219,16 @@ export default function DashboardPage() {
     typeof stats.conversion_rate_percent === "number"
       ? stats.conversion_rate_percent
       : (() => {
-          const totalConverted =
-            (statusMap["Converted"] || 0) + (statusMap["Closed"] || 0);
-          const totalResolved =
-            totalConverted +
-            (statusMap["Rejected"] || 0) +
-            (statusMap["Dropped"] || 0);
-          return totalResolved > 0
-            ? Math.round((totalConverted / totalResolved) * 100)
-            : 0;
-        })();
+        const totalConverted =
+          (statusMap["Converted"] || 0) + (statusMap["Closed"] || 0);
+        const totalResolved =
+          totalConverted +
+          (statusMap["Rejected"] || 0) +
+          (statusMap["Dropped"] || 0);
+        return totalResolved > 0
+          ? Math.round((totalConverted / totalResolved) * 100)
+          : 0;
+      })();
 
   const STATUS_HEX_COLORS: Record<string, string> = {
     "Converted": "#f97316", // orange-500 — enthusiastic/energized
@@ -265,12 +265,12 @@ export default function DashboardPage() {
           />
         )}
         {!isTeamMember && (
-        <StatsCard
-          title="Candidates"
-          value={stats.total_candidates}
-          icon={Users}
-          gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
-        />
+          <StatsCard
+            title="Candidates"
+            value={stats.total_candidates}
+            icon={Users}
+            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+          />
         )}
         <StatsCard
           title="Jobs Closed"
@@ -285,19 +285,6 @@ export default function DashboardPage() {
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
         />
       </StatsGrid>
-      {stats.conversion_stats && stats.conversion_stats.denominator > 0 ? (
-        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-4 max-w-3xl leading-relaxed">
-          Conversion rate = (converted interview rounds + closed leads) ÷ (that
-          + rejected + dead leads). Counts:{" "}
-          <span className="tabular-nums text-slate-600 dark:text-slate-300">
-            {stats.conversion_stats.converted_rounds} converted rounds,{" "}
-            {stats.conversion_stats.closed_leads} closed,{" "}
-            {stats.conversion_stats.rejected_leads} rejected,{" "}
-            {stats.conversion_stats.dead_leads} dead (denominator{" "}
-            {stats.conversion_stats.denominator}).
-          </span>
-        </p>
-      ) : null}
 
       {/* Status + Recent interviews */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
@@ -322,93 +309,93 @@ export default function DashboardPage() {
             {stats.recent_interviews.slice(0, 5).map((interview) => {
               const pl = mergeResumeProfileLinks(interview, profiles);
               return (
-              <div
-                key={interview.id}
-                className={`flex items-center gap-4 rounded-xl p-3.5 shadow-sm transition-all ${getRecentInterviewCardStyle(interview.computed_status, interview.lead_status_label)}`}
-              >
-                <Link
-                  href={`/interviews?id=${interview.id}`}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/25 to-purple-500/25 text-xs font-bold text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200/70 dark:ring-indigo-400/20"
+                <div
+                  key={interview.id}
+                  className={`flex items-center gap-4 rounded-xl p-3.5 shadow-sm transition-all ${getRecentInterviewCardStyle(interview.computed_status, interview.lead_status_label)}`}
                 >
-                  {interview.company?.[0] || "?"}
-                </Link>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                    <button
-                      onClick={(e) => {
-                        if (!interview.company_detail) return;
-                        const rect = (e.target as HTMLElement).getBoundingClientRect();
-                        setProfilePopover(null);
-                        setCompanyPopover({ interview, x: rect.left, y: rect.bottom + 6 });
-                      }}
-                      className={interview.company_detail ? "hover:underline cursor-pointer" : "cursor-default"}
-                    >
-                      {interview.company}
-                    </button>
-                    {" — "}{interview.role}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-500">
-                    {interview.candidate} · Round {interview.round} ·{" "}
-                    {formatInterviewDateEst(interview.date, interview.time_est)}
-                  </p>
-                  {interview.resume_profile_name && (
-                    <p className="text-xs mt-0.5">
+                  <Link
+                    href={`/interviews?id=${interview.id}`}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/25 to-purple-500/25 text-xs font-bold text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200/70 dark:ring-indigo-400/20"
+                  >
+                    {interview.company?.[0] || "?"}
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
                       <button
                         onClick={(e) => {
-                          if (
-                            !pl.linkedin_url &&
-                            !pl.github_url &&
-                            !pl.portfolio_url &&
-                            !pl.resume_url
-                          )
-                            return;
+                          if (!interview.company_detail) return;
                           const rect = (e.target as HTMLElement).getBoundingClientRect();
-                          setCompanyPopover(null);
-                          setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
+                          setProfilePopover(null);
+                          setCompanyPopover({ interview, x: rect.left, y: rect.bottom + 6 });
                         }}
-                        className={
-                          (pl.linkedin_url ||
-                            pl.github_url ||
-                            pl.portfolio_url ||
-                            pl.resume_url)
-                            ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
-                            : "text-slate-400 dark:text-slate-500 cursor-default"
-                        }
+                        className={interview.company_detail ? "hover:underline cursor-pointer" : "cursor-default"}
                       >
-                        {interview.resume_profile_name}
+                        {interview.company}
                       </button>
+                      {" — "}{interview.role}
                     </p>
-                  )}
-                  <div className="mt-1 flex items-center gap-2 flex-wrap">
-                    {interview.time_est && (
-                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                        EST {formatTime(interview.time_est)}
-                      </span>
+                    <p className="text-xs text-slate-500 dark:text-slate-500">
+                      {interview.candidate} · Round {interview.round} ·{" "}
+                      {formatInterviewDateEst(interview.date, interview.time_est)}
+                    </p>
+                    {interview.resume_profile_name && (
+                      <p className="text-xs mt-0.5">
+                        <button
+                          onClick={(e) => {
+                            if (
+                              !pl.linkedin_url &&
+                              !pl.github_url &&
+                              !pl.portfolio_url &&
+                              !pl.resume_url
+                            )
+                              return;
+                            const rect = (e.target as HTMLElement).getBoundingClientRect();
+                            setCompanyPopover(null);
+                            setProfilePopover({ interview, x: rect.left, y: rect.bottom + 6 });
+                          }}
+                          className={
+                            (pl.linkedin_url ||
+                              pl.github_url ||
+                              pl.portfolio_url ||
+                              pl.resume_url)
+                              ? "text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer"
+                              : "text-slate-400 dark:text-slate-500 cursor-default"
+                          }
+                        >
+                          {interview.resume_profile_name}
+                        </button>
+                      </p>
                     )}
-                    {interview.time_est && interview.time_pkt && (
-                      <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
-                    )}
-                    {interview.time_pkt && (
-                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                        PKT {formatTime(interview.time_pkt)}
-                      </span>
-                    )}
-                    {interview.bd_name && (
-                      <>
-                        {(interview.time_est || interview.time_pkt) && (
-                          <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
-                        )}
-                        <span className="text-[11px] text-indigo-400 dark:text-indigo-400">
-                          {interview.bd_name}
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      {interview.time_est && (
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                          EST {formatTime(interview.time_est)}
                         </span>
-                      </>
-                    )}
+                      )}
+                      {interview.time_est && interview.time_pkt && (
+                        <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                      )}
+                      {interview.time_pkt && (
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                          PKT {formatTime(interview.time_pkt)}
+                        </span>
+                      )}
+                      {interview.bd_name && (
+                        <>
+                          {(interview.time_est || interview.time_pkt) && (
+                            <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                          )}
+                          <span className="text-[11px] text-indigo-400 dark:text-indigo-400">
+                            {interview.bd_name}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <StatusBadge status={interview.computed_status} />
                   </div>
                 </div>
-                <div className="shrink-0">
-                  <StatusBadge status={interview.computed_status} />
-                </div>
-              </div>
               );
             })}
           </div>
@@ -417,67 +404,67 @@ export default function DashboardPage() {
 
       {/* Lead frequency + candidate analytics — hidden for team members (org-wide metrics) */}
       {!isTeamMember && (
-      <>
-      <div className="grid grid-cols-1">
-        <ChartCard
-          title="Leads Frequency"
-          subtitle={
-            leadsFrequencyView === "weekly"
-              ? "Leads grouped by Monday-Friday range"
-              : "Leads grouped by month"
-          }
-        >
-          <div className="mb-3 flex justify-end">
-            <select
-              value={leadsFrequencyView}
-              onChange={(e) =>
-                setLeadsFrequencyView(e.target.value as "weekly" | "monthly")
+        <>
+          <div className="grid grid-cols-1">
+            <ChartCard
+              title="Leads Frequency"
+              subtitle={
+                leadsFrequencyView === "weekly"
+                  ? "Leads grouped by Monday-Friday range"
+                  : "Leads grouped by month"
               }
-              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
             >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-          <BarChartWidget
-            data={leadsChartData}
-            color={leadsFrequencyView === "weekly" ? "#22c55e" : "#0ea5e9"}
-            height={300}
-          />
-        </ChartCard>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
-        <ChartCard title="Interviews by Candidate" className="h-full">
-          <BarChartWidget data={candidateData} color="#a78bfa" height={360} />
-        </ChartCard>
-
-        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
-          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
-            Candidate Conversion
-          </h3>
-          <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
-            {Object.entries(stats.candidate_metrics || {}).map(([name, metrics]) => (
-              <div key={name}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">{metrics.rate}%</span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-white/[0.04] rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-emerald-400 h-full rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.max(1, metrics.rate)}%` }}
-                  ></div>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {metrics.converted} out of {metrics.total_resolved} resolved (Total: {metrics.total})
-                </p>
+              <div className="mb-3 flex justify-end">
+                <select
+                  value={leadsFrequencyView}
+                  onChange={(e) =>
+                    setLeadsFrequencyView(e.target.value as "weekly" | "monthly")
+                  }
+                  className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
               </div>
-            ))}
+              <BarChartWidget
+                data={leadsChartData}
+                color={leadsFrequencyView === "weekly" ? "#22c55e" : "#0ea5e9"}
+                height={300}
+              />
+            </ChartCard>
           </div>
-        </div>
-      </div>
-      </>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
+            <ChartCard title="Interviews by Candidate" className="h-full">
+              <BarChartWidget data={candidateData} color="#a78bfa" height={360} />
+            </ChartCard>
+
+            <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
+              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+                Candidate Conversion
+              </h3>
+              <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
+                {Object.entries(stats.candidate_metrics || {}).map(([name, metrics]) => (
+                  <div key={name}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">{metrics.rate}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-white/[0.04] rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-emerald-400 h-full rounded-full transition-all duration-1000"
+                        style={{ width: `${Math.max(1, metrics.rate)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {metrics.converted} out of {metrics.total_resolved} resolved (Total: {metrics.total})
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
       )}
       {/* Company detail popover */}
       {companyPopover && (

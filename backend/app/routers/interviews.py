@@ -103,7 +103,7 @@ def _enrich_interview(interview: Interview) -> dict:
         "interview_doc_url": interview.interview_doc_url,
         "is_phone_call": interview.is_phone_call,
         "computed_status": computed_status_for_interview_display(
-            interview.status, interview.interview_date
+            interview.status, interview.interview_date, interview.created_at
         ),
         "created_at": interview.created_at,
         "updated_at": interview.updated_at,

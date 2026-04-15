@@ -1122,6 +1122,7 @@ export default function InterviewsPage() {
     Unresponsed: 0,
     Converted: 0,
     Rejected: 0,
+    Dead: 0,
   };
 
   filtered.forEach((i) => {
@@ -1130,6 +1131,7 @@ export default function InterviewsPage() {
     else if (label === "unresponsed") statusCounts.Unresponsed++;
     else if (label.includes("converted")) statusCounts.Converted++;
     else if (label.includes("rejected")) statusCounts.Rejected++;
+    else if (label === "dead") statusCounts.Dead++;
   });
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -1179,7 +1181,7 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      <StatsGrid cols={5}>
+      <StatsGrid cols={6}>
         <StatsCard
           title="Total interviews"
           value={interviews.length}
@@ -1197,6 +1199,12 @@ export default function InterviewsPage() {
           value={statusCounts.Unresponsed}
           icon={Clock}
           gradient={INTERVIEW_STATS_GRADIENT.unresponsed}
+        />
+        <StatsCard
+          title="Dead"
+          value={statusCounts.Dead}
+          icon={Ban}
+          gradient={INTERVIEW_STATS_GRADIENT.dead}
         />
         <StatsCard
           title="Rejected"

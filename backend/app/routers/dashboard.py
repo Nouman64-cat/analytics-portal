@@ -77,12 +77,12 @@ def get_dashboard_stats(
         total_candidates = session.exec(select(func.count(Candidate.id))).one()
 
     # Interviews by status with exact date intelligence
-    all_status_query = iv_where(select(Interview.status, Interview.interview_date))
+    all_status_query = iv_where(select(Interview.status, Interview.interview_date, Interview.created_at))
     all_statuses = session.exec(all_status_query).all()
 
     interviews_by_status_raw = {}
-    for status, int_date in all_statuses:
-        label = computed_status_for_interview_display(status, int_date)
+    for status, int_date, created_at_val in all_statuses:
+        label = computed_status_for_interview_display(status, int_date, created_at_val)
         interviews_by_status_raw[label] = interviews_by_status_raw.get(label, 0) + 1
 
     interviews_by_status = interviews_by_status_raw
@@ -140,7 +140,7 @@ def get_dashboard_stats(
     #   (that sum + leads rejected + leads dead). Dropped, unresponsive, etc. excluded.
     interview_rounds_converted = 0
     for i in scoped_iv:
-        disp = computed_status_for_interview_display(i.status, i.interview_date)
+        disp = computed_status_for_interview_display(i.status, i.interview_date, i.created_at)
         if "converted" in disp.lower():
             interview_rounds_converted += 1
 
@@ -174,31 +174,57 @@ def get_dashboard_stats(
     candidate_results = session.exec(candidate_query).all()
     interviews_by_candidate = {name: count for name, count in candidate_results}
 
-    # Candidates detailed metrics (resolved = converted vs rejected/dead only; dropped excluded)
-    candidate_interviews = session.exec(
-        iv_where(
-            select(Candidate.name, Interview.status, Interview.interview_date).join(
-                Interview, Interview.candidate_id == Candidate.id
-            )
-        )
+    # Candidates detailed metrics
+    # Success  = any interview round with Converted status OR the lead closed
+    # Failure  = lead rejected OR lead dead
+    # A thread counts at most once per candidate (use the best outcome across rounds)
+    candidate_thread_query = session.exec(
+        iv_where(select(Candidate.name, Interview.thread_id, Interview.status, Interview.interview_date, Interview.created_at)
+        .join(Interview, Interview.candidate_id == Candidate.id))
     ).all()
 
+    # Group by (candidate_name, thread_id): collect all round statuses in that thread for that candidate
+    from collections import defaultdict
+    cand_thread_rounds: dict[tuple, list] = defaultdict(list)
+    for row in candidate_thread_query:
+        c_name, thread_id, status, int_date, created_at = row
+        cand_thread_rounds[(c_name, str(thread_id) if thread_id else str(id(row)))].append(
+            (status, int_date, created_at)
+        )
+
     candidate_metrics = {}
-    for name, status, int_date in candidate_interviews:
-        if name not in candidate_metrics:
-            candidate_metrics[name] = {"total_resolved": 0, "converted": 0, "total": 0}
+    for (c_name, thread_id_str), rounds in cand_thread_rounds.items():
+        if c_name not in candidate_metrics:
+            candidate_metrics[c_name] = {"total_resolved": 0, "converted": 0, "total": 0}
 
-        candidate_metrics[name]["total"] += 1
+        # Each thread = one lead = one opportunity (count once toward total)
+        candidate_metrics[c_name]["total"] += 1
 
-        status_lower = (status or "").lower()
-        disp = computed_status_for_interview_display(status, int_date).lower()
-        success = "converted" in status_lower or "converted" in disp
-        failure = "rejected" in status_lower or "rejected" in disp or "dead" in disp
-        if success:
-            candidate_metrics[name]["converted"] += 1
-            candidate_metrics[name]["total_resolved"] += 1
-        elif failure:
-            candidate_metrics[name]["total_resolved"] += 1
+        # Check lead-level outcome for this thread (closed → success; dead/rejected → failure)
+        import uuid as _uuid
+        try:
+            tid_uuid = _uuid.UUID(thread_id_str)
+        except ValueError:
+            tid_uuid = None
+
+        lead_outcome = None
+        if tid_uuid:
+            lt = lead_map.get(tid_uuid)
+            eff = effective_lead_fields(session, tid_uuid, lt)
+            lead_outcome = (eff.get("lead_outcome") or "").lower()
+
+        # Interview-level: any round Converted counts as success
+        round_converted = any(
+            "converted" in computed_status_for_interview_display(s, d, c).lower()
+            for s, d, c in rounds
+        )
+
+        if lead_outcome == "closed" or round_converted:
+            candidate_metrics[c_name]["converted"] += 1
+            candidate_metrics[c_name]["total_resolved"] += 1
+        elif lead_outcome in ("dead", "rejected"):
+            candidate_metrics[c_name]["total_resolved"] += 1
+        # active/unresponsive/dropped/in_pipeline → unresolved, not counted
 
     for name, stats in candidate_metrics.items():
         rate = (
@@ -242,7 +268,7 @@ def get_dashboard_stats(
                 "date": str(i.interview_date) if i.interview_date else None,
                 "status": i.status,
                 "computed_status": computed_status_for_interview_display(
-                    i.status, i.interview_date
+                    i.status, i.interview_date, i.created_at
                 ),
                 "lead_status_label": eff["lead_status_label"],
                 "lead_outcome": eff["lead_outcome"],

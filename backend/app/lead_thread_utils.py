@@ -70,7 +70,7 @@ def _derive_lead_from_latest(session: Session, thread_id: uuid.UUID) -> dict[str
         }
 
     sanitized = sanitize_status_for_interview_compute(latest.status)
-    cs = compute_status(sanitized, latest.interview_date)
+    cs = compute_status(sanitized, latest.interview_date, latest.created_at)
     raw_lower = (latest.status or "").lower()
 
     if cs == "Unresponsed":
