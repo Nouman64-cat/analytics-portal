@@ -127,132 +127,8 @@ def _build_lead_list_item(
     )
 
 
-def _merge_leads_by_company(items: list[LeadListItem]) -> list[LeadListItem]:
-    """
-    One row per company: multiple legacy threads under the same company collapse to a single lead.
-    Canonical thread = latest activity (last_interview_date); names list distinct candidates.
-    """
-    if len(items) <= 1:
-        return items
-
-    by_company: dict[uuid.UUID, list[LeadListItem]] = {}
-    for it in items:
-        by_company.setdefault(it.company_id, []).append(it)
-
-    merged: list[LeadListItem] = []
-    for company_id, group in by_company.items():
-        if len(group) == 1:
-            merged.append(group[0])
-            continue
-
-        def activity_key(x: LeadListItem) -> tuple:
-            return (x.last_interview_date or date.min, x.thread_id)
-
-        group_sorted = sorted(group, key=activity_key, reverse=True)
-        canonical = group_sorted[0]
-        earliest = min(
-            group,
-            key=lambda x: (
-                x.first_interview_date or date.max,
-                str(x.first_interview_id or ""),
-            ),
-        )
-        total_count = sum(x.interview_count for x in group)
-
-        names: list[str] = []
-        seen: set[str] = set()
-        for x in group:
-            if x.candidate_name and x.candidate_name not in seen:
-                seen.add(x.candidate_name)
-                names.append(x.candidate_name)
-        cand_name_display = ", ".join(names) if names else None
-
-        cids = {x.candidate_id for x in group if x.candidate_id is not None}
-        merged_cid = next(iter(cids)) if len(cids) == 1 else None
-
-        first_dates = [x.first_interview_date for x in group if x.first_interview_date]
-        last_dates = [x.last_interview_date for x in group if x.last_interview_date]
-
-        merged.append(
-            LeadListItem(
-                thread_id=canonical.thread_id,
-                company_id=company_id,
-                company_name=canonical.company_name,
-                candidate_id=merged_cid,
-                candidate_name=cand_name_display,
-                resume_profile_id=earliest.resume_profile_id,
-                resume_profile_name=earliest.resume_profile_name,
-                primary_bd_id=canonical.primary_bd_id,
-                primary_bd_name=canonical.primary_bd_name,
-                interview_count=total_count,
-                first_interview_date=min(first_dates) if first_dates else None,
-                last_interview_date=max(last_dates) if last_dates else None,
-                first_interview_id=earliest.first_interview_id,
-                last_interview_id=canonical.last_interview_id,
-                primary_role=earliest.primary_role,
-                salary_range=earliest.salary_range,
-                last_round=canonical.last_round,
-                lead_outcome=canonical.lead_outcome,
-                lead_status_label=canonical.lead_status_label,
-                lead_source=canonical.lead_source,
-                lead_notes=canonical.lead_notes,
-            )
-        )
-
-    merged.sort(
-        key=lambda x: (x.last_interview_date or date.min, x.thread_id),
-        reverse=True,
-    )
-    return merged
 
 
-def _adjust_merged_leads_for_team_member(
-    session: Session,
-    current_user: User,
-    items: list[LeadListItem],
-    lead_map: dict[uuid.UUID, LeadThread],
-) -> list[LeadListItem]:
-    """
-    After company-level merge, team members must PATCH the lead thread they own for that company
-    (their latest interview row), not the canonical merged thread_id.
-    """
-    if current_user.role != UserRole.TEAM_MEMBER:
-        return items
-    cid = candidate_id_for_team_member(session, current_user)
-    if cid is None:
-        return items
-    out: list[LeadListItem] = []
-    for item in items:
-        rows = session.exec(
-            select(Interview).where(
-                Interview.company_id == item.company_id,
-                Interview.candidate_id == cid,
-            )
-        ).all()
-        if not rows:
-            out.append(item)
-            continue
-        latest = max(
-            rows,
-            key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min),
-        )
-        tid = latest.thread_id
-        lt = lead_map.get(tid)
-        if lt is None:
-            lt = session.get(LeadThread, tid)
-        eff = effective_lead_fields(session, tid, lt)
-        out.append(
-            item.model_copy(
-                update={
-                    "thread_id": tid,
-                    "lead_outcome": eff["lead_outcome"],
-                    "lead_status_label": eff["lead_status_label"],
-                    "lead_source": eff["lead_source"],
-                    "lead_notes": eff.get("lead_notes"),
-                }
-            )
-        )
-    return out
 
 
 def _lead_bucket(outcome: str) -> str:
@@ -408,7 +284,7 @@ def list_leads(
     ] = "last_activity_desc",
 ):
     """
-    One row per company (lead): all pipelines for the same company are merged into one list row.
+    One row per pipeline thread (lead): distinct opportunities for the same company are shown separately.
     Uses the same visibility rules as GET /interviews.
 
     Paginated (default 10 per page). Query params filter the merged list; `stats` reflects the full
@@ -486,13 +362,9 @@ def list_leads(
         key=lambda x: (x.last_interview_date or date.min, x.thread_id),
         reverse=True,
     )
-    merged = _merge_leads_by_company(out)
-    merged = _adjust_merged_leads_for_team_member(
-        session, current_user, merged, lead_map
-    )
 
     filtered = _filter_merged_leads(
-        merged,
+        out,
         search,
         status,
         bd_id,
@@ -536,14 +408,6 @@ def create_lead(
     if not session.get(Company, company_id):
         raise HTTPException(status_code=404, detail="Company not found")
 
-    existing = session.exec(
-        select(Interview.id).where(Interview.company_id == company_id).limit(1)
-    ).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A lead already exists for this company. Add interview rounds from the Interviews page.",
-        )
 
     if not session.get(ResumeProfile, resume_profile_id):
         raise HTTPException(status_code=404, detail="Resume profile not found")

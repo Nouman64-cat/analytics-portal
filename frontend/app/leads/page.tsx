@@ -487,7 +487,7 @@ export default function LeadsPage() {
         title="Leads"
         subtitle={
           canMutateLeads
-            ? "One row per company (one lead). Add a lead once per company, then add interview rounds on the Interviews page."
+            ? "Create multiple leads per company for different candidates or profiles. Each row represents a distinct pipeline thread."
             : "View opportunities by company. Creating and editing leads is limited to superadmin and team members."
         }
         action={
