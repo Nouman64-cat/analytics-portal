@@ -2337,7 +2337,7 @@ export default function InterviewsPage() {
                   threadId={detailModal.thread_id}
                   interview={detailModal}
                   fetchData={fetchData}
-                  readOnly={!canEditLeadThreadPanel}
+                  readOnly={true}
                   onUpdateDetail={(patch) =>
                     setDetailModal((prev) => (prev ? { ...prev, ...patch } : null))
                   }
