@@ -1184,7 +1184,7 @@ export default function InterviewsPage() {
       <StatsGrid cols={6}>
         <StatsCard
           title="Total interviews"
-          value={interviews.length}
+          value={filtered.length}
           icon={List}
           gradient={INTERVIEW_STATS_GRADIENT.total}
         />
