@@ -22,6 +22,8 @@ class LeadCreate(BaseModel):
         description="Who entertains this lead (BD relationship); per-round candidates are set on interviews.",
     )
     notes: Optional[str] = Field(default=None, description="Stored on the lead thread")
+    arrived_on: Optional[date] = Field(default=None, description="When the lead was received (sets interview_date on initial round)")
+
 
 
 class LeadUpdate(BaseModel):
@@ -36,6 +38,8 @@ class LeadUpdate(BaseModel):
         description="Who entertains this lead; omit or null to clear.",
     )
     notes: Optional[str] = None
+    arrived_on: Optional[date] = Field(None, description="Update the arrival date on the initial lead round")
+
 
 
 class LeadListItem(BaseModel):

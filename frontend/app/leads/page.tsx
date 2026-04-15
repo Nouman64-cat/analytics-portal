@@ -188,6 +188,7 @@ export default function LeadsPage() {
     bd_id: "",
     candidate_id: "",
     notes: "",
+    arrived_on: "",
   });
 
   const role = getUserRole();
@@ -357,6 +358,7 @@ export default function LeadsPage() {
       // Auto-select the team member's own candidate
       candidate_id: isTeamMember && meCandidateId ? meCandidateId : "",
       notes: "",
+      arrived_on: new Date().toISOString().split("T")[0],
     });
     setModalOpen(true);
   };
@@ -372,6 +374,7 @@ export default function LeadsPage() {
       bd_id: lead.primary_bd_id ?? "",
       candidate_id: lead.candidate_id ?? "",
       notes: lead.lead_notes ?? "",
+      arrived_on: lead.first_interview_date || "",
     });
     setModalOpen(true);
   };
@@ -408,6 +411,7 @@ export default function LeadsPage() {
           bd_id: form.bd_id || null,
           candidate_id: form.candidate_id?.trim() || null,
           notes: form.notes?.trim() || null,
+          arrived_on: form.arrived_on || null,
         };
         await leadsService.create(payload);
         resetLeadFormModal();
@@ -433,6 +437,7 @@ export default function LeadsPage() {
         bd_id: form.bd_id || null,
         candidate_id: form.candidate_id?.trim() || null,
         notes: form.notes?.trim() || null,
+        arrived_on: form.arrived_on || null,
       });
       resetLeadFormModal();
       await fetchData();
@@ -901,6 +906,17 @@ export default function LeadsPage() {
               onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
               className={inputClass}
               placeholder="e.g. Senior Software Engineer"
+              required
+            />
+          </FormField>
+          <FormField label="Lead arrived on">
+            <input
+              type="date"
+              value={form.arrived_on || ""}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, arrived_on: e.target.value }))
+              }
+              className={inputClass}
               required
             />
           </FormField>

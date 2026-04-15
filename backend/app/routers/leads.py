@@ -575,6 +575,7 @@ def create_lead(
         round="Lead",
         salary_range=sr,
         bd_id=bd_id,
+        interview_date=data.arrived_on,
     )
     session.add(interview)
     session.commit()
@@ -677,7 +678,10 @@ def update_lead(
     lt.updated_at = datetime.utcnow()
     session.add(lt)
 
+    if "arrived_on" in patch:
+        first.interview_date = patch["arrived_on"]
     if "resume_profile_id" in patch:
+
         rid = patch["resume_profile_id"]
         if rid is not None:
             if not session.get(ResumeProfile, rid):

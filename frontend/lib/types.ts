@@ -116,6 +116,7 @@ export interface LeadCreate {
   /** Who entertains this lead (BD); rounds can still use other candidates. */
   candidate_id?: string | null;
   notes?: string | null;
+  arrived_on?: string | null;
 }
 
 /** PATCH /api/v1/leads/{thread_id} — company cannot be changed. */
@@ -126,6 +127,7 @@ export interface LeadUpdate {
   bd_id?: string | null;
   candidate_id?: string | null;
   notes?: string | null;
+  arrived_on?: string | null;
 }
 
 /** GET /api/v1/leads/ — one row per pipeline thread (parent of interview rounds). */
