@@ -48,6 +48,12 @@ export default function InterviewsCalendar({
   interviews: Interview[];
   onSelectInterview: (interview: Interview) => void;
 }) {
+  function getCandidateInitials(name?: string | null): string {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
@@ -203,14 +209,32 @@ export default function InterviewsCalendar({
                       <button
                         type="button"
                         onClick={() => onSelectInterview(inv)}
-                        className="w-full rounded border border-slate-200/80 bg-slate-50 px-0.5 py-px text-left text-[8px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-0.5 sm:text-[10px]"
+                        className="group w-full rounded border border-slate-200/80 bg-slate-50 px-0.5 py-0.5 text-left text-[8px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-1 sm:text-[10px]"
                       >
-                        <span className="line-clamp-2 break-words sm:line-clamp-1">
-                          {inv.time_est
-                            ? formatTime(inv.time_est)
-                            : "—"}{" "}
-                          <span className="text-slate-600 dark:text-slate-300">
-                            {inv.company_name || "Company"}
+                        {/* Full-width horizontal bar: [initials · round] ··· [company · time] */}
+                        <span className="flex w-full items-center justify-between gap-1 min-w-0">
+                          {/* LEFT: initials + round */}
+                          <span className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+                            <span className="hidden sm:inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[8px] font-bold text-indigo-700 dark:text-indigo-300">
+                              {getCandidateInitials(inv.candidate_name)}
+                            </span>
+                            <span className="sm:hidden text-[7px] font-bold text-indigo-600 dark:text-indigo-400">
+                              {getCandidateInitials(inv.candidate_name)}
+                            </span>
+                            <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                              {inv.round}
+                            </span>
+                          </span>
+                          {/* RIGHT: company + time */}
+                          <span className="min-w-0 flex-1 text-right overflow-hidden">
+                            <span className="block truncate text-slate-600 dark:text-slate-300">
+                              {inv.company_name || "—"}
+                            </span>
+                            {inv.time_est && (
+                              <span className="hidden sm:block text-[8px] text-slate-400 dark:text-slate-500 tabular-nums">
+                                {formatTime(inv.time_est)}
+                              </span>
+                            )}
                           </span>
                         </span>
                       </button>
@@ -263,14 +287,25 @@ export default function InterviewsCalendar({
                     }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-900 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/80 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15"
                   >
-                    <div className="font-medium text-slate-900 dark:text-white">
-                      {inv.time_est ? formatTime(inv.time_est) : "—"}{" "}
-                      <span className="font-normal text-slate-600 dark:text-slate-300">
-                        {inv.company_name || "Company"}
+                    <div className="flex items-center gap-2">
+                      {/* Candidate initials */}
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                        {getCandidateInitials(inv.candidate_name)}
                       </span>
-                    </div>
-                    <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      {inv.candidate_name || "Candidate"} · {inv.role || "—"}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-slate-900 dark:text-white truncate">
+                          {inv.candidate_name || "Candidate"}
+                          <span className="ml-2 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                            {inv.round}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {inv.company_name || "Company"}
+                          {inv.time_est && (
+                            <span className="ml-2 tabular-nums">{formatTime(inv.time_est)} EST</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </button>
                 </li>
