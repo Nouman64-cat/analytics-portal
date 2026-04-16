@@ -120,15 +120,24 @@ def get_dashboard_stats(
     total_jobs_closed = 0
     leads_rejected = 0
     leads_dead = 0
+    leads_converted = 0
+    
     for _cid, rows in by_company.items():
         latest = max(
             rows,
             key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min),
         )
-        eff = effective_lead_fields(session, latest.thread_id, lead_map.get(latest.thread_id))
+        lt = lead_map.get(latest.thread_id)
+        eff = effective_lead_fields(session, latest.thread_id, lt)
         label = eff["lead_status_label"]
         leads_by_status[label] = leads_by_status.get(label, 0) + 1
+        
         lo = (eff.get("lead_outcome") or "").lower()
+        is_conv = eff.get("is_converted", False)
+        
+        if is_conv:
+            leads_converted += 1
+        
         if lo == "closed":
             total_jobs_closed += 1
         elif lo == "rejected":
@@ -136,15 +145,20 @@ def get_dashboard_stats(
         elif lo == "dead":
             leads_dead += 1
 
-    # Conversion rate: (converted interview rounds + closed leads) /
-    #   (that sum + leads rejected + leads dead). Dropped, unresponsive, etc. excluded.
-    interview_rounds_converted = 0
-    for i in scoped_iv:
-        disp = computed_status_for_interview_display(i.status, i.interview_date, i.created_at)
-        if "converted" in disp.lower():
-            interview_rounds_converted += 1
+    # Conversion rate: (Leads Converted OR Closed) / (Leads Converted OR Closed + Rejected + Dead)
+    # We use a set of success leads to avoid double counting if a lead is both 'converted' and 'closed'
+    # Actually, we can just use the leads_converted + (closed but not converted) logic,
+    # but more simply: Success is any lead that is_converted or has outcome 'closed'.
+    
+    success_leads = 0
+    for _cid, rows in by_company.items():
+        latest = max(rows, key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min))
+        lt = lead_map.get(latest.thread_id)
+        eff = effective_lead_fields(session, latest.thread_id, lt)
+        if eff.get("is_converted") or (eff.get("lead_outcome") or "").lower() == "closed":
+            success_leads += 1
 
-    conv_num = interview_rounds_converted + total_jobs_closed
+    conv_num = success_leads
     conv_den = conv_num + leads_rejected + leads_dead
     conversion_rate_percent = (
         round((conv_num / conv_den) * 100) if conv_den > 0 else 0
@@ -219,7 +233,7 @@ def get_dashboard_stats(
             for s, d, c in rounds
         )
 
-        if lead_outcome == "closed" or round_converted:
+        if eff.get("is_converted") or lead_outcome == "closed":
             candidate_metrics[c_name]["converted"] += 1
             candidate_metrics[c_name]["total_resolved"] += 1
         elif lead_outcome in ("dead", "rejected"):
@@ -294,7 +308,7 @@ def get_dashboard_stats(
         "recent_interviews": recent,
         "conversion_rate_percent": conversion_rate_percent,
         "conversion_stats": {
-            "converted_rounds": interview_rounds_converted,
+            "converted_leads": leads_converted,
             "closed_leads": total_jobs_closed,
             "rejected_leads": leads_rejected,
             "dead_leads": leads_dead,

@@ -224,9 +224,9 @@ export interface InterviewSummary {
 
 // ─── Dashboard ──────────────────────────────────────────────
 
-/** Dashboard conversion rate: (converted_rounds + closed_leads) / denominator; denominator adds only rejected + dead leads. */
+/** Dashboard conversion rate: (converted_leads + closed_leads) / denominator; denominator adds only rejected + dead leads. */
 export interface DashboardConversionStats {
-  converted_rounds: number;
+  converted_leads: number;
   closed_leads: number;
   rejected_leads: number;
   dead_leads: number;
