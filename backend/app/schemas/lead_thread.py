@@ -24,3 +24,4 @@ class LeadThreadUpdate(BaseModel):
     notes: Optional[str] = None
     clear_override: bool = False
     closed_at: Optional[datetime] = None
+    is_converted_override: Optional[bool] = None

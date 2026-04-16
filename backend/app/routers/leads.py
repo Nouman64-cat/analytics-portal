@@ -120,6 +120,8 @@ def _build_lead_list_item(
         primary_role=first.role,
         salary_range=first.salary_range,
         last_round=last_iv.round,
+        is_converted=eff.get("is_converted", False),
+        is_converted_override=lt.is_converted_override if lt else None,
         lead_outcome=eff["lead_outcome"],
         lead_status_label=eff["lead_status_label"],
         lead_source=eff["lead_source"],
@@ -213,7 +215,7 @@ def _sort_merged_leads(
 
 
 def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
-    pipeline = terminal = other = active = 0
+    pipeline = terminal = other = active = converted = 0
     rejected = dropped = closed = dead = 0
     for l in items:
         b = _lead_bucket(l.lead_outcome)
@@ -226,6 +228,10 @@ def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
         o = (l.lead_outcome or "").lower()
         if o == "active":
             active += 1
+        
+        if l.is_converted:
+            converted += 1
+
         if o == "rejected":
             rejected += 1
         elif o == "dropped":
@@ -238,6 +244,7 @@ def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
         total_leads=len(items),
         in_pipeline=pipeline,
         active=active,
+        converted=converted,
         terminal=terminal,
         other=other,
         rejected=rejected,
@@ -539,6 +546,8 @@ def update_lead(
         if cid is not None and not session.get(Candidate, cid):
             raise HTTPException(status_code=404, detail="Candidate not found")
         lt.entertaining_candidate_id = cid
+    if "is_converted_override" in patch:
+        lt.is_converted_override = patch["is_converted_override"]
     lt.updated_at = datetime.utcnow()
     session.add(lt)
 

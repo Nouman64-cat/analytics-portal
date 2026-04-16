@@ -95,6 +95,7 @@ export function getLeadOutcomeBadgeStyle(outcome: string | null | undefined): {
   if (o === "dropped") return STATUS_COLORS.dropped;
   if (o === "closed") return STATUS_COLORS.closed;
   if (o === "dead") return STATUS_COLORS.dead;
+  if (o === "converted") return STATUS_COLORS.converted;
   return {
     bg: "bg-slate-500/10",
     text: "text-slate-600 dark:text-slate-400",
@@ -126,6 +127,9 @@ export function getLeadOutcomeSelectShellClass(
   }
   if (o === "dead") {
     return `border-stone-500/40 bg-stone-500/[0.08] text-stone-900 dark:text-stone-200 ${f} focus:border-stone-500/55 focus:ring-stone-500/25`;
+  }
+  if (o === "converted") {
+    return `border-violet-500/45 bg-violet-500/[0.10] text-violet-950 dark:text-violet-100 ${f} focus:border-violet-500/55 focus:ring-violet-500/25`;
   }
   return `border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white ${f} focus:border-indigo-500/50 focus:ring-indigo-500/20`;
 }

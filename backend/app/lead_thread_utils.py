@@ -53,64 +53,51 @@ def load_lead_map(session: Session, thread_ids: set[uuid.UUID]) -> dict[uuid.UUI
     return {r.thread_id: r for r in rows}
 
 
-def _latest_interview_in_thread(session: Session, thread_id: uuid.UUID) -> Optional[Interview]:
-    rows = session.exec(select(Interview).where(Interview.thread_id == thread_id)).all()
+def _all_interviews_in_thread(session: Session, thread_id: uuid.UUID) -> list[Interview]:
+    return session.exec(select(Interview).where(Interview.thread_id == thread_id)).all()
+
+
+def _derive_lead_outcome(session: Session, thread_id: uuid.UUID) -> dict[str, Any]:
+    rows = _all_interviews_in_thread(session, thread_id)
     if not rows:
-        return None
-    return max(rows, key=lambda x: (x.interview_date or date.min, x.created_at))
-
-
-def _derive_lead_from_latest(session: Session, thread_id: uuid.UUID) -> dict[str, Any]:
-    latest = _latest_interview_in_thread(session, thread_id)
-    if not latest:
         return {
             "lead_outcome": "active",
             "lead_status_label": LEAD_STATUS_LABELS["active"],
             "lead_source": "derived",
         }
 
+    # ANY round converted -> is_converted = True
+    any_converted = False
+    for r in rows:
+        sanitized = sanitize_status_for_interview_compute(r.status)
+        cs = compute_status(sanitized, r.interview_date, r.created_at)
+        raw_lower = (r.status or "").lower()
+        if (cs and "converted" in cs.lower()) or "converted" in raw_lower:
+            any_converted = True
+            break
+
+    # Outcome derived from LATEST round
+    latest = max(rows, key=lambda x: (x.interview_date or date.min, x.created_at))
     sanitized = sanitize_status_for_interview_compute(latest.status)
     cs = compute_status(sanitized, latest.interview_date, latest.created_at)
     raw_lower = (latest.status or "").lower()
 
     if cs == "Unresponsed":
-        return {
-            "lead_outcome": "unresponsive",
-            "lead_status_label": LEAD_STATUS_LABELS["unresponsive"],
-            "lead_source": "derived",
-        }
-    if cs == "Dead":
-        return {
-            "lead_outcome": "dead",
-            "lead_status_label": LEAD_STATUS_LABELS["dead"],
-            "lead_source": "derived",
-        }
-    if cs == "Upcoming":
-        return {
-            "lead_outcome": "active",
-            "lead_status_label": LEAD_STATUS_LABELS["active"],
-            "lead_source": "derived",
-        }
-
-    # "Converted" is a round outcome only; the lead stays in pipeline until closed/rejected/etc.
-    if (cs and "converted" in cs.lower()) or "converted" in raw_lower:
-        return {
-            "lead_outcome": "in_pipeline",
-            "lead_status_label": LEAD_STATUS_LABELS["in_pipeline"],
-            "lead_source": "derived",
-        }
-    if "reject" in raw_lower or (cs and "reject" in cs.lower()):
-        return {
-            "lead_outcome": "rejected",
-            "lead_status_label": LEAD_STATUS_LABELS["rejected"],
-            "lead_source": "derived",
-        }
-    # dropped / closed / dead are lead-thread outcomes only (set on the lead, not interview.status)
+        outcome = "unresponsive"
+    elif cs == "Dead":
+        outcome = "dead"
+    elif "reject" in raw_lower or (cs and "reject" in cs.lower()):
+        outcome = "rejected"
+    elif cs == "Upcoming":
+        outcome = "active"
+    else:
+        outcome = "in_pipeline"
 
     return {
-        "lead_outcome": "in_pipeline",
-        "lead_status_label": cs if cs else LEAD_STATUS_LABELS["in_pipeline"],
+        "lead_outcome": outcome,
+        "lead_status_label": LEAD_STATUS_LABELS.get(outcome, cs or outcome.title()),
         "lead_source": "derived",
+        "is_converted": any_converted,
     }
 
 
@@ -126,24 +113,34 @@ def effective_lead_fields(
         notes = lead_row.notes
         closed_at = lead_row.closed_at
 
+    # Determine outcome
+    res = {}
     override = (lead_row.outcome_override or "").strip().lower() if lead_row else ""
-    if override == "converted":
-        override = ""
     if override and override in ALLOWED_LEAD_OUTCOMES:
-        return {
+        res = {
             "lead_outcome": override,
             "lead_status_label": LEAD_STATUS_LABELS.get(
                 override, override.replace("_", " ").title()
             ),
             "lead_source": "explicit",
-            "lead_notes": notes,
-            "lead_closed_at": closed_at,
         }
+    else:
+        res = _derive_lead_outcome(session, thread_id)
 
-    derived = _derive_lead_from_latest(session, thread_id)
-    derived["lead_notes"] = notes
-    derived["lead_closed_at"] = closed_at
-    return derived
+    # Attach common fields
+    res["lead_notes"] = notes
+    res["lead_closed_at"] = closed_at
+    
+    # Always include/apply conversion status
+    if lead_row and lead_row.is_converted_override is not None:
+        res["is_converted"] = lead_row.is_converted_override
+    else:
+        # If not overridden, we might still need to derive it if 'res' came from explicit override
+        if "is_converted" not in res:
+            derived = _derive_lead_outcome(session, thread_id)
+            res["is_converted"] = derived.get("is_converted", False)
+        
+    return res
 
 
 def is_lead_terminal_outcome(outcome: str) -> bool:

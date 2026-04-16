@@ -24,6 +24,7 @@ import {
   Eye,
   Pencil,
   Trash2,
+  Check,
 } from "lucide-react";
 import {
   leadsService,
@@ -134,6 +135,7 @@ const EMPTY_STATS: LeadListStats = {
   total_leads: 0,
   in_pipeline: 0,
   active: 0,
+  converted: 0,
   terminal: 0,
   other: 0,
   rejected: 0,
@@ -189,9 +191,11 @@ export default function LeadsPage() {
     candidate_id: "",
     notes: "",
     arrived_on: "",
+    is_converted_override: null,
   });
 
   const role = getUserRole();
+  const isSuperAdmin = role === "superadmin";
   const isTeamMember = role === "team-member";
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
@@ -305,6 +309,28 @@ export default function LeadsPage() {
     ],
   );
 
+  const handleToggleConversion = async (lead: LeadListItem) => {
+    if (!isSuperAdmin) return;
+    setSavingLeadThreadId(lead.thread_id);
+    try {
+      // Toggle logic: If NO (derived or forced), cycle to Force YES. 
+      // Actually, let's keep it simple: 
+      // If currently true, force false. If currently false, force true.
+      // For a more advanced cycle (Auto -> Yes -> No -> Auto), 
+      // we'd need to store the override state in the list item.
+      // Since LeadListItem only has the final 'is_converted' boolean,
+      // we'll just toggle it.
+      await leadsService.update(lead.thread_id, {
+        is_converted_override: !lead.is_converted,
+      });
+      await fetchData();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to update conversion status");
+    } finally {
+      setSavingLeadThreadId(null);
+    }
+  };
+
   const displayStats = stats ?? EMPTY_STATS;
 
   const resetFilters = useCallback(() => {
@@ -375,6 +401,7 @@ export default function LeadsPage() {
       candidate_id: lead.candidate_id ?? "",
       notes: lead.lead_notes ?? "",
       arrived_on: lead.first_interview_date || "",
+      is_converted_override: lead.is_converted_override ?? null,
     });
     setModalOpen(true);
   };
@@ -424,7 +451,8 @@ export default function LeadsPage() {
       return;
     }
 
-    if (!editingThreadId || !form.resume_profile_id || !form.role.trim()) {
+    if (!editingThreadId) return;
+    if (!form.resume_profile_id || !form.role.trim()) {
       alert("Resume profile and role are required.");
       return;
     }
@@ -438,6 +466,7 @@ export default function LeadsPage() {
         candidate_id: form.candidate_id?.trim() || null,
         notes: form.notes?.trim() || null,
         arrived_on: form.arrived_on || null,
+        is_converted_override: isSuperAdmin ? form.is_converted_override : undefined,
       });
       resetLeadFormModal();
       await fetchData();
@@ -522,10 +551,10 @@ export default function LeadsPage() {
           gradient={LEAD_STAT_CARD_GRADIENT.total}
         />
         <StatsCard
-          title="Active"
-          value={displayStats.active}
+          title="Leads Converted"
+          value={displayStats.converted}
           icon={Activity}
-          gradient={LEAD_STAT_CARD_GRADIENT.active}
+          gradient={LEAD_STAT_CARD_GRADIENT.converted}
         />
         <StatsCard
           title="Rejected"
@@ -691,6 +720,7 @@ export default function LeadsPage() {
                   <th className="py-3 pr-4 font-medium">Status</th>
                   <th className="py-3 pr-4 font-medium">Entertains</th>
                   <th className="py-3 pr-4 font-medium">BD</th>
+                  <th className="py-3 pr-4 font-medium">Conv.</th>
                   <th className="py-3 pr-4 font-medium">Rounds</th>
                   <th className="py-3 pr-4 font-medium">Last activity</th>
                   <th className="py-3 text-center font-medium">Interviews</th>
@@ -748,6 +778,39 @@ export default function LeadsPage() {
                     </td>
                     <td className="py-3 pr-4 text-slate-800 dark:text-slate-200">
                       {l.primary_bd_name ?? "—"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {isSuperAdmin ? (
+                        <button
+                          onClick={() => void handleToggleConversion(l)}
+                          disabled={savingLeadThreadId === l.thread_id}
+                          className="group relative flex items-center justify-center transition-opacity hover:opacity-80 disabled:opacity-50"
+                          title="Click to toggle conversion override"
+                        >
+                          {l.is_converted ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/20">
+                              <Check size={10} className="shrink-0" />
+                              YES
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-white/5 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-white/10">
+                              <Ban size={10} className="shrink-0" />
+                              NO
+                            </span>
+                          )}
+                        </button>
+                      ) : (
+                        l.is_converted ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+                            <Check size={10} className="shrink-0" />
+                            YES
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-600">
+                            NO
+                          </span>
+                        )
+                      )}
                     </td>
                     <td className="py-3 pr-4 tabular-nums text-slate-700 dark:text-slate-300">
                       {l.interview_count}
@@ -983,6 +1046,25 @@ export default function LeadsPage() {
               </select>
             )}
           </FormField>
+          {isSuperAdmin && modalMode === "edit" && (
+            <FormField label="Conversion Override (Superadmin)">
+              <select
+                value={form.is_converted_override === null ? "auto" : form.is_converted_override ? "true" : "false"}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    is_converted_override: val === "auto" ? null : val === "true"
+                  }));
+                }}
+                className={selectClass}
+              >
+                <option value="auto">Auto (Derived from interviews)</option>
+                <option value="true">Force YES (Converted)</option>
+                <option value="false">Force NO (Not Converted)</option>
+              </select>
+            </FormField>
+          )}
           <div className="sm:col-span-2">
             <FormField label="Notes (optional)">
               <textarea

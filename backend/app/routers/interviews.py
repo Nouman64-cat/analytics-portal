@@ -371,10 +371,15 @@ def patch_lead_thread_status(
                 row.unresponsive_since = None
 
     if data.notes is not None:
-        row.notes = data.notes
-    dump = data.model_dump(exclude_unset=True)
-    if "closed_at" in dump:
+        row.notes = (data.notes.strip() if data.notes.strip() else None) or None
+
+    if data.closed_at is not None:
         row.closed_at = data.closed_at
+
+    if data.is_converted_override is not None:
+        row.is_converted_override = data.is_converted_override
+    elif data.clear_override:
+        row.is_converted_override = None
 
     row.updated_at = datetime.utcnow()
     session.add(row)

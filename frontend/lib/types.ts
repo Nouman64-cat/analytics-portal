@@ -104,6 +104,7 @@ export interface LeadThreadUpdate {
   notes?: string | null;
   clear_override?: boolean;
   closed_at?: string | null;
+  is_converted_override?: boolean | null;
 }
 
 /** POST /api/v1/leads/ */
@@ -117,6 +118,7 @@ export interface LeadCreate {
   candidate_id?: string | null;
   notes?: string | null;
   arrived_on?: string | null;
+  is_converted_override?: boolean | null;
 }
 
 /** PATCH /api/v1/leads/{thread_id} — company cannot be changed. */
@@ -128,6 +130,7 @@ export interface LeadUpdate {
   candidate_id?: string | null;
   notes?: string | null;
   arrived_on?: string | null;
+  is_converted_override?: boolean | null;
 }
 
 /** GET /api/v1/leads/ — one row per pipeline thread (parent of interview rounds). */
@@ -153,6 +156,8 @@ export interface LeadListItem {
   salary_range: string | null;
   /** Round label on the latest step. */
   last_round: string | null;
+  is_converted: boolean;
+  is_converted_override: boolean | null;
   lead_outcome: string;
   lead_status_label: string;
   lead_source: string;
@@ -165,6 +170,7 @@ export interface LeadListStats {
   in_pipeline: number;
   /** `lead_outcome === "active"` (subset of in_pipeline-style outcomes). */
   active: number;
+  converted: number;
   terminal: number;
   other: number;
   rejected: number;

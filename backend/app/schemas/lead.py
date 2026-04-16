@@ -39,6 +39,7 @@ class LeadUpdate(BaseModel):
     )
     notes: Optional[str] = None
     arrived_on: Optional[date] = Field(None, description="Update the arrival date on the initial lead round")
+    is_converted_override: Optional[bool] = None
 
 
 
@@ -83,6 +84,8 @@ class LeadListItem(BaseModel):
         default=None,
         description="Round label on the latest step (for suggesting the next round).",
     )
+    is_converted: bool = Field(default=False, description="Whether any round was converted.")
+    is_converted_override: Optional[bool] = Field(default=None)
     lead_outcome: str = ""
     lead_status_label: str = ""
     lead_source: str = "derived"
@@ -95,6 +98,7 @@ class LeadListStats(BaseModel):
     total_leads: int
     in_pipeline: int
     active: int
+    converted: int
     terminal: int
     other: int
     rejected: int

@@ -87,6 +87,15 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.lead_threads "
+                    f"ADD COLUMN IF NOT EXISTS is_converted_override BOOLEAN"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

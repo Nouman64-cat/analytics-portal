@@ -66,6 +66,7 @@ export const LEAD_STAT_CARD_GRADIENT = {
   total: "bg-gradient-to-br from-indigo-500 to-violet-600",
   /** In play: active / in_pipeline — distinct from success (closed). */
   active: "bg-gradient-to-br from-blue-500 to-cyan-600",
+  converted: "bg-gradient-to-br from-violet-500 to-fuchsia-600",
   rejected: "bg-gradient-to-br from-rose-500 to-red-700",
   dropped: "bg-gradient-to-br from-amber-500 to-orange-600",
   /** Success */

@@ -96,6 +96,8 @@ def migrate():
              "Migration successful! Index on activity_logs.entity_id ensured."),
             ("CREATE INDEX IF NOT EXISTS ix_activity_logs_created_at ON activity_logs (created_at);",
              "Migration successful! Index on activity_logs.created_at ensured."),
+            ("ALTER TABLE lead_threads ADD COLUMN IF NOT EXISTS is_converted_override BOOLEAN;",
+             "Migration successful! 'is_converted_override' column added to 'lead_threads' table."),
         ]
         for sql, msg in migrations:
             try:

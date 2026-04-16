@@ -18,6 +18,8 @@ class LeadThread(SQLModel, table=True):
     )
     # When set, overrides derived status from the latest interview in the thread.
     outcome_override: Optional[str] = Field(default=None, max_length=100)
+    # Manual override for the Converted column (Auto/True/False).
+    is_converted_override: Optional[bool] = Field(default=None)
     notes: Optional[str] = Field(default=None)
     closed_at: Optional[datetime] = Field(default=None)
     #: Set when `outcome_override` becomes `unresponsive`; used to auto-mark dead after 30 days.
