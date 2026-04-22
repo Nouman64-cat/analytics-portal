@@ -121,7 +121,9 @@ def get_dashboard_stats(
     leads_rejected = 0
     leads_dead = 0
     leads_converted = 0
-    
+    success_leads = 0          # is_converted OR closed
+    failure_leads = 0          # rejected OR dead AND NOT is_converted (pure failures)
+
     for _cid, rows in by_company.items():
         latest = max(
             rows,
@@ -131,13 +133,13 @@ def get_dashboard_stats(
         eff = effective_lead_fields(session, latest.thread_id, lt)
         label = eff["lead_status_label"]
         leads_by_status[label] = leads_by_status.get(label, 0) + 1
-        
+
         lo = (eff.get("lead_outcome") or "").lower()
         is_conv = eff.get("is_converted", False)
-        
+
         if is_conv:
             leads_converted += 1
-        
+
         if lo == "closed":
             total_jobs_closed += 1
         elif lo == "rejected":
@@ -145,21 +147,21 @@ def get_dashboard_stats(
         elif lo == "dead":
             leads_dead += 1
 
-    # Conversion rate: (Leads Converted OR Closed) / (Leads Converted OR Closed + Rejected + Dead)
-    # We use a set of success leads to avoid double counting if a lead is both 'converted' and 'closed'
-    # Actually, we can just use the leads_converted + (closed but not converted) logic,
-    # but more simply: Success is any lead that is_converted or has outcome 'closed'.
-    
-    success_leads = 0
-    for _cid, rows in by_company.items():
-        latest = max(rows, key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min))
-        lt = lead_map.get(latest.thread_id)
-        eff = effective_lead_fields(session, latest.thread_id, lt)
-        if eff.get("is_converted") or (eff.get("lead_outcome") or "").lower() == "closed":
+        # --- Conversion rate counters ---
+        # A lead is a success if any round was converted OR lead explicitly closed.
+        # A lead is a pure failure only if it ended rejected/dead WITHOUT any conversion.
+        # This prevents double-counting: a lead that has a converted round AND was later
+        # rejected/dead still counts as ONE success, not success + failure.
+        if is_conv or lo == "closed":
             success_leads += 1
+        elif lo in ("rejected", "dead"):
+            failure_leads += 1
+        # Active / in_pipeline / dropped leads are unresolved → excluded from both
 
+    # Conversion rate = successes / (successes + pure-failures)
+    # Only terminal leads participate. Active / in-pipeline leads are pending.
     conv_num = success_leads
-    conv_den = conv_num + leads_rejected + leads_dead
+    conv_den = success_leads + failure_leads
     conversion_rate_percent = (
         round((conv_num / conv_den) * 100) if conv_den > 0 else 0
     )
@@ -312,6 +314,8 @@ def get_dashboard_stats(
             "closed_leads": total_jobs_closed,
             "rejected_leads": leads_rejected,
             "dead_leads": leads_dead,
+            "success_leads": success_leads,
+            "failure_leads": failure_leads,
             "denominator": conv_den,
         },
     }
