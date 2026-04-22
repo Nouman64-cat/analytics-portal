@@ -224,18 +224,22 @@ def get_dashboard_stats(
             tid_uuid = None
 
         lead_outcome = None
+        is_conv = False
+
         if tid_uuid:
             lt = lead_map.get(tid_uuid)
             eff = effective_lead_fields(session, tid_uuid, lt)
             lead_outcome = (eff.get("lead_outcome") or "").lower()
-
-        # Interview-level: any round Converted counts as success
+            is_conv = eff.get("is_converted", False)
+        
+        # Fallback to round_converted if eff is not available or doesn't have it
         round_converted = any(
             "converted" in computed_status_for_interview_display(s, d, c).lower()
             for s, d, c in rounds
         )
+        is_conv = is_conv or round_converted
 
-        if eff.get("is_converted") or lead_outcome == "closed":
+        if is_conv or lead_outcome == "closed":
             candidate_metrics[c_name]["converted"] += 1
             candidate_metrics[c_name]["total_resolved"] += 1
         elif lead_outcome in ("dead", "rejected"):
