@@ -1,3 +1,5 @@
+import uuid
+from collections import defaultdict
 from datetime import date, datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import joinedload
@@ -107,35 +109,60 @@ def get_dashboard_stats(
         leads_frequency_weekly[weekly_key] = leads_frequency_weekly.get(weekly_key, 0) + 1
         leads_frequency_monthly[monthly_key] = leads_frequency_monthly.get(monthly_key, 0) + 1
 
-    # One lead per company: count distinct companies; status from canonical thread (latest activity)
+    # One lead per thread: status from canonical thread (latest activity)
     scoped_iv = session.exec(iv_where(select(Interview))).all()
-    distinct_threads = {i.thread_id for i in scoped_iv if i.thread_id}
-    lead_map = load_lead_map(session, distinct_threads)
-    by_company: dict = {}
+    distinct_thread_ids = {i.thread_id for i in scoped_iv if i.thread_id}
+    lead_map = load_lead_map(session, distinct_thread_ids)
+    
+    # Group interviews by thread_id (fallback to round ID if no thread assigned)
+    by_thread = defaultdict(list)
     for i in scoped_iv:
-        by_company.setdefault(i.company_id, []).append(i)
-    total_leads = len(by_company)
+        tid = i.thread_id or i.id
+        by_thread[tid].append(i)
+    
+    total_leads = len(by_thread)
     leads_by_status: dict[str, int] = {}
-    # Align with Leads page: "closed" is a lead-thread outcome, not interview.status
+    
     total_jobs_closed = 0
     leads_rejected = 0
     leads_dead = 0
     leads_converted = 0
     success_leads = 0          # is_converted OR closed
-    failure_leads = 0          # rejected OR dead AND NOT is_converted (pure failures)
-
-    for _cid, rows in by_company.items():
+    failure_leads = 0          # rejected OR dead OR unresponsive OR dropped AND NOT is_converted
+    
+    for tid, rows in by_thread.items():
+        # Use latest round in thread to determine lead status label
         latest = max(
             rows,
             key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min),
         )
-        lt = lead_map.get(latest.thread_id)
-        eff = effective_lead_fields(session, latest.thread_id, lt)
-        label = eff["lead_status_label"]
-        leads_by_status[label] = leads_by_status.get(label, 0) + 1
+        
+        # Determine outcome and conversion status
+        is_conv = False
+        lo = None
+        label = "Unknown"
+        
+        # If it's a real thread (UUID), get effective lead fields
+        if isinstance(tid, uuid.UUID) and tid in distinct_thread_ids:
+            lt = lead_map.get(tid)
+            eff = effective_lead_fields(session, tid, lt)
+            label = eff["lead_status_label"]
+            lo = (eff.get("lead_outcome") or "").lower()
+            is_conv = eff.get("is_converted", False)
+        
+        # Double check round-level conversion in the whole thread (aggressive)
+        round_converted = any(
+            "converted" in computed_status_for_interview_display(r.status, r.interview_date, r.created_at).lower()
+            for r in rows
+        )
+        is_conv = is_conv or round_converted
+        
+        # Fallback for label if it was a pseudo-thread or couldn't be derived
+        if label == "Unknown" or not lo:
+            label = computed_status_for_interview_display(latest.status, latest.interview_date, latest.created_at)
+            lo = label.lower()
 
-        lo = (eff.get("lead_outcome") or "").lower()
-        is_conv = eff.get("is_converted", False)
+        leads_by_status[label] = leads_by_status.get(label, 0) + 1
 
         if is_conv:
             leads_converted += 1
@@ -148,15 +175,12 @@ def get_dashboard_stats(
             leads_dead += 1
 
         # --- Conversion rate counters ---
-        # A lead is a success if any round was converted OR lead explicitly closed.
-        # A lead is a pure failure only if it ended rejected/dead WITHOUT any conversion.
-        # This prevents double-counting: a lead that has a converted round AND was later
-        # rejected/dead still counts as ONE success, not success + failure.
+        # Lead is a success if converted OR explicitly closed.
         if is_conv or lo == "closed":
             success_leads += 1
-        elif lo in ("rejected", "dead"):
+        elif lo in ("rejected", "dead", "unresponsive", "dropped", "unresponsed"):
             failure_leads += 1
-        # Active / in_pipeline / dropped leads are unresolved → excluded from both
+        # Active / in_pipeline are unresolved → excluded from both
 
     # Conversion rate = successes / (successes + pure-failures)
     # Only terminal leads participate. Active / in-pipeline leads are pending.
@@ -200,7 +224,6 @@ def get_dashboard_stats(
     ).all()
 
     # Group by (candidate_name, thread_id): collect all round statuses in that thread for that candidate
-    from collections import defaultdict
     cand_thread_rounds: dict[tuple, list] = defaultdict(list)
     for row in candidate_thread_query:
         c_name, thread_id, status, int_date, created_at = row
@@ -217,10 +240,9 @@ def get_dashboard_stats(
         candidate_metrics[c_name]["total"] += 1
 
         # Check lead-level outcome for this thread (closed → success; dead/rejected → failure)
-        import uuid as _uuid
         try:
-            tid_uuid = _uuid.UUID(thread_id_str)
-        except ValueError:
+            tid_uuid = uuid.UUID(thread_id_str)
+        except (ValueError, AttributeError):
             tid_uuid = None
 
         lead_outcome = None
@@ -239,10 +261,15 @@ def get_dashboard_stats(
         )
         is_conv = is_conv or round_converted
 
+        # If lead_outcome is still None (e.g. no thread), derive loosely from latest round
+        if not lead_outcome:
+            latest_status = rounds[-1][0] # Simplified fallback
+            lead_outcome = (latest_status or "").lower()
+
         if is_conv or lead_outcome == "closed":
             candidate_metrics[c_name]["converted"] += 1
             candidate_metrics[c_name]["total_resolved"] += 1
-        elif lead_outcome in ("dead", "rejected"):
+        elif lead_outcome in ("dead", "rejected", "unresponsive", "dropped", "unresponsed"):
             candidate_metrics[c_name]["total_resolved"] += 1
         # active/unresponsive/dropped/in_pipeline → unresolved, not counted
 
