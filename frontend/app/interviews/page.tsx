@@ -47,6 +47,7 @@ import {
   collectDescendantInterviewIds,
   getLeadOutcomeBadgeStyle,
   getLeadOutcomeSelectShellClass,
+  getTodayEst,
 } from "@/lib/utils";
 import { INTERVIEW_STATS_GRADIENT } from "@/lib/constants";
 import type {
@@ -325,14 +326,9 @@ export default function InterviewsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
-  const [filters, setFilters] = useState({
-    status: "All",
-    company_id: "All",
-    candidate_id: "All",
-    resume_profile_id: "All",
-    round: "All",
     bd_id: "All",
     month: "All",
+    is_today: false,
   });
 
   const availableMonths = useMemo(() => {
@@ -1069,6 +1065,15 @@ export default function InterviewsPage() {
       }
     }
 
+    let matchToday = true;
+    if (filters.is_today) {
+      if (!i.interview_date) {
+        matchToday = false;
+      } else {
+        matchToday = i.interview_date === getTodayEst();
+      }
+    }
+
     return (
       matchSearch &&
       matchCompany &&
@@ -1077,7 +1082,8 @@ export default function InterviewsPage() {
       matchRound &&
       matchBd &&
       matchStatus &&
-      matchMonth
+      matchMonth &&
+      matchToday
     );
   });
 
@@ -1331,14 +1337,6 @@ export default function InterviewsPage() {
               ))}
             </select>
 
-            <select
-              value={filters.month}
-              onChange={(e) =>
-                setFilters({ ...filters, month: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
-            >
-              <option value="All">All Months</option>
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -1346,13 +1344,27 @@ export default function InterviewsPage() {
               ))}
             </select>
 
+            <button
+              onClick={() =>
+                setFilters({ ...filters, is_today: !filters.is_today })
+              }
+              className={`rounded-xl border px-3 py-2 text-xs font-medium transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500/20 cursor-pointer ${
+                filters.is_today
+                  ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
+                  : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
+              }`}
+            >
+              Today
+            </button>
+
             {(filters.status !== "All" ||
               filters.company_id !== "All" ||
               filters.candidate_id !== "All" ||
               filters.resume_profile_id !== "All" ||
               filters.round !== "All" ||
               filters.bd_id !== "All" ||
-              filters.month !== "All") && (
+              filters.month !== "All" ||
+              filters.is_today) && (
               <button
                 onClick={() =>
                   setFilters({
@@ -1363,6 +1375,7 @@ export default function InterviewsPage() {
                     round: "All",
                     bd_id: "All",
                     month: "All",
+                    is_today: false,
                   })
                 }
                 className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"

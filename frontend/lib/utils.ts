@@ -56,6 +56,13 @@ export function formatInterviewDateEst(
 }
 
 /**
+ * Returns today's date in YYYY-MM-DD format in US Eastern time.
+ */
+export function getTodayEst(): string {
+  return formatInTimeZone(new Date(), INTERVIEW_SCHEDULE_TZ, "yyyy-MM-dd");
+}
+
+/**
  * Format a time string (HH:MM:SS) to 12-hour format.
  */
 export function formatTime(timeStr: string | null | undefined): string {
