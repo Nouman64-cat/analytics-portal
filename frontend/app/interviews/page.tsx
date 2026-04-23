@@ -325,7 +325,12 @@ export default function InterviewsPage() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
-
+  const [filters, setFilters] = useState({
+    status: "All",
+    company_id: "All",
+    candidate_id: "All",
+    resume_profile_id: "All",
+    round: "All",
     bd_id: "All",
     month: "All",
     is_today: false,
@@ -1337,6 +1342,14 @@ export default function InterviewsPage() {
               ))}
             </select>
 
+            <select
+              value={filters.month}
+              onChange={(e) =>
+                setFilters({ ...filters, month: e.target.value })
+              }
+              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
+            >
+              <option value="All">All Months</option>
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
                   {m}
