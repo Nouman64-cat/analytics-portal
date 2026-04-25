@@ -12,7 +12,7 @@ from app.database import create_db_and_tables
 from app.reminder_worker import run_reminder_worker
 
 # Import all models so SQLModel registers them
-from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread  # noqa: F401
+from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay  # noqa: F401
 
 from app.routers import (
     candidates,
@@ -26,6 +26,7 @@ from app.routers import (
     activities,
     users,
     backup,
+    busy_days,
 )
 
 settings = get_settings()
@@ -96,6 +97,7 @@ app.include_router(activities.router)
 app.include_router(dashboard.router)
 app.include_router(users.router)
 app.include_router(backup.router)
+app.include_router(busy_days.router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])

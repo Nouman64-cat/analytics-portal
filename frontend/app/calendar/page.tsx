@@ -8,13 +8,14 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { interviewsService } from "@/lib/services";
-import type { Interview } from "@/lib/types";
+import { interviewsService, busyDaysService } from "@/lib/services";
+import type { Interview, BusyDay } from "@/lib/types";
 import {
   formatInterviewDateEst,
   formatTime,
   truncate,
 } from "@/lib/utils";
+import { getUserRole, getUserId } from "@/lib/auth";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
 import Modal, { buttonPrimary, buttonSecondary } from "@/components/Modal";
 import StatusBadge from "@/components/StatusBadge";
@@ -41,30 +42,64 @@ function PreviewField({
   );
 }
 
+/** Parse YYYY-MM-DD as a local-timezone date (avoids UTC midnight off-by-one). */
+function parseDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatDayTitle(iso: string): string {
+  return parseDateLocal(iso).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+const CAN_MARK_BUSY_ROLES = new Set(["superadmin", "team-member"]);
+
 export default function CalendarPage() {
   const router = useRouter();
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [busyDays, setBusyDays] = useState<BusyDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [preview, setPreview] = useState<Interview | null>(null);
+
+  // Busy day modal state
+  const [dayModal, setDayModal] = useState<{ date: string } | null>(null);
+  const [busyReason, setBusyReason] = useState("");
+  const [busyLoading, setBusyLoading] = useState(false);
+  const [busyError, setBusyError] = useState<string | null>(null);
+
+  const role = getUserRole();
+  const currentUserId = getUserId();
+  const canMarkBusy = role !== null && CAN_MARK_BUSY_ROLES.has(role);
+  const isSuperadmin = role === "superadmin";
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await interviewsService.list();
-      setInterviews(data);
+      const [interviewData, busyData] = await Promise.all([
+        interviewsService.list(),
+        busyDaysService.list(),
+      ]);
+      setInterviews(interviewData);
+      setBusyDays(busyData);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to load interviews",
+        err instanceof Error ? err.message : "Failed to load calendar data",
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canMarkBusy]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   const openInterviewPreview = useCallback((interview: Interview) => {
@@ -78,6 +113,48 @@ export default function CalendarPage() {
     router.push(`/interviews?id=${id}`);
   }, [preview, router]);
 
+  const openDayModal = useCallback((date: string) => {
+    setBusyReason("");
+    setBusyError(null);
+    setDayModal({ date });
+  }, []);
+
+  const closeDayModal = useCallback(() => {
+    setDayModal(null);
+    setBusyReason("");
+    setBusyError(null);
+  }, []);
+
+  const handleMarkBusy = useCallback(async (date: string) => {
+    setBusyLoading(true);
+    setBusyError(null);
+    try {
+      const created = await busyDaysService.create({
+        date,
+        reason: busyReason.trim() || null,
+      });
+      setBusyDays((prev) => [...prev, created]);
+      setBusyReason("");
+    } catch (err) {
+      setBusyError(err instanceof Error ? err.message : "Failed to mark busy");
+    } finally {
+      setBusyLoading(false);
+    }
+  }, [busyReason]);
+
+  const handleRemoveBusy = useCallback(async (id: string) => {
+    setBusyLoading(true);
+    setBusyError(null);
+    try {
+      await busyDaysService.delete(id);
+      setBusyDays((prev) => prev.filter((b) => b.id !== id));
+    } catch (err) {
+      setBusyError(err instanceof Error ? err.message : "Failed to remove busy marker");
+    } finally {
+      setBusyLoading(false);
+    }
+  }, []);
+
   if (loading) return <PageLoader />;
   if (error) {
     return (
@@ -85,17 +162,31 @@ export default function CalendarPage() {
     );
   }
 
+  const dayModalBusyDays = dayModal
+    ? busyDays.filter((b) => b.date === dayModal.date)
+    : [];
+  const myBusyDay = dayModal
+    ? dayModalBusyDays.find((b) => b.user_id === currentUserId)
+    : undefined;
+  const othersBusyDays = isSuperadmin
+    ? dayModalBusyDays.filter((b) => b.user_id !== currentUserId)
+    : [];
+
   return (
     <div className="mx-auto min-w-0 max-w-full space-y-6 sm:space-y-8">
       <PageHeader
         title="Interview calendar"
-        subtitle="Days follow each interview’s scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid use Eastern Time (EST/ET). The preview shows both EST and PKT clock times."
+        subtitle="Days follow each interview's scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid use Eastern Time (EST/ET). The preview shows both EST and PKT clock times."
       />
       <InterviewsCalendar
         interviews={interviews}
         onSelectInterview={openInterviewPreview}
+        busyDays={busyDays}
+        currentUserId={currentUserId ?? undefined}
+        onDayClick={canMarkBusy ? openDayModal : undefined}
       />
 
+      {/* Interview preview modal */}
       <Modal
         open={!!preview}
         onClose={() => setPreview(null)}
@@ -174,6 +265,119 @@ export default function CalendarPage() {
           </div>
         )}
       </Modal>
+
+      {/* Busy day management modal */}
+      {canMarkBusy && (
+        <Modal
+          open={!!dayModal}
+          onClose={closeDayModal}
+          title={dayModal ? formatDayTitle(dayModal.date) : ""}
+          size="sm"
+        >
+          {dayModal && (
+            <div className="space-y-5">
+              {/* My availability */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Your availability
+                </p>
+                {myBusyDay ? (
+                  <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-500/10">
+                    <p className="text-sm text-red-800 dark:text-red-200">
+                      You marked this day as busy
+                      {myBusyDay.reason && (
+                        <span className="block mt-0.5 text-red-700 dark:text-red-300">
+                          &ldquo;{myBusyDay.reason}&rdquo;
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={busyLoading}
+                      onClick={() => void handleRemoveBusy(myBusyDay.id)}
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-500/40 dark:bg-transparent dark:text-red-300 dark:hover:bg-red-500/10"
+                    >
+                      {busyLoading ? "Removing…" : "Remove busy marker"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      You are available on this day.
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Reason (optional)"
+                      value={busyReason}
+                      onChange={(e) => setBusyReason(e.target.value)}
+                      maxLength={255}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white dark:placeholder-slate-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={busyLoading}
+                      onClick={() => void handleMarkBusy(dayModal.date)}
+                      className={`${buttonPrimary} w-full justify-center disabled:opacity-50`}
+                    >
+                      {busyLoading ? "Saving…" : "Mark day as busy"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Other team members (superadmin only) */}
+              {isSuperadmin && othersBusyDays.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Team availability
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {othersBusyDays.map((bd) => (
+                      <li
+                        key={bd.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/[0.08] dark:bg-white/[0.03]"
+                      >
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-slate-900 dark:text-white">
+                            {bd.user_name}
+                          </span>
+                          {bd.reason && (
+                            <span className="ml-1.5 text-xs text-slate-500 dark:text-slate-400">
+                              — {bd.reason}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={busyLoading}
+                          onClick={() => void handleRemoveBusy(bd.id)}
+                          className="shrink-0 text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {busyError && (
+                <p className="text-xs text-red-600 dark:text-red-400">{busyError}</p>
+              )}
+
+              <div className="flex justify-end border-t border-slate-100 pt-3 dark:border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={closeDayModal}
+                  className={`${buttonSecondary}`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

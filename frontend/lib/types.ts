@@ -377,6 +377,24 @@ export interface CompanyFormData {
   detail?: string;
 }
 
+export interface BusyDay {
+  id: string;
+  user_id: string;
+  user_name: string;
+  /** YYYY-MM-DD */
+  date: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface BusyDayCreate {
+  /** YYYY-MM-DD */
+  date: string;
+  reason?: string | null;
+  /** Superadmin only — defaults to current user when omitted. */
+  user_id?: string | null;
+}
+
 export interface ResumeProfileFormData {
   name: string;
   is_active?: boolean;

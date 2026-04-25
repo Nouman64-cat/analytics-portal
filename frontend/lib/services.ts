@@ -26,6 +26,8 @@ import type {
   UserFormData,
   DatabaseBackupResult,
   DatabaseBackupListResponse,
+  BusyDay,
+  BusyDayCreate,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -325,4 +327,20 @@ export const backupService = {
       method: "POST",
     }),
   list: () => apiFetch<DatabaseBackupListResponse>("/admin/backup/"),
+};
+
+// ─── Busy Days (team-member & superadmin) ────────────────────
+
+export const busyDaysService = {
+  list: (params?: { user_id?: string }) => {
+    const q = params?.user_id ? `?user_id=${params.user_id}` : "";
+    return apiFetch<BusyDay[]>(`/busy-days/${q}`);
+  },
+  create: (data: BusyDayCreate) =>
+    apiFetch<BusyDay>("/busy-days/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(`/busy-days/${id}`, { method: "DELETE" }),
 };

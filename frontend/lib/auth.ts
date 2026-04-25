@@ -46,3 +46,14 @@ export function getUserRole(): string | null {
     return null;
   }
 }
+
+export function getUserId(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.user_id ?? null;
+  } catch {
+    return null;
+  }
+}

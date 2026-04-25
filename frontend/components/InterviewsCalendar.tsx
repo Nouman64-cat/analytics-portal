@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Interview } from "@/lib/types";
+import type { Interview, BusyDay } from "@/lib/types";
 import { formatDate, formatTime } from "@/lib/utils";
 import StatusBadge from "@/components/StatusBadge";
 import Modal from "@/components/Modal";
@@ -44,9 +44,15 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
 export default function InterviewsCalendar({
   interviews,
   onSelectInterview,
+  busyDays = [],
+  currentUserId,
+  onDayClick,
 }: {
   interviews: Interview[];
   onSelectInterview: (interview: Interview) => void;
+  busyDays?: BusyDay[];
+  currentUserId?: string;
+  onDayClick?: (date: string) => void;
 }) {
   function getCandidateInitials(name?: string | null): string {
     if (!name) return "?";
@@ -88,6 +94,16 @@ export default function InterviewsCalendar({
     }
     return m;
   }, [interviews]);
+
+  const busyByDate = useMemo(() => {
+    const m = new Map<string, BusyDay[]>();
+    for (const bd of busyDays) {
+      const key = bd.date.split("T")[0];
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(bd);
+    }
+    return m;
+  }, [busyDays]);
 
   const undated = useMemo(
     () => interviews.filter((i) => !i.interview_date),
@@ -179,30 +195,68 @@ export default function InterviewsCalendar({
             }
             const iso = toISODate(day);
             const dayInterviews = byDate.get(iso) ?? [];
+            const dayBusy = busyByDate.get(iso) ?? [];
             const isToday = iso === todayIso;
+            const isMyBusy = dayBusy.some((b) => b.user_id === currentUserId);
             const visible = dayInterviews.slice(0, maxPerDay);
             const rest = dayInterviews.length - visible.length;
+
+            const cellBg = isToday
+              ? "bg-indigo-50/80 dark:bg-indigo-500/10"
+              : isMyBusy
+                ? "bg-red-50/70 dark:bg-red-500/[0.07]"
+                : "bg-white dark:bg-[#12141c]";
 
             return (
               <div
                 key={iso}
-                className={`min-h-[4.5rem] border-b border-r border-slate-100 p-0.5 sm:min-h-[7.5rem] sm:p-1.5 dark:border-white/[0.06] last:border-r-0 ${
-                  isToday
-                    ? "bg-indigo-50/80 dark:bg-indigo-500/10"
-                    : "bg-white dark:bg-[#12141c]"
-                }`}
+                className={`min-h-[4.5rem] border-b border-r border-slate-100 p-0.5 sm:min-h-[7.5rem] sm:p-1.5 dark:border-white/[0.06] last:border-r-0 ${cellBg}`}
               >
                 <div className="mb-0.5 flex items-center justify-between gap-0.5 sm:mb-1">
-                  <span
-                    className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-0.5 text-[10px] font-medium sm:h-6 sm:min-w-[1.5rem] sm:text-xs ${
-                      isToday
-                        ? "bg-indigo-600 text-white dark:bg-indigo-500"
-                        : "text-slate-700 dark:text-slate-200"
-                    }`}
-                  >
-                    {day.getDate()}
-                  </span>
+                  {onDayClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onDayClick(iso)}
+                      title="Manage availability for this day"
+                      className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-0.5 text-[10px] font-medium transition-shadow hover:ring-2 hover:ring-red-400 hover:ring-offset-1 sm:h-6 sm:min-w-[1.5rem] sm:text-xs ${
+                        isToday
+                          ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                          : "text-slate-700 dark:text-slate-200"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </button>
+                  ) : (
+                    <span
+                      className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-0.5 text-[10px] font-medium sm:h-6 sm:min-w-[1.5rem] sm:text-xs ${
+                        isToday
+                          ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                          : "text-slate-700 dark:text-slate-200"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </span>
+                  )}
                 </div>
+                {/* Busy Day label + names */}
+                {dayBusy.length > 0 && (
+                  <div className="mb-0.5 sm:mb-1">
+                    <span className="inline-flex w-full items-center justify-center rounded bg-red-100 px-0.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-red-700 dark:bg-red-500/20 dark:text-red-400 sm:text-[8px]">
+                      Busy Day{dayBusy.length > 1 ? ` ×${dayBusy.length}` : ""}
+                    </span>
+                    <p className="hidden sm:block mt-0.5 truncate text-[8px] leading-tight text-red-600/80 dark:text-red-400/70">
+                      {dayBusy
+                        .slice(0, 2)
+                        .map((bd) =>
+                          bd.user_id === currentUserId
+                            ? "You"
+                            : bd.user_name.split(" ")[0],
+                        )
+                        .join(", ")}
+                      {dayBusy.length > 2 && ` +${dayBusy.length - 2}`}
+                    </p>
+                  </div>
+                )}
                 <ul className="space-y-0.5 sm:space-y-1">
                   {visible.map((inv) => (
                     <li key={inv.id}>
