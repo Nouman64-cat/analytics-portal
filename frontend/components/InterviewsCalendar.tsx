@@ -47,12 +47,14 @@ export default function InterviewsCalendar({
   busyDays = [],
   currentUserId,
   onDayClick,
+  onBusyBarClick,
 }: {
   interviews: Interview[];
   onSelectInterview: (interview: Interview) => void;
   busyDays?: BusyDay[];
   currentUserId?: string;
   onDayClick?: (date: string) => void;
+  onBusyBarClick?: (date: string) => void;
 }) {
   function getCandidateInitials(name?: string | null): string {
     if (!name) return "?";
@@ -239,24 +241,38 @@ export default function InterviewsCalendar({
                   )}
                 </div>
                 {/* Busy Day label + names */}
-                {dayBusy.length > 0 && (
-                  <div className="mb-0.5 sm:mb-1">
-                    <span className="inline-flex w-full items-center justify-center rounded bg-red-100 px-0.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-red-700 dark:bg-red-500/20 dark:text-red-400 sm:text-[8px]">
-                      Busy Day{dayBusy.length > 1 ? ` ×${dayBusy.length}` : ""}
-                    </span>
-                    <p className="hidden sm:block mt-0.5 truncate text-[8px] leading-tight text-red-600/80 dark:text-red-400/70">
-                      {dayBusy
-                        .slice(0, 2)
-                        .map((bd) =>
-                          bd.user_id === currentUserId
-                            ? "You"
-                            : bd.user_name.split(" ")[0],
-                        )
-                        .join(", ")}
-                      {dayBusy.length > 2 && ` +${dayBusy.length - 2}`}
-                    </p>
-                  </div>
-                )}
+                {dayBusy.length > 0 && (() => {
+                  const nameList = dayBusy
+                    .slice(0, 2)
+                    .map((bd) =>
+                      bd.user_id === currentUserId ? "You" : bd.user_name.split(" ")[0],
+                    )
+                    .join(", ") + (dayBusy.length > 2 ? ` +${dayBusy.length - 2}` : "");
+
+                  const inner = (
+                    <>
+                      <span className="inline-flex w-full items-center justify-center rounded bg-red-100 px-0.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-red-700 dark:bg-red-500/20 dark:text-red-400 sm:text-[8px]">
+                        Busy Day{dayBusy.length > 1 ? ` ×${dayBusy.length}` : ""}
+                      </span>
+                      <p className="hidden sm:block mt-0.5 truncate text-[8px] leading-tight text-red-600/80 dark:text-red-400/70">
+                        {nameList}
+                      </p>
+                    </>
+                  );
+
+                  return onBusyBarClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onBusyBarClick(iso)}
+                      className="mb-0.5 w-full text-left transition-opacity hover:opacity-75 sm:mb-1"
+                      title="Click to see details"
+                    >
+                      {inner}
+                    </button>
+                  ) : (
+                    <div className="mb-0.5 sm:mb-1">{inner}</div>
+                  );
+                })()}
                 <ul className="space-y-0.5 sm:space-y-1">
                   {visible.map((inv) => (
                     <li key={inv.id}>

@@ -96,7 +96,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [canMarkBusy]);
+  }, []);
 
   useEffect(() => {
     void fetchData();
@@ -162,15 +162,10 @@ export default function CalendarPage() {
     );
   }
 
-  const dayModalBusyDays = dayModal
+  const dayBusyList = dayModal
     ? busyDays.filter((b) => b.date === dayModal.date)
     : [];
-  const myBusyDay = dayModal
-    ? dayModalBusyDays.find((b) => b.user_id === currentUserId)
-    : undefined;
-  const othersBusyDays = isSuperadmin
-    ? dayModalBusyDays.filter((b) => b.user_id !== currentUserId)
-    : [];
+  const myBusyDay = dayBusyList.find((b) => b.user_id === currentUserId);
 
   return (
     <div className="mx-auto min-w-0 max-w-full space-y-6 sm:space-y-8">
@@ -184,6 +179,7 @@ export default function CalendarPage() {
         busyDays={busyDays}
         currentUserId={currentUserId ?? undefined}
         onDayClick={canMarkBusy ? openDayModal : undefined}
+        onBusyBarClick={openDayModal}
       />
 
       {/* Interview preview modal */}
@@ -266,118 +262,114 @@ export default function CalendarPage() {
         )}
       </Modal>
 
-      {/* Busy day management modal */}
-      {canMarkBusy && (
-        <Modal
-          open={!!dayModal}
-          onClose={closeDayModal}
-          title={dayModal ? formatDayTitle(dayModal.date) : ""}
-          size="sm"
-        >
-          {dayModal && (
-            <div className="space-y-5">
-              {/* My availability */}
+      {/* Busy day modal — readable by all roles, writable by superadmin & team-member */}
+      <Modal
+        open={!!dayModal}
+        onClose={closeDayModal}
+        title={dayModal ? formatDayTitle(dayModal.date) : ""}
+        size="sm"
+      >
+        {dayModal && (
+          <div className="space-y-5">
+
+            {/* ── Who is busy ── */}
+            {dayBusyList.length > 0 ? (
               <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {dayBusyList.length === 1 ? "1 person is busy" : `${dayBusyList.length} people are busy`}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {dayBusyList.map((bd) => {
+                    const isOwn = bd.user_id === currentUserId;
+                    const canRemove = canMarkBusy && (isSuperadmin || isOwn);
+                    return (
+                      <li
+                        key={bd.id}
+                        className="rounded-lg border border-red-100 bg-red-50/60 px-3 py-2.5 dark:border-red-500/20 dark:bg-red-500/[0.07]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {isOwn ? "You" : bd.user_name}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                              {bd.reason ? (
+                                <>&ldquo;{bd.reason}&rdquo;</>
+                              ) : (
+                                <span className="italic text-slate-400 dark:text-slate-500">
+                                  No reason given
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          {canRemove && (
+                            <button
+                              type="button"
+                              disabled={busyLoading}
+                              onClick={() => void handleRemoveBusy(bd.id)}
+                              className="shrink-0 text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              {busyLoading ? "…" : "Remove"}
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              !canMarkBusy && (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  No one has marked this day as busy.
+                </p>
+              )
+            )}
+
+            {/* ── Mark as busy (superadmin / team-member only, and only if not already marked) ── */}
+            {canMarkBusy && !myBusyDay && (
+              <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Your availability
                 </p>
-                {myBusyDay ? (
-                  <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-500/10">
-                    <p className="text-sm text-red-800 dark:text-red-200">
-                      You marked this day as busy
-                      {myBusyDay.reason && (
-                        <span className="block mt-0.5 text-red-700 dark:text-red-300">
-                          &ldquo;{myBusyDay.reason}&rdquo;
-                        </span>
-                      )}
-                    </p>
-                    <button
-                      type="button"
-                      disabled={busyLoading}
-                      onClick={() => void handleRemoveBusy(myBusyDay.id)}
-                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-500/40 dark:bg-transparent dark:text-red-300 dark:hover:bg-red-500/10"
-                    >
-                      {busyLoading ? "Removing…" : "Remove busy marker"}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-2 space-y-2">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      You are available on this day.
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="Reason (optional)"
-                      value={busyReason}
-                      onChange={(e) => setBusyReason(e.target.value)}
-                      maxLength={255}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white dark:placeholder-slate-500"
-                    />
-                    <button
-                      type="button"
-                      disabled={busyLoading}
-                      onClick={() => void handleMarkBusy(dayModal.date)}
-                      className={`${buttonPrimary} w-full justify-center disabled:opacity-50`}
-                    >
-                      {busyLoading ? "Saving…" : "Mark day as busy"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Other team members (superadmin only) */}
-              {isSuperadmin && othersBusyDays.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Team availability
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {othersBusyDays.map((bd) => (
-                      <li
-                        key={bd.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/[0.08] dark:bg-white/[0.03]"
-                      >
-                        <div className="min-w-0">
-                          <span className="text-sm font-medium text-slate-900 dark:text-white">
-                            {bd.user_name}
-                          </span>
-                          {bd.reason && (
-                            <span className="ml-1.5 text-xs text-slate-500 dark:text-slate-400">
-                              — {bd.reason}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          disabled={busyLoading}
-                          onClick={() => void handleRemoveBusy(bd.id)}
-                          className="shrink-0 text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {busyError && (
-                <p className="text-xs text-red-600 dark:text-red-400">{busyError}</p>
-              )}
-
-              <div className="flex justify-end border-t border-slate-100 pt-3 dark:border-white/[0.06]">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  You are available on this day.
+                </p>
+                <input
+                  type="text"
+                  placeholder="Reason (optional)"
+                  value={busyReason}
+                  onChange={(e) => setBusyReason(e.target.value)}
+                  maxLength={255}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white dark:placeholder-slate-500"
+                />
                 <button
                   type="button"
-                  onClick={closeDayModal}
-                  className={`${buttonSecondary}`}
+                  disabled={busyLoading}
+                  onClick={() => void handleMarkBusy(dayModal.date)}
+                  className={`${buttonPrimary} w-full justify-center disabled:opacity-50`}
                 >
-                  Close
+                  {busyLoading ? "Saving…" : "Mark day as busy"}
                 </button>
               </div>
+            )}
+
+            {busyError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{busyError}</p>
+            )}
+
+            <div className="flex justify-end border-t border-slate-100 pt-3 dark:border-white/[0.06]">
+              <button
+                type="button"
+                onClick={closeDayModal}
+                className={buttonSecondary}
+              >
+                Close
+              </button>
             </div>
-          )}
-        </Modal>
-      )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
