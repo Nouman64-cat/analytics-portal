@@ -8,26 +8,21 @@ import type { Interview } from "@/lib/types";
 
 const THRESHOLDS_MIN = [60, 30, 15];
 const POLL_MS = 60_000;
-// How wide a window around each threshold time to trigger the alert
-// (wider than poll interval so we never miss a threshold)
 const WINDOW_MS = 90_000;
 
-function alertKey(id: string, date: string, mins: number) {
-  return `iv-alert-${id}-${date}-${mins}`;
+// ivMs is the interview's exact UTC epoch — changing time_est produces a new key,
+// so a rescheduled interview is never blocked by a prior dismiss.
+function alertKey(id: string, ivMs: number, mins: number) {
+  return `iv-alert-${id}-${ivMs}-${mins}`;
 }
 
-function wasTriggered(id: string, date: string, mins: number): boolean {
-  try {
-    return localStorage.getItem(alertKey(id, date, mins)) === "1";
-  } catch {
-    return false;
-  }
+// sessionStorage: only written when the user explicitly dismisses an alarm.
+// Guards against the same alarm re-firing after the user has already seen it.
+function wasDismissed(key: string): boolean {
+  try { return sessionStorage.getItem(key) === "1"; } catch { return false; }
 }
-
-function markTriggered(id: string, date: string, mins: number): void {
-  try {
-    localStorage.setItem(alertKey(id, date, mins), "1");
-  } catch {}
+function markDismissed(key: string): void {
+  try { sessionStorage.setItem(key, "1"); } catch {}
 }
 
 function interviewUtcMs(iv: Interview): number | null {
@@ -45,7 +40,6 @@ function interviewUtcMs(iv: Interview): number | null {
 function startAlarm(): () => void {
   let stopped = false;
   let ctx: AudioContext | null = null;
-
   try {
     const AC =
       window.AudioContext ||
@@ -53,7 +47,6 @@ function startAlarm(): () => void {
         .webkitAudioContext;
     ctx = new AC();
     const ac = ctx;
-
     function beep(t: number, freq: number, dur: number) {
       const osc = ac.createOscillator();
       const gain = ac.createGain();
@@ -66,22 +59,18 @@ function startAlarm(): () => void {
       osc.start(t);
       osc.stop(t + dur);
     }
-
     function schedule() {
       if (stopped) return;
       const now = ac.currentTime;
-      // Three ascending beeps: low → mid → high
       beep(now, 660, 0.15);
       beep(now + 0.22, 880, 0.15);
       beep(now + 0.44, 1100, 0.22);
       setTimeout(schedule, 1300);
     }
-
     schedule();
   } catch {
     // AudioContext unavailable — silent mode
   }
-
   return () => {
     stopped = true;
     ctx?.close().catch(() => {});
@@ -91,49 +80,96 @@ function startAlarm(): () => void {
 interface AlertItem {
   interview: Interview;
   threshold: number;
+  // The key used so dismiss can write to sessionStorage
+  key: string;
 }
 
 export default function InterviewAlertMonitor() {
   const [queue, setQueue] = useState<AlertItem[]>([]);
   const stopAlarmRef = useRef<(() => void) | null>(null);
 
+  // In-memory deduplication: tracks keys already pushed to the queue this page
+  // load. Resets on refresh — unlike sessionStorage, it does NOT persist across
+  // navigation. This is intentional: if the user refreshes, the alarm re-fires
+  // unless they have explicitly dismissed it (sessionStorage).
+  const queuedThisLoad = useRef<Set<string>>(new Set());
+
   const checkInterviews = useCallback(async () => {
+    const pollTime = new Date().toLocaleTimeString();
+    console.log(`[Alarm] poll at ${pollTime}`);
     try {
-      // Fetch today + tomorrow in EST so users in timezones ahead of EST
-      // (e.g. PKT, UTC+5) don't miss alerts for interviews whose EST date
-      // is still "today" while their local calendar date is already "tomorrow".
       const today = getTodayEst();
       const tomorrow = getTomorrowEst();
+      console.log(`[Alarm] fetching date_from=${today} date_to=${tomorrow}`);
+
       const interviews = await interviewsService.list({
         date_from: today,
         date_to: tomorrow,
       });
+      console.log(`[Alarm] fetched ${interviews.length} interview(s)`);
+
       const now = Date.now();
       const newAlerts: AlertItem[] = [];
 
       for (const iv of interviews) {
         const ivMs = interviewUtcMs(iv);
-        if (ivMs === null) continue;
-        const dateStr = iv.interview_date!.split("T")[0]!;
+        console.log(
+          `[Alarm] "${iv.company_name}" | interview_date=${iv.interview_date} time_est=${iv.time_est} | ivMs=${ivMs}`,
+        );
+
+        if (ivMs === null) {
+          console.warn(`[Alarm] skipping — no date/time set`);
+          continue;
+        }
+
+        const minsLeft = Math.round((ivMs - now) / 60_000);
+        console.log(`[Alarm] minsLeft=${minsLeft}`);
 
         for (const threshold of THRESHOLDS_MIN) {
           const thresholdTime = ivMs - threshold * 60_000;
-          if (
+          const inWindow =
             now >= thresholdTime - WINDOW_MS &&
-            now <= thresholdTime + WINDOW_MS &&
-            !wasTriggered(iv.id, dateStr, threshold)
-          ) {
-            markTriggered(iv.id, dateStr, threshold);
-            newAlerts.push({ interview: iv, threshold });
+            now <= thresholdTime + WINDOW_MS;
+          const key = alertKey(iv.id, ivMs, threshold);
+          const alreadyQueued = queuedThisLoad.current.has(key);
+          const alreadyDismissed = wasDismissed(key);
+          console.log(
+            `[Alarm]   threshold=${threshold}min | inWindow=${inWindow} | alreadyQueued=${alreadyQueued} | dismissed=${alreadyDismissed}`,
+          );
+          if (inWindow && !alreadyQueued && !alreadyDismissed) {
+            queuedThisLoad.current.add(key);
+            newAlerts.push({ interview: iv, threshold, key });
+            console.log(`[Alarm]   >>> FIRING threshold alarm at ${threshold}min`);
+          }
+        }
+
+        // Catch-up: fire immediately when within 60 min if no threshold has
+        // fired yet this page load. Covers the case where the page was opened
+        // after all threshold windows already closed.
+        if (minsLeft >= 0 && minsLeft <= 60) {
+          const catchUpKey = alertKey(iv.id, ivMs, 0);
+          const anyThresholdQueued = THRESHOLDS_MIN.some((t) =>
+            queuedThisLoad.current.has(alertKey(iv.id, ivMs, t)),
+          );
+          const alreadyQueued = queuedThisLoad.current.has(catchUpKey);
+          const alreadyDismissed = wasDismissed(catchUpKey);
+          console.log(
+            `[Alarm]   catch-up | anyThresholdQueued=${anyThresholdQueued} | alreadyQueued=${alreadyQueued} | dismissed=${alreadyDismissed}`,
+          );
+          if (!anyThresholdQueued && !alreadyQueued && !alreadyDismissed) {
+            queuedThisLoad.current.add(catchUpKey);
+            newAlerts.push({ interview: iv, threshold: Math.max(minsLeft, 1), key: catchUpKey });
+            console.log(`[Alarm]   >>> FIRING catch-up alarm at ${minsLeft}min`);
           }
         }
       }
 
+      console.log(`[Alarm] new alerts this poll: ${newAlerts.length}`);
       if (newAlerts.length > 0) {
         setQueue((prev) => [...prev, ...newAlerts]);
       }
     } catch (err) {
-      console.error("[InterviewAlertMonitor] fetch failed:", err);
+      console.error("[Alarm] fetch failed:", err);
     }
   }, []);
 
@@ -155,17 +191,21 @@ export default function InterviewAlertMonitor() {
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      stopAlarmRef.current?.();
-    };
+    return () => { stopAlarmRef.current?.(); };
   }, []);
 
   const dismissCurrent = useCallback(() => {
-    setQueue((prev) => prev.slice(1));
+    setQueue((prev) => {
+      if (prev[0]) markDismissed(prev[0].key);
+      return prev.slice(1);
+    });
   }, []);
 
   const dismissAll = useCallback(() => {
-    setQueue([]);
+    setQueue((prev) => {
+      prev.forEach((item) => markDismissed(item.key));
+      return [];
+    });
   }, []);
 
   if (queue.length === 0) return null;
@@ -220,12 +260,10 @@ export default function InterviewAlertMonitor() {
           </div>
 
           <div className="p-8">
-            {/* Icon */}
             <div className="text-center mb-4">
               <span className="iv-icon inline-block text-7xl select-none">🚨</span>
             </div>
 
-            {/* Countdown */}
             <div className="text-center mb-5">
               <p className="iv-blink text-6xl font-black text-red-600 dark:text-red-400 tabular-nums leading-none">
                 {threshold} MIN
@@ -237,7 +275,6 @@ export default function InterviewAlertMonitor() {
 
             <hr className="border-gray-200 dark:border-zinc-700 my-5" />
 
-            {/* Interview details */}
             <div className="text-center space-y-1.5 mb-7">
               <p className="text-2xl font-black text-gray-900 dark:text-white leading-tight">
                 {interview.company_name ?? "Unknown Company"}
@@ -268,7 +305,6 @@ export default function InterviewAlertMonitor() {
               )}
             </div>
 
-            {/* Action buttons */}
             <div className="flex gap-3">
               <button
                 onClick={dismissAll}
