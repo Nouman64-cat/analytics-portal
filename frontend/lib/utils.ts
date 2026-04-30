@@ -68,6 +68,26 @@ export function getTomorrowEst(): string {
 }
 
 /**
+ * Returns minutes until the interview starts (negative if already past, null if no date/time).
+ * Uses the same EST wall-clock interpretation as the alert monitor.
+ */
+export function minutesUntilInterview(
+  interview: Interview,
+  nowMs: number = Date.now(),
+): number | null {
+  if (!interview.interview_date || !interview.time_est) return null;
+  const ymd = interview.interview_date.split("T")[0]!;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const parts = interview.time_est.trim().split(":");
+  const h = (parts[0] ?? "0").padStart(2, "0");
+  const m = (parts[1] ?? "0").padStart(2, "0");
+  const s = (parts[2] ?? "0").padStart(2, "0");
+  const utc = fromZonedTime(`${ymd} ${h}:${m}:${s}`, INTERVIEW_SCHEDULE_TZ);
+  if (isNaN(utc.getTime())) return null;
+  return Math.round((utc.getTime() - nowMs) / 60_000);
+}
+
+/**
  * Format a time string (HH:MM:SS) to 12-hour format.
  */
 export function formatTime(timeStr: string | null | undefined): string {

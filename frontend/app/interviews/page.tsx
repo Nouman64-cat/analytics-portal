@@ -48,6 +48,7 @@ import {
   getLeadOutcomeBadgeStyle,
   getLeadOutcomeSelectShellClass,
   getTodayEst,
+  minutesUntilInterview,
 } from "@/lib/utils";
 import { INTERVIEW_STATS_GRADIENT } from "@/lib/constants";
 import type {
@@ -335,6 +336,13 @@ export default function InterviewsPage() {
     month: "All",
     is_today: false,
   });
+
+  // Ticks every 30 s so countdown badges in the table stay live.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -1153,6 +1161,18 @@ export default function InterviewsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <style>{`
+        @keyframes iv-row-imminent {
+          0%, 100% { background-color: rgba(239, 68, 68, 0.18); }
+          50%       { background-color: rgba(239, 68, 68, 0.45); }
+        }
+        @keyframes iv-row-warning {
+          0%, 100% { background-color: rgba(245, 158, 11, 0.12); }
+          50%       { background-color: rgba(245, 158, 11, 0.32); }
+        }
+        .iv-row-imminent { animation: iv-row-imminent 0.9s ease-in-out infinite; }
+        .iv-row-warning  { animation: iv-row-warning  1.4s ease-in-out infinite; }
+      `}</style>
       <PageHeader
         title="Interviews"
         subtitle="Interview rounds, pipeline steps, and schedules"
@@ -1479,22 +1499,37 @@ export default function InterviewsPage() {
                     interview.computed_status.toLowerCase() === "upcoming";
                   const isClosed =
                     interview.computed_status.toLowerCase() === "closed";
+                  const minsLeft = isUpcoming
+                    ? minutesUntilInterview(interview, nowMs)
+                    : null;
+                  // Alert tiers: imminent ≤15 min, warning ≤60 min
+                  const isImminent =
+                    minsLeft !== null && minsLeft >= 0 && minsLeft <= 15;
+                  const isWarning =
+                    minsLeft !== null && minsLeft > 15 && minsLeft <= 60;
                   const rowSep =
-                    isUpcoming
-                      ? "border-b border-blue-200 dark:border-white/[0.08]"
-                      : isClosed
-                        ? "border-b border-emerald-200 dark:border-white/[0.08]"
-                        : "border-b border-slate-200 dark:border-white/[0.08]";
+                    isImminent
+                      ? "border-b border-red-300 dark:border-red-500/30"
+                      : isWarning
+                        ? "border-b border-amber-200 dark:border-amber-500/20"
+                        : isUpcoming
+                          ? "border-b border-blue-200 dark:border-white/[0.08]"
+                          : isClosed
+                            ? "border-b border-emerald-200 dark:border-white/[0.08]"
+                            : "border-b border-slate-200 dark:border-white/[0.06]";
+                  const rowBg = isImminent
+                    ? "iv-row-imminent border-l-4 border-l-red-500"
+                    : isWarning
+                      ? "iv-row-warning border-l-4 border-l-amber-500"
+                      : isUpcoming
+                        ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                        : isClosed
+                          ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
+                          : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
                   return (
                     <tr
                       key={interview.id}
-                      className={`transition-colors ${rowSep} ${
-                        isUpcoming
-                          ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
-                          : isClosed
-                            ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
-                          : "hover:bg-slate-100 dark:hover:bg-white/[0.02]"
-                      }`}
+                      className={`transition-colors ${rowSep} ${rowBg}`}
                     >
                       <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
                         {(() => {
@@ -1677,13 +1712,25 @@ export default function InterviewsPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                        {interview.time_est ? (
-                          formatTime(interview.time_est)
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-600">
-                            —
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {interview.time_est ? (
+                            formatTime(interview.time_est)
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-600">
+                              —
+                            </span>
+                          )}
+                          {isImminent && minsLeft !== null && (
+                            <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
+                              🚨 {minsLeft}m
+                            </span>
+                          )}
+                          {isWarning && minsLeft !== null && (
+                            <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
+                              ⚠ {minsLeft}m
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
                         {interview.time_pkt ? (
