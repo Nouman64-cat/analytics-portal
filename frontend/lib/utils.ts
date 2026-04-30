@@ -62,6 +62,11 @@ export function getTodayEst(): string {
   return formatInTimeZone(new Date(), INTERVIEW_SCHEDULE_TZ, "yyyy-MM-dd");
 }
 
+export function getTomorrowEst(): string {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  return formatInTimeZone(tomorrow, INTERVIEW_SCHEDULE_TZ, "yyyy-MM-dd");
+}
+
 /**
  * Format a time string (HH:MM:SS) to 12-hour format.
  */
