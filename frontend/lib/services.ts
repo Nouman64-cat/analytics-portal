@@ -2,6 +2,7 @@ import { API_V1 } from "./constants";
 import { getToken, clearToken } from "./auth";
 import type {
   DashboardStats,
+  DayInterviews,
   BusinessDeveloper,
   BusinessDeveloperFormData,
   Candidate,
@@ -98,6 +99,7 @@ export const authService = {
 
 export const dashboardService = {
   getStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
+  getInterviewsByDay: () => apiFetch<{ days: DayInterviews[] }>("/dashboard/interviews-by-day"),
 };
 
 export const leadsService = {

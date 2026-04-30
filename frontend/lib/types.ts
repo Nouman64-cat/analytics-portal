@@ -233,6 +233,22 @@ export interface DashboardConversionStats {
   denominator: number;
 }
 
+export interface DayInterview {
+  id: string;
+  company: string | null;
+  candidate: string | null;
+  role: string;
+  round: string;
+  time_est: string | null;
+  bd_name: string | null;
+}
+
+export interface DayInterviews {
+  date: string;
+  count: number;
+  interviews: DayInterview[];
+}
+
 export interface DashboardStats {
   total_interviews: number;
   total_companies: number;

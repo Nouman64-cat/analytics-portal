@@ -17,7 +17,7 @@ import {
   formatInterviewDateEst,
   formatTime,
 } from "@/lib/utils";
-import type { DashboardStats, RecentInterview, ResumeProfile, User as UserType } from "@/lib/types";
+import type { DashboardStats, RecentInterview, ResumeProfile, User as UserType, DayInterviews } from "@/lib/types";
 import { authService, dashboardService, profilesService } from "@/lib/services";
 
 /** Merge interview API fields with full resume profile (same source as interviews page). */
@@ -38,6 +38,7 @@ import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 import { getUserRole } from "@/lib/auth";
+import HeatmapCalendar from "@/components/HeatmapCalendar";
 
 function toChronologicalChartData(record: Record<string, number>) {
   return Object.entries(record)
@@ -102,6 +103,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [leadsFrequencyView, setLeadsFrequencyView] = useState<"weekly" | "monthly">("weekly");
+  const [dailyInterviews, setDailyInterviews] = useState<DayInterviews[]>([]);
 
   // Company popover for recent interviews
   const [companyPopover, setCompanyPopover] = useState<{ interview: RecentInterview; x: number; y: number } | null>(null);
@@ -137,14 +139,17 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [data, profs, userData] = await Promise.all([
+      const [data, profs, userData, dailyData] = await Promise.all([
         dashboardService.getStats(),
         profilesService.list().catch(() => [] as ResumeProfile[]),
         authService.getMe().catch(() => null),
+        dashboardService.getInterviewsByDay().catch(() => ({ days: [] })),
       ]);
       setStats(data);
       setProfiles(profs);
       setUser(userData);
+      setDailyInterviews(dailyData.days || []);
+      console.log("Daily interviews data:", dailyData.days?.slice(0, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -286,6 +291,48 @@ export default function DashboardPage() {
         />
       </StatsGrid>
 
+      {/* Lead frequency + Interview Activity — hidden for team members (org-wide metrics) */}
+      {!isTeamMember && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
+          <ChartCard
+            title="Leads Frequency"
+            subtitle={
+              leadsFrequencyView === "weekly"
+                ? "Leads grouped by Monday-Friday range"
+                : "Leads grouped by month"
+            }
+            className="h-full"
+          >
+            <div className="mb-3 flex justify-end">
+              <select
+                value={leadsFrequencyView}
+                onChange={(e) =>
+                  setLeadsFrequencyView(e.target.value as "weekly" | "monthly")
+                }
+                className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <BarChartWidget
+              data={leadsChartData}
+              color={leadsFrequencyView === "weekly" ? "#22c55e" : "#0ea5e9"}
+              height={300}
+            />
+          </ChartCard>
+
+          {dailyInterviews.length > 0 ? (
+            <ChartCard title="Interview Activity" subtitle="This year" className="h-full">
+              <HeatmapCalendar days={dailyInterviews} />
+            </ChartCard>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full flex items-center justify-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">No interview data yet</p>
+            </div>
+          )}
+        </div>
+      )}
       {/* Status + Recent interviews */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
         <ChartCard

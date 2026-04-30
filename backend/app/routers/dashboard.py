@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from collections import defaultdict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func as sa_func
@@ -323,3 +324,59 @@ def get_dashboard_stats(
             "denominator": conv_den,
         },
     }
+
+
+@router.get("/interviews-by-day")
+def get_interviews_by_day(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Get interview counts and details for each day of the current year for contribution calendar."""
+    scope_candidate_id = None
+    if current_user.role == UserRole.TEAM_MEMBER:
+        scope_candidate_id = candidate_id_for_team_member(session, current_user)
+        if scope_candidate_id is None:
+            return {"days": []}
+
+    today = date.today()
+    current_year = today.year
+    jan_1 = date(current_year, 1, 1)
+    dec_31 = date(current_year, 12, 31)
+
+    query = (
+        select(Interview)
+        .where(Interview.interview_date.is_not(None))
+        .where(Interview.interview_date >= jan_1)
+        .where(Interview.interview_date <= dec_31)
+        .options(
+            joinedload(Interview.company),
+            joinedload(Interview.candidate),
+            joinedload(Interview.business_developer),
+        )
+    )
+
+    if scope_candidate_id:
+        query = query.where(Interview.candidate_id == scope_candidate_id)
+
+    interviews = session.exec(query).all()
+
+    from collections import defaultdict
+    day_interviews = defaultdict(list)
+    for iv in interviews:
+        if iv.interview_date:
+            day_interviews[str(iv.interview_date)].append({
+                "id": str(iv.id),
+                "company": iv.company.name if iv.company else None,
+                "candidate": iv.candidate.name if iv.candidate else None,
+                "role": iv.role,
+                "round": iv.round,
+                "time_est": iv.time_est.strftime("%H:%M") if iv.time_est else None,
+                "bd_name": iv.business_developer.name if iv.business_developer else None,
+            })
+
+    days = [
+        {"date": d, "count": len(interviews), "interviews": interviews}
+        for d, interviews in sorted(day_interviews.items())
+    ]
+
+    return {"days": days}
