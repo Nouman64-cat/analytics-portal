@@ -452,35 +452,6 @@ export default function DashboardPage() {
       {/* Lead frequency + candidate analytics — hidden for team members (org-wide metrics) */}
       {!isTeamMember && (
         <>
-          <div className="grid grid-cols-1">
-            <ChartCard
-              title="Leads Frequency"
-              subtitle={
-                leadsFrequencyView === "weekly"
-                  ? "Leads grouped by Monday-Friday range"
-                  : "Leads grouped by month"
-              }
-            >
-              <div className="mb-3 flex justify-end">
-                <select
-                  value={leadsFrequencyView}
-                  onChange={(e) =>
-                    setLeadsFrequencyView(e.target.value as "weekly" | "monthly")
-                  }
-                  className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
-                >
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </div>
-              <BarChartWidget
-                data={leadsChartData}
-                color={leadsFrequencyView === "weekly" ? "#22c55e" : "#0ea5e9"}
-                height={300}
-              />
-            </ChartCard>
-          </div>
-
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-stretch">
             <ChartCard title="Interviews by Candidate" className="h-full">
               <BarChartWidget data={candidateData} color="#a78bfa" height={360} />
