@@ -34,11 +34,11 @@ function getYearData(days: DayInterviews[]) {
   days.forEach(d => dayMap.set(d.date, d));
   const currentYear = new Date().getFullYear();
 
-  const months: { month: string; days: { date: string; count: number; interviews: DayInterview[] }[] }[] = [];
+  const months: { month: string; days: { date: string; count: number; interviews: DayInterview[]; isWeekend: boolean }[] }[] = [];
 
   for (let month = 0; month < 12; month++) {
     const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
-    const monthDays: { date: string; count: number; interviews: DayInterview[] }[] = [];
+    const monthDays: { date: string; count: number; interviews: DayInterview[]; isWeekend: boolean }[] = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
       const monthStr = String(month + 1).padStart(2, "0");
@@ -47,10 +47,16 @@ function getYearData(days: DayInterviews[]) {
       const dayData = dayMap.get(dateStr);
       const count = dayData ? dayData.count : 0;
       const interviews = dayData && dayData.interviews ? dayData.interviews : [];
+      
+      const dateObj = new Date(currentYear, month, day);
+      const dayOfWeek = dateObj.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      
       monthDays.push({
         date: dateStr,
         count: count,
         interviews: interviews,
+        isWeekend: isWeekend,
       });
     }
 
@@ -60,7 +66,14 @@ function getYearData(days: DayInterviews[]) {
   return months;
 }
 
-function getColor(count: number): string {
+function getColor(count: number, isWeekend: boolean): string {
+  if (isWeekend) {
+    if (count === 0) return "bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700";
+    if (count === 1) return "bg-emerald-200 dark:bg-emerald-800";
+    if (count === 2) return "bg-emerald-300 dark:bg-emerald-700";
+    if (count === 3) return "bg-emerald-400 dark:bg-emerald-600";
+    return "bg-emerald-500 dark:bg-emerald-500";
+  }
   if (count === 0) return "bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600";
   if (count === 1) return "bg-emerald-300 dark:bg-emerald-700";
   if (count === 2) return "bg-emerald-400 dark:bg-emerald-500";
@@ -96,9 +109,15 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
   return (
     <div className="relative">
       <div className="flex justify-between items-center mb-3">
-        <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-          {totalInterviews} interviews in {currentYear}
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+            {totalInterviews} interviews in {currentYear}
+          </span>
+          <div className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+            <span className="w-3 h-3 rounded-sm bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></span>
+            <span>Weekend</span>
+          </div>
+        </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <span>Less</span>
           <div className="w-4 h-4 rounded-sm bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600" />
@@ -135,11 +154,12 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
                   {month.days.map((day, dayIndex) => {
                     const isToday = day.date === today;
                     const isSelected = selectedDay?.date === day.date;
+                    const isWeekend = day.isWeekend;
 
                     return (
                       <div
                         key={dayIndex}
-                        className={`w-[20px] h-[20px] rounded-[2px] transition-all cursor-pointer hover:scale-110 ${getColor(day.count)} ${
+                        className={`w-[20px] h-[20px] rounded-[2px] transition-all cursor-pointer hover:scale-110 ${getColor(day.count, isWeekend)} ${
                           isToday ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-0" : ""
                         } ${isSelected ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-0" : ""}`}
                         onClick={(e) => {
