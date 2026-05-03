@@ -88,18 +88,19 @@ def get_dashboard_stats(
 
     interviews_by_status = interviews_by_status_raw
 
-    # Lead frequency: one bucket per company (lead), using earliest interview date for that company
+    # Lead frequency: one bucket per thread, using earliest interview date for that thread
     first_date_stmt = (
         iv_where(
-            select(Interview.company_id, sa_func.min(Interview.interview_date).label("first_d"))
+            select(Interview.thread_id, sa_func.min(Interview.interview_date).label("first_d"))
         )
         .where(Interview.interview_date.is_not(None))
-        .group_by(Interview.company_id)
+        .where(Interview.thread_id.is_not(None))
+        .group_by(Interview.thread_id)
     )
     first_dates = session.exec(first_date_stmt).all()
     leads_frequency_weekly: dict[str, int] = {}
     leads_frequency_monthly: dict[str, int] = {}
-    for _cid, d in first_dates:
+    for _tid, d in first_dates:
         if not d or not isinstance(d, date):
             continue
         iso_year, iso_week, _ = d.isocalendar()
@@ -108,14 +109,17 @@ def get_dashboard_stats(
         leads_frequency_weekly[weekly_key] = leads_frequency_weekly.get(weekly_key, 0) + 1
         leads_frequency_monthly[monthly_key] = leads_frequency_monthly.get(monthly_key, 0) + 1
 
-    # One lead per company: count distinct companies; status from canonical thread (latest activity)
+    # Count by thread_id - each thread is a separate lead/opportunity
     scoped_iv = session.exec(iv_where(select(Interview))).all()
     distinct_threads = {i.thread_id for i in scoped_iv if i.thread_id}
     lead_map = load_lead_map(session, distinct_threads)
-    by_company: dict = {}
+    
+    # Group by thread_id to count actual leads
+    by_thread: dict = {}
     for i in scoped_iv:
-        by_company.setdefault(i.company_id, []).append(i)
-    total_leads = len(by_company)
+        if i.thread_id:
+            by_thread.setdefault(i.thread_id, []).append(i)
+    total_leads = len(by_thread)
     leads_by_status: dict[str, int] = {}
     # Align with Leads page: "closed" is a lead-thread outcome, not interview.status
     total_jobs_closed = 0
@@ -125,7 +129,7 @@ def get_dashboard_stats(
     success_leads = 0          # is_converted OR closed
     failure_leads = 0          # rejected OR dead AND NOT is_converted (pure failures)
 
-    for _cid, rows in by_company.items():
+    for _thread_id, rows in by_thread.items():
         latest = max(
             rows,
             key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min),
