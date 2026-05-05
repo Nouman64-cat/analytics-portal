@@ -10,7 +10,7 @@ from app.database import get_session
 from app.models.user import User, UserRole
 from app.config import get_settings
 from app.deps import get_current_user
-from app.schemas.user import UserRead, UserMeRead
+from app.schemas.user import UserRead, UserMeRead, UserSettingsUpdate
 from app.team_member_scope import candidate_id_for_team_member
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
@@ -104,6 +104,22 @@ def update_profile(
     """Update the current user's profile information."""
     user = session.get(User, current_user.id)
     user.full_name = body.full_name
+    user.updated_at = datetime.utcnow()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.put("/settings", response_model=UserRead)
+def update_settings(
+    body: UserSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Update per-user preferences (e.g. alarm_enabled)."""
+    user = session.get(User, current_user.id)
+    user.alarm_enabled = body.alarm_enabled
     user.updated_at = datetime.utcnow()
     session.add(user)
     session.commit()

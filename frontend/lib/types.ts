@@ -322,6 +322,7 @@ export interface User {
   full_name: string;
   role: string;
   must_change_password: boolean;
+  alarm_enabled: boolean;
   created_at: string;
   updated_at: string;
   /** Present for team-member role when a Candidate row matches this user's email. */

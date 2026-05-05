@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import create_db_and_tables
 from app.reminder_worker import run_reminder_worker
+from migrate import migrate
 
 # Import all models so SQLModel registers them
 from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay  # noqa: F401
@@ -36,6 +37,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Startup: create tables. Shutdown: cleanup."""
     create_db_and_tables()
+    migrate()
     stop_event = asyncio.Event()
     worker_task = asyncio.create_task(run_reminder_worker(stop_event, settings))
     yield

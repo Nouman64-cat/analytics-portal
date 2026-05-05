@@ -24,11 +24,16 @@ class UserUpdate(BaseModel):
 class UserRead(UserBase):
     id: UUID
     must_change_password: bool
+    alarm_enabled: bool
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UserSettingsUpdate(BaseModel):
+    alarm_enabled: bool
 
 
 class UserMeRead(UserRead):

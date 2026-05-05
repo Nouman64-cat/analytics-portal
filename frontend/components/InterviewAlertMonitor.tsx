@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { fromZonedTime } from "date-fns-tz";
 import { interviewsService } from "@/lib/services";
 import { INTERVIEW_SCHEDULE_TZ, formatTime, getTodayEst, getTomorrowEst } from "@/lib/utils";
+import { isAlarmEnabled } from "@/lib/settings";
 import type { Interview } from "@/lib/types";
 
 const THRESHOLDS_MIN = [60, 30, 15];
@@ -95,6 +96,10 @@ export default function InterviewAlertMonitor() {
   const queuedThisLoad = useRef<Set<string>>(new Set());
 
   const checkInterviews = useCallback(async () => {
+    if (!isAlarmEnabled()) {
+      setQueue([]);
+      return;
+    }
     const pollTime = new Date().toLocaleTimeString();
     console.log(`[Alarm] poll at ${pollTime}`);
     try {
@@ -177,6 +182,13 @@ export default function InterviewAlertMonitor() {
     checkInterviews();
     const id = setInterval(checkInterviews, POLL_MS);
     return () => clearInterval(id);
+  }, [checkInterviews]);
+
+  // React immediately when user toggles alarm on/off in Settings
+  useEffect(() => {
+    const handler = () => checkInterviews();
+    window.addEventListener("user-settings-changed", handler);
+    return () => window.removeEventListener("user-settings-changed", handler);
   }, [checkInterviews]);
 
   // Start / stop the alarm based on queue presence

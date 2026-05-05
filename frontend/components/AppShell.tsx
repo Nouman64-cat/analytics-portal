@@ -7,6 +7,8 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
 import { isAuthenticated, mustChangePassword, clearToken, getUserRole } from "@/lib/auth";
+import { authService } from "@/lib/services";
+import { hydrateSettingsCache } from "@/lib/settings";
 
 const PUBLIC_PATHS = ["/login", "/change-password"];
 
@@ -44,6 +46,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/interviews");
       return;
     }
+    // Hydrate alarm setting from the server so the monitor has the correct
+    // value immediately, even on first load or after a cache miss.
+    authService.getMe().then((user) => {
+      hydrateSettingsCache(user.alarm_enabled);
+    }).catch(() => {});
+
     setChecked(true);
   }, [pathname, router]);
 

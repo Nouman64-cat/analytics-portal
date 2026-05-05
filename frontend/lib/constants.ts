@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { label: "User Management", href: "/users", icon: "UserCog" },
   { label: "Database backup", href: "/backup", icon: "Database" },
   { label: "Profile", href: "/profile", icon: "User" },
+  { label: "Settings", href: "/settings", icon: "Settings2" },
 ] as const;
 
 // Chart colors — premium palette

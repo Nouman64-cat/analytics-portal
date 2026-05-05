@@ -92,6 +92,12 @@ export const authService = {
       body: JSON.stringify(data),
     }),
 
+  updateSettings: (data: { alarm_enabled: boolean }) =>
+    apiFetch<User>("/auth/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   getMe: () => apiFetch<User>("/auth/me"),
 };
 

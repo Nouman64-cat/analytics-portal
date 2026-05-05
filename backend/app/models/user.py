@@ -67,5 +67,6 @@ class User(SQLModel, table=True):
         sa_column=Column(UserRoleColumn(), nullable=False),
     )
     must_change_password: bool = Field(default=True)
+    alarm_enabled: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
