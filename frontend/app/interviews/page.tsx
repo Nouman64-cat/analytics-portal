@@ -325,7 +325,7 @@ export default function InterviewsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const ITEMS_PER_PAGE = 20;
   const [filters, setFilters] = useState({
     status: "All",
     company_id: "All",
