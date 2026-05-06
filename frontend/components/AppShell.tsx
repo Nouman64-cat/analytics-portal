@@ -6,6 +6,7 @@ import { Menu } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
+import ChatWidget from "@/components/ChatWidget";
 import { isAuthenticated, mustChangePassword, clearToken, getUserRole } from "@/lib/auth";
 import { authService } from "@/lib/services";
 import { hydrateSettingsCache } from "@/lib/settings";
@@ -83,6 +84,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="px-4 py-8 md:px-8 md:py-10">{children}</div>
       </main>
       <InterviewAlertMonitor />
+      <ChatWidget />
     </>
   );
 }

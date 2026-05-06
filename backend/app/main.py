@@ -28,6 +28,7 @@ from app.routers import (
     users,
     backup,
     busy_days,
+    chat,
 )
 
 settings = get_settings()
@@ -100,6 +101,7 @@ app.include_router(dashboard.router)
 app.include_router(users.router)
 app.include_router(backup.router)
 app.include_router(busy_days.router)
+app.include_router(chat.router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])

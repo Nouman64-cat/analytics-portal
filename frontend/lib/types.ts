@@ -1,3 +1,17 @@
+// ─── Chat ────────────────────────────────────────────────────
+
+export interface ChatAction {
+  type: "company_created" | "lead_created" | "interview_scheduled";
+  description: string;
+  id?: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  actions?: ChatAction[];
+}
+
 // ─── Entity Types ───────────────────────────────────────────
 
 export interface Candidate {

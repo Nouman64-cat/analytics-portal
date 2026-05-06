@@ -337,6 +337,16 @@ export const backupService = {
   list: () => apiFetch<DatabaseBackupListResponse>("/admin/backup/"),
 };
 
+// ─── Chat assistant ──────────────────────────────────────────
+
+export const chatService = {
+  send: (messages: { role: string; content: string }[], message: string) =>
+    apiFetch<{ reply: string; actions: { type: string; description: string; id?: string }[] }>(
+      "/chat/message",
+      { method: "POST", body: JSON.stringify({ messages, message }) },
+    ),
+};
+
 // ─── Busy Days (team-member & superadmin) ────────────────────
 
 export const busyDaysService = {

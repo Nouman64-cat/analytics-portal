@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # Set empty to exclude nothing (self-hosted only). Default neon_auth.
     PG_DUMP_EXCLUDE_SCHEMAS: str = Field("neon_auth", env="PG_DUMP_EXCLUDE_SCHEMAS")
 
+    OPENAI_API_KEY: str = Field("", env="OPENAI_API_KEY")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
