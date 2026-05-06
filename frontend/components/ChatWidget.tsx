@@ -20,14 +20,18 @@ function ActionCard({ action }: { action: ChatAction }) {
     lead_created: <Briefcase size={13} />,
     interview_scheduled: <CalendarCheck size={13} />,
     interview_status_updated: <RefreshCw size={13} />,
+    interview_updated: <RefreshCw size={13} />,
     lead_outcome_updated: <RefreshCw size={13} />,
+    lead_updated: <RefreshCw size={13} />,
   };
   const colorMap: Record<string, string> = {
     company_created: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
     lead_created: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
     interview_scheduled: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
     interview_status_updated: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+    interview_updated: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
     lead_outcome_updated: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+    lead_updated: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
   };
   return (
     <div

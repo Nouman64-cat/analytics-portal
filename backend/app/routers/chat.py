@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, time as dt_time
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.config import get_settings
@@ -21,7 +23,7 @@ from app.models.interview import Interview
 from app.models.lead_thread import LeadThread
 from app.models.resume_profile import ResumeProfile
 from app.models.user import User, UserRole
-from app.lead_thread_utils import ensure_lead_thread
+from app.lead_thread_utils import ensure_lead_thread, ALLOWED_LEAD_OUTCOMES
 from app.team_member_scope import candidate_id_for_team_member
 
 router = APIRouter(prefix="/api/v1/chat", tags=["Chat"])
@@ -57,7 +59,11 @@ _TOOLS = [
         "type": "function",
         "function": {
             "name": "list_companies",
-            "description": "List all companies in the database. Call this first to resolve a company name to its ID before creating a lead or scheduling an interview.",
+            "description": (
+                "List all companies in the database. Call this to check whether a company already exists before creating a lead or interview. "
+                "After calling this, find the company whose name matches the user's input (case-insensitive). "
+                "If no match exists, call create_company — never use a different company as a substitute."
+            ),
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
@@ -88,8 +94,33 @@ _TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_interviews",
+            "description": (
+                "Search the interview/lead database. Use this when the pipeline snapshot in the system prompt "
+                "does not contain the record you need (e.g. older entries). "
+                "Returns interview_id and thread_id needed for update calls."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string", "description": "Partial company name (optional)"},
+                    "role": {"type": "string", "description": "Partial role/job title (optional)"},
+                    "round": {"type": "string", "description": "Round label (optional)"},
+                    "limit": {"type": "integer", "description": "Max results (default 20)", "default": 20},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_company",
-            "description": "Create a new company. Only call this after confirming with list_companies that it does not already exist.",
+            "description": (
+                "Create a new company. Call this when list_companies confirms the company does not exist. "
+                "You may create the company automatically as part of a lead/interview flow without extra confirmation from the user, "
+                "but you MUST tell the user in your reply that you created it."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -105,18 +136,18 @@ _TOOLS = [
         "type": "function",
         "function": {
             "name": "create_lead",
-            "description": "Open a new lead (pipeline opportunity) for a company. Requires company_id and resume_profile_id (resolve them with list_* first).",
+            "description": "Open a new lead (pipeline opportunity) for a company. Requires company_id and resume_profile_id.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "company_id": {"type": "string", "description": "UUID of the company"},
                     "resume_profile_id": {"type": "string", "description": "UUID of the resume profile"},
                     "role": {"type": "string", "description": "Job title / opportunity name"},
-                    "candidate_id": {"type": "string", "description": "UUID of the candidate entertaining this lead (leave blank for team members — it is set automatically)"},
+                    "candidate_id": {"type": "string", "description": "UUID of the candidate (leave blank for team members — set automatically)"},
                     "bd_id": {"type": "string", "description": "UUID of the business developer (optional)"},
                     "salary_range": {"type": "string", "description": "e.g. '$120k–$140k' (optional)"},
                     "notes": {"type": "string", "description": "Free-text notes (optional)"},
-                    "arrived_on": {"type": "string", "description": "Date the lead was received, YYYY-MM-DD (optional)"},
+                    "arrived_on": {"type": "string", "description": "Date received, YYYY-MM-DD (optional)"},
                 },
                 "required": ["company_id", "resume_profile_id", "role"],
             },
@@ -126,7 +157,7 @@ _TOOLS = [
         "type": "function",
         "function": {
             "name": "schedule_interview",
-            "description": "Schedule an interview round. Requires company_id and resume_profile_id (resolve with list_* first).",
+            "description": "Schedule an interview round. Requires company_id and resume_profile_id.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -135,11 +166,11 @@ _TOOLS = [
                     "role": {"type": "string", "description": "Job title"},
                     "round": {"type": "string", "description": "Round label — e.g. 'Lead', 'Phone Screen', 'Technical', 'Onsite', 'Final Round', 'Offer'"},
                     "interview_date": {"type": "string", "description": "YYYY-MM-DD (optional)"},
-                    "time_est": {"type": "string", "description": "HH:MM 24-hour EST time (optional)"},
-                    "candidate_id": {"type": "string", "description": "UUID of the candidate (leave blank for team members — set automatically)"},
+                    "time_est": {"type": "string", "description": "HH:MM 24-hour EST (optional)"},
+                    "candidate_id": {"type": "string", "description": "UUID of the candidate (leave blank for team members)"},
                     "bd_id": {"type": "string", "description": "UUID of the business developer (optional)"},
                     "interview_link": {"type": "string", "description": "Meeting URL (optional)"},
-                    "is_phone_call": {"type": "boolean", "description": "True if this is a phone call", "default": False},
+                    "is_phone_call": {"type": "boolean", "description": "True if phone call", "default": False},
                     "interviewer": {"type": "string", "description": "Interviewer name (optional)"},
                 },
                 "required": ["company_id", "resume_profile_id", "role", "round"],
@@ -149,39 +180,51 @@ _TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "list_interviews",
+            "name": "update_interview",
             "description": (
-                "Search interviews/leads in the database. Use this to find the interview_id or thread_id "
-                "before calling update_interview_status or update_lead_outcome. "
-                "Filter by company name, role, or round to narrow results."
+                "Edit fields on an existing interview round row. Use this for per-round changes: "
+                "date, time, link, interviewer, round label, status (per-round result like 'Passed', 'No Show'), "
+                "feedback, or recruiter_feedback. "
+                "To change the overall pipeline outcome (rejected/closed/dropped/etc.) use update_lead_outcome instead. "
+                "The interview_id is in the pipeline snapshot in the system prompt or from list_interviews."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "company_name": {"type": "string", "description": "Partial company name to filter by (optional)"},
-                    "role": {"type": "string", "description": "Partial role/job title to filter by (optional)"},
-                    "round": {"type": "string", "description": "Round label to filter by (optional)"},
-                    "limit": {"type": "integer", "description": "Max results to return (default 20)", "default": 20},
+                    "interview_id": {"type": "string", "description": "UUID of the interview row"},
+                    "interview_date": {"type": "string", "description": "YYYY-MM-DD (optional)"},
+                    "time_est": {"type": "string", "description": "HH:MM 24-hour EST (optional)"},
+                    "round": {"type": "string", "description": "New round label (optional)"},
+                    "status": {"type": "string", "description": "Per-round outcome text, e.g. 'Passed', 'Rejected', 'No Show', 'Rescheduled' (optional)"},
+                    "interview_link": {"type": "string", "description": "Meeting URL (optional)"},
+                    "interviewer": {"type": "string", "description": "Interviewer name (optional)"},
+                    "is_phone_call": {"type": "boolean", "description": "Whether this is a phone call (optional)"},
+                    "feedback": {"type": "string", "description": "Internal notes / your presentation feedback (optional)"},
+                    "recruiter_feedback": {"type": "string", "description": "Recruiter feedback / outcome context (optional)"},
                 },
-                "required": [],
+                "required": ["interview_id"],
             },
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "update_interview_status",
+            "name": "update_lead",
             "description": (
-                "Update the status text on a single interview round row (e.g. 'Passed', 'Rejected', 'No Show', 'Rescheduled'). "
-                "Use this for per-round outcomes. To update the overall pipeline/lead outcome use update_lead_outcome instead."
+                "Edit fields on an existing lead (the Lead-round row and its thread). "
+                "Use this to change the role title, salary range, notes, or business developer. "
+                "The interview_id (of the Lead round row) is in the pipeline snapshot or from list_interviews."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "interview_id": {"type": "string", "description": "UUID of the interview row to update"},
-                    "status": {"type": "string", "description": "New status text for this round (e.g. 'Passed', 'Rejected', 'No Show', 'Rescheduled', 'Offer Extended')"},
+                    "interview_id": {"type": "string", "description": "UUID of the Lead-round interview row"},
+                    "role": {"type": "string", "description": "New job title (optional)"},
+                    "salary_range": {"type": "string", "description": "e.g. '$120k–$140k' (optional)"},
+                    "notes": {"type": "string", "description": "Thread-level notes (optional)"},
+                    "bd_id": {"type": "string", "description": "UUID of the new business developer (optional)"},
                 },
-                "required": ["interview_id", "status"],
+                "required": ["interview_id"],
             },
         },
     },
@@ -190,18 +233,18 @@ _TOOLS = [
         "function": {
             "name": "update_lead_outcome",
             "description": (
-                "Update the overall pipeline outcome for a lead thread. "
-                "Use this when the user says the lead/opportunity was closed, rejected, dropped, etc. "
+                "Update the overall pipeline outcome for a lead thread — use this when the opportunity was "
+                "rejected, closed (won), dropped, went dead, became unresponsive, or came back to active. "
+                "The thread_id is in the pipeline snapshot or from list_interviews. "
                 "Allowed values: active, unresponsive, dropped, dead, rejected, closed."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "thread_id": {"type": "string", "description": "UUID of the lead thread (from list_interviews)"},
+                    "thread_id": {"type": "string", "description": "UUID of the lead thread"},
                     "outcome": {
                         "type": "string",
                         "enum": ["active", "unresponsive", "dropped", "dead", "rejected", "closed"],
-                        "description": "New pipeline outcome",
                     },
                 },
                 "required": ["thread_id", "outcome"],
@@ -211,44 +254,110 @@ _TOOLS = [
 ]
 
 
+# ─── Time helpers ────────────────────────────────────────────
+
+_TZ_EASTERN = ZoneInfo("America/New_York")
+_TZ_PKT = ZoneInfo("Asia/Karachi")
+
+
+def _est_to_pkt(t: dt_time, ref_date: Optional[date] = None) -> dt_time:
+    """Convert an EST/EDT wall-clock time to PKT (Asia/Karachi, UTC+5), DST-aware."""
+    d = ref_date or date.today()
+    dt_east = datetime.combine(d, t, tzinfo=_TZ_EASTERN)
+    return dt_east.astimezone(_TZ_PKT).replace(tzinfo=None).time()
+
+
+# ─── Context snapshot ────────────────────────────────────────
+
+def _pipeline_snapshot(session: Session, user: User, own_candidate_id: Optional[uuid.UUID]) -> str:
+    """Return a compact table of recent pipeline records to inject into the system prompt."""
+    stmt = (
+        select(Interview)
+        .options(selectinload(Interview.company))
+        .order_by(Interview.created_at.desc())
+        .limit(30)
+    )
+    if user.role == UserRole.TEAM_MEMBER and own_candidate_id:
+        stmt = stmt.where(Interview.candidate_id == own_candidate_id)
+
+    rows = session.exec(stmt).all()
+    if not rows:
+        return "=== Pipeline snapshot: no records found ==="
+
+    lines = [
+        "=== Pipeline snapshot (most recent 30 — use these IDs directly for updates) ===",
+        "interview_id | thread_id | company | role | round | status | outcome_override | date",
+    ]
+    for iv in rows:
+        lt = session.get(LeadThread, iv.thread_id)
+        outcome = lt.outcome_override if lt else None
+        lines.append(
+            f"{iv.id} | {iv.thread_id} | {iv.company.name if iv.company else '?'} | "
+            f"{iv.role} | {iv.round} | {iv.status or '—'} | {outcome or '—'} | "
+            f"{iv.interview_date or '—'}"
+        )
+    return "\n".join(lines)
+
+
 # ─── System prompt ───────────────────────────────────────────
 
-def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID]) -> str:
+def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: str) -> str:
     today = date.today().strftime("%A, %B %d, %Y")
+
     if user.role == UserRole.TEAM_MEMBER:
         role_ctx = (
             f"You are assisting a TEAM MEMBER. "
             f"Their fixed candidate ID is {own_candidate_id}. "
-            f"Always force candidate_id to this value when calling create_lead or schedule_interview — never use any other candidate ID for this user. "
-            f"Do not ask which candidate to use; just apply it silently."
+            f"Always force candidate_id to this value for create_lead / schedule_interview. "
+            f"Do not ask which candidate; apply it silently."
             if own_candidate_id else
-            "You are assisting a TEAM MEMBER, but their account has no linked candidate record. "
-            "Inform them they need an admin to link their account to a candidate before you can create leads or interviews on their behalf."
+            "You are assisting a TEAM MEMBER whose account has no linked candidate record. "
+            "Inform them an admin must link their account before you can create leads or interviews."
         )
     else:
         role_ctx = (
-            "You are assisting a SUPERADMIN. They have full access and can create leads and interviews for any candidate. "
-            "When no candidate is specified ask which candidate the opportunity is for, then use list_candidates to find their ID."
+            "You are assisting a SUPERADMIN with full access. "
+            "When no candidate is specified, ask which candidate the opportunity is for, "
+            "then use list_candidates to find their ID."
         )
 
     return f"""You are an AI recruitment assistant for the AI Interviews Portal.
-You help manage the recruitment pipeline by adding companies, creating leads, and scheduling interview rounds.
+You help manage the recruitment pipeline: adding companies, creating leads, scheduling interviews, and editing existing records.
 
 Today: {today}
 User: {user.full_name} ({user.email}) — Role: {user.role.value}
 
 {role_ctx}
 
-How to act:
-- Use list_* tools first to resolve names to IDs — never guess an ID
-- If a company does not exist, offer to create it (confirm with the user first)
-- Ask for missing required fields one at a time in a friendly, conversational way
-- After each successful action, clearly confirm what was created or scheduled
-- Dates must be YYYY-MM-DD. Times must be HH:MM (24-hour) EST
-- Common round labels: Lead · Phone Screen · Technical · Onsite · Final Round · Offer
-- To update a status or outcome: first call list_interviews to find the right record, then call update_interview_status (per-round result) or update_lead_outcome (overall pipeline outcome)
-- Lead outcomes: active · unresponsive · dropped · dead · rejected · closed
-- Keep responses concise and focused"""
+{pipeline}
+
+## Company lookup rules (CRITICAL — follow exactly)
+1. Call list_companies and look for a company whose name matches what the user specified (case-insensitive).
+2. If a match is found, use its ID — proceed.
+3. If NO match is found, do NOT use any other company from the list. Instead:
+   a. Call create_company with the user's exact company name.
+   b. Inform the user in your reply: "I didn't find '[name]' in the database, so I created it."
+   c. Then continue creating the lead/interview using the newly created company's ID.
+4. NEVER substitute a different company because it looks similar. The company name the user gives is the one to use.
+
+## Profile / candidate / BD lookup rules
+- Call list_resume_profiles to match the profile name. Use the exact match.
+- Call list_candidates for candidates. For team members the candidate is fixed — do not ask.
+- If the user mentions a BD (business developer / recruiter) name, call list_business_developers to find the exact match and always pass bd_id to create_lead and schedule_interview. Never omit bd_id when a BD name was given.
+
+## General rules
+- The pipeline snapshot above has IDs for existing records — use them directly for updates.
+- Call list_interviews only for older records not in the snapshot.
+- Never guess a UUID.
+- Ask for one missing required field at a time.
+- Be transparent: state every action you take in your reply (company created, lead created, interview scheduled, field updated, etc.).
+- Dates: YYYY-MM-DD. Times: HH:MM (24-hour) EST.
+- Round labels: Lead · Phone Screen · Technical · Onsite · Final Round · Offer
+
+## Editing rules
+- Change interview date/time/link/interviewer/round/per-round status → update_interview
+- Change lead role/salary/notes/BD → update_lead
+- Mark a whole opportunity as rejected/closed/dropped/dead/unresponsive/active → update_lead_outcome"""
 
 
 # ─── Tool execution ──────────────────────────────────────────
@@ -283,10 +392,49 @@ def _exec_tool(
         rows = session.exec(select(BusinessDeveloper).order_by(BusinessDeveloper.name)).all()
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
+    if name == "list_interviews":
+        company_filter = args.get("company_name", "").strip().lower()
+        role_filter = args.get("role", "").strip().lower()
+        round_filter = args.get("round", "").strip().lower()
+        limit = min(int(args.get("limit", 20)), 50)
+
+        stmt = (
+            select(Interview)
+            .options(selectinload(Interview.company))
+            .order_by(Interview.created_at.desc())
+        )
+        if user.role == UserRole.TEAM_MEMBER and own_candidate_id:
+            stmt = stmt.where(Interview.candidate_id == own_candidate_id)
+
+        results = []
+        for iv in session.exec(stmt).all():
+            company_name = iv.company.name if iv.company else ""
+            if company_filter and company_filter not in company_name.lower():
+                continue
+            if role_filter and role_filter not in iv.role.lower():
+                continue
+            if round_filter and round_filter not in iv.round.lower():
+                continue
+            lt = session.get(LeadThread, iv.thread_id)
+            results.append({
+                "interview_id": str(iv.id),
+                "thread_id": str(iv.thread_id),
+                "company": company_name,
+                "role": iv.role,
+                "round": iv.round,
+                "status": iv.status,
+                "outcome_override": lt.outcome_override if lt else None,
+                "interview_date": str(iv.interview_date) if iv.interview_date else None,
+                "created_at": iv.created_at.date().isoformat(),
+            })
+            if len(results) >= limit:
+                break
+        return results, None
+
     if name == "create_company":
         existing = session.exec(select(Company).where(Company.name == args["name"])).first()
         if existing:
-            return {"error": f"Company '{args['name']}' already exists (id: {existing.id}). Use its ID instead."}, None
+            return {"error": f"Company '{args['name']}' already exists (id: {existing.id})."}, None
         company = Company(
             name=args["name"],
             is_staffing_firm=args.get("is_staffing_firm", False),
@@ -299,7 +447,6 @@ def _exec_tool(
         return {"id": str(company.id), "name": company.name}, action
 
     if name == "create_lead":
-        # Enforce candidate for team members
         candidate_id_raw = own_candidate_id if user.role == UserRole.TEAM_MEMBER else args.get("candidate_id")
         try:
             company_id = uuid.UUID(args["company_id"])
@@ -352,7 +499,7 @@ def _exec_tool(
         company = session.get(Company, company_id)
         desc = f"Lead created — {company.name} · {args['role'].strip()}"
         action = ChatAction(type="lead_created", description=desc, id=str(thread_id))
-        return {"thread_id": str(thread_id), "company": company.name, "role": args["role"]}, action
+        return {"thread_id": str(thread_id), "interview_id": str(interview.id), "company": company.name, "role": args["role"]}, action
 
     if name == "schedule_interview":
         candidate_id_raw = own_candidate_id if user.role == UserRole.TEAM_MEMBER else args.get("candidate_id")
@@ -378,12 +525,13 @@ def _exec_tool(
             except ValueError:
                 pass
 
-        from datetime import time as dt_time
         time_est = None
+        time_pkt = None
         if args.get("time_est"):
             try:
                 parts = args["time_est"].split(":")
                 time_est = dt_time(int(parts[0]), int(parts[1]))
+                time_pkt = _est_to_pkt(time_est, interview_date)
             except (ValueError, IndexError):
                 pass
 
@@ -396,6 +544,7 @@ def _exec_tool(
             round=args["round"].strip(),
             interview_date=interview_date,
             time_est=time_est,
+            time_pkt=time_pkt,
             bd_id=bd_id,
             interview_link=args.get("interview_link"),
             is_phone_call=args.get("is_phone_call", False),
@@ -409,66 +558,116 @@ def _exec_tool(
         time_str = f" at {args['time_est']} EST" if args.get("time_est") else ""
         desc = f"Interview scheduled — {company.name} · {args['role']} · {args['round']}{date_str}{time_str}"
         action = ChatAction(type="interview_scheduled", description=desc, id=str(interview.id))
-        return {"interview_id": str(interview.id), "company": company.name, "round": args["round"]}, action
+        return {"interview_id": str(interview.id), "thread_id": str(interview.thread_id), "company": company.name, "round": args["round"]}, action
 
-    if name == "list_interviews":
-        query = (
-            select(Interview, Company)
-            .join(Company, Interview.company_id == Company.id)
-            .order_by(Interview.created_at.desc())
-        )
-        company_name = args.get("company_name", "").strip().lower()
-        role_filter = args.get("role", "").strip().lower()
-        round_filter = args.get("round", "").strip().lower()
-        limit = min(int(args.get("limit", 20)), 50)
-
-        rows = session.exec(query).all()
-        results = []
-        for interview, company in rows:
-            if company_name and company_name not in company.name.lower():
-                continue
-            if role_filter and role_filter not in interview.role.lower():
-                continue
-            if round_filter and round_filter not in interview.round.lower():
-                continue
-            results.append({
-                "interview_id": str(interview.id),
-                "thread_id": str(interview.thread_id),
-                "company": company.name,
-                "role": interview.role,
-                "round": interview.round,
-                "status": interview.status,
-                "interview_date": str(interview.interview_date) if interview.interview_date else None,
-                "created_at": interview.created_at.date().isoformat(),
-            })
-            if len(results) >= limit:
-                break
-        return results, None
-
-    if name == "update_interview_status":
+    if name == "update_interview":
         try:
             iid = uuid.UUID(args["interview_id"])
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
-        interview = session.get(Interview, iid)
-        if not interview:
+        iv = session.get(Interview, iid)
+        if not iv:
             return {"error": "Interview not found"}, None
-        interview.status = args["status"].strip()
-        interview.updated_at = datetime.utcnow()
-        session.add(interview)
+
+        changed = []
+        if "interview_date" in args and args["interview_date"]:
+            try:
+                iv.interview_date = date.fromisoformat(args["interview_date"])
+                changed.append("date")
+                # Recompute PKT for the new date if a time is already set
+                if iv.time_est:
+                    iv.time_pkt = _est_to_pkt(iv.time_est, iv.interview_date)
+            except ValueError:
+                return {"error": "Invalid date format — use YYYY-MM-DD"}, None
+        if "time_est" in args and args["time_est"]:
+            try:
+                parts = args["time_est"].split(":")
+                iv.time_est = dt_time(int(parts[0]), int(parts[1]))
+                iv.time_pkt = _est_to_pkt(iv.time_est, iv.interview_date)
+                changed.append("time")
+            except (ValueError, IndexError):
+                return {"error": "Invalid time format — use HH:MM"}, None
+        if "round" in args and args["round"]:
+            iv.round = args["round"].strip()
+            changed.append("round")
+        if "status" in args and args["status"]:
+            iv.status = args["status"].strip()
+            changed.append("status")
+        if "interview_link" in args and args["interview_link"]:
+            iv.interview_link = args["interview_link"].strip()
+            changed.append("link")
+        if "interviewer" in args and args["interviewer"]:
+            iv.interviewer = args["interviewer"].strip()
+            changed.append("interviewer")
+        if "is_phone_call" in args:
+            iv.is_phone_call = bool(args["is_phone_call"])
+            changed.append("is_phone_call")
+        if "feedback" in args and args["feedback"]:
+            iv.feedback = args["feedback"].strip()
+            changed.append("feedback")
+        if "recruiter_feedback" in args and args["recruiter_feedback"]:
+            iv.recruiter_feedback = args["recruiter_feedback"].strip()
+            changed.append("recruiter_feedback")
+
+        if not changed:
+            return {"error": "No fields provided to update"}, None
+
+        iv.updated_at = datetime.utcnow()
+        session.add(iv)
         session.commit()
-        action = ChatAction(
-            type="interview_status_updated",
-            description=f"Interview status set to '{interview.status}'",
-            id=str(interview.id),
-        )
-        return {"interview_id": str(interview.id), "status": interview.status}, action
+
+        desc = f"Interview updated — {', '.join(changed)}"
+        action = ChatAction(type="interview_updated", description=desc, id=str(iv.id))
+        return {"interview_id": str(iv.id), "updated": changed}, action
+
+    if name == "update_lead":
+        try:
+            iid = uuid.UUID(args["interview_id"])
+        except ValueError as e:
+            return {"error": f"Invalid UUID: {e}"}, None
+        iv = session.get(Interview, iid)
+        if not iv:
+            return {"error": "Interview (lead row) not found"}, None
+
+        changed = []
+        if "role" in args and args["role"]:
+            iv.role = args["role"].strip()
+            changed.append("role")
+        if "salary_range" in args and args["salary_range"]:
+            iv.salary_range = args["salary_range"].strip()
+            changed.append("salary_range")
+        if "bd_id" in args and args["bd_id"]:
+            try:
+                bd_id = uuid.UUID(args["bd_id"])
+            except ValueError as e:
+                return {"error": f"Invalid BD UUID: {e}"}, None
+            if not session.get(BusinessDeveloper, bd_id):
+                return {"error": "Business developer not found"}, None
+            iv.bd_id = bd_id
+            changed.append("bd")
+
+        if "notes" in args and args["notes"]:
+            lt = ensure_lead_thread(session, iv.thread_id)
+            lt.notes = args["notes"].strip()
+            lt.updated_at = datetime.utcnow()
+            session.add(lt)
+            changed.append("notes")
+
+        if not changed:
+            return {"error": "No fields provided to update"}, None
+
+        iv.updated_at = datetime.utcnow()
+        session.add(iv)
+        session.commit()
+
+        desc = f"Lead updated — {', '.join(changed)}"
+        action = ChatAction(type="lead_updated", description=desc, id=str(iv.thread_id))
+        return {"interview_id": str(iv.id), "thread_id": str(iv.thread_id), "updated": changed}, action
 
     if name == "update_lead_outcome":
-        from app.lead_thread_utils import ALLOWED_LEAD_OUTCOMES, ensure_lead_thread
         outcome = args["outcome"].strip().lower()
         if outcome not in ALLOWED_LEAD_OUTCOMES:
-            return {"error": f"Invalid outcome. Must be one of: {', '.join(sorted(ALLOWED_LEAD_OUTCOMES))}"}, None
+            return {"error": f"Invalid outcome. Allowed: {', '.join(sorted(ALLOWED_LEAD_OUTCOMES))}"}, None
         try:
             thread_id = uuid.UUID(args["thread_id"])
         except ValueError as e:
@@ -480,7 +679,7 @@ def _exec_tool(
         session.commit()
         action = ChatAction(
             type="lead_outcome_updated",
-            description=f"Lead outcome updated to '{outcome}'",
+            description=f"Lead outcome → '{outcome}'",
             id=str(thread_id),
         )
         return {"thread_id": str(thread_id), "outcome": outcome}, action
@@ -510,7 +709,10 @@ def chat_message(
     if current_user.role == UserRole.TEAM_MEMBER:
         own_candidate_id = candidate_id_for_team_member(session, current_user)
 
-    messages: list[dict] = [{"role": "system", "content": _system_prompt(current_user, own_candidate_id)}]
+    pipeline = _pipeline_snapshot(session, current_user, own_candidate_id)
+    system = _system_prompt(current_user, own_candidate_id, pipeline)
+
+    messages: list[dict] = [{"role": "system", "content": system}]
     for m in body.messages:
         messages.append({"role": m.role, "content": m.content})
     messages.append({"role": "user", "content": body.message})
@@ -530,7 +732,6 @@ def chat_message(
         if not msg.tool_calls:
             return ChatResponse(reply=msg.content or "", actions=actions)
 
-        # Add assistant message with tool calls
         messages.append({
             "role": "assistant",
             "content": msg.content,
@@ -544,13 +745,12 @@ def chat_message(
             ],
         })
 
-        # Execute each tool call and feed results back
         for tc in msg.tool_calls:
             try:
-                args = json.loads(tc.function.arguments)
+                tool_args = json.loads(tc.function.arguments)
             except json.JSONDecodeError:
-                args = {}
-            result, action = _exec_tool(tc.function.name, args, session, current_user, own_candidate_id)
+                tool_args = {}
+            result, action = _exec_tool(tc.function.name, tool_args, session, current_user, own_candidate_id)
             if action:
                 actions.append(action)
             messages.append({
