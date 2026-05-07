@@ -61,6 +61,20 @@ export default function CandidatesPage() {
     return counts;
   }, [monthFilteredInterviews]);
 
+  const leadCounts = useMemo(() => {
+    const threadsByCand: Record<string, Set<string>> = {};
+    monthFilteredInterviews.forEach((i) => {
+      if (!i.candidate_id || !i.thread_id) return;
+      if (!threadsByCand[i.candidate_id]) threadsByCand[i.candidate_id] = new Set();
+      threadsByCand[i.candidate_id].add(i.thread_id);
+    });
+    const counts: Record<string, number> = {};
+    for (const [cid, threads] of Object.entries(threadsByCand)) {
+      counts[cid] = threads.size;
+    }
+    return counts;
+  }, [monthFilteredInterviews]);
+
   const filteredCandidates = useMemo(() => {
     if (!search.trim()) return candidates;
     const q = search.toLowerCase();
@@ -210,6 +224,7 @@ export default function CandidatesPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
           {filteredCandidates.map((candidate) => {
             const count = interviewCounts[candidate.id] || 0;
+            const leads = leadCounts[candidate.id] || 0;
             return (
               <div
                 key={candidate.id}
@@ -245,7 +260,15 @@ export default function CandidatesPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 border-t border-slate-100 dark:border-white/[0.04] pt-3">
+                  <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-slate-50 dark:bg-white/[0.03] px-3 py-2">
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      {leads === 1 ? "Lead" : "Leads"}
+                    </span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                      {leads}
+                    </span>
+                  </div>
+                  <div className="mt-3 border-t border-slate-100 dark:border-white/[0.04] pt-3">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</p>
                     {candidate.email ? (
                       <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
