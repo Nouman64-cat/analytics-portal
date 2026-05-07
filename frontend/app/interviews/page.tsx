@@ -77,10 +77,159 @@ import Modal, {
   buttonSecondary,
 } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import CompanyCombobox from "@/components/CompanyCombobox";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
+
+// ─── Quick-create lead (used inside the interview form) ─────
+
+function QuickCreateLead({
+  companies,
+  profiles,
+  candidates,
+  isTeamMember,
+  meCandidateId,
+  onCompanyCreated,
+  onLeadCreated,
+}: {
+  companies: Company[];
+  profiles: ResumeProfile[];
+  candidates: Candidate[];
+  isTeamMember: boolean;
+  meCandidateId: string | null;
+  onCompanyCreated: (c: Company) => void;
+  onLeadCreated: (lead: LeadListItem) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [companyId, setCompanyId] = useState("");
+  const [profileId, setProfileId] = useState("");
+  const [role, setRole] = useState("");
+  const [candidateId, setCandidateId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyId || !profileId || !role.trim()) return;
+    const effectiveCandidateId = isTeamMember ? (meCandidateId ?? "") : candidateId;
+    if (!effectiveCandidateId) {
+      alert("Select a candidate for this lead.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const lead = await leadsService.create({
+        company_id: companyId,
+        resume_profile_id: profileId,
+        role: role.trim(),
+        candidate_id: effectiveCandidateId,
+      });
+      onLeadCreated(lead);
+      setExpanded(false);
+      setCompanyId("");
+      setProfileId("");
+      setRole("");
+      setCandidateId("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create lead");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      {!expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
+        >
+          <Plus size={13} />
+          Don't see the lead? Create one here
+        </button>
+      ) : (
+        <div className="border border-indigo-200 dark:border-indigo-500/20 rounded-xl bg-indigo-50/50 dark:bg-indigo-500/[0.04] p-3.5 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+              New lead
+            </p>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-2.5">
+            <FormField label="Company">
+              <CompanyCombobox
+                companies={companies}
+                value={companyId}
+                onChange={setCompanyId}
+                onCompanyCreated={(c) => { onCompanyCreated(c); setCompanyId(c.id); }}
+              />
+            </FormField>
+
+            <FormField label="Resume profile">
+              <select
+                value={profileId}
+                onChange={(e) => setProfileId(e.target.value)}
+                className={selectClass}
+                required
+              >
+                <option value="">Select profile…</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Role / title">
+              <input
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="e.g. Senior Engineer"
+                className={inputClass}
+                required
+              />
+            </FormField>
+
+            {!isTeamMember && (
+              <FormField label="Candidate">
+                <select
+                  value={candidateId}
+                  onChange={(e) => setCandidateId(e.target.value)}
+                  className={selectClass}
+                  required
+                >
+                  <option value="">Select candidate…</option>
+                  {candidates.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
+
+            <button
+              type="submit"
+              disabled={saving || !companyId || !profileId || !role.trim()}
+              className={`${buttonPrimary} w-full justify-center`}
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              Create lead & select
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page ───────────────────────────────────────────────
 
 function isRejectedInterview(interview: Interview): boolean {
   if (interview.lead_outcome?.toLowerCase() === "rejected") return true;
@@ -1995,6 +2144,38 @@ export default function InterviewsPage() {
                   if you need to attach to a different opportunity.
                 </p>
               ) : null}
+              {!lockLeadPicker && <QuickCreateLead
+                companies={companies}
+                profiles={profiles}
+                candidates={candidates}
+                isTeamMember={isTeamMember}
+                meCandidateId={meCandidateId}
+                onCompanyCreated={(c) => setCompanies((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))}
+                onLeadCreated={(lead) => {
+                  setLeadsList((prev) => [...prev, lead]);
+                  setSelectedLeadThreadId(lead.thread_id);
+                  const l = lead;
+                  setFormData({
+                    company_id: l.company_id,
+                    candidate_id: isTeamMember && meCandidateId ? meCandidateId : l.candidate_id || "",
+                    resume_profile_id: l.resume_profile_id,
+                    role: l.primary_role || "",
+                    salary_range: l.salary_range || "",
+                    round: "Phone Screen",
+                    interview_date: "",
+                    time_est: "",
+                    time_pkt: "",
+                    status: "",
+                    feedback: "",
+                    recruiter_feedback: "",
+                    bd_id: l.primary_bd_id || "",
+                    interviewer: "",
+                    interview_link: "",
+                    is_phone_call: false,
+                    parent_interview_id: l.last_interview_id,
+                  });
+                }}
+              />}
             </div>
           ) : null}
           {opportunitySnapshot ? (

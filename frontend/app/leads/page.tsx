@@ -46,6 +46,7 @@ import type {
   Candidate,
 } from "@/lib/types";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import CompanyCombobox, { CompanyComboboxHandle } from "@/components/CompanyCombobox";
 import {
   PageLoader,
   ErrorState,
@@ -170,6 +171,7 @@ export default function LeadsPage() {
   /** After the first fetch finishes, never swap the whole page for `PageLoader` on refetch. */
   const initialFetchDone = useRef(false);
   const isFirstDebouncedPageEffect = useRef(true);
+  const comboboxRef = useRef<CompanyComboboxHandle>(null);
   const [bdFilter, setBdFilter] = useState<string>("all");
   const [profileFilter, setProfileFilter] = useState<string>("all");
   const [candidateFilter, setCandidateFilter] = useState<string>("all");
@@ -424,14 +426,19 @@ export default function LeadsPage() {
 
   const handleSubmitLead = async () => {
     if (modalMode === "create") {
-      if (!form.company_id || !form.resume_profile_id || !form.role.trim()) {
+      // Auto-create company if user typed a new name without clicking Create in dropdown
+      let companyId = form.company_id;
+      if (!companyId && comboboxRef.current) {
+        companyId = (await comboboxRef.current.createIfNeeded()) ?? "";
+      }
+      if (!companyId || !form.resume_profile_id || !form.role.trim()) {
         alert("Company, resume profile, and role are required.");
         return;
       }
       setSubmitting(true);
       try {
         const payload: LeadCreate = {
-          company_id: form.company_id,
+          company_id: companyId,
           resume_profile_id: form.resume_profile_id,
           role: form.role.trim(),
           salary_range: form.salary_range?.trim() || null,
@@ -920,25 +927,16 @@ export default function LeadsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
           <FormField label="Company">
             {modalMode === "create" ? (
-              <select
+              <CompanyCombobox
+                ref={comboboxRef}
+                companies={companies}
                 value={form.company_id}
-                onChange={(e) => setForm((f) => ({ ...f, company_id: e.target.value }))}
-                className={selectClass}
-                required
-              >
-                <option value="">Select company…</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(id) => setForm((f) => ({ ...f, company_id: id }))}
+                onCompanyCreated={(c) => setCompanies((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))}
+              />
             ) : (
               <input
-                value={
-                  companies.find((c) => c.id === form.company_id)?.name ??
-                  "—"
-                }
+                value={companies.find((c) => c.id === form.company_id)?.name ?? "—"}
                 className={`${inputClass} opacity-80 cursor-not-allowed`}
                 readOnly
                 disabled
