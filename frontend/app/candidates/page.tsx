@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Pencil, Trash2, CalendarCheck, Loader2, Search } from "lucide-react";
-import { candidatesService, interviewsService } from "@/lib/services";
+import { candidatesService, interviewsService, leadsService } from "@/lib/services";
 import { formatDate, formatInterviewDateEst } from "@/lib/utils";
-import type { Candidate, CandidateWithInterviews, CandidateFormData, Interview } from "@/lib/types";
+import type { Candidate, CandidateWithInterviews, CandidateFormData, Interview, LeadListItem } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
@@ -19,6 +19,7 @@ function formatMonthLabel(ym: string) {
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [leads, setLeads] = useState<LeadListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
@@ -62,18 +63,23 @@ export default function CandidatesPage() {
   }, [monthFilteredInterviews]);
 
   const leadCounts = useMemo(() => {
-    const threadsByCand: Record<string, Set<string>> = {};
-    monthFilteredInterviews.forEach((i) => {
-      if (!i.candidate_id || !i.thread_id) return;
-      if (!threadsByCand[i.candidate_id]) threadsByCand[i.candidate_id] = new Set();
-      threadsByCand[i.candidate_id].add(i.thread_id);
-    });
     const counts: Record<string, number> = {};
-    for (const [cid, threads] of Object.entries(threadsByCand)) {
-      counts[cid] = threads.size;
+    if (selectedMonth === "all") {
+      leads.forEach((l) => {
+        if (!l.candidate_id) return;
+        counts[l.candidate_id] = (counts[l.candidate_id] || 0) + 1;
+      });
+    } else {
+      const activeThreadIds = new Set(
+        monthFilteredInterviews.filter((i) => i.thread_id).map((i) => i.thread_id!)
+      );
+      leads.forEach((l) => {
+        if (!l.candidate_id || !activeThreadIds.has(l.thread_id)) return;
+        counts[l.candidate_id] = (counts[l.candidate_id] || 0) + 1;
+      });
     }
     return counts;
-  }, [monthFilteredInterviews]);
+  }, [leads, selectedMonth, monthFilteredInterviews]);
 
   const filteredCandidates = useMemo(() => {
     if (!search.trim()) return candidates;
@@ -85,12 +91,14 @@ export default function CandidatesPage() {
     try {
       setLoading(true);
       setError(null);
-      const [data, interviewsData] = await Promise.all([
+      const [data, interviewsData, leadsPage] = await Promise.all([
         candidatesService.list(),
         interviewsService.list(),
+        leadsService.list({ page: 1, page_size: 5000 }),
       ]);
       setCandidates(data);
       setInterviews(interviewsData);
+      setLeads(leadsPage.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load candidates");
     } finally {

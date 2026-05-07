@@ -272,7 +272,7 @@ def list_leads(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=500)] = 10,
+    page_size: Annotated[int, Query(ge=1, le=5000)] = 10,
     search: Annotated[Optional[str], Query()] = None,
     status: Annotated[Literal["all", "open", "terminal"], Query()] = "all",
     bd_id: Annotated[Optional[uuid.UUID], Query()] = None,
