@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
 import { businessDevelopersService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { BusinessDeveloper, BusinessDeveloperFormData, Interview } from "@/lib/types";
@@ -33,8 +33,11 @@ export default function BusinessDevelopersPage() {
   const [formData, setFormData] = useState<BusinessDeveloperFormData>({ name: "" });
   const [deleteModal, setDeleteModal] = useState<BusinessDeveloper | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
+  const isSuperAdmin = role === "superadmin";
 
   const fetchData = useCallback(async () => {
     try {
@@ -96,6 +99,18 @@ export default function BusinessDevelopersPage() {
       alert(err instanceof Error ? err.message : "Failed to delete");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleToggleStatus = async (bd: BusinessDeveloper) => {
+    setTogglingId(bd.id);
+    try {
+      const updated = await businessDevelopersService.toggleStatus(bd.id);
+      setBds((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -161,25 +176,33 @@ export default function BusinessDevelopersPage() {
     [bdThreadCounts],
   );
 
-  const topBd = useMemo(
+  const filteredBds = useMemo(() => {
+    if (statusFilter === "active") return bds.filter((b) => b.is_active);
+    if (statusFilter === "inactive") return bds.filter((b) => !b.is_active);
+    return bds;
+  }, [bds, statusFilter]);
+
+  const activeBdCount = useMemo(() => bds.filter((b) => b.is_active).length, [bds]);
+
+  const avgPerBd =
+    filteredBds.length > 0 ? (totalAttributedThreads / filteredBds.length).toFixed(1) : "0";
+
+  const topBdFiltered = useMemo(
     () =>
-      bds.reduce<BusinessDeveloper | null>(
+      filteredBds.reduce<BusinessDeveloper | null>(
         (top, bd) =>
           (bdThreadCounts[bd.id] || 0) > (top ? bdThreadCounts[top.id] || 0 : -1) ? bd : top,
         null,
       ),
-    [bds, bdThreadCounts],
+    [filteredBds, bdThreadCounts],
   );
-
-  const avgPerBd =
-    bds.length > 0 ? (totalAttributedThreads / bds.length).toFixed(1) : "0";
 
   const chartData = useMemo(
     () =>
-      [...bds]
+      [...filteredBds]
         .map((bd) => ({ name: bd.name, leads: bdThreadCounts[bd.id] || 0 }))
         .sort((a, b) => b.leads - a.leads),
-    [bds, bdThreadCounts],
+    [filteredBds, bdThreadCounts],
   );
   // ─────────────────────────────────────────────────────────────────
 
@@ -190,7 +213,7 @@ export default function BusinessDevelopersPage() {
     <div className="space-y-6 animate-fade-in pb-10">
       <PageHeader
         title="Business Developers"
-        subtitle={`${bds.length} business developers`}
+        subtitle={`${bds.length} business developers · ${activeBdCount} active`}
         action={
           !cannotCRUD && (
             <button onClick={openCreate} className={buttonPrimary}>
@@ -200,6 +223,34 @@ export default function BusinessDevelopersPage() {
           )
         }
       />
+
+      {/* Status Filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Status:</span>
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all", "active", "inactive"] as const).map((s) => {
+            const count = s === "all" ? bds.length : s === "active" ? activeBdCount : bds.length - activeBdCount;
+            const active = statusFilter === s;
+            const colorMap = {
+              all: active ? "bg-slate-700 text-white dark:bg-white/20 dark:text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]",
+              active: active ? "bg-emerald-500 text-white" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20",
+              inactive: active ? "bg-slate-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]",
+            };
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${colorMap[s]}`}
+              >
+                {s === "active" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />}
+                {s === "inactive" && <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />}
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+                <span className="opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Month Filter */}
       {availableMonths.length > 0 && (
@@ -234,7 +285,7 @@ export default function BusinessDevelopersPage() {
           icon={CalendarCheck}
           gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
         />
-        <StatsCard title="Top Performer" value={topBd?.name ?? "—"} icon={TrendingUp} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
+        <StatsCard title="Top Performer" value={topBdFiltered?.name ?? "—"} icon={TrendingUp} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
         <StatsCard title="Avg per BD" value={avgPerBd} icon={Briefcase} gradient="bg-gradient-to-br from-fuchsia-500 to-pink-600" />
       </StatsGrid>
       {totalLeadsInPeriod > totalAttributedThreads && (
@@ -276,17 +327,20 @@ export default function BusinessDevelopersPage() {
       )}
 
       {/* Cards */}
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">All Business Developers</h3>
-      {bds.length === 0 ? (
-        <EmptyState message="No business developers yet" />
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">
+        {statusFilter === "all" ? "All Business Developers" : statusFilter === "active" ? "Active Business Developers" : "Inactive Business Developers"}
+      </h3>
+      {filteredBds.length === 0 ? (
+        <EmptyState message={statusFilter === "inactive" ? "No inactive business developers" : statusFilter === "active" ? "No active business developers" : "No business developers yet"} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
-          {[...bds].sort((a, b) => (bdThreadCounts[b.id] || 0) - (bdThreadCounts[a.id] || 0)).map((bd) => {
+          {[...filteredBds].sort((a, b) => (bdThreadCounts[b.id] || 0) - (bdThreadCounts[a.id] || 0)).map((bd) => {
             const count = bdThreadCounts[bd.id] || 0;
+            const isToggling = togglingId === bd.id;
             return (
               <div
                 key={bd.id}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-amber-300/50 dark:hover:border-amber-500/30 hover:shadow-lg hover:shadow-black/20"
+                className={`group relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg hover:shadow-black/20 ${bd.is_active ? "border-slate-200 dark:border-white/[0.06] hover:border-amber-300/50 dark:hover:border-amber-500/30" : "border-slate-200/60 dark:border-white/[0.03] opacity-70"}`}
               >
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-amber-500/10 to-orange-500/10 blur-2xl transition-all group-hover:opacity-80" />
                 <div className="relative">
@@ -294,22 +348,34 @@ export default function BusinessDevelopersPage() {
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400">
                       <Briefcase size={18} />
                     </div>
-                    {!cannotCRUD && (
-                      <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                    <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                      {isSuperAdmin && (
                         <button
-                          onClick={() => openEdit(bd)}
-                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                          onClick={() => void handleToggleStatus(bd)}
+                          disabled={isToggling}
+                          title={bd.is_active ? "Set inactive" : "Set active"}
+                          className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${bd.is_active ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06]"}`}
                         >
-                          <Pencil size={13} />
+                          {isToggling ? <Loader2 size={13} className="animate-spin" /> : bd.is_active ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
                         </button>
-                        <button
-                          onClick={() => setDeleteModal(bd)}
-                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      {!cannotCRUD && (
+                        <>
+                          <button
+                            onClick={() => openEdit(bd)}
+                            className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteModal(bd)}
+                            className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-4">
@@ -320,7 +386,13 @@ export default function BusinessDevelopersPage() {
                   </div>
 
                   <div className="mt-4 border-t border-slate-100 dark:border-white/[0.04] pt-3">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{bd.name}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{bd.name}</p>
+                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${bd.is_active ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400"}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${bd.is_active ? "bg-emerald-400" : "bg-slate-400"}`} />
+                        {bd.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                       Added {formatDate(bd.created_at)}
                     </p>

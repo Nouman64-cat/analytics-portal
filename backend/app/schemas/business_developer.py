@@ -10,11 +10,13 @@ class BusinessDeveloperCreate(BaseModel):
 
 class BusinessDeveloperUpdate(BaseModel):
     name: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class BusinessDeveloperRead(BaseModel):
     id: uuid.UUID
     name: str
+    is_active: bool
     created_at: datetime
     updated_at: datetime
 

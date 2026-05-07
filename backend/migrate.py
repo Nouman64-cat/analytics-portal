@@ -100,6 +100,8 @@ def migrate():
              "Migration successful! 'is_converted_override' column added to 'lead_threads' table."),
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS alarm_enabled BOOLEAN NOT NULL DEFAULT FALSE;",
              "Migration successful! 'alarm_enabled' column added to 'users' table."),
+            ("ALTER TABLE business_developers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;",
+             "Migration successful! 'is_active' column added to 'business_developers' table."),
         ]
         for sql, msg in migrations:
             try:

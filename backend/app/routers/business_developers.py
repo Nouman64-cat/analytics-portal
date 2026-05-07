@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
 from app.models.business_developer import BusinessDeveloper
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.business_developer import (
     BusinessDeveloperCreate,
     BusinessDeveloperRead,
@@ -72,6 +72,35 @@ def update_business_developer(
         entity_type="business_developer",
         entity_id=bd.id,
         message=f"Updated business developer '{bd.name}'",
+    )
+    session.commit()
+    return bd
+
+
+@router.patch("/{bd_id}/status", response_model=BusinessDeveloperRead)
+def toggle_business_developer_status(
+    bd_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle active/inactive status. Superadmin only."""
+    if current_user.role != UserRole.SUPERADMIN:
+        raise HTTPException(status_code=403, detail="Only superadmin can change BD status.")
+    bd = session.get(BusinessDeveloper, bd_id)
+    if not bd:
+        raise HTTPException(status_code=404, detail="Business developer not found")
+    bd.is_active = not bd.is_active
+    bd.updated_at = datetime.utcnow()
+    session.add(bd)
+    session.commit()
+    session.refresh(bd)
+    record_activity(
+        session,
+        actor=current_user,
+        action="update_business_developer",
+        entity_type="business_developer",
+        entity_id=bd.id,
+        message=f"Set business developer '{bd.name}' to {'active' if bd.is_active else 'inactive'}",
     )
     session.commit()
     return bd

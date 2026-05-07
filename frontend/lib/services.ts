@@ -156,6 +156,8 @@ export const businessDevelopersService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  toggleStatus: (id: string) =>
+    apiFetch<BusinessDeveloper>(`/business-developers/${id}/status`, { method: "PATCH" }),
   delete: (id: string) =>
     apiFetch<void>(`/business-developers/${id}`, { method: "DELETE" }),
 };

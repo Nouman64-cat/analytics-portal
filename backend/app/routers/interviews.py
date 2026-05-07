@@ -7,6 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user
 from sqlmodel import Session, select, col
+from sqlalchemy import nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
 from app.activity_log import record_activity
@@ -288,7 +289,11 @@ def list_interviews(
     if date_to:
         query = query.where(Interview.interview_date <= date_to)
 
-    query = query.order_by(Interview.interview_date.desc())  # type: ignore
+    query = query.order_by(  # type: ignore
+        Interview.interview_date.desc(),
+        nulls_last(Interview.time_est.desc()),
+        Interview.created_at.desc(),
+    )
     interviews = session.exec(query).all()
 
     thread_ids = {i.thread_id for i in interviews if i.thread_id}
