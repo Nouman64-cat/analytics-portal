@@ -222,7 +222,7 @@ export default function StatsPage() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [search, setSearch] = useState("");
 
-  const isAllowed = role === "superadmin" || role === "manager";
+  const isAllowed = role === "superadmin" || role === "manager" || role === "dept-lead";
 
   const fetchData = useCallback(async () => {
     try {

@@ -8,7 +8,7 @@ import type { User, UserFormData, Department } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
-import { getUserRole } from "@/lib/auth";
+import { getUserRole, getUserDeptId } from "@/lib/auth";
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -34,6 +34,9 @@ export default function UsersPage() {
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
+  const isDeptLead = role === "dept-lead";
+  const myDeptId = getUserDeptId();
+  const hasAccess = isSuperadmin || isDeptLead;
 
   const deptMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -66,14 +69,16 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => {
-    if (isSuperadmin) {
+    if (hasAccess) {
       fetchData();
-      departmentsService.list().then(setDepartments).catch(() => {});
+      if (isSuperadmin) {
+        departmentsService.list().then(setDepartments).catch(() => {});
+      }
     } else {
       setLoading(false);
-      setError("Access denied. Superadmin role required.");
+      setError("Access denied.");
     }
-  }, [fetchData, isSuperadmin]);
+  }, [fetchData, hasAccess, isSuperadmin]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -129,12 +134,12 @@ export default function UsersPage() {
     }
   };
 
-  if (!isSuperadmin) {
+  if (!hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Shield size={48} className="text-red-500/50" />
         <h2 className="text-xl font-bold dark:text-white">Access Denied</h2>
-        <p className="text-slate-500 dark:text-slate-400">This page is restricted to Superadmins only.</p>
+        <p className="text-slate-500 dark:text-slate-400">This page is restricted to Superadmins and Dept Leads.</p>
       </div>
     );
   }
@@ -146,7 +151,7 @@ export default function UsersPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="User Management"
-        subtitle={`${users.length} registered accounts`}
+        subtitle={isDeptLead ? `${users.length} users in your department` : `${users.length} registered accounts`}
         action={
           <button onClick={openCreate} className={buttonPrimary}>
             <Plus size={16} />
@@ -208,6 +213,7 @@ export default function UsersPage() {
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         user.role === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
                         user.role === 'manager' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
+                        user.role === 'dept-lead' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
                         'bg-slate-500/10 text-slate-400 border border-slate-500/20'
                       }`}>
                         {user.role}
@@ -275,13 +281,14 @@ export default function UsersPage() {
               className={inputClass}
             >
               <option value="team-member">Team Member</option>
-              <option value="manager">Manager</option>
               <option value="bd">Business Developer</option>
-              <option value="superadmin">Superadmin</option>
+              {isSuperadmin && <option value="dept-lead">Dept Lead</option>}
+              {isSuperadmin && <option value="manager">Manager</option>}
+              {isSuperadmin && <option value="superadmin">Superadmin</option>}
             </select>
           </FormField>
 
-          {formData.role === "team-member" && (
+          {isSuperadmin && (formData.role === "team-member" || formData.role === "bd" || formData.role === "dept-lead") && (
             <FormField label="Department">
               <select
                 value={formData.department_id ?? ""}

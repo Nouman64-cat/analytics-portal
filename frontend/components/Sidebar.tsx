@@ -75,6 +75,7 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
     manager: ["/", "/business-developers", "/activities", "/users", "/backup", "/departments"],
     bd: ["/activities", "/users", "/backup", "/departments", "/stats"],
     "team-member": ["/candidates", "/business-developers", "/users", "/backup", "/departments", "/stats"],
+    "dept-lead": ["/business-developers", "/activities", "/backup", "/departments"],
   };
   const hiddenHrefs = role ? HIDDEN_BY_ROLE[role] || [] : [];
   const visibleNavItems = NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href));

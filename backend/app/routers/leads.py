@@ -34,11 +34,11 @@ router = APIRouter(prefix="/api/v1/leads", tags=["Leads"], dependencies=[Depends
 
 
 def _require_lead_write_role(current_user: User) -> None:
-    """Create/update/delete leads: superadmin, team member, and BD."""
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD):
+    """Create/update/delete leads: superadmin, team member, BD, and dept lead."""
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD, UserRole.DEPT_LEAD):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin, team members, and BDs can create, edit, or delete leads.",
+            detail="Only superadmin, team members, BDs, and dept leads can create, edit, or delete leads.",
         )
 
 
@@ -432,12 +432,19 @@ def create_lead(
     lt = ensure_lead_thread(session, thread_id)
     if data.candidate_id:
         lt.entertaining_candidate_id = data.candidate_id
-    if data.notes and data.notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
+    if data.notes and data.notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.DEPT_LEAD):
         lt.notes = data.notes.strip()
-    if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD):
+    if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD):
         lt.bd_notes = data.bd_notes.strip()
     lt.updated_at = datetime.utcnow()
     session.add(lt)
+
+    # Derive department from the candidate record, falling back to the creator's dept
+    dept_id = current_user.department_id
+    if data.candidate_id:
+        cand = session.get(Candidate, data.candidate_id)
+        if cand and cand.department_id:
+            dept_id = cand.department_id
 
     sr = (data.salary_range or "").strip() or None
     interview = Interview(
@@ -453,6 +460,7 @@ def create_lead(
         salary_range=sr,
         bd_id=bd_id,
         interview_date=data.arrived_on,
+        department_id=dept_id,
     )
     session.add(interview)
     session.commit()
@@ -544,10 +552,10 @@ def update_lead(
     patch = data.model_dump(exclude_unset=True)
 
     lt = ensure_lead_thread(session, thread_id)
-    if "notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
+    if "notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.DEPT_LEAD):
         n = patch["notes"]
         lt.notes = (n.strip() if isinstance(n, str) else None) or None
-    if "bd_notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.BD):
+    if "bd_notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD):
         n = patch["bd_notes"]
         lt.bd_notes = (n.strip() if isinstance(n, str) else None) or None
     if "candidate_id" in patch:

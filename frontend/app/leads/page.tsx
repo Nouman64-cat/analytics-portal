@@ -203,10 +203,11 @@ export default function LeadsPage() {
   const isSuperAdmin = role === "superadmin";
   const isTeamMember = role === "team-member";
   const isBD = role === "bd";
+  const isDeptLead = role === "dept-lead";
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
-  /** Create / edit / delete leads — superadmin, team member, and BD. Manager: read-only. */
-  const canMutateLeads = role === "superadmin" || role === "team-member" || role === "bd";
+  /** Create / edit / delete leads — superadmin, team member, BD, and dept lead. Manager: read-only. */
+  const canMutateLeads = role === "superadmin" || role === "team-member" || role === "bd" || role === "dept-lead";
   const canEditLeadStatus = canMutateLeads;
   const [savingLeadThreadId, setSavingLeadThreadId] = useState<string | null>(
     null,
@@ -1086,7 +1087,7 @@ export default function LeadsPage() {
               </FormField>
             </div>
           )}
-          {(isBD || isSuperAdmin) && (
+          {(isBD || isSuperAdmin || isDeptLead) && (
             <div className="sm:col-span-2">
               <FormField label="BD Notes">
                 <textarea
