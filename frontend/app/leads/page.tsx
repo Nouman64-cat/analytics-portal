@@ -77,7 +77,7 @@ const SORT_OPTIONS: { value: LeadListSort; label: string }[] = [
   { value: "company_desc", label: "Company Z–A" },
 ];
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 function LeadOutcomeBadge({
