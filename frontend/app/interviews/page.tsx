@@ -623,9 +623,9 @@ export default function InterviewsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const { departmentId } = useDepartmentContext();
-  const cannotCRUD = role === "bd" || role === "manager";
+  const cannotCRUD = role === "manager";
   const isTeamMember = role === "team-member";
-  const canEditLeadThreadPanel = role === "superadmin" || role === "team-member";
+  const canEditLeadThreadPanel = role === "superadmin" || role === "team-member" || role === "bd";
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const canAddPipelineRound = !isTeamMember || !!meCandidateId;
   const [isSubmitting, setIsSubmitting] = useState(false);

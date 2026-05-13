@@ -34,11 +34,11 @@ router = APIRouter(prefix="/api/v1/leads", tags=["Leads"], dependencies=[Depends
 
 
 def _require_lead_write_role(current_user: User) -> None:
-    """Create/update/delete leads: superadmin and team member only. BD and manager are read-only."""
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
+    """Create/update/delete leads: superadmin, team member, and BD."""
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin and team members can create, edit, or delete leads.",
+            detail="Only superadmin, team members, and BDs can create, edit, or delete leads.",
         )
 
 
@@ -127,6 +127,7 @@ def _build_lead_list_item(
         lead_status_label=eff["lead_status_label"],
         lead_source=eff["lead_source"],
         lead_notes=eff.get("lead_notes"),
+        bd_notes=eff.get("bd_notes"),
     )
 
 
@@ -431,8 +432,10 @@ def create_lead(
     lt = ensure_lead_thread(session, thread_id)
     if data.candidate_id:
         lt.entertaining_candidate_id = data.candidate_id
-    if data.notes and data.notes.strip():
+    if data.notes and data.notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
         lt.notes = data.notes.strip()
+    if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD):
+        lt.bd_notes = data.bd_notes.strip()
     lt.updated_at = datetime.utcnow()
     session.add(lt)
 
@@ -541,9 +544,12 @@ def update_lead(
     patch = data.model_dump(exclude_unset=True)
 
     lt = ensure_lead_thread(session, thread_id)
-    if "notes" in patch:
+    if "notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
         n = patch["notes"]
         lt.notes = (n.strip() if isinstance(n, str) else None) or None
+    if "bd_notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.BD):
+        n = patch["bd_notes"]
+        lt.bd_notes = (n.strip() if isinstance(n, str) else None) or None
     if "candidate_id" in patch:
         cid = patch["candidate_id"]
         if cid is not None and not session.get(Candidate, cid):

@@ -9,11 +9,16 @@ interface StatsCardProps {
   icon: LucideIcon;
   trend?: string;
   gradient: string;
+  onClick?: () => void;
 }
 
-export default function StatsCard({ title, value, icon: Icon, trend, gradient }: StatsCardProps) {
+export default function StatsCard({ title, value, icon: Icon, trend, gradient, onClick }: StatsCardProps) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="group relative min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 transition-all duration-300 hover:border-slate-300 dark:hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20 sm:p-5">
+    <Tag
+      onClick={onClick}
+      className={`group relative min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 transition-all duration-300 hover:border-slate-300 dark:hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20 sm:p-5 text-left${onClick ? " cursor-pointer active:scale-[0.98]" : ""}`}
+    >
       {/* Background glow */}
       <div
         className={`absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-20 blur-2xl transition-all duration-500 group-hover:opacity-30 ${gradient}`}
@@ -37,7 +42,12 @@ export default function StatsCard({ title, value, icon: Icon, trend, gradient }:
           <Icon size={20} className="text-slate-900 dark:text-white/80" />
         </div>
       </div>
-    </div>
+      {onClick && (
+        <p className="relative mt-2 text-[10px] text-slate-400 dark:text-slate-600">
+          Click to view leads →
+        </p>
+      )}
+    </Tag>
   );
 }
 

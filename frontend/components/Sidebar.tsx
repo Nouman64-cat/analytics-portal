@@ -31,6 +31,7 @@ import {
   Target,
   Settings2,
   Layers,
+  BarChart2,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole } from "@/lib/auth";
@@ -51,6 +52,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Target,
   Settings2,
   Layers,
+  BarChart2,
 };
 
 export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {
@@ -71,8 +73,8 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
   const role = getUserRole();
   const HIDDEN_BY_ROLE: Record<string, string[]> = {
     manager: ["/", "/business-developers", "/activities", "/users", "/backup", "/departments"],
-    bd: ["/activities", "/users", "/backup", "/departments"],
-    "team-member": ["/candidates", "/business-developers", "/users", "/backup", "/departments"],
+    bd: ["/activities", "/users", "/backup", "/departments", "/stats"],
+    "team-member": ["/candidates", "/business-developers", "/users", "/backup", "/departments", "/stats"],
   };
   const hiddenHrefs = role ? HIDDEN_BY_ROLE[role] || [] : [];
   const visibleNavItems = NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href));

@@ -193,6 +193,7 @@ export default function LeadsPage() {
     bd_id: "",
     candidate_id: "",
     notes: "",
+    bd_notes: "",
     arrived_on: "",
     is_converted_override: null,
   });
@@ -201,10 +202,11 @@ export default function LeadsPage() {
   const { departmentId } = useDepartmentContext();
   const isSuperAdmin = role === "superadmin";
   const isTeamMember = role === "team-member";
+  const isBD = role === "bd";
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
-  /** Create / edit / delete leads and lead status — superadmin and team member only. BD and manager: read-only. */
-  const canMutateLeads = role === "superadmin" || role === "team-member";
+  /** Create / edit / delete leads — superadmin, team member, and BD. Manager: read-only. */
+  const canMutateLeads = role === "superadmin" || role === "team-member" || role === "bd";
   const canEditLeadStatus = canMutateLeads;
   const [savingLeadThreadId, setSavingLeadThreadId] = useState<string | null>(
     null,
@@ -390,6 +392,7 @@ export default function LeadsPage() {
       // Auto-select the team member's own candidate
       candidate_id: isTeamMember && meCandidateId ? meCandidateId : "",
       notes: "",
+      bd_notes: "",
       arrived_on: new Date().toISOString().split("T")[0],
     });
     setModalOpen(true);
@@ -406,6 +409,7 @@ export default function LeadsPage() {
       bd_id: lead.primary_bd_id ?? "",
       candidate_id: lead.candidate_id ?? "",
       notes: lead.lead_notes ?? "",
+      bd_notes: lead.bd_notes ?? "",
       arrived_on: lead.first_interview_date || "",
       is_converted_override: lead.is_converted_override ?? null,
     });
@@ -449,6 +453,7 @@ export default function LeadsPage() {
           bd_id: form.bd_id || null,
           candidate_id: form.candidate_id?.trim() || null,
           notes: form.notes?.trim() || null,
+          bd_notes: form.bd_notes?.trim() || null,
           arrived_on: form.arrived_on || null,
         };
         await leadsService.create(payload);
@@ -476,6 +481,7 @@ export default function LeadsPage() {
         bd_id: form.bd_id || null,
         candidate_id: form.candidate_id?.trim() || null,
         notes: form.notes?.trim() || null,
+        bd_notes: form.bd_notes?.trim() || null,
         arrived_on: form.arrived_on || null,
         is_converted_override: isSuperAdmin ? form.is_converted_override : undefined,
       });
@@ -1067,17 +1073,32 @@ export default function LeadsPage() {
               </select>
             </FormField>
           )}
-          <div className="sm:col-span-2">
-            <FormField label="Notes (optional)">
-              <textarea
-                value={form.notes || ""}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className={textareaClass}
-                rows={2}
-                placeholder="Context for this lead…"
-              />
-            </FormField>
-          </div>
+          {(isTeamMember || isSuperAdmin) && (
+            <div className="sm:col-span-2">
+              <FormField label="Team Notes">
+                <textarea
+                  value={form.notes || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  className={textareaClass}
+                  rows={2}
+                  placeholder="Internal context for this lead (visible to team)…"
+                />
+              </FormField>
+            </div>
+          )}
+          {(isBD || isSuperAdmin) && (
+            <div className="sm:col-span-2">
+              <FormField label="BD Notes">
+                <textarea
+                  value={form.bd_notes || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, bd_notes: e.target.value }))}
+                  className={textareaClass}
+                  rows={2}
+                  placeholder="BD-facing notes for this lead…"
+                />
+              </FormField>
+            </div>
+          )}
         </div>
         <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 dark:border-white/[0.06] pt-4">
           <button
@@ -1196,10 +1217,18 @@ export default function LeadsPage() {
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                  Notes
+                  Team Notes
                 </dt>
                 <dd className="mt-0.5 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
                   {detailLead.lead_notes?.trim() ? detailLead.lead_notes : "—"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                  BD Notes
+                </dt>
+                <dd className="mt-0.5 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {detailLead.bd_notes?.trim() ? detailLead.bd_notes : "—"}
                 </dd>
               </div>
             </dl>

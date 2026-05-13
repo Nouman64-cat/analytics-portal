@@ -136,6 +136,7 @@ export interface LeadCreate {
   /** Who entertains this lead (BD); rounds can still use other candidates. */
   candidate_id?: string | null;
   notes?: string | null;
+  bd_notes?: string | null;
   arrived_on?: string | null;
   is_converted_override?: boolean | null;
 }
@@ -148,6 +149,7 @@ export interface LeadUpdate {
   bd_id?: string | null;
   candidate_id?: string | null;
   notes?: string | null;
+  bd_notes?: string | null;
   arrived_on?: string | null;
   is_converted_override?: boolean | null;
 }
@@ -181,6 +183,7 @@ export interface LeadListItem {
   lead_status_label: string;
   lead_source: string;
   lead_notes: string | null;
+  bd_notes: string | null;
 }
 
 /** GET /api/v1/leads/ — aggregates for the current filters (full filtered set, not only the page). */

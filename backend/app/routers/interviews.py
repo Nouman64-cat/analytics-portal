@@ -339,11 +339,11 @@ def patch_lead_thread_status(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Set or clear lead outcome override and notes (superadmin and team members; BD/manager read-only)."""
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
+    """Set or clear lead outcome override and notes (superadmin, team members, and BD)."""
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin and team members can update lead thread status.",
+            detail="Only superadmin, team members, and BDs can update lead thread status.",
         )
     if current_user.role == UserRole.TEAM_MEMBER and not team_member_can_access_thread(
         session, current_user, thread_id

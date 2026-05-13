@@ -108,9 +108,11 @@ def effective_lead_fields(
 ) -> dict[str, Any]:
     """Return lead_outcome, lead_status_label, lead_source, lead_notes for API responses."""
     notes: Optional[str] = None
+    bd_notes: Optional[str] = None
     closed_at: Optional[datetime] = None
     if lead_row:
         notes = lead_row.notes
+        bd_notes = lead_row.bd_notes
         closed_at = lead_row.closed_at
 
     # Determine outcome
@@ -129,6 +131,7 @@ def effective_lead_fields(
 
     # Attach common fields
     res["lead_notes"] = notes
+    res["bd_notes"] = bd_notes
     res["lead_closed_at"] = closed_at
     
     # Always include/apply conversion status

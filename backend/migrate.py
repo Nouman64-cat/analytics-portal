@@ -166,6 +166,8 @@ def migrate():
              "Migration successful! candidates.department_id is now NOT NULL."),
             ("ALTER TABLE interviews ALTER COLUMN department_id SET NOT NULL;",
              "Migration successful! interviews.department_id is now NOT NULL."),
+            ("ALTER TABLE lead_threads ADD COLUMN IF NOT EXISTS bd_notes TEXT;",
+             "Migration successful! 'bd_notes' column added to 'lead_threads' table."),
         ]
         for sql, msg in migrations:
             try:

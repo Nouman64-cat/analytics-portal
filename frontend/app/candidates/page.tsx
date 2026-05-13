@@ -289,10 +289,6 @@ export default function CandidatesPage() {
           {filteredCandidates.map(candidate => {
             const interviewCount = interviewCounts[candidate.id] || 0;
             const leadCount = leadCounts[candidate.id] || 0;
-            const iBreakdown = interviewStatusBreakdown[candidate.id] || {};
-            const lBreakdown = leadStatusBreakdown[candidate.id] || {};
-            const iCols = sortedStatusColumns(iBreakdown, INTERVIEW_STATUS_ORDER);
-            const lCols = sortedStatusColumns(lBreakdown, LEAD_STATUS_ORDER);
 
             return (
               <div
@@ -319,55 +315,21 @@ export default function CandidatesPage() {
                     </div>
                   )}
 
-                  {/* Avatar + interview count */}
+                  {/* Avatar + interviews / leads big number */}
                   <div className="flex items-center justify-between">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-2xl font-bold text-emerald-300">
                       {candidate.name[0]}
                     </div>
                     <div className="text-right">
-                      <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{interviewCount}</p>
+                      <p className="text-4xl font-bold tracking-tight tabular-nums">
+                        <span className="text-slate-900 dark:text-white">{interviewCount}</span>
+                        <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
+                        <span className="text-slate-500 dark:text-slate-400">{leadCount}</span>
+                      </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                        {interviewCount === 1 ? "Interview" : "Interviews"}
+                        Interviews / Leads
                       </p>
                     </div>
-                  </div>
-
-                  {/* Interview status breakdown */}
-                  {iCols.length > 0 && (
-                    <div className="mt-2.5 flex flex-wrap gap-1">
-                      {iCols.map(([status, count]) => {
-                        const style = getStatusStyle(status);
-                        return (
-                          <span key={status} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}>
-                            <span className={`h-1 w-1 rounded-full ${style.dot}`} />
-                            {count} {status}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Leads count + status breakdown */}
-                  <div className="mt-3 rounded-lg bg-slate-50 dark:bg-white/[0.03] px-3 py-2 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        {leadCount === 1 ? "Lead" : "Leads"}
-                      </span>
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">{leadCount}</span>
-                    </div>
-                    {lCols.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {lCols.map(([label, count]) => {
-                          const style = getLeadOutcomeBadgeStyle(labelToOutcomeKey(label));
-                          return (
-                            <span key={label} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}>
-                              <span className={`h-1 w-1 rounded-full ${style.dot}`} />
-                              {count} {label}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
 
                   {/* Candidate info */}

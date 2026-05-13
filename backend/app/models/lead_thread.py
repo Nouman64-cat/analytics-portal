@@ -21,6 +21,7 @@ class LeadThread(SQLModel, table=True):
     # Manual override for the Converted column (Auto/True/False).
     is_converted_override: Optional[bool] = Field(default=None)
     notes: Optional[str] = Field(default=None)
+    bd_notes: Optional[str] = Field(default=None)
     closed_at: Optional[datetime] = Field(default=None)
     #: Set when `outcome_override` becomes `unresponsive`; used to auto-mark dead after 30 days.
     unresponsive_since: Optional[datetime] = Field(default=None)
