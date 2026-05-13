@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles, X, MessageCircle, RefreshCw } from "lucide-react";
+import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles, X, RefreshCw } from "lucide-react";
 import { chatService } from "@/lib/services";
 import type { ChatMessage, ChatAction } from "@/lib/types";
 import { getUserRole } from "@/lib/auth";
@@ -260,18 +260,6 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {/* Floating button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-5 right-5 z-50 h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform"
-        aria-label="Open AI Assistant"
-      >
-        {open ? (
-          <X size={22} className="text-white" />
-        ) : (
-          <MessageCircle size={22} className="text-white" />
-        )}
-      </button>
     </>
   );
 }
