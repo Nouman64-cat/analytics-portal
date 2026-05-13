@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil, Trash2 } from "lucide-react";
-import { usersService } from "@/lib/services";
+import { usersService, departmentsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
-import type { User, UserFormData } from "@/lib/types";
+import type { User, UserFormData, Department } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
@@ -25,13 +25,21 @@ export default function UsersPage() {
     full_name: "",
     email: "",
     role: "team-member",
+    department_id: null,
   });
   const [search, setSearch] = useState("");
   const [deleteModal, setDeleteModal] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
+
+  const deptMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    departments.forEach((d) => { m[d.id] = d.name; });
+    return m;
+  }, [departments]);
 
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return users;
@@ -60,6 +68,7 @@ export default function UsersPage() {
   useEffect(() => {
     if (isSuperadmin) {
       fetchData();
+      departmentsService.list().then(setDepartments).catch(() => {});
     } else {
       setLoading(false);
       setError("Access denied. Superadmin role required.");
@@ -68,7 +77,7 @@ export default function UsersPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ full_name: "", email: "", role: "team-member" });
+    setFormData({ full_name: "", email: "", role: "team-member", department_id: null });
     setModalOpen(true);
   };
 
@@ -78,6 +87,7 @@ export default function UsersPage() {
       full_name: user.full_name,
       email: user.email,
       role: user.role,
+      department_id: user.department_id ?? null,
     });
     setModalOpen(true);
   };
@@ -194,13 +204,20 @@ export default function UsersPage() {
                     <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
                       {user.full_name}
                     </h3>
-                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      user.role === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                      user.role === 'manager' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
-                      'bg-slate-500/10 text-slate-400 border border-slate-500/20'
-                    }`}>
-                      {user.role}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        user.role === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                        user.role === 'manager' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
+                        'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                      }`}>
+                        {user.role}
+                      </span>
+                      {user.department_id && deptMap[user.department_id] && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                          {deptMap[user.department_id]}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
                     <div className="flex items-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
@@ -254,7 +271,7 @@ export default function UsersPage() {
           <FormField label="Role">
             <select
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: null })}
               className={inputClass}
             >
               <option value="team-member">Team Member</option>
@@ -263,7 +280,22 @@ export default function UsersPage() {
               <option value="superadmin">Superadmin</option>
             </select>
           </FormField>
-          
+
+          {formData.role === "team-member" && (
+            <FormField label="Department">
+              <select
+                value={formData.department_id ?? ""}
+                onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
+                className={inputClass}
+              >
+                <option value="">— Select department —</option>
+                {departments.filter((d) => d.is_active).map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
+
           {editingId ? (
             <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
               <p className="text-[12px] text-amber-500 leading-relaxed font-medium">

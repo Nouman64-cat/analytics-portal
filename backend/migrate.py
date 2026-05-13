@@ -102,6 +102,70 @@ def migrate():
              "Migration successful! 'alarm_enabled' column added to 'users' table."),
             ("ALTER TABLE business_developers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;",
              "Migration successful! 'is_active' column added to 'business_developers' table."),
+
+            # ── Phase 1: Multi-department support ─────────────────────────────────────
+            ("""
+            CREATE TABLE IF NOT EXISTS departments (
+                id UUID PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                slug VARCHAR(50) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+             "Migration successful! 'departments' table ensured."),
+            ("CREATE UNIQUE INDEX IF NOT EXISTS uq_departments_name ON departments (name);",
+             "Migration successful! Unique index on departments.name ensured."),
+            ("CREATE UNIQUE INDEX IF NOT EXISTS uq_departments_slug ON departments (slug);",
+             "Migration successful! Unique index on departments.slug ensured."),
+
+            # Add department_id column to all scoped tables (nullable initially)
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS department_id UUID;",
+             "Migration successful! 'department_id' column added to 'users'."),
+            ("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS department_id UUID;",
+             "Migration successful! 'department_id' column added to 'candidates'."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS department_id UUID;",
+             "Migration successful! 'department_id' column added to 'interviews'."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS department_id UUID;",
+             "Migration successful! 'department_id' column added to 'resume_profiles'."),
+
+            # Indexes on the new FK columns
+            ("CREATE INDEX IF NOT EXISTS ix_users_department_id ON users (department_id);",
+             "Migration successful! Index on users.department_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_candidates_department_id ON candidates (department_id);",
+             "Migration successful! Index on candidates.department_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_interviews_department_id ON interviews (department_id);",
+             "Migration successful! Index on interviews.department_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_resume_profiles_department_id ON resume_profiles (department_id);",
+             "Migration successful! Index on resume_profiles.department_id ensured."),
+
+            # Seed the AI department with a stable UUID so backfills are idempotent
+            ("""
+            INSERT INTO departments (id, name, slug, is_active, created_at)
+            VALUES ('00000000-0000-0000-0000-000000000001', 'AI', 'ai', TRUE, NOW())
+            ON CONFLICT (id) DO NOTHING;
+            """,
+             "Migration successful! 'AI' department seeded."),
+
+            # Backfill existing rows → AI department
+            ("UPDATE candidates SET department_id = '00000000-0000-0000-0000-000000000001' WHERE department_id IS NULL;",
+             "Migration successful! Backfilled candidates with AI department."),
+            ("UPDATE interviews SET department_id = '00000000-0000-0000-0000-000000000001' WHERE department_id IS NULL;",
+             "Migration successful! Backfilled interviews with AI department."),
+            ("UPDATE resume_profiles SET department_id = '00000000-0000-0000-0000-000000000001' WHERE department_id IS NULL;",
+             "Migration successful! Backfilled resume_profiles with AI department."),
+            # Only team-member users belong to a dept; superadmin/manager/bd stay NULL
+            ("""
+            UPDATE users SET department_id = '00000000-0000-0000-0000-000000000001'
+            WHERE department_id IS NULL AND role = 'team-member';
+            """,
+             "Migration successful! Backfilled team-member users with AI department."),
+
+            # Enforce NOT NULL on the two tables that must always have a dept
+            ("ALTER TABLE candidates ALTER COLUMN department_id SET NOT NULL;",
+             "Migration successful! candidates.department_id is now NOT NULL."),
+            ("ALTER TABLE interviews ALTER COLUMN department_id SET NOT NULL;",
+             "Migration successful! interviews.department_id is now NOT NULL."),
         ]
         for sql, msg in migrations:
             try:

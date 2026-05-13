@@ -23,6 +23,7 @@ from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.schemas.lead import LeadCreate, LeadListItem, LeadListPage, LeadListStats, LeadUpdate
+from app.dept_scope import apply_dept_filter
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
@@ -280,6 +281,7 @@ def list_leads(
     candidate_id: Annotated[Optional[uuid.UUID], Query()] = None,
     outcome: Annotated[Optional[str], Query()] = None,
     lead_source: Annotated[Literal["all", "explicit", "derived"], Query()] = "all",
+    department_id: Annotated[Optional[uuid.UUID], Query()] = None,
     sort: Annotated[
         Literal[
             "last_activity_desc",
@@ -329,6 +331,7 @@ def list_leads(
         )
         .order_by(Interview.interview_date.desc())  # type: ignore
     )
+    base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
 
     if current_user.role == UserRole.TEAM_MEMBER:
         cid = candidate_id_for_team_member(session, current_user)

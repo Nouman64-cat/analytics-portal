@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   CalendarCheck,
@@ -38,6 +38,7 @@ import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 import { getUserRole } from "@/lib/auth";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 import HeatmapCalendar from "@/components/HeatmapCalendar";
 
 function toChronologicalChartData(record: Record<string, number>) {
@@ -106,6 +107,8 @@ export default function DashboardPage() {
   const [dailyInterviews, setDailyInterviews] = useState<DayInterviews[]>([]);
 
   // Company popover for recent interviews
+  const { departmentId } = useDepartmentContext();
+
   const [companyPopover, setCompanyPopover] = useState<{ interview: RecentInterview; x: number; y: number } | null>(null);
   const companyPopoverRef = useRef<HTMLDivElement>(null);
 
@@ -135,34 +138,33 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [profilePopover]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const [data, profs, userData, dailyData] = await Promise.all([
-        dashboardService.getStats(),
+        dashboardService.getStats(departmentId),
         profilesService.list().catch(() => [] as ResumeProfile[]),
         authService.getMe().catch(() => null),
-        dashboardService.getInterviewsByDay().catch(() => ({ days: [] })),
+        dashboardService.getInterviewsByDay(departmentId).catch(() => ({ days: [] })),
       ]);
       setStats(data);
       setProfiles(profs);
       setUser(userData);
       setDailyInterviews(dailyData.days || []);
-      console.log("Daily interviews data:", dailyData.days?.slice(0, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
       setLoading(false);
     }
-  };
+  }, [departmentId]);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    void fetchStats();
+  }, [fetchStats]);
 
   if (loading) return <PageLoader />;
-  if (error) return <ErrorState message={error} onRetry={fetchStats} />;
+  if (error) return <ErrorState message={error} onRetry={() => void fetchStats()} />;
   if (!stats) return null;
 
   const isTeamMember = getUserRole() === "team-member";

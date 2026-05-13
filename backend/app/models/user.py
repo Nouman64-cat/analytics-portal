@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 
 from sqlalchemy import Column, String, TypeDecorator
 from sqlmodel import SQLModel, Field
@@ -68,5 +69,6 @@ class User(SQLModel, table=True):
     )
     must_change_password: bool = Field(default=True)
     alarm_enabled: bool = Field(default=False)
+    department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

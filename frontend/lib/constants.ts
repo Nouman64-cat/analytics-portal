@@ -13,6 +13,7 @@ export const NAV_ITEMS = [
   { label: "Resume Profiles", href: "/resume-profiles", icon: "FileUser" },
   { label: "Business Devs", href: "/business-developers", icon: "Briefcase" },
   { label: "Activities", href: "/activities", icon: "History" },
+  { label: "Departments", href: "/departments", icon: "Layers" },
   { label: "User Management", href: "/users", icon: "UserCog" },
   { label: "Database backup", href: "/backup", icon: "Database" },
   { label: "Profile", href: "/profile", icon: "User" },

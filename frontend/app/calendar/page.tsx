@@ -16,6 +16,7 @@ import {
   truncate,
 } from "@/lib/utils";
 import { getUserRole, getUserId } from "@/lib/auth";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
 import Modal, { buttonPrimary, buttonSecondary } from "@/components/Modal";
 import StatusBadge from "@/components/StatusBadge";
@@ -78,13 +79,14 @@ export default function CalendarPage() {
   const currentUserId = getUserId();
   const canMarkBusy = role !== null && CAN_MARK_BUSY_ROLES.has(role);
   const isSuperadmin = role === "superadmin";
+  const { departmentId } = useDepartmentContext();
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const [interviewData, busyData] = await Promise.all([
-        interviewsService.list(),
+        interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
         busyDaysService.list(),
       ]);
       setInterviews(interviewData);
@@ -96,7 +98,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useEffect(() => {
     void fetchData();

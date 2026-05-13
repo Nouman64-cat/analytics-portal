@@ -1,13 +1,16 @@
 import uuid
 import os
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from typing import Optional
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
+from app.dept_scope import apply_dept_filter
+from app.models.department import Department
 from app.models.resume_profile import ResumeProfile
 from app.models.user import User
 from app.schemas.resume_profile import (
@@ -42,12 +45,37 @@ def _get_s3_client(settings):
     )
 
 
+def _to_read(profile: ResumeProfile, dept: Optional[Department]) -> ResumeProfileRead:
+    return ResumeProfileRead(
+        id=profile.id,
+        name=profile.name,
+        is_active=profile.is_active,
+        department_id=profile.department_id,
+        department_name=dept.name if dept else None,
+        linkedin_url=profile.linkedin_url,
+        github_url=profile.github_url,
+        portfolio_url=profile.portfolio_url,
+        resume_url=profile.resume_url,
+        created_at=profile.created_at,
+        updated_at=profile.updated_at,
+    )
+
+
 @router.get("/", response_model=list[ResumeProfileRead])
-def list_resume_profiles(session: Session = Depends(get_session)):
-    """List all resume profiles."""
-    profiles = session.exec(
-        select(ResumeProfile).order_by(ResumeProfile.name)).all()
-    return profiles
+def list_resume_profiles(
+    department_id: Optional[uuid.UUID] = Query(None, description="Filter by department (cross-dept roles only)"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """List resume profiles scoped to the current user's department."""
+    query = (
+        select(ResumeProfile, Department)
+        .join(Department, ResumeProfile.department_id == Department.id, isouter=True)
+        .order_by(ResumeProfile.name)
+    )
+    query = apply_dept_filter(query, ResumeProfile, current_user, department_id)
+    rows = session.exec(query).all()
+    return [_to_read(p, d) for p, d in rows]
 
 
 @router.post("/", response_model=ResumeProfileRead, status_code=status.HTTP_201_CREATED)
@@ -56,8 +84,9 @@ def create_resume_profile(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new resume profile."""
-    profile = ResumeProfile(name=data.name)
+    """Create a new resume profile stamped with the creator's department."""
+    dept_id = data.department_id or current_user.department_id
+    profile = ResumeProfile(name=data.name, department_id=dept_id)
     session.add(profile)
     session.flush()
     record_activity(
@@ -70,7 +99,8 @@ def create_resume_profile(
     )
     session.commit()
     session.refresh(profile)
-    return profile
+    dept = session.get(Department, profile.department_id) if profile.department_id else None
+    return _to_read(profile, dept)
 
 
 @router.get("/{profile_id}", response_model=ResumeProfileRead)
@@ -79,7 +109,8 @@ def get_resume_profile(profile_id: uuid.UUID, session: Session = Depends(get_ses
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
-    return profile
+    dept = session.get(Department, profile.department_id) if profile.department_id else None
+    return _to_read(profile, dept)
 
 
 @router.post("/{profile_id}/resume", response_model=ResumeProfileRead)
@@ -125,15 +156,14 @@ def upload_resume_pdf(
     except (BotoCoreError, ClientError) as e:
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
 
-    # Construct URL to object (assuming standard AWS endpoint)
     profile.resume_url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
     profile.updated_at = datetime.utcnow()
 
     session.add(profile)
     session.commit()
     session.refresh(profile)
-
-    return profile
+    dept = session.get(Department, profile.department_id) if profile.department_id else None
+    return _to_read(profile, dept)
 
 
 @router.put("/{profile_id}", response_model=ResumeProfileRead)
@@ -165,7 +195,8 @@ def update_resume_profile(
         message=f"Updated resume profile '{profile.name}'",
     )
     session.commit()
-    return profile
+    dept = session.get(Department, profile.department_id) if profile.department_id else None
+    return _to_read(profile, dept)
 
 
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)

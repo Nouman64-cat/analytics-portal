@@ -25,6 +25,8 @@ import type {
   ActivityLogPage,
   User,
   UserFormData,
+  Department,
+  DepartmentFormData,
   DatabaseBackupResult,
   DatabaseBackupListResponse,
   BusyDay,
@@ -104,8 +106,14 @@ export const authService = {
 // ─── Dashboard ──────────────────────────────────────────────
 
 export const dashboardService = {
-  getStats: () => apiFetch<DashboardStats>("/dashboard/stats"),
-  getInterviewsByDay: () => apiFetch<{ days: DayInterviews[] }>("/dashboard/interviews-by-day"),
+  getStats: (departmentId?: string | null) => {
+    const qs = departmentId ? `?department_id=${departmentId}` : "";
+    return apiFetch<DashboardStats>(`/dashboard/stats${qs}`);
+  },
+  getInterviewsByDay: (departmentId?: string | null) => {
+    const qs = departmentId ? `?department_id=${departmentId}` : "";
+    return apiFetch<{ days: DayInterviews[] }>(`/dashboard/interviews-by-day${qs}`);
+  },
 };
 
 export const leadsService = {
@@ -124,6 +132,7 @@ export const leadsService = {
       sp.set("lead_source", params.lead_source);
     if (params?.sort && params.sort !== "last_activity_desc")
       sp.set("sort", params.sort);
+    if (params?.department_id) sp.set("department_id", params.department_id);
     const q = sp.toString();
     return apiFetch<LeadListPage>(`/leads/${q ? `?${q}` : ""}`);
   },
@@ -165,7 +174,10 @@ export const businessDevelopersService = {
 // ─── Candidates ─────────────────────────────────────────────
 
 export const candidatesService = {
-  list: () => apiFetch<Candidate[]>("/candidates/"),
+  list: (params?: { department_id?: string | null }) => {
+    const q = params?.department_id ? `?department_id=${params.department_id}` : "";
+    return apiFetch<Candidate[]>(`/candidates/${q}`);
+  },
   get: (id: string) => apiFetch<CandidateWithInterviews>(`/candidates/${id}`),
   create: (data: CandidateFormData) =>
     apiFetch<Candidate>("/candidates/", {
@@ -184,7 +196,10 @@ export const candidatesService = {
 // ─── Resume Profiles ────────────────────────────────────────
 
 export const profilesService = {
-  list: () => apiFetch<ResumeProfile[]>("/resume-profiles/"),
+  list: (params?: { department_id?: string | null }) => {
+    const q = params?.department_id ? `?department_id=${params.department_id}` : "";
+    return apiFetch<ResumeProfile[]>(`/resume-profiles/${q}`);
+  },
   get: (id: string) => apiFetch<ResumeProfile>(`/resume-profiles/${id}`),
   create: (data: ResumeProfileFormData) =>
     apiFetch<ResumeProfile>("/resume-profiles/", {
@@ -347,6 +362,24 @@ export const chatService = {
       "/chat/message",
       { method: "POST", body: JSON.stringify({ messages, message }) },
     ),
+};
+
+// ─── Departments ─────────────────────────────────────────────
+
+export const departmentsService = {
+  list: () => apiFetch<Department[]>("/departments/"),
+  create: (data: DepartmentFormData) =>
+    apiFetch<Department>("/departments/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: Partial<DepartmentFormData> & { is_active?: boolean }) =>
+    apiFetch<Department>(`/departments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deactivate: (id: string) =>
+    apiFetch<void>(`/departments/${id}`, { method: "DELETE" }),
 };
 
 // ─── Busy Days (team-member & superadmin) ────────────────────

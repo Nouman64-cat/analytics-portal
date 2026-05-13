@@ -1,11 +1,14 @@
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
+from app.dept_scope import apply_dept_filter
 from app.models.candidate import Candidate
+from app.models.department import Department
 from app.models.user import User
 from app.schemas.candidate import (
     CandidateCreate,
@@ -19,10 +22,31 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"], dependencie
 
 
 @router.get("/", response_model=list[CandidateRead])
-def list_candidates(session: Session = Depends(get_session)):
-    """List all candidates."""
-    candidates = session.exec(select(Candidate).order_by(Candidate.name)).all()
-    return candidates
+def list_candidates(
+    department_id: Optional[uuid.UUID] = Query(None, description="Filter by department (cross-dept roles only)"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """List candidates. Team members see their own department only; cross-dept roles see all (or filtered by ?department_id=)."""
+    query = (
+        select(Candidate, Department)
+        .join(Department, Candidate.department_id == Department.id, isouter=True)
+        .order_by(Candidate.name)
+    )
+    query = apply_dept_filter(query, Candidate, current_user, department_id)
+    rows = session.exec(query).all()
+    return [
+        CandidateRead(
+            id=c.id,
+            name=c.name,
+            email=c.email,
+            department_id=c.department_id,
+            department_name=d.name if d else None,
+            created_at=c.created_at,
+            updated_at=c.updated_at,
+        )
+        for c, d in rows
+    ]
 
 
 @router.post("/", response_model=CandidateRead, status_code=status.HTTP_201_CREATED)
@@ -31,8 +55,9 @@ def create_candidate(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new candidate."""
-    candidate = Candidate(name=data.name, email=data.email)
+    """Create a new candidate. department_id is stamped automatically from the creator's department."""
+    dept_id = data.department_id or current_user.department_id
+    candidate = Candidate(name=data.name, email=data.email, department_id=dept_id)
     session.add(candidate)
     session.flush()
     record_activity(
@@ -45,7 +70,13 @@ def create_candidate(
     )
     session.commit()
     session.refresh(candidate)
-    return candidate
+    dept = session.get(Department, candidate.department_id) if candidate.department_id else None
+    return CandidateRead(
+        id=candidate.id, name=candidate.name, email=candidate.email,
+        department_id=candidate.department_id,
+        department_name=dept.name if dept else None,
+        created_at=candidate.created_at, updated_at=candidate.updated_at,
+    )
 
 
 @router.get("/{candidate_id}", response_model=CandidateReadWithInterviews)
@@ -110,7 +141,13 @@ def update_candidate(
         message=f"Updated candidate '{candidate.name}'",
     )
     session.commit()
-    return candidate
+    dept = session.get(Department, candidate.department_id) if candidate.department_id else None
+    return CandidateRead(
+        id=candidate.id, name=candidate.name, email=candidate.email,
+        department_id=candidate.department_id,
+        department_name=dept.name if dept else None,
+        created_at=candidate.created_at, updated_at=candidate.updated_at,
+    )
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)

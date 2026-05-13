@@ -80,6 +80,7 @@ import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import CompanyCombobox from "@/components/CompanyCombobox";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
 
@@ -621,6 +622,7 @@ export default function InterviewsPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
+  const { departmentId } = useDepartmentContext();
   const cannotCRUD = role === "bd" || role === "manager";
   const isTeamMember = role === "team-member";
   const canEditLeadThreadPanel = role === "superadmin" || role === "team-member";
@@ -653,12 +655,12 @@ export default function InterviewsPage() {
         leadsData,
         me,
       ] = await Promise.all([
-        interviewsService.list(),
+        interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
         companiesService.list(),
-        candidatesService.list(),
+        candidatesService.list({ department_id: departmentId }),
         profilesService.list(),
         businessDevelopersService.list(),
-        leadsService.list({ page: 1, page_size: 500 }),
+        leadsService.list({ page: 1, page_size: 500, department_id: departmentId ?? undefined }),
         authService.getMe(),
       ]);
 
@@ -706,7 +708,7 @@ export default function InterviewsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useEffect(() => {
     fetchData();

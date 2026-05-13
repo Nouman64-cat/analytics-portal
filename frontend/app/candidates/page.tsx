@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink } from "lucide-react";
-import { candidatesService, interviewsService, leadsService } from "@/lib/services";
+import { candidatesService, interviewsService, leadsService, departmentsService } from "@/lib/services";
 import { formatDate, formatInterviewDateEst, getStatusStyle, getLeadOutcomeBadgeStyle } from "@/lib/utils";
-import type { Candidate, CandidateFormData, Interview, LeadListItem } from "@/lib/types";
+import type { Candidate, CandidateFormData, Interview, LeadListItem, Department } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
@@ -48,14 +49,17 @@ export default function CandidatesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<CandidateFormData>({ name: "", email: "" });
+  const [formData, setFormData] = useState<CandidateFormData>({ name: "", email: "", department_id: null });
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const router = useRouter();
+  const { departmentId } = useDepartmentContext();
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
+  const isSuperadmin = role === "superadmin";
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -122,10 +126,11 @@ export default function CandidatesPage() {
     try {
       setLoading(true);
       setError(null);
+      const deptParam = departmentId ? { department_id: departmentId } : {};
       const [data, interviewsData, leadsPage] = await Promise.all([
-        candidatesService.list(),
-        interviewsService.list(),
-        leadsService.list({ page: 1, page_size: 5000 }),
+        candidatesService.list({ department_id: departmentId }),
+        interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
+        leadsService.list({ page: 1, page_size: 5000, ...deptParam }),
       ]);
       setCandidates(data);
       setInterviews(interviewsData);
@@ -135,9 +140,15 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    if (isSuperadmin) {
+      departmentsService.list().then(setDepartments).catch(() => {});
+    }
+  }, [isSuperadmin]);
 
   // Kanban modal data — derived from already-loaded state, no extra API call
   const selectedCandidate = useMemo(
@@ -181,14 +192,14 @@ export default function CandidatesPage() {
     ).map(([label]) => ({ label, items: groups[label] || [] }));
   }, [candidateLeads]);
 
-  const openCreate = () => { setEditingId(null); setFormData({ name: "", email: "" }); setModalOpen(true); };
-  const openEdit = (c: Candidate) => { setEditingId(c.id); setFormData({ name: c.name, email: c.email ?? "" }); setModalOpen(true); };
+  const openCreate = () => { setEditingId(null); setFormData({ name: "", email: "", department_id: departmentId ?? null }); setModalOpen(true); };
+  const openEdit = (c: Candidate) => { setEditingId(c.id); setFormData({ name: c.name, email: c.email ?? "", department_id: c.department_id ?? null }); setModalOpen(true); };
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const payload = { name: formData.name, email: formData.email?.trim() || null };
+      const payload = { name: formData.name, email: formData.email?.trim() || null, department_id: formData.department_id || null };
       if (editingId) await candidatesService.update(editingId, payload);
       else await candidatesService.create(payload);
       setModalOpen(false);
@@ -361,7 +372,14 @@ export default function CandidatesPage() {
 
                   {/* Candidate info */}
                   <div className="mt-3 border-t border-slate-100 dark:border-white/[0.04] pt-3">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</p>
+                      {candidate.department_name && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                          {candidate.department_name}
+                        </span>
+                      )}
+                    </div>
                     {candidate.email && (
                       <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{candidate.email}</p>
                     )}
@@ -395,6 +413,20 @@ export default function CandidatesPage() {
             autoComplete="email"
           />
         </FormField>
+        {isSuperadmin && (
+          <FormField label="Department">
+            <select
+              value={formData.department_id ?? ""}
+              onChange={e => setFormData({ ...formData, department_id: e.target.value || null })}
+              className={inputClass}
+            >
+              <option value="">— Select department —</option>
+              {departments.filter(d => d.is_active).map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </FormField>
+        )}
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
           <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>

@@ -12,17 +12,19 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    pass
+    department_id: Optional[UUID] = None
 
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
+    department_id: Optional[UUID] = None
 
 
 class UserRead(UserBase):
     id: UUID
+    department_id: Optional[UUID] = None
     must_change_password: bool
     alarm_enabled: bool
     created_at: datetime

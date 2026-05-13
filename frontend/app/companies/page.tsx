@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Building2, Loader2, Search, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Eye } from "lucide-react";
 import { companiesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { Company, CompanyFormData, Interview } from "@/lib/types";
@@ -10,12 +10,15 @@ import Modal, { FormField, inputClass, textareaClass, buttonPrimary, buttonSecon
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 
+const PAGE_SIZE = 20;
+
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,10 +38,14 @@ export default function CompaniesPage() {
   }, [interviews]);
 
   const filteredCompanies = useMemo(() => {
-    if (!search.trim()) return companies;
-    const q = search.toLowerCase();
-    return companies.filter((c) => c.name.toLowerCase().includes(q));
+    const q = search.trim().toLowerCase();
+    return q ? companies.filter((c) => c.name.toLowerCase().includes(q)) : companies;
   }, [companies, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / PAGE_SIZE));
+  const rangeStart = filteredCompanies.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, filteredCompanies.length);
+  const pageRows = filteredCompanies.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const fetchData = useCallback(async () => {
     try {
@@ -59,6 +66,11 @@ export default function CompaniesPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setFormData({ name: "", is_staffing_firm: false, detail: "" });
@@ -75,11 +87,10 @@ export default function CompaniesPage() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const payload = { ...formData };
       if (editingId) {
-        await companiesService.update(editingId, payload);
+        await companiesService.update(editingId, formData);
       } else {
-        await companiesService.create(payload);
+        await companiesService.create(formData);
       }
       setModalOpen(false);
       fetchData();
@@ -129,86 +140,132 @@ export default function CompaniesPage() {
           type="text"
           placeholder="Search companies..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           className={`${inputClass} pl-10`}
         />
       </div>
 
-      {companies.length === 0 ? (
-        <EmptyState message="No companies yet" />
-      ) : filteredCompanies.length === 0 ? (
-        <EmptyState message="No companies match your search" />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
-          {filteredCompanies.map((company) => {
-            const count = interviewCounts[company.id] || 0;
-            return (
-              <div
-                key={company.id}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-cyan-300/50 dark:hover:border-cyan-500/30 hover:shadow-lg hover:shadow-black/20"
-              >
-                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-cyan-500/10 to-blue-500/10 blur-2xl transition-all group-hover:opacity-80" />
-                <div className="relative">
-                  <div className="flex justify-end gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 mb-2">
-                    <button
-                      onClick={() => setViewModal(company)}
-                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                      title="View details"
-                    >
-                      <Eye size={13} />
-                    </button>
-                    {!cannotCRUD && (
-                      <>
-                        <button
-                          onClick={() => openEdit(company)}
-                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteModal(company)}
-                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col items-start gap-1.5">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-2xl font-bold text-cyan-300">
-                        {company.name[0]}
-                      </div>
-                      {company.is_staffing_firm && (
-                        <span className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-700/10 dark:ring-indigo-400/20">
-                          Staffing Firm
+      {/* Table */}
+      <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] shadow-sm">
+        {companies.length === 0 ? (
+          <div className="p-8">
+            <EmptyState message="No companies yet" />
+          </div>
+        ) : filteredCompanies.length === 0 ? (
+          <div className="p-8">
+            <EmptyState message="No companies match your search" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06] text-xs uppercase tracking-wider text-slate-500">
+                  <th className="px-4 py-3 font-medium">Company</th>
+                  <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium text-center">Interviews</th>
+                  <th className="px-4 py-3 font-medium">Added</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+                {pageRows.map((company) => {
+                  const count = interviewCounts[company.id] || 0;
+                  return (
+                    <tr key={company.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02]">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-sm font-bold text-cyan-400">
+                            {company.name[0]}
+                          </div>
+                          <span className="font-medium text-slate-900 dark:text-slate-100">{company.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {company.is_staffing_firm ? (
+                          <span className="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-700/10 dark:ring-indigo-400/20">
+                            Staffing Firm
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-500 dark:text-slate-500">Direct</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center tabular-nums">
+                        <span className={`text-sm font-semibold ${count > 0 ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-600"}`}>
+                          {count}
                         </span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{count}</p>
-                      <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                        {count === 1 ? "Interview" : "Interviews"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 border-t border-slate-100 dark:border-white/[0.04] pt-3">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{company.name}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
-                      Added {formatDate(company.created_at)}
-                    </p>
-                    {company.detail && (
-                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">
-                        {company.detail}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                        {formatDate(company.created_at)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <button
+                            onClick={() => setViewModal(company)}
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/[0.06] dark:hover:text-slate-200 transition-colors"
+                            title="View details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          {!cannotCRUD && (
+                            <>
+                              <button
+                                onClick={() => openEdit(company)}
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-white/[0.06] dark:hover:text-indigo-400 transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteModal(company)}
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {filteredCompanies.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-white/[0.06] px-4 py-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Showing{" "}
+              <strong className="text-slate-700 dark:text-slate-200">{rangeStart}–{rangeEnd}</strong>{" "}
+              of <strong className="text-slate-700 dark:text-slate-200">{filteredCompanies.length}</strong>{" "}
+              <span className="text-slate-400 dark:text-slate-500">· {PAGE_SIZE} per page</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className={`${buttonSecondary} text-sm py-1.5 px-3 disabled:opacity-50 disabled:pointer-events-none`}
+              >
+                Previous
+              </button>
+              <span className="text-sm text-slate-600 dark:text-slate-400 tabular-nums">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className={`${buttonSecondary} text-sm py-1.5 px-3 disabled:opacity-50 disabled:pointer-events-none`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
@@ -266,7 +323,7 @@ export default function CompaniesPage() {
         )}
       </Modal>
 
-      {/* Modal */}
+      {/* Create / Edit Modal */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}

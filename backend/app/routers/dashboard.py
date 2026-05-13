@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
-from fastapi import APIRouter, Depends
+from typing import Optional
+import uuid
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func as sa_func
 from app.deps import get_current_user
@@ -47,6 +49,7 @@ def _empty_team_member_dashboard():
 def get_dashboard_stats(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    department_id: Optional[uuid.UUID] = Query(default=None),
 ):
     """Get summary statistics for the dashboard. Team members only see their own interviews."""
     scope_candidate_id = None
@@ -57,7 +60,9 @@ def get_dashboard_stats(
 
     def iv_where(stmt):
         if scope_candidate_id:
-            return stmt.where(Interview.candidate_id == scope_candidate_id)
+            stmt = stmt.where(Interview.candidate_id == scope_candidate_id)
+        elif department_id:
+            stmt = stmt.where(Interview.department_id == department_id)
         return stmt
 
     # Total interviews
@@ -73,6 +78,15 @@ def get_dashboard_stats(
             )
         ).one()
         total_candidates = 1
+    elif department_id:
+        total_companies = session.exec(
+            select(func.count(func.distinct(Interview.company_id))).where(
+                Interview.department_id == department_id
+            )
+        ).one()
+        total_candidates = session.exec(
+            select(func.count(Candidate.id)).where(Candidate.department_id == department_id)
+        ).one()
     else:
         total_companies = session.exec(select(func.count(Company.id))).one()
         total_candidates = session.exec(select(func.count(Candidate.id))).one()
@@ -334,6 +348,7 @@ def get_dashboard_stats(
 def get_interviews_by_day(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    department_id: Optional[uuid.UUID] = Query(default=None),
 ):
     """Get interview counts and details for each day of the current year for contribution calendar."""
     scope_candidate_id = None
@@ -361,6 +376,8 @@ def get_interviews_by_day(
 
     if scope_candidate_id:
         query = query.where(Interview.candidate_id == scope_candidate_id)
+    elif department_id:
+        query = query.where(Interview.department_id == department_id)
 
     interviews = session.exec(query).all()
 

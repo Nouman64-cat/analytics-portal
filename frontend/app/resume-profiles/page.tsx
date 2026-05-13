@@ -12,12 +12,14 @@ import {
   Eye,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
-import { profilesService, interviewsService } from "@/lib/services";
+import { profilesService, interviewsService, departmentsService } from "@/lib/services";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { formatDate } from "@/lib/utils";
 import type {
   ResumeProfile,
   ResumeProfileFormData,
   Interview,
+  Department,
 } from "@/lib/types";
 import {
   PageLoader,
@@ -76,15 +78,18 @@ export default function ProfilesPage() {
     null,
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
+  const isSuperadmin = role === "superadmin";
+  const { departmentId } = useDepartmentContext();
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const [pData, iData] = await Promise.all([
-        profilesService.list(),
+        profilesService.list({ department_id: departmentId }),
         interviewsService.list(),
       ]);
       setProfiles(pData);
@@ -94,17 +99,22 @@ export default function ProfilesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (isSuperadmin) departmentsService.list().then(setDepartments).catch(() => {});
+  }, [isSuperadmin]);
 
   const openCreate = () => {
     setEditingId(null);
     setFormData({
       name: "",
       is_active: true,
+      department_id: departmentId ?? null,
       linkedin_url: "",
       github_url: "",
       portfolio_url: "",
@@ -117,6 +127,7 @@ export default function ProfilesPage() {
     setFormData({
       name: p.name,
       is_active: p.is_active ?? true,
+      department_id: p.department_id ?? null,
       linkedin_url: p.linkedin_url || "",
       github_url: p.github_url || "",
       portfolio_url: p.portfolio_url || "",
@@ -448,7 +459,12 @@ export default function ProfilesPage() {
                           </span>
                         )}
                       </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                      {profile.department_name && (
+                        <span className="inline-block mt-0.5 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 text-[10px] px-2 py-0.5 rounded-full font-medium">
+                          {profile.department_name}
+                        </span>
+                      )}
+                      <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-0.5">
                         Added {formatDate(profile.created_at)}
                       </p>
                     </div>
@@ -750,6 +766,23 @@ export default function ProfilesPage() {
               <option value="false">Closed (Retired/Hired)</option>
             </select>
           </FormField>
+
+          {isSuperadmin && (
+            <FormField label="Department">
+              <select
+                value={formData.department_id ?? ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, department_id: e.target.value || null })
+                }
+                className={selectClass}
+              >
+                <option value="">— Select department —</option>
+                {departments.filter((d) => d.is_active).map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
 
           <FormField label="LinkedIn URL">
             <div className="relative">

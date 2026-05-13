@@ -69,6 +69,7 @@ import {
 } from "@/lib/utils";
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 
 const SORT_OPTIONS: { value: LeadListSort; label: string }[] = [
   { value: "last_activity_desc", label: "Activity · newest" },
@@ -197,6 +198,7 @@ export default function LeadsPage() {
   });
 
   const role = getUserRole();
+  const { departmentId } = useDepartmentContext();
   const isSuperAdmin = role === "superadmin";
   const isTeamMember = role === "team-member";
   /** Candidate row linked to the logged-in team member (null for other roles). */
@@ -234,11 +236,12 @@ export default function LeadsPage() {
           candidate_id: candidateFilter !== "all" ? candidateFilter : undefined,
           outcome: outcomeFilter !== "all" ? outcomeFilter : undefined,
           sort: sortFilter,
+          department_id: departmentId ?? undefined,
         }),
         companiesService.list(),
         profilesService.list(),
         businessDevelopersService.list(),
-        candidatesService.list(),
+        candidatesService.list({ department_id: departmentId }),
       ]);
       setLeads(leadPage.items);
       setTotal(leadPage.total);
@@ -261,6 +264,7 @@ export default function LeadsPage() {
     candidateFilter,
     outcomeFilter,
     sortFilter,
+    departmentId,
   ]);
 
   useEffect(() => {

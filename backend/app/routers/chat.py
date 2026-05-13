@@ -376,7 +376,9 @@ def _exec_tool(
         return [{"id": str(r.id), "name": r.name, "is_staffing_firm": r.is_staffing_firm} for r in rows], None
 
     if name == "list_resume_profiles":
-        rows = session.exec(select(ResumeProfile).order_by(ResumeProfile.name)).all()
+        from app.dept_scope import apply_dept_filter
+        query = apply_dept_filter(select(ResumeProfile).order_by(ResumeProfile.name), ResumeProfile, user)
+        rows = session.exec(query).all()
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
     if name == "list_candidates":

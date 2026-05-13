@@ -10,6 +10,7 @@ import ChatWidget from "@/components/ChatWidget";
 import { isAuthenticated, mustChangePassword, clearToken, getUserRole } from "@/lib/auth";
 import { authService } from "@/lib/services";
 import { hydrateSettingsCache } from "@/lib/settings";
+import { DepartmentProvider } from "@/lib/DepartmentContext";
 
 const PUBLIC_PATHS = ["/login", "/change-password"];
 
@@ -63,17 +64,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (!checked) return null;
 
   return (
-    <>
-      <Header 
-        onMobileMenuOpen={() => setMobileOpen(true)} 
+    <DepartmentProvider>
+      <Header
+        onMobileMenuOpen={() => setMobileOpen(true)}
         collapsed={collapsed}
       />
-      
-      <Sidebar 
-        collapsed={collapsed} 
-        onCollapse={setCollapsed} 
-        mobileOpen={mobileOpen} 
-        onMobileClose={() => setMobileOpen(false)} 
+
+      <Sidebar
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
       />
 
       <main
@@ -85,6 +86,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <InterviewAlertMonitor />
       <ChatWidget />
-    </>
+    </DepartmentProvider>
   );
 }

@@ -72,6 +72,7 @@ def create_user(
         role=user_in.role,
         hashed_password=hashed,
         must_change_password=True,
+        department_id=user_in.department_id,
     )
     session.add(user)
     session.commit()

@@ -19,6 +19,8 @@ export interface Candidate {
   name: string;
   /** Used for interview notification emails (SES). */
   email: string | null;
+  department_id: string | null;
+  department_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +33,8 @@ export interface ResumeProfile {
   id: string;
   name: string;
   is_active: boolean;
+  department_id: string | null;
+  department_name: string | null;
   linkedin_url: string | null;
   github_url: string | null;
   portfolio_url: string | null;
@@ -222,6 +226,7 @@ export interface LeadListParams {
   outcome?: string;
   lead_source?: "all" | "explicit" | "derived";
   sort?: LeadListSort;
+  department_id?: string;
 }
 
 export interface InterviewSummary {
@@ -331,11 +336,27 @@ export interface ActivityLogPage {
   offset: number;
 }
 
+export interface Department {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  user_count: number;
+}
+
+export interface DepartmentFormData {
+  name: string;
+  slug: string;
+  is_active?: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
   full_name: string;
   role: string;
+  department_id: string | null;
   must_change_password: boolean;
   alarm_enabled: boolean;
   created_at: string;
@@ -348,6 +369,7 @@ export interface UserFormData {
   email: string;
   full_name: string;
   role: string;
+  department_id: string | null;
 }
 
 // ─── Form Payloads ──────────────────────────────────────────
@@ -401,6 +423,7 @@ export interface BusinessDeveloperFormData {
 export interface CandidateFormData {
   name: string;
   email?: string | null;
+  department_id?: string | null;
 }
 
 export interface CompanyFormData {
@@ -430,6 +453,7 @@ export interface BusyDayCreate {
 export interface ResumeProfileFormData {
   name: string;
   is_active?: boolean;
+  department_id?: string | null;
   linkedin_url?: string;
   github_url?: string;
   portfolio_url?: string;

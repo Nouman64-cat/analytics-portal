@@ -25,6 +25,7 @@ from app.lead_thread_utils import (
     effective_lead_fields,
     load_lead_map,
 )
+from app.dept_scope import apply_dept_filter
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
@@ -263,6 +264,8 @@ def list_interviews(
         None, description="Filter interviews from this date"),
     date_to: Optional[date] = Query(
         None, description="Filter interviews up to this date"),
+    department_id: Optional[uuid.UUID] = Query(
+        None, description="Filter by department (cross-dept roles only)"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -275,6 +278,7 @@ def list_interviews(
     )
 
     query = apply_team_member_interview_list_filter(session, current_user, query)
+    query = apply_dept_filter(query, Interview, current_user, department_id)
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)
@@ -530,6 +534,14 @@ def create_interview(
 
     if not session.get(Candidate, payload["candidate_id"]):
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Stamp department from candidate or creator
+    if "department_id" not in payload or payload.get("department_id") is None:
+        if payload.get("candidate_id"):
+            cand = session.get(Candidate, payload["candidate_id"])
+            payload["department_id"] = cand.department_id if cand else current_user.department_id
+        else:
+            payload["department_id"] = current_user.department_id
 
     interview = Interview(**payload)
     session.add(interview)

@@ -13,7 +13,7 @@ from app.reminder_worker import run_reminder_worker
 from migrate import migrate
 
 # Import all models so SQLModel registers them
-from app.models import Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay  # noqa: F401
+from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay  # noqa: F401
 
 from app.routers import (
     candidates,
@@ -30,6 +30,7 @@ from app.routers import (
     busy_days,
     chat,
 )
+from app.routers import departments
 
 settings = get_settings()
 
@@ -90,6 +91,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(auth.router)
+app.include_router(departments.router)
 app.include_router(candidates.router)
 app.include_router(resume_profiles.router)
 app.include_router(companies.router)
