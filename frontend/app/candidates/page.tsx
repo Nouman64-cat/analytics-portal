@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink } from "lucide-react";
 import { candidatesService, interviewsService, leadsService } from "@/lib/services";
 import { formatDate, formatInterviewDateEst, getStatusStyle, getLeadOutcomeBadgeStyle } from "@/lib/utils";
 import type { Candidate, CandidateFormData, Interview, LeadListItem } from "@/lib/types";
@@ -52,6 +53,7 @@ export default function CandidatesPage() {
   const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const router = useRouter();
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
 
@@ -453,8 +455,15 @@ export default function CandidatesPage() {
                           </div>
                           <div className="flex-1 space-y-2 rounded-b-lg border border-t-0 border-slate-100 dark:border-white/[0.05] bg-slate-50 dark:bg-white/[0.02] p-2">
                             {items.map(iv => (
-                              <div key={iv.id} className="rounded-lg border border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-2.5">
-                                <p className="text-xs font-semibold text-slate-900 dark:text-white leading-snug truncate">{iv.company_name || "—"}</p>
+                              <div
+                                key={iv.id}
+                                onClick={() => { setSelectedCandidateId(null); router.push(`/interviews?id=${iv.id}`); }}
+                                className="group/card cursor-pointer rounded-lg border border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-2.5 transition-all hover:border-emerald-300/50 dark:hover:border-emerald-500/30 hover:shadow-sm"
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white leading-snug truncate">{iv.company_name || "—"}</p>
+                                  <ExternalLink size={10} className="shrink-0 mt-0.5 text-slate-400 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                                </div>
                                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{iv.role}</p>
                                 <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
                                   Round {iv.round} · {formatInterviewDateEst(iv.interview_date, iv.time_est)}
@@ -490,8 +499,17 @@ export default function CandidatesPage() {
                           </div>
                           <div className="flex-1 space-y-2 rounded-b-lg border border-t-0 border-slate-100 dark:border-white/[0.05] bg-slate-50 dark:bg-white/[0.02] p-2">
                             {items.map(lead => (
-                              <div key={lead.thread_id} className="rounded-lg border border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-2.5">
-                                <p className="text-xs font-semibold text-slate-900 dark:text-white leading-snug truncate">{lead.company_name || "—"}</p>
+                              <div
+                                key={lead.thread_id}
+                                onClick={lead.first_interview_id ? () => { setSelectedCandidateId(null); router.push(`/interviews?id=${lead.first_interview_id}`); } : undefined}
+                                className={`group/card rounded-lg border border-slate-100 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-2.5 transition-all ${lead.first_interview_id ? "cursor-pointer hover:border-emerald-300/50 dark:hover:border-emerald-500/30 hover:shadow-sm" : ""}`}
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white leading-snug truncate">{lead.company_name || "—"}</p>
+                                  {lead.first_interview_id && (
+                                    <ExternalLink size={10} className="shrink-0 mt-0.5 text-slate-400 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                                  )}
+                                </div>
                                 {lead.primary_role && (
                                   <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{lead.primary_role}</p>
                                 )}
