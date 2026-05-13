@@ -658,7 +658,7 @@ export default function InterviewsPage() {
         interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
         companiesService.list(),
         candidatesService.list({ department_id: departmentId }),
-        profilesService.list(),
+        profilesService.list({ department_id: departmentId }),
         businessDevelopersService.list(),
         leadsService.list({ page: 1, page_size: 500, department_id: departmentId ?? undefined }),
         authService.getMe(),

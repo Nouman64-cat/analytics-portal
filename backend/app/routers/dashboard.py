@@ -149,7 +149,7 @@ def get_dashboard_stats(
             key=lambda x: (x.interview_date or date.min, x.created_at or datetime.min),
         )
         lt = lead_map.get(latest.thread_id)
-        eff = effective_lead_fields(session, latest.thread_id, lt)
+        eff = effective_lead_fields(session, latest.thread_id, lt, rows=rows)
         label = eff["lead_status_label"]
         leads_by_status[label] = leads_by_status.get(label, 0) + 1
 

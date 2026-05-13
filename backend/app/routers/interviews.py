@@ -278,7 +278,8 @@ def list_interviews(
     )
 
     query = apply_team_member_interview_list_filter(session, current_user, query)
-    query = apply_dept_filter(query, Interview, current_user, department_id)
+    if current_user.role != UserRole.TEAM_MEMBER:
+        query = apply_dept_filter(query, Interview, current_user, department_id)
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)

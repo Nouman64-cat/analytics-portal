@@ -79,9 +79,28 @@ def _process_due_reminders(settings: Settings) -> None:
 
         lead_map = load_lead_map(session, {i.thread_id for i in interviews if i.thread_id})
 
+        # Pre-load all thread rows in bulk to avoid N+1 queries in effective_lead_fields
+        all_thread_ids = {i.thread_id for i in interviews if i.thread_id}
+        all_thread_rows: dict = {}
+        if all_thread_ids:
+            for iv in session.exec(select(Interview).where(Interview.thread_id.in_(all_thread_ids))).all():
+                all_thread_rows.setdefault(iv.thread_id, []).append(iv)
+
+        # Pre-load all candidates and companies referenced by these interviews
+        candidate_ids = {i.candidate_id for i in interviews if i.candidate_id}
+        company_ids = {i.company_id for i in interviews if i.company_id}
+        candidate_map: dict = {}
+        company_map: dict = {}
+        if candidate_ids:
+            for c in session.exec(select(Candidate).where(Candidate.id.in_(candidate_ids))).all():
+                candidate_map[c.id] = c
+        if company_ids:
+            for c in session.exec(select(Company).where(Company.id.in_(company_ids))).all():
+                company_map[c.id] = c
+
         for interview in interviews:
             lt = lead_map.get(interview.thread_id)
-            eff = effective_lead_fields(session, interview.thread_id, lt)
+            eff = effective_lead_fields(session, interview.thread_id, lt, rows=all_thread_rows.get(interview.thread_id))
             if is_lead_terminal_outcome(eff["lead_outcome"]):
                 continue
 
@@ -97,8 +116,8 @@ def _process_due_reminders(settings: Settings) -> None:
             if not interview_at_utc:
                 continue
 
-            candidate = session.get(Candidate, interview.candidate_id)
-            company = session.get(Company, interview.company_id)
+            candidate = candidate_map.get(interview.candidate_id)
+            company = company_map.get(interview.company_id)
             if not candidate:
                 continue
 

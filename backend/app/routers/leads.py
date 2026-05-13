@@ -96,7 +96,7 @@ def _build_lead_list_item(
     pbd_id, pbd_name = _primary_bd(rows)
     lt = lead_map.get(thread_id)
     cand_id, cand_name = _list_candidate_display(session, lt, rows)
-    eff = effective_lead_fields(session, thread_id, lt)
+    eff = effective_lead_fields(session, thread_id, lt, rows=rows)
 
     dates = [x.interview_date for x in ordered if x.interview_date]
     first_d = min(dates) if dates else None
@@ -309,6 +309,7 @@ def list_leads(
                 active=0,
                 terminal=0,
                 other=0,
+                converted=0,
                 rejected=0,
                 dropped=0,
                 closed=0,
@@ -332,14 +333,9 @@ def list_leads(
         )
         .order_by(Interview.interview_date.desc())  # type: ignore
     )
-    base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
 
     if current_user.role == UserRole.TEAM_MEMBER:
         cid = candidate_id_for_team_member(session, current_user)
-        # Threads visible to this team member:
-        #  1. Interview rows directly assigned to their candidate
-        #  2. Threads where the LeadThread.entertaining_candidate_id == their candidate
-        #     (covers leads created via the lead form before interview rows carried candidate_id)
         threads_via_lt = session.exec(
             select(LeadThread.thread_id).where(
                 LeadThread.entertaining_candidate_id == cid
@@ -352,6 +348,7 @@ def list_leads(
             )
         )
     else:
+        base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
         query = apply_team_member_interview_list_filter(session, current_user, base_query)
 
     interviews = session.exec(query).all()

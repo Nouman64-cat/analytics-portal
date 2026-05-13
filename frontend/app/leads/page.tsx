@@ -206,6 +206,7 @@ export default function LeadsPage() {
   const isDeptLead = role === "dept-lead";
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
+  const [meCandidateName, setMeCandidateName] = useState<string | null>(null);
   /** Create / edit / delete leads — superadmin, team member, BD, and dept lead. Manager: read-only. */
   const canMutateLeads = role === "superadmin" || role === "team-member" || role === "bd" || role === "dept-lead";
   const canEditLeadStatus = canMutateLeads;
@@ -242,7 +243,7 @@ export default function LeadsPage() {
           department_id: departmentId ?? undefined,
         }),
         companiesService.list(),
-        profilesService.list(),
+        profilesService.list({ department_id: departmentId }),
         businessDevelopersService.list(),
         candidatesService.list({ department_id: departmentId }),
       ]);
@@ -274,12 +275,16 @@ export default function LeadsPage() {
     void fetchData();
   }, [fetchData]);
 
-  // Resolve the team member's own candidate_id once on mount
+  // Resolve the team member's own candidate once on mount
   useEffect(() => {
     if (role !== "team-member") return;
     authService.getMe().then((me) => {
-      if (me?.candidate_id) setMeCandidateId(me.candidate_id);
-    }).catch(() => {/* silently ignore */});
+      if (!me?.candidate_id) return;
+      setMeCandidateId(me.candidate_id);
+      candidatesService.get(me.candidate_id)
+        .then((c) => setMeCandidateName(c.name))
+        .catch(() => {});
+    }).catch(() => {});
   }, [role]);
 
   const bdOptions = useMemo(
@@ -1023,16 +1028,12 @@ export default function LeadsPage() {
               // Team member: show their own candidate as a read-only display
               <div className={`${selectClass} flex items-center gap-2 bg-slate-50 dark:bg-white/[0.03] cursor-not-allowed opacity-80`}>
                 <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
-                  {(candidates.find((c) => c.id === meCandidateId)?.name ?? "?")
-                    .split(" ")
-                    .filter(Boolean)
-                    .map((p) => p[0])
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase()}
+                  {meCandidateName
+                    ? meCandidateName.split(" ").filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase()
+                    : "…"}
                 </span>
                 <span className="text-sm text-slate-800 dark:text-slate-200">
-                  {candidates.find((c) => c.id === meCandidateId)?.name ?? "Your candidate"}
+                  {meCandidateName ?? "Loading…"}
                 </span>
               </div>
             ) : (

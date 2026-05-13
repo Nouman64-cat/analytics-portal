@@ -53,12 +53,11 @@ def load_lead_map(session: Session, thread_ids: set[uuid.UUID]) -> dict[uuid.UUI
     return {r.thread_id: r for r in rows}
 
 
-def _all_interviews_in_thread(session: Session, thread_id: uuid.UUID) -> list[Interview]:
+def _load_interviews(session: Session, thread_id: uuid.UUID) -> list[Interview]:
     return session.exec(select(Interview).where(Interview.thread_id == thread_id)).all()
 
 
-def _derive_lead_outcome(session: Session, thread_id: uuid.UUID) -> dict[str, Any]:
-    rows = _all_interviews_in_thread(session, thread_id)
+def _derive_lead_outcome(rows: list[Interview]) -> dict[str, Any]:
     if not rows:
         return {
             "lead_outcome": "active",
@@ -105,8 +104,13 @@ def effective_lead_fields(
     session: Session,
     thread_id: uuid.UUID,
     lead_row: Optional[LeadThread],
+    rows: Optional[list[Interview]] = None,
 ) -> dict[str, Any]:
-    """Return lead_outcome, lead_status_label, lead_source, lead_notes for API responses."""
+    """Return lead_outcome, lead_status_label, lead_source, lead_notes for API responses.
+
+    Pass `rows` when the caller already holds the thread's interview rows to avoid
+    an extra SELECT per thread.
+    """
     notes: Optional[str] = None
     bd_notes: Optional[str] = None
     closed_at: Optional[datetime] = None
@@ -115,34 +119,35 @@ def effective_lead_fields(
         bd_notes = lead_row.bd_notes
         closed_at = lead_row.closed_at
 
-    # Determine outcome
-    res = {}
+    # Resolve interview rows once — use caller-supplied list to avoid N+1 queries
+    def get_rows() -> list[Interview]:
+        return rows if rows is not None else _load_interviews(session, thread_id)
+
     override = (lead_row.outcome_override or "").strip().lower() if lead_row else ""
     if override and override in ALLOWED_LEAD_OUTCOMES:
-        res = {
+        res: dict[str, Any] = {
             "lead_outcome": override,
             "lead_status_label": LEAD_STATUS_LABELS.get(
                 override, override.replace("_", " ").title()
             ),
             "lead_source": "explicit",
         }
+        # Derive is_converted from rows (no second DB hit when rows already loaded)
+        if lead_row and lead_row.is_converted_override is not None:
+            res["is_converted"] = lead_row.is_converted_override
+        else:
+            derived = _derive_lead_outcome(get_rows())
+            res["is_converted"] = derived.get("is_converted", False)
     else:
-        res = _derive_lead_outcome(session, thread_id)
+        res = _derive_lead_outcome(get_rows())
 
-    # Attach common fields
     res["lead_notes"] = notes
     res["bd_notes"] = bd_notes
     res["lead_closed_at"] = closed_at
-    
-    # Always include/apply conversion status
+
     if lead_row and lead_row.is_converted_override is not None:
         res["is_converted"] = lead_row.is_converted_override
-    else:
-        # If not overridden, we might still need to derive it if 'res' came from explicit override
-        if "is_converted" not in res:
-            derived = _derive_lead_outcome(session, thread_id)
-            res["is_converted"] = derived.get("is_converted", False)
-        
+
     return res
 
 
