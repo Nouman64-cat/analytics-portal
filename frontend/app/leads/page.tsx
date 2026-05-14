@@ -25,6 +25,8 @@ import {
   Pencil,
   Trash2,
   Check,
+  SlidersHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import {
   leadsService,
@@ -54,6 +56,7 @@ import {
   EmptyState,
 } from "@/components/PageStates";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
+import DateRangeFilter from "@/components/DateRangeFilter";
 import Modal, {
   FormField,
   inputClass,
@@ -180,6 +183,9 @@ export default function LeadsPage() {
   const [sortFilter, setSortFilter] = useState<LeadListSort>(
     "last_activity_desc",
   );
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showExtraFilters, setShowExtraFilters] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
@@ -241,6 +247,8 @@ export default function LeadsPage() {
           outcome: outcomeFilter !== "all" ? outcomeFilter : undefined,
           sort: sortFilter,
           department_id: departmentId ?? undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
         }),
         companiesService.list(),
         profilesService.list({ department_id: departmentId }),
@@ -269,6 +277,8 @@ export default function LeadsPage() {
     outcomeFilter,
     sortFilter,
     departmentId,
+    dateFrom,
+    dateTo,
   ]);
 
   useEffect(() => {
@@ -312,7 +322,9 @@ export default function LeadsPage() {
       profileFilter === "all" &&
       candidateFilter === "all" &&
       outcomeFilter === "all" &&
-      sortFilter === "last_activity_desc",
+      sortFilter === "last_activity_desc" &&
+      !dateFrom &&
+      !dateTo,
     [
       debouncedSearch,
       bdFilter,
@@ -320,6 +332,8 @@ export default function LeadsPage() {
       candidateFilter,
       outcomeFilter,
       sortFilter,
+      dateFrom,
+      dateTo,
     ],
   );
 
@@ -355,6 +369,8 @@ export default function LeadsPage() {
     setCandidateFilter("all");
     setOutcomeFilter("all");
     setSortFilter("last_activity_desc");
+    setDateFrom("");
+    setDateTo("");
     setPage(1);
   }, []);
 
@@ -529,6 +545,8 @@ export default function LeadsPage() {
     "text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide";
   /** Tighter than modal defaults — keeps the filter bar short. */
   const filterSelectClass = `${selectClass} text-xs py-1.5 px-2 min-h-[2rem] rounded-lg`;
+  /** Same but w-auto so it works inside a non-wrapping flex row. */
+  const filterSelectCompact = `${filterSelectClass} !w-auto shrink-0`;
 
   if (loading && !initialFetchDone.current) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
@@ -612,119 +630,90 @@ export default function LeadsPage() {
       )}
 
       <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-3 sm:p-4">
-        <div className="flex flex-col gap-2 sm:gap-2.5 mb-3">
-          <div className="flex flex-col gap-2 min-[900px]:flex-row min-[900px]:items-center min-[900px]:gap-3">
-            <LeadsSearchField
-              resetKey={searchResetKey}
-              onDebouncedChange={setDebouncedSearch}
-            />
-            <button
-              type="button"
-              onClick={resetFilters}
-              title="Reset filters"
-              aria-label="Reset filters"
-              className={`inline-flex items-center justify-center gap-1.5 shrink-0 self-start min-[900px]:self-auto ${buttonSecondary} text-xs py-1.5 px-2.5`}
-            >
-              <RotateCcw size={13} className="shrink-0" />
-              <span>Reset</span>
-            </button>
-          </div>
+        {(() => {
+          const lSel = "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
+          const extraCount = [
+            bdFilter !== "all",
+            profileFilter !== "all",
+            sortFilter !== "last_activity_desc",
+            !!dateFrom,
+            !!dateTo,
+          ].filter(Boolean).length;
+          const anyFilter = !filtersAreDefault;
+          return (
+            <div className="flex flex-col gap-2 mb-3">
+              {/* Primary filter row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[180px]">
+                  <LeadsSearchField resetKey={searchResetKey} onDebouncedChange={setDebouncedSearch} />
+                </div>
+                <select value={outcomeFilter} onChange={(e) => { setOutcomeFilter(e.target.value); setPage(1); }} className={lSel}>
+                  <option value="all">Any outcome</option>
+                  {LEAD_OUTCOME_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <select value={candidateFilter} onChange={(e) => { setCandidateFilter(e.target.value); setPage(1); }} className={lSel}>
+                  <option value="all">All candidates</option>
+                  {candidateOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowExtraFilters((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer min-h-[2.25rem] ${
+                    showExtraFilters || extraCount > 0
+                      ? "border-indigo-400/60 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+                      : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
+                  }`}
+                >
+                  <SlidersHorizontal size={12} className="shrink-0" />
+                  Filters
+                  {extraCount > 0 && (
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white leading-none">
+                      {extraCount}
+                    </span>
+                  )}
+                  <ChevronDown size={12} className={`shrink-0 transition-transform ${showExtraFilters ? "rotate-180" : ""}`} />
+                </button>
+                {anyFilter && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="text-xs font-medium text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2">
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className={compactLabel}>BD</span>
-              <select
-                value={bdFilter}
-                onChange={(e) => {
-                  setBdFilter(e.target.value);
-                  setPage(1);
-                }}
-                className={filterSelectClass}
-                title="Business developer"
-              >
-                <option value="all">All BDs</option>
-                {bdOptions.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className={compactLabel}>Profile</span>
-              <select
-                value={profileFilter}
-                onChange={(e) => {
-                  setProfileFilter(e.target.value);
-                  setPage(1);
-                }}
-                className={filterSelectClass}
-                title="Resume profile"
-              >
-                <option value="all">All</option>
-                {profileOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className={compactLabel}>Candidate</span>
-              <select
-                value={candidateFilter}
-                onChange={(e) => {
-                  setCandidateFilter(e.target.value);
-                  setPage(1);
-                }}
-                className={filterSelectClass}
-              >
-                <option value="all">All</option>
-                {candidateOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className={compactLabel}>Outcome</span>
-              <select
-                value={outcomeFilter}
-                onChange={(e) => {
-                  setOutcomeFilter(e.target.value);
-                  setPage(1);
-                }}
-                className={filterSelectClass}
-                title="Lead outcome"
-              >
-                <option value="all">Any</option>
-                {LEAD_OUTCOME_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-0 flex-col gap-0.5">
-              <span className={compactLabel}>Sort</span>
-              <select
-                value={sortFilter}
-                onChange={(e) => {
-                  setSortFilter(e.target.value as LeadListSort);
-                  setPage(1);
-                }}
-                className={filterSelectClass}
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
+              {/* Expandable extra filters */}
+              {showExtraFilters && (
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.05] animate-fade-in overflow-x-auto pb-0.5">
+                  <select value={bdFilter} onChange={(e) => { setBdFilter(e.target.value); setPage(1); }} className={lSel} title="Business developer">
+                    <option value="all">All BDs</option>
+                    {bdOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                  </select>
+                  <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(1); }} className={lSel}>
+                    <option value="all">All profiles</option>
+                    {profileOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <select value={sortFilter} onChange={(e) => { setSortFilter(e.target.value as LeadListSort); setPage(1); }} className={lSel}>
+                    {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <div className="shrink-0">
+                    <DateRangeFilter
+                      from={dateFrom}
+                      to={dateTo}
+                      onFromChange={(v) => { setDateFrom(v); setPage(1); }}
+                      onToChange={(v) => { setDateTo(v); setPage(1); }}
+                      onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {leads.length === 0 ? (
           <EmptyState

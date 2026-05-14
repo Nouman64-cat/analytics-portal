@@ -20,6 +20,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Download,
   Loader2,
   Target,
@@ -27,6 +28,7 @@ import {
   ArrowRight,
   List,
   Ban,
+  SlidersHorizontal,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -84,6 +86,7 @@ import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
+import DateRangeFilter from "@/components/DateRangeFilter";
 
 // ─── Quick-create lead (used inside the interview form) ─────
 
@@ -486,7 +489,10 @@ export default function InterviewsPage() {
     bd_id: "All",
     month: "All",
     is_today: false,
+    date_from: "",
+    date_to: "",
   });
+  const [showExtraFilters, setShowExtraFilters] = useState(false);
 
   // Ticks every 30 s so countdown badges in the table stay live.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -1239,6 +1245,9 @@ export default function InterviewsPage() {
       }
     }
 
+    const matchDateFrom = !filters.date_from || (!!i.interview_date && i.interview_date >= filters.date_from);
+    const matchDateTo = !filters.date_to || (!!i.interview_date && i.interview_date <= filters.date_to);
+
     return (
       matchSearch &&
       matchCompany &&
@@ -1248,7 +1257,9 @@ export default function InterviewsPage() {
       matchBd &&
       matchStatus &&
       matchMonth &&
-      matchToday
+      matchToday &&
+      matchDateFrom &&
+      matchDateTo
     );
   });
 
@@ -1404,173 +1415,138 @@ export default function InterviewsPage() {
       </StatsGrid>
 
       {/* Filters Row */}
-      <div className="flex flex-col gap-4 mb-6 relative z-10">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="relative sm:max-w-md w-full">
-            <Search
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500"
-            />
-            <input
-              type="text"
-              placeholder="Search interviews..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} pl-10`}
-            />
-          </div>
-
-          {/* Dropdown Filters */}
-          <div className="flex flex-wrap items-center gap-2 w-full">
-            <select
-              value={filters.status}
-              onChange={(e) =>
-                setFilters({ ...filters, status: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
-            >
-              <option value="All">All Statuses</option>
-              <option value="Converted">Converted</option>
-              <option value="Upcoming">Upcoming</option>
-              <option value="Unresponsed">Unresponsed</option>
-              <option value="Dead">Dead</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-
-            <select
-              value={filters.company_id}
-              onChange={(e) =>
-                setFilters({ ...filters, company_id: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
-            >
-              <option value="All">All Companies</option>
-              <option value="staffing">Staffing Firm</option>
-              <option value="direct">Direct Client</option>
-            </select>
-
-            {!isTeamMember && (
+      {(() => {
+        const iSel = "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
+        const extraCount = [
+          filters.company_id !== "All",
+          filters.resume_profile_id !== "All",
+          filters.round !== "All",
+          filters.bd_id !== "All",
+          filters.month !== "All",
+          filters.date_from !== "",
+          filters.date_to !== "",
+        ].filter(Boolean).length;
+        const anyFilter =
+          filters.status !== "All" ||
+          filters.company_id !== "All" ||
+          filters.candidate_id !== "All" ||
+          filters.resume_profile_id !== "All" ||
+          filters.round !== "All" ||
+          filters.bd_id !== "All" ||
+          filters.month !== "All" ||
+          filters.is_today ||
+          filters.date_from !== "" ||
+          filters.date_to !== "";
+        return (
+          <div className="flex flex-col gap-2 mb-6 relative z-10">
+            {/* Primary row */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search interviews..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className={`${inputClass} pl-10 text-sm py-1.5`}
+                />
+              </div>
               <select
-                value={filters.candidate_id}
-                onChange={(e) =>
-                  setFilters({ ...filters, candidate_id: e.target.value })
-                }
-                className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                className={iSel}
               >
-                <option value="All">All Candidates</option>
-                {candidates.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                <option value="All">All statuses</option>
+                <option value="Converted">Converted</option>
+                <option value="Upcoming">Upcoming</option>
+                <option value="Unresponsed">Unresponsed</option>
+                <option value="Dead">Dead</option>
+                <option value="Rejected">Rejected</option>
               </select>
-            )}
-
-            <select
-              value={filters.resume_profile_id}
-              onChange={(e) =>
-                setFilters({ ...filters, resume_profile_id: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
-            >
-              <option value="All">All Profiles</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filters.round}
-              onChange={(e) =>
-                setFilters({ ...filters, round: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[130px] truncate"
-            >
-              <option value="All">All Rounds</option>
-              {Array.from(new Set(interviews.map((i) => i.round)))
-                .filter(Boolean)
-                .map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-            </select>
-
-            <select
-              value={filters.bd_id}
-              onChange={(e) =>
-                setFilters({ ...filters, bd_id: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer max-w-[160px] truncate"
-            >
-              <option value="All">All BDs</option>
-              {businessDevs.map((bd) => (
-                <option key={bd.id} value={bd.id}>
-                  {bd.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filters.month}
-              onChange={(e) =>
-                setFilters({ ...filters, month: e.target.value })
-              }
-              className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
-            >
-              <option value="All">All Months</option>
-              {availableMonths.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={() =>
-                setFilters({ ...filters, is_today: !filters.is_today })
-              }
-              className={`rounded-xl border px-3 py-2 text-xs font-medium transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500/20 cursor-pointer ${
-                filters.is_today
-                  ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
-                  : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
-              }`}
-            >
-              Today
-            </button>
-
-            {(filters.status !== "All" ||
-              filters.company_id !== "All" ||
-              filters.candidate_id !== "All" ||
-              filters.resume_profile_id !== "All" ||
-              filters.round !== "All" ||
-              filters.bd_id !== "All" ||
-              filters.month !== "All" ||
-              filters.is_today) && (
+              {!isTeamMember && (
+                <select value={filters.candidate_id} onChange={(e) => setFilters({ ...filters, candidate_id: e.target.value })} className={iSel}>
+                  <option value="All">All candidates</option>
+                  {candidates.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
               <button
-                onClick={() =>
-                  setFilters({
-                    status: "All",
-                    company_id: "All",
-                    candidate_id: "All",
-                    resume_profile_id: "All",
-                    round: "All",
-                    bd_id: "All",
-                    month: "All",
-                    is_today: false,
-                  })
-                }
-                className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors px-2 ml-1"
+                onClick={() => setFilters({ ...filters, is_today: !filters.is_today })}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all focus:outline-none cursor-pointer min-h-[2.25rem] ${
+                  filters.is_today
+                    ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
+                    : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
+                }`}
               >
-                Clear Filters
+                Today
               </button>
+              <button
+                type="button"
+                onClick={() => setShowExtraFilters((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer min-h-[2.25rem] ${
+                  showExtraFilters || extraCount > 0
+                    ? "border-indigo-400/60 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+                    : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
+                }`}
+              >
+                <SlidersHorizontal size={12} className="shrink-0" />
+                Filters
+                {extraCount > 0 && (
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white leading-none">
+                    {extraCount}
+                  </span>
+                )}
+                <ChevronDown size={12} className={`shrink-0 transition-transform ${showExtraFilters ? "rotate-180" : ""}`} />
+              </button>
+              {anyFilter && (
+                <button
+                  onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All", bd_id: "All", month: "All", is_today: false, date_from: "", date_to: "" })}
+                  className="text-xs font-medium text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+
+            {/* Expandable extra filters */}
+            {showExtraFilters && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.05] animate-fade-in overflow-x-auto pb-0.5">
+                <select value={filters.company_id} onChange={(e) => setFilters({ ...filters, company_id: e.target.value })} className={`${iSel} shrink-0`}>
+                  <option value="All">All companies</option>
+                  <option value="staffing">Staffing firm</option>
+                  <option value="direct">Direct client</option>
+                </select>
+                <select value={filters.resume_profile_id} onChange={(e) => setFilters({ ...filters, resume_profile_id: e.target.value })} className={`${iSel} shrink-0`}>
+                  <option value="All">All profiles</option>
+                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select value={filters.round} onChange={(e) => setFilters({ ...filters, round: e.target.value })} className={`${iSel} shrink-0`}>
+                  <option value="All">All rounds</option>
+                  {Array.from(new Set(interviews.map((i) => i.round))).filter(Boolean).map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                <select value={filters.bd_id} onChange={(e) => setFilters({ ...filters, bd_id: e.target.value })} className={`${iSel} shrink-0`}>
+                  <option value="All">All BDs</option>
+                  {businessDevs.map((bd) => <option key={bd.id} value={bd.id}>{bd.name}</option>)}
+                </select>
+                <select value={filters.month} onChange={(e) => setFilters({ ...filters, month: e.target.value })} className={`${iSel} shrink-0`}>
+                  <option value="All">All months</option>
+                  {availableMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <div className="shrink-0">
+                  <DateRangeFilter
+                    from={filters.date_from}
+                    to={filters.date_to}
+                    onFromChange={(v) => setFilters({ ...filters, date_from: v })}
+                    onToChange={(v) => setFilters({ ...filters, date_to: v })}
+                    onClear={() => setFilters({ ...filters, date_from: "", date_to: "" })}
+                  />
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Table */}
       {filtered.length === 0 ? (

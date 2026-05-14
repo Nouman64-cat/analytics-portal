@@ -133,6 +133,8 @@ export const leadsService = {
     if (params?.sort && params.sort !== "last_activity_desc")
       sp.set("sort", params.sort);
     if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.date_from) sp.set("date_from", params.date_from);
+    if (params?.date_to) sp.set("date_to", params.date_to);
     const q = sp.toString();
     return apiFetch<LeadListPage>(`/leads/${q ? `?${q}` : ""}`);
   },

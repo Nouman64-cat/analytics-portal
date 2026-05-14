@@ -230,6 +230,10 @@ export interface LeadListParams {
   lead_source?: "all" | "explicit" | "derived";
   sort?: LeadListSort;
   department_id?: string;
+  /** ISO date string YYYY-MM-DD — filters on first_interview_date >= date_from */
+  date_from?: string;
+  /** ISO date string YYYY-MM-DD — filters on first_interview_date <= date_to */
+  date_to?: string;
 }
 
 export interface InterviewSummary {
