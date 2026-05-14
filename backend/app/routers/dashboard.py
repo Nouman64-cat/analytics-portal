@@ -15,6 +15,7 @@ from app.models.user import User, UserRole
 from app.status_utils import computed_status_for_interview_display
 from app.team_member_scope import candidate_id_for_team_member
 from app.lead_thread_utils import effective_lead_fields, load_lead_map
+from app.dept_scope import is_cross_dept
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 
@@ -58,11 +59,17 @@ def get_dashboard_stats(
         if scope_candidate_id is None:
             return _empty_team_member_dashboard()
 
+    # Non-cross-dept roles (dept-lead etc.) that have no explicit dept selector
+    # always default to their own department so they never see cross-dept data.
+    effective_dept_id = department_id
+    if effective_dept_id is None and not is_cross_dept(current_user) and scope_candidate_id is None:
+        effective_dept_id = current_user.department_id
+
     def iv_where(stmt):
         if scope_candidate_id:
             stmt = stmt.where(Interview.candidate_id == scope_candidate_id)
-        elif department_id:
-            stmt = stmt.where(Interview.department_id == department_id)
+        elif effective_dept_id:
+            stmt = stmt.where(Interview.department_id == effective_dept_id)
         return stmt
 
     # Total interviews
@@ -78,14 +85,14 @@ def get_dashboard_stats(
             )
         ).one()
         total_candidates = 1
-    elif department_id:
+    elif effective_dept_id:
         total_companies = session.exec(
             select(func.count(func.distinct(Interview.company_id))).where(
-                Interview.department_id == department_id
+                Interview.department_id == effective_dept_id
             )
         ).one()
         total_candidates = session.exec(
-            select(func.count(Candidate.id)).where(Candidate.department_id == department_id)
+            select(func.count(Candidate.id)).where(Candidate.department_id == effective_dept_id)
         ).one()
     else:
         total_companies = session.exec(select(func.count(Company.id))).one()
@@ -194,6 +201,8 @@ def get_dashboard_stats(
     )
     if scope_candidate_id:
         company_query = company_query.where(Interview.candidate_id == scope_candidate_id)
+    elif effective_dept_id:
+        company_query = company_query.where(Interview.department_id == effective_dept_id)
     company_results = session.exec(company_query).all()
     interviews_by_company = {name: count for name, count in company_results}
 
@@ -206,6 +215,8 @@ def get_dashboard_stats(
     )
     if scope_candidate_id:
         candidate_query = candidate_query.where(Interview.candidate_id == scope_candidate_id)
+    elif effective_dept_id:
+        candidate_query = candidate_query.where(Interview.department_id == effective_dept_id)
     candidate_results = session.exec(candidate_query).all()
     interviews_by_candidate = {name: count for name, count in candidate_results}
 
@@ -374,10 +385,14 @@ def get_interviews_by_day(
         )
     )
 
+    effective_dept_id = department_id
+    if effective_dept_id is None and not is_cross_dept(current_user) and scope_candidate_id is None:
+        effective_dept_id = current_user.department_id
+
     if scope_candidate_id:
         query = query.where(Interview.candidate_id == scope_candidate_id)
-    elif department_id:
-        query = query.where(Interview.department_id == department_id)
+    elif effective_dept_id:
+        query = query.where(Interview.department_id == effective_dept_id)
 
     interviews = session.exec(query).all()
 
