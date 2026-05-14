@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil, Trash2 } from "lucide-react";
-import { usersService, departmentsService } from "@/lib/services";
+import { usersService, departmentsService, candidatesService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
@@ -31,6 +31,7 @@ export default function UsersPage() {
   const [deleteModal, setDeleteModal] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [alsoCandidate, setAlsoCandidate] = useState(false);
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
@@ -83,6 +84,7 @@ export default function UsersPage() {
   const openCreate = () => {
     setEditingId(null);
     setFormData({ full_name: "", email: "", role: "team-member", department_id: null });
+    setAlsoCandidate(false);
     setModalOpen(true);
   };
 
@@ -110,6 +112,13 @@ export default function UsersPage() {
         await usersService.update(editingId, formData);
       } else {
         await usersService.create(formData);
+        if (alsoCandidate) {
+          await candidatesService.create({
+            name: formData.full_name,
+            email: formData.email,
+            department_id: formData.department_id,
+          });
+        }
       }
       setModalOpen(false);
       fetchData();
@@ -287,6 +296,22 @@ export default function UsersPage() {
               {isSuperadmin && <option value="superadmin">Superadmin</option>}
             </select>
           </FormField>
+
+          {!editingId && formData.role === "team-member" && (
+            <button
+              type="button"
+              onClick={() => setAlsoCandidate((v) => !v)}
+              className="flex w-full items-center justify-between rounded-xl border border-slate-200 dark:border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.03]"
+            >
+              <div>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Also add as candidate</p>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Creates a matching candidate profile with the same name and email.</p>
+              </div>
+              <div className={`relative ml-4 h-6 w-11 shrink-0 rounded-full transition-colors ${alsoCandidate ? "bg-indigo-500" : "bg-slate-200 dark:bg-white/10"}`}>
+                <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${alsoCandidate ? "translate-x-5" : "translate-x-0"}`} />
+              </div>
+            </button>
+          )}
 
           {isSuperadmin && (formData.role === "team-member" || formData.role === "bd" || formData.role === "dept-lead") && (
             <FormField label="Department">

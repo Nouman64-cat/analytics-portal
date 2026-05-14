@@ -47,6 +47,7 @@ import {
   collectDescendantInterviewIds,
   getLeadOutcomeBadgeStyle,
   getLeadOutcomeSelectShellClass,
+  getStatusStyle,
   getTodayEst,
   minutesUntilInterview,
 } from "@/lib/utils";
@@ -2386,20 +2387,29 @@ export default function InterviewsPage() {
           </FormField>
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Round status">
-              <select
-                value={formData.status || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value })
-                }
-                className={selectClass}
-              >
-                <option value="">Select a status...</option>
-                <option value="Converted">Converted</option>
-                <option value="Upcoming">Upcoming</option>
-                <option value="Unresponsed">Unresponsed</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex flex-wrap gap-2">
+                {(["", "Upcoming", "Converted", "Unresponsed", "Rejected"] as const).map((val) => {
+                  const label = val === "" ? "Unresponsed" : val;
+                  const s = getStatusStyle(val === "" ? null : val);
+                  const selected = (formData.status || "") === val;
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, status: val || null })}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all
+                        ${selected
+                          ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-current`
+                          : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
+                        }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${selected ? s.dot : "bg-slate-400 dark:bg-slate-500"}`} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 Use <span className="font-medium">Rejected</span> when this
                 round ended in a no — the pipeline lead will show Rejected when
                 this is the latest round. Dropped, closed, and dead are still
