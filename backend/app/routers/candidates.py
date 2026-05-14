@@ -9,6 +9,8 @@ from app.activity_log import record_activity
 from app.dept_scope import apply_dept_filter
 from app.models.candidate import Candidate
 from app.models.department import Department
+from app.models.interview import Interview
+from app.models.lead_thread import LeadThread
 from app.models.user import User
 from app.schemas.candidate import (
     CandidateCreate,
@@ -156,11 +158,20 @@ def delete_candidate(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a candidate."""
+    """Delete a candidate. Nullifies interview and lead-thread references before removal."""
     candidate = session.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     candidate_name = candidate.name
+
+    # Nullify FK references so the delete doesn't violate constraints
+    for iv in session.exec(select(Interview).where(Interview.candidate_id == candidate_id)).all():
+        iv.candidate_id = None
+        session.add(iv)
+    for lt in session.exec(select(LeadThread).where(LeadThread.entertaining_candidate_id == candidate_id)).all():
+        lt.entertaining_candidate_id = None
+        session.add(lt)
+
     session.delete(candidate)
     record_activity(
         session,
