@@ -181,6 +181,17 @@ function LeadsModal({ state, onClose }: { state: ModalState; onClose: () => void
   );
 }
 
+const CANDIDATE_COLORS = [
+  { avatar: "bg-indigo-500",  border: "border-indigo-500" },
+  { avatar: "bg-rose-500",    border: "border-rose-500"   },
+  { avatar: "bg-emerald-500", border: "border-emerald-500"},
+  { avatar: "bg-amber-500",   border: "border-amber-500"  },
+  { avatar: "bg-sky-500",     border: "border-sky-500"    },
+  { avatar: "bg-violet-500",  border: "border-violet-500" },
+  { avatar: "bg-orange-500",  border: "border-orange-500" },
+  { avatar: "bg-teal-500",    border: "border-teal-500"   },
+] as const;
+
 function CandidateSection({
   candidateName,
   leads,
@@ -332,20 +343,23 @@ export default function StatsPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {filteredStats.map(({ candidate, leads: cLeads }) => (
-            <section key={candidate.id}>
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-xs font-bold text-indigo-400">
-                  {candidate.name[0].toUpperCase()}
+          {filteredStats.map(({ candidate, leads: cLeads }, idx) => {
+            const color = CANDIDATE_COLORS[idx % CANDIDATE_COLORS.length];
+            return (
+              <section key={candidate.id} className={`border-l-4 pl-4 ${color.border}`}>
+                <div className="mb-3 flex items-center gap-2">
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${color.avatar} text-xs font-bold text-white`}>
+                    {candidate.name[0].toUpperCase()}
+                  </div>
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</h2>
+                  {cLeads.length === 0 && (
+                    <span className="text-[11px] text-slate-400 dark:text-slate-600 italic">no leads yet</span>
+                  )}
                 </div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</h2>
-                {cLeads.length === 0 && (
-                  <span className="text-[11px] text-slate-400 dark:text-slate-600 italic">no leads yet</span>
-                )}
-              </div>
-              <CandidateSection candidateName={candidate.name} leads={cLeads} onOpen={openModal} />
-            </section>
-          ))}
+                <CandidateSection candidateName={candidate.name} leads={cLeads} onOpen={openModal} />
+              </section>
+            );
+          })}
         </div>
       )}
 
