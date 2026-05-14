@@ -633,7 +633,6 @@ export default function LeadsPage() {
         {(() => {
           const lSel = "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
           const extraCount = [
-            bdFilter !== "all",
             profileFilter !== "all",
             sortFilter !== "last_activity_desc",
             !!dateFrom,
@@ -656,6 +655,10 @@ export default function LeadsPage() {
                 <select value={candidateFilter} onChange={(e) => { setCandidateFilter(e.target.value); setPage(1); }} className={lSel}>
                   <option value="all">All candidates</option>
                   {candidateOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select value={bdFilter} onChange={(e) => { setBdFilter(e.target.value); setPage(1); }} className={lSel}>
+                  <option value="all">All BDs</option>
+                  {bdOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                 </select>
                 <button
                   type="button"
@@ -689,10 +692,6 @@ export default function LeadsPage() {
               {/* Expandable extra filters */}
               {showExtraFilters && (
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.05] animate-fade-in overflow-x-auto pb-0.5">
-                  <select value={bdFilter} onChange={(e) => { setBdFilter(e.target.value); setPage(1); }} className={lSel} title="Business developer">
-                    <option value="all">All BDs</option>
-                    {bdOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                  </select>
                   <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(1); }} className={lSel}>
                     <option value="all">All profiles</option>
                     {profileOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
