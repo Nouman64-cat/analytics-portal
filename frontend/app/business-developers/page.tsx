@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
+import DateRangeFilter from "@/components/DateRangeFilter";
 import { businessDevelopersService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { BusinessDeveloper, BusinessDeveloperFormData, Interview } from "@/lib/types";
@@ -27,6 +28,8 @@ export default function BusinessDevelopersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,7 +120,7 @@ export default function BusinessDevelopersPage() {
   // ─── Analytics ───────────────────────────────────────────────────
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
-    interviews.forEach(i => {
+    interviews.forEach((i) => {
       if (i.interview_date) months.add(i.interview_date.slice(0, 7));
     });
     return [...months].sort().reverse();
@@ -134,17 +137,21 @@ export default function BusinessDevelopersPage() {
     return m;
   }, [interviews]);
 
-  /** Threads with at least one interview in the selected month (or all). */
+  /** Threads with at least one interview matching both the month pill and the date range. */
   const threadsInSelectedPeriod = useMemo(() => {
-    if (selectedMonth === "all") return new Set(threadsMap.keys());
+    if (selectedMonth === "all" && !dateFrom && !dateTo) return new Set(threadsMap.keys());
     const s = new Set<string>();
     threadsMap.forEach((rows, tid) => {
-      if (rows.some((r) => r.interview_date?.startsWith(selectedMonth))) {
-        s.add(tid);
-      }
+      if (rows.some((r) => {
+        if (!r.interview_date) return false;
+        if (selectedMonth !== "all" && !r.interview_date.startsWith(selectedMonth)) return false;
+        if (dateFrom && r.interview_date < dateFrom) return false;
+        if (dateTo && r.interview_date > dateTo) return false;
+        return true;
+      })) s.add(tid);
     });
     return s;
-  }, [threadsMap, selectedMonth]);
+  }, [threadsMap, selectedMonth, dateFrom, dateTo]);
 
   function primaryBdForThread(rows: Interview[]): string | null {
     const sorted = [...rows].sort((a, b) => {
@@ -252,29 +259,34 @@ export default function BusinessDevelopersPage() {
         </div>
       </div>
 
-      {/* Month Filter */}
-      {availableMonths.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Filter by month:</span>
-          <div className="flex gap-1.5 flex-wrap">
+      {/* Period filter: month pills + date range */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Period:</span>
+        <div className="flex gap-1.5 flex-wrap items-center">
+          <button
+            onClick={() => setSelectedMonth("all")}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === "all" ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+          >
+            All time
+          </button>
+          {availableMonths.map((ym) => (
             <button
-              onClick={() => setSelectedMonth("all")}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === "all" ? "bg-amber-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+              key={ym}
+              onClick={() => setSelectedMonth(ym)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === ym ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
             >
-              All Time
+              {formatMonthLabel(ym)}
             </button>
-            {availableMonths.map(ym => (
-              <button
-                key={ym}
-                onClick={() => setSelectedMonth(ym)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedMonth === ym ? "bg-amber-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
-              >
-                {formatMonthLabel(ym)}
-              </button>
-            ))}
-          </div>
+          ))}
+          <DateRangeFilter
+            from={dateFrom}
+            to={dateTo}
+            onFromChange={setDateFrom}
+            onToChange={setDateTo}
+            onClear={() => { setDateFrom(""); setDateTo(""); }}
+          />
         </div>
-      )}
+      </div>
 
       {/* Stats */}
       <StatsGrid>
@@ -299,9 +311,11 @@ export default function BusinessDevelopersPage() {
       {chartData.length > 0 && (
         <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm">
           <h3 className="mb-4 sm:mb-6 text-sm font-semibold text-slate-900 dark:text-white">
-            {selectedMonth === "all"
-              ? "Pipeline leads per BD (thread attributed by first BD on timeline)"
-              : `Pipeline leads — ${formatMonthLabel(selectedMonth)}`}
+            {selectedMonth !== "all"
+              ? `Pipeline leads — ${formatMonthLabel(selectedMonth)}${dateFrom || dateTo ? ` · ${dateFrom || "…"} to ${dateTo || "…"}` : ""}`
+              : dateFrom || dateTo
+                ? `Pipeline leads — ${dateFrom || "…"} to ${dateTo || "…"}`
+                : "Pipeline leads per BD (thread attributed by first BD on timeline)"}
           </h3>
           <div className="h-[200px] sm:h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">

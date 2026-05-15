@@ -24,6 +24,7 @@ import { formatDate, getLeadOutcomeBadgeStyle } from "@/lib/utils";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { inputClass } from "@/components/Modal";
+import DateRangeFilter from "@/components/DateRangeFilter";
 
 interface CandidateStats {
   candidate: Candidate;
@@ -232,6 +233,8 @@ export default function StatsPage() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const isAllowed = role === "superadmin" || role === "manager" || role === "dept-lead";
 
@@ -256,9 +259,17 @@ export default function StatsPage() {
     if (isAllowed) fetchData();
   }, [fetchData, isAllowed]);
 
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      if (dateFrom && (!l.first_interview_date || l.first_interview_date < dateFrom)) return false;
+      if (dateTo && (!l.first_interview_date || l.first_interview_date > dateTo)) return false;
+      return true;
+    });
+  }, [leads, dateFrom, dateTo]);
+
   const candidateStats = useMemo((): CandidateStats[] => {
     const byCandidate = new Map<string, LeadListItem[]>();
-    for (const lead of leads) {
+    for (const lead of filteredLeads) {
       const key = lead.candidate_id ?? "__none__";
       if (!byCandidate.has(key)) byCandidate.set(key, []);
       byCandidate.get(key)!.push(lead);
@@ -266,7 +277,7 @@ export default function StatsPage() {
     return candidates
       .map((c) => ({ candidate: c, leads: byCandidate.get(c.id) ?? [], ...computeStats(byCandidate.get(c.id) ?? []) }))
       .sort((a, b) => b.total - a.total);
-  }, [candidates, leads]);
+  }, [candidates, filteredLeads]);
 
   const filteredStats = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -276,9 +287,9 @@ export default function StatsPage() {
 
   const openModal = (title: string, filtered: LeadListItem[]) => setModal({ title, leads: filtered });
 
-  const deptStats = useMemo(() => computeStats(leads), [leads]);
+  const deptStats = useMemo(() => computeStats(filteredLeads), [filteredLeads]);
   const openDept = (key: string, label: string) =>
-    openModal(`Department — ${label}`, filterLeads(leads, key));
+    openModal(`Department — ${label}`, filterLeads(filteredLeads, key));
 
   if (!isAllowed) {
     return (
@@ -299,14 +310,23 @@ export default function StatsPage() {
         title="Stats"
         subtitle="Lead performance breakdown by candidate."
         action={
-          <div className="relative">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search candidate…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} pl-10 w-56`}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search candidate…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`${inputClass} pl-10 w-48`}
+              />
+            </div>
+            <DateRangeFilter
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={setDateFrom}
+              onToChange={setDateTo}
+              onClear={() => { setDateFrom(""); setDateTo(""); }}
             />
           </div>
         }
