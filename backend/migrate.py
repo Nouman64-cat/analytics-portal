@@ -168,6 +168,10 @@ def migrate():
              "Migration successful! interviews.department_id is now NOT NULL."),
             ("ALTER TABLE lead_threads ADD COLUMN IF NOT EXISTS bd_notes TEXT;",
              "Migration successful! 'bd_notes' column added to 'lead_threads' table."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(100);",
+             "Migration successful! 'reset_token' column added to 'users' table."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP;",
+             "Migration successful! 'reset_token_expires_at' column added to 'users' table."),
         ]
         for sql, msg in migrations:
             try:

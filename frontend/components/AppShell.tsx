@@ -12,7 +12,7 @@ import { authService } from "@/lib/services";
 import { hydrateSettingsCache } from "@/lib/settings";
 import { DepartmentProvider } from "@/lib/DepartmentContext";
 
-const PUBLIC_PATHS = ["/login", "/change-password"];
+const PUBLIC_PATHS = ["/login", "/change-password", "/forgot-password", "/reset-password"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);

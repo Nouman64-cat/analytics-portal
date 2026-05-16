@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +13,7 @@ from app.config import get_settings
 from app.deps import get_current_user
 from app.schemas.user import UserRead, UserMeRead, UserSettingsUpdate
 from app.team_member_scope import candidate_id_for_team_member
+from app.email_ses import try_send_password_reset_email
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
@@ -33,6 +35,15 @@ class LoginRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
+    new_password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
     new_password: str
 
 
@@ -126,6 +137,51 @@ def update_settings(
     session.commit()
     session.refresh(user)
     return user
+
+
+RESET_TOKEN_EXPIRE_HOURS = 1
+
+
+@router.post("/forgot-password")
+def forgot_password(body: ForgotPasswordRequest, session: Session = Depends(get_session)):
+    # Always return 200 to avoid leaking which emails are registered
+    user = session.exec(select(User).where(User.email == body.email.lower().strip())).first()
+    if user:
+        token = secrets.token_urlsafe(32)
+        user.reset_token = token
+        user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=RESET_TOKEN_EXPIRE_HOURS)
+        session.add(user)
+        session.commit()
+
+        settings = get_settings()
+        reset_link = f"{settings.CLIENT_URL}/reset-password?token={token}"
+        try_send_password_reset_email(
+            settings,
+            to_email=user.email,
+            full_name=user.full_name,
+            reset_link=reset_link,
+        )
+
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(body: ResetPasswordRequest, session: Session = Depends(get_session)):
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    user = session.exec(select(User).where(User.reset_token == body.token)).first()
+    if not user or not user.reset_token_expires_at or datetime.utcnow() > user.reset_token_expires_at:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+
+    user.hashed_password = _hash_password(body.new_password)
+    user.must_change_password = False
+    user.reset_token = None
+    user.reset_token_expires_at = None
+    user.updated_at = datetime.utcnow()
+    session.add(user)
+    session.commit()
+    return {"message": "Password reset successfully"}
 
 
 @router.get("/me", response_model=UserMeRead)

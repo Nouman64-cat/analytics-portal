@@ -72,5 +72,7 @@ class User(SQLModel, table=True):
     must_change_password: bool = Field(default=True)
     alarm_enabled: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
+    reset_token: Optional[str] = Field(default=None)
+    reset_token_expires_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

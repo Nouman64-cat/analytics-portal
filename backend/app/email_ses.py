@@ -509,3 +509,115 @@ def try_send_welcome_email(
     except Exception:
         logger.exception("Failed to send welcome email to %s", to_email)
         return False
+
+
+def password_reset_html(*, full_name: str, reset_link: str) -> str:
+    safe = html_module.escape
+    brand = "#4f46e5"
+    card_bg = "#ffffff"
+    soft_bg = "#f8fafc"
+    border = "#e2e8f0"
+    text_main = "#0f172a"
+    text_muted = "#64748b"
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;color:{text_main};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:{card_bg};border:1px solid {border};border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(90deg,#4f46e5,#7c3aed);padding:24px;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;line-height:1.3;font-weight:700;">Reset Your Password</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px;font-size:16px;font-weight:600;">Hi {safe(full_name)},</p>
+              <p style="margin:0 0 16px;font-size:15px;color:{text_main};">
+                We received a request to reset the password for your account. Click the button below to set a new password.
+              </p>
+              <p style="margin:0 0 20px;font-size:14px;color:{text_muted};">
+                This link will expire in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email.
+              </p>
+              <div style="margin-bottom:24px;">
+                <a href="{safe(reset_link)}"
+                   style="display:inline-block;background:{brand};color:#ffffff;text-decoration:none;
+                   padding:12px 24px;border-radius:10px;font-weight:600;font-size:15px;box-shadow:0 4px 6px -1px rgba(79,70,229,0.2);">
+                  Reset Password
+                </a>
+              </div>
+              <p style="margin:0 0 8px;font-size:13px;color:{text_muted};">
+                Or copy and paste this link into your browser:
+              </p>
+              <p style="margin:0;font-size:13px;color:{brand};word-break:break-all;">{safe(reset_link)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background:{soft_bg};border-top:1px solid {border};">
+              <p style="margin:0;color:{text_muted};font-size:12px;text-align:center;">&copy; 2026 RizViz Analytics. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
+def send_password_reset_email(
+    settings: "Settings",
+    *,
+    to_email: str,
+    full_name: str,
+    reset_link: str,
+) -> None:
+    """Raise on SMTP failure; caller should catch and log."""
+    if not settings.AWS_SES_FROM_EMAIL:
+        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        raise RuntimeError("AWS_SES SMTP credentials are not set")
+
+    html = password_reset_html(full_name=full_name, reset_link=reset_link)
+    plain = (
+        f"Hi {full_name},\n\n"
+        f"We received a request to reset your password.\n\n"
+        f"Reset your password here (expires in 1 hour):\n{reset_link}\n\n"
+        f"If you did not request this, you can safely ignore this email."
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Reset your RizViz Analytics Portal password"
+    msg["From"] = settings.AWS_SES_FROM_EMAIL
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    host = _ses_smtp_host(settings.AWS_REGION)
+    context = ssl.create_default_context()
+    with smtplib.SMTP(host, 587, timeout=30) as server:
+        server.starttls(context=context)
+        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
+        server.send_message(msg)
+
+    logger.info("Sent password reset email to %s", to_email)
+
+
+def try_send_password_reset_email(
+    settings: "Settings",
+    *,
+    to_email: str,
+    full_name: str,
+    reset_link: str,
+) -> bool:
+    """Logs errors, does not raise."""
+    try:
+        send_password_reset_email(settings, to_email=to_email, full_name=full_name, reset_link=reset_link)
+        return True
+    except Exception:
+        logger.exception("Failed to send password reset email to %s", to_email)
+        return False

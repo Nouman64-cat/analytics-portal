@@ -80,6 +80,16 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => router.push("/forgot-password")}
+              className="text-xs text-indigo-500 hover:text-indigo-400 transition-colors"
+            >
+              Forgot password?
+            </button>
+          </div>
+
           {error && (
             <p className="rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs text-red-400">{error}</p>
           )}

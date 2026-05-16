@@ -88,6 +88,32 @@ export const authService = {
       body: JSON.stringify(data),
     }),
 
+  forgotPassword: (email: string) =>
+    fetch(`${API_V1}/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || "Request failed");
+      }
+      return res.json() as Promise<{ message: string }>;
+    }),
+
+  resetPassword: (token: string, new_password: string) =>
+    fetch(`${API_V1}/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, new_password }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || "Reset failed");
+      }
+      return res.json() as Promise<{ message: string }>;
+    }),
+
   updateProfile: (data: { full_name: string }) =>
     apiFetch<User>("/auth/profile", {
       method: "PUT",
