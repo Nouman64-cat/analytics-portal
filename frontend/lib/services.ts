@@ -82,7 +82,7 @@ export const authService = {
       }>;
     }),
 
-  changePassword: (data: { current_password: string; new_password: string }) =>
+  changePassword: (data: { current_password?: string; new_password: string }) =>
     apiFetch<{ message: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify(data),

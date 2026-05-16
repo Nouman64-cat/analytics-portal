@@ -34,7 +34,7 @@ class LoginRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
+    current_password: str | None = None
     new_password: str
 
 
@@ -93,7 +93,10 @@ def change_password(
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     user = session.get(User, current_user.id)
-    if not _verify_password(body.current_password, user.hashed_password):
+    if user.must_change_password:
+        # Current password already verified at login — don't make the user type it again
+        pass
+    elif not body.current_password or not _verify_password(body.current_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect current password",
