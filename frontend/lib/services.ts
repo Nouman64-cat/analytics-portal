@@ -3,6 +3,7 @@ import { getToken, clearToken } from "./auth";
 import type {
   DashboardStats,
   DayInterviews,
+  LeadOutcomesByCandidateData,
   BusinessDeveloper,
   BusinessDeveloperFormData,
   Candidate,
@@ -140,6 +141,8 @@ export const dashboardService = {
     const qs = departmentId ? `?department_id=${departmentId}` : "";
     return apiFetch<{ days: DayInterviews[] }>(`/dashboard/interviews-by-day${qs}`);
   },
+  getLeadOutcomesByCandidate: () =>
+    apiFetch<LeadOutcomesByCandidateData>("/dashboard/lead-outcomes-by-candidate"),
 };
 
 export const leadsService = {

@@ -12,8 +12,23 @@ import {
   Pie,
   Cell,
   Legend,
+  LineChart,
+  Line,
 } from "recharts";
 import { CHART_COLORS } from "@/lib/constants";
+
+const CANDIDATE_PALETTE = [
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#06b6d4", // cyan
+  "#f97316", // orange
+  "#64748b", // slate
+  "#ec4899", // pink
+  "#10b981", // emerald
+  "#3b82f6", // blue
+  "#a3e635", // lime
+];
 
 // ─── Chart Card Wrapper ─────────────────────────────────────
 
@@ -107,8 +122,8 @@ export function PieChartWidget({ data, height = 300, colorMapping }: PieChartWid
           stroke="none"
         >
           {data.map((entry, index) => {
-            const sliceColor = colorMapping && colorMapping[entry.name] 
-              ? colorMapping[entry.name] 
+            const sliceColor = colorMapping && colorMapping[entry.name]
+              ? colorMapping[entry.name]
               : CHART_COLORS[index % CHART_COLORS.length];
             return <Cell key={index} fill={sliceColor} />;
           })}
@@ -131,6 +146,78 @@ export function PieChartWidget({ data, height = 300, colorMapping }: PieChartWid
           )}
         />
       </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── Multi-Line Chart (one line per candidate) ──────────────
+
+interface MultiLineChartWidgetProps {
+  /** Each item has a period key plus one numeric key per series. */
+  data: Array<Record<string, number | string>>;
+  xKey: string;
+  seriesKeys: string[];
+  height?: number;
+  tickFormatter?: (value: string) => string;
+}
+
+export function MultiLineChartWidget({
+  data,
+  xKey,
+  seriesKeys,
+  height = 320,
+  tickFormatter,
+}: MultiLineChartWidgetProps) {
+  const tooltipStyle = {
+    backgroundColor: "#1a1d2e",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "12px",
+    color: "#fff",
+    fontSize: "12px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+  };
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 5, right: 16, left: -10, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+        <XAxis
+          dataKey={xKey}
+          tick={{ fill: "#94a3b8", fontSize: 10 }}
+          axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
+          tickLine={false}
+          angle={-35}
+          textAnchor="end"
+          height={80}
+          interval={0}
+          tickFormatter={tickFormatter}
+        />
+        <YAxis
+          tick={{ fill: "#94a3b8", fontSize: 11 }}
+          axisLine={false}
+          tickLine={false}
+          allowDecimals={false}
+        />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend
+          verticalAlign="top"
+          height={36}
+          formatter={(value: string) => (
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>{value}</span>
+          )}
+        />
+        {seriesKeys.map((key, i) => (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            stroke={CANDIDATE_PALETTE[i % CANDIDATE_PALETTE.length]}
+            strokeWidth={2}
+            dot={{ r: 4, strokeWidth: 0 }}
+            activeDot={{ r: 6, strokeWidth: 0 }}
+          />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 }

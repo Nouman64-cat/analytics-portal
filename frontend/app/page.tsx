@@ -17,7 +17,7 @@ import {
   formatInterviewDateEst,
   formatTime,
 } from "@/lib/utils";
-import type { DashboardStats, RecentInterview, ResumeProfile, User as UserType, DayInterviews } from "@/lib/types";
+import type { DashboardStats, RecentInterview, ResumeProfile, User as UserType, DayInterviews, LeadOutcomesByCandidateData } from "@/lib/types";
 import { authService, dashboardService, profilesService } from "@/lib/services";
 
 /** Merge interview API fields with full resume profile (same source as interviews page). */
@@ -34,7 +34,7 @@ function mergeResumeProfileLinks(
   };
 }
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
-import { ChartCard, BarChartWidget, PieChartWidget } from "@/components/Charts";
+import { ChartCard, BarChartWidget, PieChartWidget, MultiLineChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 import { getUserRole } from "@/lib/auth";
@@ -105,6 +105,9 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [leadsFrequencyView, setLeadsFrequencyView] = useState<"weekly" | "monthly">("weekly");
   const [dailyInterviews, setDailyInterviews] = useState<DayInterviews[]>([]);
+  const [leadOutcomesData, setLeadOutcomesData] = useState<LeadOutcomesByCandidateData | null>(null);
+  const [outcomePeriodView, setOutcomePeriodView] = useState<"weekly" | "monthly">("weekly");
+  const [outcomeTypeView, setOutcomeTypeView] = useState<"dropped" | "converted" | "rejected">("dropped");
 
   // Company popover for recent interviews
   const { departmentId } = useDepartmentContext();
@@ -142,16 +145,21 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [data, profs, userData, dailyData] = await Promise.all([
+      const role = getUserRole();
+      const [data, profs, userData, dailyData, droppedData] = await Promise.all([
         dashboardService.getStats(departmentId),
         profilesService.list().catch(() => [] as ResumeProfile[]),
         authService.getMe().catch(() => null),
         dashboardService.getInterviewsByDay(departmentId).catch(() => ({ days: [] })),
+        role === "superadmin"
+          ? dashboardService.getLeadOutcomesByCandidate().catch(() => null)
+          : Promise.resolve(null),
       ]);
       setStats(data);
       setProfiles(profs);
       setUser(userData);
       setDailyInterviews(dailyData.days || []);
+      setLeadOutcomesData(droppedData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -167,7 +175,9 @@ export default function DashboardPage() {
   if (error) return <ErrorState message={error} onRetry={() => void fetchStats()} />;
   if (!stats) return null;
 
-  const isTeamMember = getUserRole() === "team-member";
+  const role = getUserRole();
+  const isTeamMember = role === "team-member";
+  const isSuperAdmin = role === "superadmin";
 
   const popoverProfileLinks = profilePopover
     ? mergeResumeProfileLinks(profilePopover.interview, profiles)
@@ -180,6 +190,28 @@ export default function DashboardPage() {
   }));
   const leadsMonthlyData = toChronologicalChartData(stats.leads_frequency_monthly || {});
   const leadsChartData = leadsFrequencyView === "weekly" ? leadsWeeklyData : leadsMonthlyData;
+
+  function formatMonthKey(key: string): string {
+    const m = key.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return key;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }
+
+  let outcomeChartData: Array<Record<string, number | string>> = [];
+  let outcomeCandidates: string[] = [];
+  if (leadOutcomesData) {
+    const periods = outcomePeriodView === "weekly" ? leadOutcomesData.weekly_keys : leadOutcomesData.monthly_keys;
+    const byCandidate = leadOutcomesData[outcomeTypeView][outcomePeriodView === "weekly" ? "weekly" : "monthly"];
+    outcomeCandidates = leadOutcomesData.candidates;
+    outcomeChartData = periods.map((period) => {
+      const row: Record<string, number | string> = { period };
+      for (const cand of outcomeCandidates) {
+        row[cand] = byCandidate[cand]?.[period] ?? 0;
+      }
+      return row;
+    });
+  }
 
   /** Map lead-centric labels (e.g. "Lead unresponsive") to pie buckets. */
   function leadLabelToChartKey(label: string): string {
@@ -486,6 +518,51 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+      {/* Lead Outcomes by Candidate — superadmin only */}
+      {isSuperAdmin && leadOutcomesData && (
+        <ChartCard
+          title="Lead Outcomes by Candidate"
+          subtitle={`${outcomeTypeView.charAt(0).toUpperCase() + outcomeTypeView.slice(1)} leads per candidate · ${outcomePeriodView}`}
+        >
+          <div className="mb-3 flex justify-end gap-2">
+            <select
+              value={outcomeTypeView}
+              onChange={(e) => setOutcomeTypeView(e.target.value as "dropped" | "converted" | "rejected")}
+              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+            >
+              <option value="dropped">Dropped</option>
+              <option value="converted">Converted</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <select
+              value={outcomePeriodView}
+              onChange={(e) => setOutcomePeriodView(e.target.value as "weekly" | "monthly")}
+              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          {outcomeChartData.length === 0 ? (
+            <div className="flex h-48 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+              No {outcomeTypeView} leads found
+            </div>
+          ) : (
+            <MultiLineChartWidget
+              data={outcomeChartData}
+              xKey="period"
+              seriesKeys={outcomeCandidates}
+              height={340}
+              tickFormatter={
+                outcomePeriodView === "weekly"
+                  ? formatIsoWeekToWeekdayRange
+                  : formatMonthKey
+              }
+            />
+          )}
+        </ChartCard>
+      )}
+
       {/* Company detail popover */}
       {companyPopover && (
         <div

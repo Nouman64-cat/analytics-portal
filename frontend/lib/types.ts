@@ -465,3 +465,19 @@ export interface ResumeProfileFormData {
   github_url?: string;
   portfolio_url?: string;
 }
+
+interface LeadOutcomePeriods {
+  /** candidate name → { "YYYY-Www": count } */
+  weekly: Record<string, Record<string, number>>;
+  /** candidate name → { "YYYY-MM": count } */
+  monthly: Record<string, Record<string, number>>;
+}
+
+export interface LeadOutcomesByCandidateData {
+  dropped: LeadOutcomePeriods;
+  converted: LeadOutcomePeriods;
+  rejected: LeadOutcomePeriods;
+  candidates: string[];
+  weekly_keys: string[];
+  monthly_keys: string[];
+}

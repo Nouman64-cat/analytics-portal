@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from collections import defaultdict
 from typing import Optional
 import uuid
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func as sa_func
 from app.deps import get_current_user
@@ -416,3 +416,107 @@ def get_interviews_by_day(
     ]
 
     return {"days": days}
+
+
+@router.get("/lead-outcomes-by-candidate")
+def get_lead_outcomes_by_candidate(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Superadmin only: dropped / converted / rejected lead counts per candidate per week and month."""
+    if current_user.role != UserRole.SUPERADMIN:
+        raise HTTPException(status_code=403, detail="Superadmin only")
+
+    all_ivs = session.exec(
+        select(Interview).where(Interview.thread_id.is_not(None))
+    ).all()
+
+    cand_ids = {iv.candidate_id for iv in all_ivs if iv.candidate_id}
+    if cand_ids:
+        cands = session.exec(select(Candidate).where(Candidate.id.in_(cand_ids))).all()
+    else:
+        cands = []
+    cand_map = {c.id: c.name for c in cands}
+
+    thread_ivs: dict[uuid.UUID, list[Interview]] = defaultdict(list)
+    for iv in all_ivs:
+        if iv.thread_id:
+            thread_ivs[iv.thread_id].append(iv)
+
+    lead_map = load_lead_map(session, set(thread_ivs.keys()))
+
+    # outcome slug → candidate → period → count
+    buckets: dict[str, dict[str, dict[str, int]]] = {
+        "dropped":   defaultdict(lambda: defaultdict(int)),
+        "converted": defaultdict(lambda: defaultdict(int)),
+        "rejected":  defaultdict(lambda: defaultdict(int)),
+    }
+
+    for thread_id, ivs in thread_ivs.items():
+        lt = lead_map.get(thread_id)
+        eff = effective_lead_fields(session, thread_id, lt, rows=ivs)
+
+        lo = (eff.get("lead_outcome") or "").lower()
+        is_conv = eff.get("is_converted", False)
+
+        if lo == "dropped":
+            bucket_key = "dropped"
+        elif lo == "rejected":
+            bucket_key = "rejected"
+        elif is_conv or lo == "closed":
+            bucket_key = "converted"
+        else:
+            continue
+
+        dated = [iv for iv in ivs if iv.interview_date]
+        if not dated:
+            continue
+        first_iv = min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
+        first_date = first_iv.interview_date
+
+        cand_name = cand_map.get(first_iv.candidate_id) if first_iv.candidate_id else None
+        cand_name = cand_name or "Unassigned"
+
+        iso_year, iso_week, _ = first_date.isocalendar()
+        weekly_key = f"{iso_year}-W{iso_week:02d}"
+        monthly_key = first_date.strftime("%Y-%m")
+
+        buckets[bucket_key][cand_name][weekly_key] += 1
+        # reuse monthly_key — store in a parallel structure
+        buckets[bucket_key][cand_name]["_m_" + monthly_key] += 1
+
+    def split_bucket(raw: dict) -> tuple[dict, dict]:
+        weekly_out: dict[str, dict[str, int]] = {}
+        monthly_out: dict[str, dict[str, int]] = {}
+        for cand, periods in raw.items():
+            w: dict[str, int] = {}
+            m: dict[str, int] = {}
+            for key, cnt in periods.items():
+                if key.startswith("_m_"):
+                    m[key[3:]] = cnt
+                else:
+                    w[key] = cnt
+            if w:
+                weekly_out[cand] = w
+            if m:
+                monthly_out[cand] = m
+        return weekly_out, monthly_out
+
+    result: dict[str, dict] = {}
+    all_candidates: set[str] = set()
+    all_weekly_keys: set[str] = set()
+    all_monthly_keys: set[str] = set()
+
+    for outcome in ("dropped", "converted", "rejected"):
+        w, m = split_bucket(buckets[outcome])
+        result[outcome] = {"weekly": w, "monthly": m}
+        all_candidates.update(w.keys(), m.keys())
+        all_weekly_keys.update(k for periods in w.values() for k in periods)
+        all_monthly_keys.update(k for periods in m.values() for k in periods)
+
+    return {
+        **result,
+        "candidates": sorted(all_candidates),
+        "weekly_keys": sorted(all_weekly_keys),
+        "monthly_keys": sorted(all_monthly_keys),
+    }
