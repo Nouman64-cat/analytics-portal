@@ -19,11 +19,13 @@ from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
 from app.models.user import User, UserRole
 from app.lead_thread_utils import effective_lead_fields, is_lead_terminal_outcome, load_lead_map
 from app.status_utils import compute_status
+from app.unresponsive_utils import (
+    UNRESPONSIVE_FOLLOWUP_DAYS,
+    UNRESPONSIVE_TO_DEAD_DAYS,
+    find_unresponsive_leads_needing_followup,
+)
 
 logger = logging.getLogger(__name__)
-
-UNRESPONSIVE_TO_DEAD_DAYS = 30
-UNRESPONSIVE_FOLLOWUP_DAYS = 15
 
 
 def _escalate_explicit_unresponsive_leads() -> None:
@@ -195,55 +197,37 @@ def _process_due_reminders(settings: Settings) -> None:
 
 def _notify_unresponsive_followup(settings: Settings) -> None:
     """Send a follow-up email to all BD and superadmin users for leads that have
-    been explicitly Unresponsive for 15+ days and haven't been notified yet.
+    been Unresponsive (explicit or derived) for 15+ days and haven't been notified yet.
     """
-    cutoff = datetime.utcnow() - timedelta(days=UNRESPONSIVE_FOLLOWUP_DAYS)
     with Session(engine) as session:
-        # Find leads unresponsive for 15+ days (not yet escalated to dead)
-        rows = session.exec(
-            select(LeadThread).where(
-                LeadThread.outcome_override == "unresponsive",
-                or_(
-                    and_(
-                        LeadThread.unresponsive_since.isnot(None),
-                        LeadThread.unresponsive_since <= cutoff,
-                    ),
-                    and_(
-                        LeadThread.unresponsive_since.is_(None),
-                        LeadThread.updated_at <= cutoff,
-                    ),
-                ),
-            )
-        ).all()
-
-        if not rows:
+        qualifying_leads = find_unresponsive_leads_needing_followup(session)
+        if not qualifying_leads:
             return
 
         # Skip leads already notified
+        all_thread_ids = [info.thread_id for info in qualifying_leads]
         already_notified = {
             log.thread_id
             for log in session.exec(
                 select(UnresponsiveFollowUpLog).where(
-                    UnresponsiveFollowUpLog.thread_id.in_([r.thread_id for r in rows])
+                    UnresponsiveFollowUpLog.thread_id.in_(all_thread_ids)
                 )
             ).all()
         }
-        qualifying = [r for r in rows if r.thread_id not in already_notified]
+        qualifying = [info for info in qualifying_leads if info.thread_id not in already_notified]
         if not qualifying:
             return
 
-        # Fetch recipients: BD and superadmin users with email addresses
+        # Fetch recipients: BD and superadmin users
         recipients = session.exec(
-            select(User).where(
-                User.role.in_([UserRole.BD, UserRole.SUPERADMIN])
-            )
+            select(User).where(User.role.in_([UserRole.BD, UserRole.SUPERADMIN]))
         ).all()
         if not recipients:
             logger.warning("Unresponsive follow-up: no BD/superadmin users found to notify")
             return
 
-        # Load one representative interview per qualifying thread for company/role info
-        thread_ids = [r.thread_id for r in qualifying]
+        # Load one representative interview per thread for company/role info
+        thread_ids = [info.thread_id for info in qualifying]
         interviews = session.exec(
             select(Interview).where(Interview.thread_id.in_(thread_ids))
         ).all()
@@ -252,7 +236,6 @@ def _notify_unresponsive_followup(settings: Settings) -> None:
             if iv.thread_id not in thread_interview:
                 thread_interview[iv.thread_id] = iv
 
-        # Bulk-load companies and candidates referenced by those interviews
         company_ids = {iv.company_id for iv in thread_interview.values() if iv.company_id}
         candidate_ids = {iv.candidate_id for iv in thread_interview.values() if iv.candidate_id}
         company_map = {
@@ -265,19 +248,14 @@ def _notify_unresponsive_followup(settings: Settings) -> None:
         }
 
         portal_url = settings.CLIENT_URL
-        now_utc = datetime.utcnow()
         notified_count = 0
 
-        for lead in qualifying:
-            iv = thread_interview.get(lead.thread_id)
+        for info in qualifying:
+            iv = thread_interview.get(info.thread_id)
             company_name = company_map[iv.company_id].name if iv and iv.company_id in company_map else "Unknown"
             role = iv.role if iv else "Unknown"
             candidate = candidate_map.get(iv.candidate_id) if iv and iv.candidate_id else None
             candidate_name = candidate.name if candidate else None
-
-            # Calculate days unresponsive
-            since = lead.unresponsive_since or lead.updated_at
-            days_unresponsive = max(1, (now_utc - since).days)
 
             sent_to_any = False
             for user in recipients:
@@ -288,20 +266,20 @@ def _notify_unresponsive_followup(settings: Settings) -> None:
                     company_name=company_name,
                     role=role,
                     candidate_name=candidate_name,
-                    days_unresponsive=days_unresponsive,
+                    days_unresponsive=info.days_unresponsive,
                     portal_url=portal_url,
                 )
                 if sent:
                     sent_to_any = True
                     logger.info(
                         "Unresponsive follow-up sent: thread_id=%s recipient=%s days=%s",
-                        lead.thread_id,
+                        info.thread_id,
                         user.email,
-                        days_unresponsive,
+                        info.days_unresponsive,
                     )
 
             if sent_to_any:
-                session.add(UnresponsiveFollowUpLog(thread_id=lead.thread_id))
+                session.add(UnresponsiveFollowUpLog(thread_id=info.thread_id))
                 notified_count += 1
 
         if notified_count:
