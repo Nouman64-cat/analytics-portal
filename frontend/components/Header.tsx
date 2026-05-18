@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bell, Menu, Layers } from "lucide-react";
+import { Menu, Layers } from "lucide-react";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
+import NotificationBell from "@/components/NotificationBell";
 
 interface HeaderProps {
   onMobileMenuOpen: () => void;
@@ -15,6 +16,7 @@ interface HeaderProps {
 }
 
 const CROSS_DEPT_ROLES = new Set(["superadmin", "manager", "bd"]);
+const NOTIFICATION_ROLES = new Set(["superadmin", "bd"]);
 
 export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   const [user, setUser] = useState<UserType | null>(null);
@@ -22,6 +24,7 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   const pathname = usePathname();
   const role = getUserRole();
   const isCrossDept = role ? CROSS_DEPT_ROLES.has(role) : false;
+  const showNotifications = role ? NOTIFICATION_ROLES.has(role) : false;
   const { departmentId, setDepartmentId } = useDepartmentContext();
 
   const fetchUser = useCallback(async () => {
@@ -102,9 +105,7 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
         {/* Right: bell + avatar */}
         <div className="flex items-center gap-2 md:gap-4">
           <div className="flex h-10 items-center gap-1 border-l border-slate-200 dark:border-white/[0.06] pl-2 md:pl-4">
-            <button className="hidden sm:flex rounded-xl p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white transition-all">
-              <Bell size={20} />
-            </button>
+            {showNotifications && <NotificationBell />}
             <Link href="/profile" className="flex items-center gap-3 pl-1 md:pl-2 group">
               <div className="hidden md:block text-right">
                 <p className="text-[13px] font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">

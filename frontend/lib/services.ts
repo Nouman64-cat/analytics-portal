@@ -428,3 +428,10 @@ export const busyDaysService = {
   delete: (id: string) =>
     apiFetch<void>(`/busy-days/${id}`, { method: "DELETE" }),
 };
+
+// ─── Notifications (BD + superadmin) ─────────────────────────
+
+export const notificationsService = {
+  getUnresponsiveLeads: () =>
+    apiFetch<import("./types").UnresponsiveLeadNotification[]>("/notifications/unresponsive-leads"),
+};

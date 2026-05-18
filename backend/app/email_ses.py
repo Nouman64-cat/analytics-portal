@@ -607,6 +607,184 @@ def send_password_reset_email(
     logger.info("Sent password reset email to %s", to_email)
 
 
+def unresponsive_followup_html(
+    *,
+    recipient_name: str,
+    company_name: str,
+    role: str,
+    candidate_name: Optional[str],
+    days_unresponsive: int,
+    portal_url: str,
+) -> str:
+    safe = html_module.escape
+    card_bg = "#ffffff"
+    soft_bg = "#fffbeb"
+    border = "#fde68a"
+    text_main = "#0f172a"
+    text_muted = "#64748b"
+    accent = "#d97706"
+
+    candidate_row = (
+        f"<tr><td style=\"padding:10px 12px;border:1px solid #fde68a;background:{soft_bg};width:36%;font-weight:600;color:{text_main};\">Candidate</td>"
+        f"<td style=\"padding:10px 12px;border:1px solid #fde68a;color:{text_main};\">{safe(candidate_name)}</td></tr>"
+        if candidate_name else ""
+    )
+
+    rows_html = (
+        f"<tr><td style=\"padding:10px 12px;border:1px solid #fde68a;background:{soft_bg};width:36%;font-weight:600;color:{text_main};\">Company</td>"
+        f"<td style=\"padding:10px 12px;border:1px solid #fde68a;color:{text_main};\">{safe(company_name)}</td></tr>"
+        f"<tr><td style=\"padding:10px 12px;border:1px solid #fde68a;background:{soft_bg};width:36%;font-weight:600;color:{text_main};\">Role</td>"
+        f"<td style=\"padding:10px 12px;border:1px solid #fde68a;color:{text_main};\">{safe(role)}</td></tr>"
+        f"{candidate_row}"
+        f"<tr><td style=\"padding:10px 12px;border:1px solid #fde68a;background:{soft_bg};width:36%;font-weight:600;color:{text_main};\">Days Unresponsive</td>"
+        f"<td style=\"padding:10px 12px;border:1px solid #fde68a;color:#b91c1c;font-weight:600;\">{days_unresponsive} days</td></tr>"
+    )
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;color:{text_main};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:{card_bg};border:1px solid #fde68a;border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(90deg,#d97706,#f59e0b);padding:20px 24px;">
+              <p style="margin:0;color:#fef3c7;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;">Action Required</p>
+              <h1 style="margin:6px 0 0;color:#ffffff;font-size:20px;line-height:1.3;">Lead Follow-Up Reminder</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 24px 8px;">
+              <p style="margin:0 0 10px;font-size:15px;">Hi {safe(recipient_name)},</p>
+              <p style="margin:0 0 14px;color:{text_muted};font-size:14px;">
+                A lead has been in <strong>Unresponsive</strong> status for <strong>{days_unresponsive} days</strong> and requires a follow-up. Please reach out to re-engage or update the lead status.
+              </p>
+              <div style="border:1px solid #fde68a;background:{soft_bg};border-radius:10px;padding:10px 12px;margin:0 0 14px;">
+                <p style="margin:0;color:{accent};font-size:13px;font-weight:600;">
+                  &#9888; This lead will be automatically marked as Dead after 30 days of no activity.
+                </p>
+              </div>
+              <table style="border-collapse:collapse;width:100%;max-width:560px;margin:0 0 6px;">
+                {rows_html}
+              </table>
+              <p style="margin:18px 0 4px;">
+                <a href="{safe(portal_url)}"
+                   style="display:inline-block;background:{accent};color:#ffffff;text-decoration:none;
+                   padding:11px 16px;border-radius:10px;font-weight:600;font-size:14px;">
+                  View Lead in Portal
+                </a>
+              </p>
+              <p style="margin:14px 0 0;color:{text_muted};font-size:13px;">
+                If this lead has already been addressed, please update the status in the portal.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 24px;background:{soft_bg};border-top:1px solid {border};">
+              <p style="margin:0;color:{text_muted};font-size:12px;">Sent by RizViz Analytics Portal</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
+def send_unresponsive_followup_email(
+    settings: "Settings",
+    *,
+    to_email: str,
+    recipient_name: str,
+    company_name: str,
+    role: str,
+    candidate_name: Optional[str],
+    days_unresponsive: int,
+    portal_url: str,
+) -> None:
+    """Raise on SMTP failure; caller should catch and log."""
+    if not settings.AWS_SES_FROM_EMAIL:
+        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        raise RuntimeError("AWS_SES SMTP credentials are not set")
+
+    html = unresponsive_followup_html(
+        recipient_name=recipient_name,
+        company_name=company_name,
+        role=role,
+        candidate_name=candidate_name,
+        days_unresponsive=days_unresponsive,
+        portal_url=portal_url,
+    )
+    candidate_line = f"Candidate: {candidate_name}\n" if candidate_name else ""
+    plain = (
+        f"Hi {recipient_name},\n\n"
+        f"Action required: A lead has been Unresponsive for {days_unresponsive} days.\n\n"
+        f"Company: {company_name}\n"
+        f"Role: {role}\n"
+        f"{candidate_line}"
+        f"\nPlease follow up or update the lead status in the portal: {portal_url}\n\n"
+        f"Note: This lead will be automatically marked as Dead after 30 days of no activity."
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Follow-up required: {company_name} lead unresponsive for {days_unresponsive} days"
+    msg["From"] = settings.AWS_SES_FROM_EMAIL
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    host = _ses_smtp_host(settings.AWS_REGION)
+    context = ssl.create_default_context()
+    with smtplib.SMTP(host, 587, timeout=30) as server:
+        server.starttls(context=context)
+        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
+        server.send_message(msg)
+
+    logger.info("Sent unresponsive follow-up email to %s", to_email)
+
+
+def try_send_unresponsive_followup_email(
+    settings: "Settings",
+    *,
+    to_email: Optional[str],
+    recipient_name: str,
+    company_name: str,
+    role: str,
+    candidate_name: Optional[str],
+    days_unresponsive: int,
+    portal_url: str,
+) -> bool:
+    """Send if SES is configured and recipient has an email. Logs errors, does not raise."""
+    if not to_email or not str(to_email).strip():
+        logger.debug("Skipping unresponsive follow-up email: no recipient email")
+        return False
+    if not settings.AWS_SES_FROM_EMAIL:
+        logger.warning("Skipping unresponsive follow-up email: AWS_SES_FROM_EMAIL not set")
+        return False
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        logger.warning("Skipping unresponsive follow-up email: AWS_SES SMTP credentials not set")
+        return False
+    try:
+        send_unresponsive_followup_email(
+            settings,
+            to_email=to_email.strip(),
+            recipient_name=recipient_name,
+            company_name=company_name,
+            role=role,
+            candidate_name=candidate_name,
+            days_unresponsive=days_unresponsive,
+            portal_url=portal_url,
+        )
+        return True
+    except Exception:
+        logger.exception("Failed to send unresponsive follow-up email to %s", to_email)
+        return False
+
+
 def try_send_password_reset_email(
     settings: "Settings",
     *,

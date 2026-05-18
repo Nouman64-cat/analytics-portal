@@ -10,6 +10,7 @@ from app.models.activity_log import ActivityLog
 from app.models.user import User
 from app.models.lead_thread import LeadThread
 from app.models.busy_day import BusyDay
+from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
 
 __all__ = [
     "Department",
@@ -23,4 +24,5 @@ __all__ = [
     "User",
     "LeadThread",
     "BusyDay",
+    "UnresponsiveFollowUpLog",
 ]

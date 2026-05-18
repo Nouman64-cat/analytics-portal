@@ -9,18 +9,21 @@ from sqlmodel import Session, select, or_, and_
 from app.activity_log import record_activity
 from app.config import Settings
 from app.database import engine
-from app.email_ses import try_send_interview_reminder_email
+from app.email_ses import try_send_interview_reminder_email, try_send_unresponsive_followup_email
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.models.lead_thread import LeadThread
+from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
+from app.models.user import User, UserRole
 from app.lead_thread_utils import effective_lead_fields, is_lead_terminal_outcome, load_lead_map
 from app.status_utils import compute_status
 
 logger = logging.getLogger(__name__)
 
 UNRESPONSIVE_TO_DEAD_DAYS = 30
+UNRESPONSIVE_FOLLOWUP_DAYS = 15
 
 
 def _escalate_explicit_unresponsive_leads() -> None:
@@ -190,6 +193,124 @@ def _process_due_reminders(settings: Settings) -> None:
         session.commit()
 
 
+def _notify_unresponsive_followup(settings: Settings) -> None:
+    """Send a follow-up email to all BD and superadmin users for leads that have
+    been explicitly Unresponsive for 15+ days and haven't been notified yet.
+    """
+    cutoff = datetime.utcnow() - timedelta(days=UNRESPONSIVE_FOLLOWUP_DAYS)
+    with Session(engine) as session:
+        # Find leads unresponsive for 15+ days (not yet escalated to dead)
+        rows = session.exec(
+            select(LeadThread).where(
+                LeadThread.outcome_override == "unresponsive",
+                or_(
+                    and_(
+                        LeadThread.unresponsive_since.isnot(None),
+                        LeadThread.unresponsive_since <= cutoff,
+                    ),
+                    and_(
+                        LeadThread.unresponsive_since.is_(None),
+                        LeadThread.updated_at <= cutoff,
+                    ),
+                ),
+            )
+        ).all()
+
+        if not rows:
+            return
+
+        # Skip leads already notified
+        already_notified = {
+            log.thread_id
+            for log in session.exec(
+                select(UnresponsiveFollowUpLog).where(
+                    UnresponsiveFollowUpLog.thread_id.in_([r.thread_id for r in rows])
+                )
+            ).all()
+        }
+        qualifying = [r for r in rows if r.thread_id not in already_notified]
+        if not qualifying:
+            return
+
+        # Fetch recipients: BD and superadmin users with email addresses
+        recipients = session.exec(
+            select(User).where(
+                User.role.in_([UserRole.BD, UserRole.SUPERADMIN])
+            )
+        ).all()
+        if not recipients:
+            logger.warning("Unresponsive follow-up: no BD/superadmin users found to notify")
+            return
+
+        # Load one representative interview per qualifying thread for company/role info
+        thread_ids = [r.thread_id for r in qualifying]
+        interviews = session.exec(
+            select(Interview).where(Interview.thread_id.in_(thread_ids))
+        ).all()
+        thread_interview: dict = {}
+        for iv in interviews:
+            if iv.thread_id not in thread_interview:
+                thread_interview[iv.thread_id] = iv
+
+        # Bulk-load companies and candidates referenced by those interviews
+        company_ids = {iv.company_id for iv in thread_interview.values() if iv.company_id}
+        candidate_ids = {iv.candidate_id for iv in thread_interview.values() if iv.candidate_id}
+        company_map = {
+            c.id: c
+            for c in session.exec(select(Company).where(Company.id.in_(company_ids))).all()
+        }
+        candidate_map = {
+            c.id: c
+            for c in session.exec(select(Candidate).where(Candidate.id.in_(candidate_ids))).all()
+        }
+
+        portal_url = settings.CLIENT_URL
+        now_utc = datetime.utcnow()
+        notified_count = 0
+
+        for lead in qualifying:
+            iv = thread_interview.get(lead.thread_id)
+            company_name = company_map[iv.company_id].name if iv and iv.company_id in company_map else "Unknown"
+            role = iv.role if iv else "Unknown"
+            candidate = candidate_map.get(iv.candidate_id) if iv and iv.candidate_id else None
+            candidate_name = candidate.name if candidate else None
+
+            # Calculate days unresponsive
+            since = lead.unresponsive_since or lead.updated_at
+            days_unresponsive = max(1, (now_utc - since).days)
+
+            sent_to_any = False
+            for user in recipients:
+                sent = try_send_unresponsive_followup_email(
+                    settings,
+                    to_email=user.email,
+                    recipient_name=user.full_name,
+                    company_name=company_name,
+                    role=role,
+                    candidate_name=candidate_name,
+                    days_unresponsive=days_unresponsive,
+                    portal_url=portal_url,
+                )
+                if sent:
+                    sent_to_any = True
+                    logger.info(
+                        "Unresponsive follow-up sent: thread_id=%s recipient=%s days=%s",
+                        lead.thread_id,
+                        user.email,
+                        days_unresponsive,
+                    )
+
+            if sent_to_any:
+                session.add(UnresponsiveFollowUpLog(thread_id=lead.thread_id))
+                notified_count += 1
+
+        if notified_count:
+            session.commit()
+            logger.info(
+                "Sent unresponsive follow-up notifications for %s lead(s)", notified_count
+            )
+
+
 async def run_reminder_worker(stop_event: asyncio.Event, settings: Settings) -> None:
     """Background loop that sends due interview reminders every minute."""
     while not stop_event.is_set():
@@ -197,6 +318,10 @@ async def run_reminder_worker(stop_event: asyncio.Event, settings: Settings) -> 
             _escalate_explicit_unresponsive_leads()
         except Exception:
             logger.exception("Unresponsive lead escalation failed")
+        try:
+            _notify_unresponsive_followup(settings)
+        except Exception:
+            logger.exception("Unresponsive follow-up notification failed")
         try:
             _process_due_reminders(settings)
         except Exception:

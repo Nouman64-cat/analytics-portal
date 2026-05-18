@@ -1,3 +1,13 @@
+// ─── Notifications ───────────────────────────────────────────
+
+export interface UnresponsiveLeadNotification {
+  thread_id: string;
+  company_name: string;
+  role: string;
+  candidate_name: string | null;
+  days_unresponsive: number;
+}
+
 // ─── Chat ────────────────────────────────────────────────────
 
 export interface ChatAction {

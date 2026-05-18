@@ -172,6 +172,25 @@ def migrate():
              "Migration successful! 'reset_token' column added to 'users' table."),
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP;",
              "Migration successful! 'reset_token_expires_at' column added to 'users' table."),
+
+            # ── Unresponsive lead follow-up notifications ─────────────────────────────
+            ("""
+            CREATE TABLE IF NOT EXISTS unresponsive_followup_logs (
+                id UUID PRIMARY KEY,
+                thread_id UUID NOT NULL REFERENCES lead_threads(thread_id) ON DELETE CASCADE,
+                sent_at_utc TIMESTAMP NOT NULL
+            );
+            """,
+             "Migration successful! 'unresponsive_followup_logs' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_unresponsive_followup_logs_thread_id ON unresponsive_followup_logs (thread_id);",
+             "Migration successful! Index on unresponsive_followup_logs.thread_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_unresponsive_followup_logs_sent_at_utc ON unresponsive_followup_logs (sent_at_utc);",
+             "Migration successful! Index on unresponsive_followup_logs.sent_at_utc ensured."),
+            ("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_unresponsive_followup_once
+            ON unresponsive_followup_logs (thread_id);
+            """,
+             "Migration successful! Unique de-dup index for unresponsive follow-up logs ensured."),
         ]
         for sql, msg in migrations:
             try:
