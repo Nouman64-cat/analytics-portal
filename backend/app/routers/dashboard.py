@@ -472,19 +472,25 @@ def get_lead_outcomes_by_candidate(
         if not dated:
             continue
 
+        sorted_dated = sorted(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
+        first_iv = sorted_dated[0]
+
         if bucket_key == "converted":
-            # Use the interview that actually carried the "converted" status so the
-            # date and candidate are attributed to the round where conversion happened.
-            conv_iv = next(
-                (
-                    iv for iv in sorted(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
-                    if "converted" in (iv.status or "").lower()
-                ),
-                min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min)),
+            # Credit the round that actually carried "converted" status.
+            ref_iv = next(
+                (iv for iv in sorted_dated if "converted" in (iv.status or "").lower()),
+                first_iv,
             )
-            ref_iv = conv_iv
+        elif bucket_key == "rejected":
+            # Credit the round that carried the rejection — "rejected" is NOT a
+            # lead-only status, so it can appear on individual interview rows.
+            ref_iv = next(
+                (iv for iv in sorted_dated if "reject" in (iv.status or "").lower()),
+                first_iv,
+            )
         else:
-            ref_iv = min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
+            # "dropped" is a lead-level override with no specific round; use first.
+            ref_iv = first_iv
 
         ref_date = ref_iv.interview_date
         cand_name = cand_map.get(ref_iv.candidate_id) if ref_iv.candidate_id else None
