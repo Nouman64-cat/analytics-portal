@@ -1,9 +1,11 @@
 """Shared logic for finding leads that are unresponsive for 15+ days.
 
-Handles both:
-  - Explicit: outcome_override == "unresponsive" (with or without unresponsive_since)
-  - Derived:  latest interview has no status and its date/created_at is 15-29 days old
-              (these leads show as "Unresponsive" in the UI but have NULL outcome_override)
+Three categories are covered:
+  1. Explicit lead override: lead_threads.outcome_override == "unresponsive"
+  2. Stored "Unresponsed" string on the interview: interview.status == "Unresponsed"
+     and the interview is the latest in its thread (this is the dominant case in prod).
+  3. Derived NULL-status: latest interview has no status and its date is 15-29 days
+     old (30+ days computes as Dead via compute_status, so those are excluded).
 """
 
 from __future__ import annotations
@@ -21,7 +23,9 @@ from app.models.lead_thread import LeadThread
 UNRESPONSIVE_FOLLOWUP_DAYS = 15
 UNRESPONSIVE_TO_DEAD_DAYS = 30
 
-_TERMINAL_OVERRIDES = frozenset({"dropped", "dead", "rejected", "closed", "unresponsive"})
+# Overrides that mean the lead is definitively closed — exclude from notifications.
+# "unresponsive" is NOT here; explicit unresponsive leads are handled in category 1.
+_TERMINAL_OVERRIDES = frozenset({"dropped", "dead", "rejected", "closed"})
 
 
 @dataclass
@@ -31,11 +35,13 @@ class UnresponsiveLeadInfo:
     days_unresponsive: int
 
 
-def find_unresponsive_leads_needing_followup(session: Session) -> list[UnresponsiveLeadInfo]:
-    """Return all leads currently showing as Unresponsive for 15–29 days.
+def _latest_interview(ivs: list[Interview]) -> Interview:
+    return max(ivs, key=lambda x: (x.interview_date or date.min, x.created_at))
 
-    Covers both explicitly-set (outcome_override='unresponsive') and
-    derived (NULL override, latest interview has no status and is 15-29 days old).
+
+def find_unresponsive_leads_needing_followup(session: Session) -> list[UnresponsiveLeadInfo]:
+    """Return all leads currently showing as Unresponsive for 15+ days.
+
     Results are sorted by days_unresponsive descending.
     """
     now = datetime.utcnow()
@@ -48,9 +54,7 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
     result: list[UnresponsiveLeadInfo] = []
     seen: set[uuid.UUID] = set()
 
-    # ── 1. Explicit: outcome_override == "unresponsive" ────────────────────────
-    # Include if unresponsive_since is set and >= 15d old,
-    # OR if unresponsive_since is missing (aggressive: we can't verify age so include it).
+    # ── Category 1: explicit outcome_override == "unresponsive" ───────────────
     explicit_rows = session.exec(
         select(LeadThread).where(
             LeadThread.outcome_override == "unresponsive",
@@ -59,32 +63,94 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
                     LeadThread.unresponsive_since.isnot(None),
                     LeadThread.unresponsive_since <= cutoff_15d,
                 ),
+                # No timestamp → include aggressively (we can't verify age)
                 LeadThread.unresponsive_since.is_(None),
             ),
         )
     ).all()
-
     for lt in explicit_rows:
         since = lt.unresponsive_since or lt.updated_at
         days = max(1, (now - since).days)
         result.append(UnresponsiveLeadInfo(thread_id=lt.thread_id, lead_thread=lt, days_unresponsive=days))
         seen.add(lt.thread_id)
 
-    # ── 2. Derived: interviews with no status, 15-29 days old ─────────────────
-    # An interview computes to "Unresponsed" when:
-    #   status is NULL/empty AND date is past AND days_past < 30
-    # We want those where days_past >= 15 (15+ days unresponsive, not yet dead).
-    candidate_ivs = session.exec(
+    # ── Category 2: interview.status == "Unresponsed" (stored string) ─────────
+    # This is the dominant case: users explicitly set status="Unresponsed" on the
+    # interview row. compute_status returns this string as-is regardless of age,
+    # so these leads stay "Unresponsive" even past 30 days.
+    unresponsed_ivs = session.exec(
+        select(Interview).where(
+            Interview.status == "Unresponsed",
+            or_(
+                and_(Interview.interview_date.isnot(None), Interview.interview_date <= date_15),
+                and_(Interview.interview_date.is_(None), Interview.created_at <= cutoff_15d),
+            ),
+        )
+    ).all()
+
+    candidate_thread_ids_2 = {iv.thread_id for iv in unresponsed_ivs} - seen
+    if candidate_thread_ids_2:
+        all_ivs_2 = session.exec(
+            select(Interview).where(Interview.thread_id.in_(candidate_thread_ids_2))
+        ).all()
+        thread_iv_map_2: dict[uuid.UUID, list[Interview]] = {}
+        for iv in all_ivs_2:
+            thread_iv_map_2.setdefault(iv.thread_id, []).append(iv)
+
+        lt_map_2 = {
+            lt.thread_id: lt
+            for lt in session.exec(
+                select(LeadThread).where(LeadThread.thread_id.in_(candidate_thread_ids_2))
+            ).all()
+        }
+
+        for thread_id in candidate_thread_ids_2:
+            if thread_id in seen:
+                continue
+
+            lt = lt_map_2.get(thread_id)
+            if lt:
+                override = (lt.outcome_override or "").strip().lower()
+                if override in _TERMINAL_OVERRIDES:
+                    continue
+
+            ivs = thread_iv_map_2.get(thread_id)
+            if not ivs:
+                continue
+
+            latest = _latest_interview(ivs)
+            if latest.status != "Unresponsed":
+                # A newer interview exists with a different status → not currently unresponsive
+                continue
+
+            if latest.interview_date:
+                days_unresponsive = (today - latest.interview_date).days
+            else:
+                days_unresponsive = (today - latest.created_at.date()).days
+
+            if days_unresponsive < UNRESPONSIVE_FOLLOWUP_DAYS:
+                continue
+
+            lead_row = lt if lt is not None else LeadThread(thread_id=thread_id)
+            result.append(UnresponsiveLeadInfo(
+                thread_id=thread_id,
+                lead_thread=lead_row,
+                days_unresponsive=days_unresponsive,
+            ))
+            seen.add(thread_id)
+
+    # ── Category 3: derived NULL-status, 15-29 days old ───────────────────────
+    # Interviews with no status where compute_status would return "Unresponsed"
+    # (once past 30 days with no status, compute_status returns "Dead" instead).
+    candidate_ivs_3 = session.exec(
         select(Interview).where(
             or_(Interview.status.is_(None), Interview.status == ""),
             or_(
-                # Has a date: 15–29 days ago
                 and_(
                     Interview.interview_date.isnot(None),
                     Interview.interview_date <= date_15,
                     Interview.interview_date > date_30,
                 ),
-                # No date: use created_at, 15–29 days ago
                 and_(
                     Interview.interview_date.is_(None),
                     Interview.created_at <= cutoff_15d,
@@ -94,76 +160,65 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
         )
     ).all()
 
-    # Threads we haven't already caught via explicit check
-    candidate_thread_ids = {iv.thread_id for iv in candidate_ivs} - seen
-    if not candidate_thread_ids:
-        result.sort(key=lambda x: x.days_unresponsive, reverse=True)
-        return result
+    candidate_thread_ids_3 = {iv.thread_id for iv in candidate_ivs_3} - seen
+    if candidate_thread_ids_3:
+        all_ivs_3 = session.exec(
+            select(Interview).where(Interview.thread_id.in_(candidate_thread_ids_3))
+        ).all()
+        thread_iv_map_3: dict[uuid.UUID, list[Interview]] = {}
+        for iv in all_ivs_3:
+            thread_iv_map_3.setdefault(iv.thread_id, []).append(iv)
 
-    # Load ALL interviews for those threads so we can find the true latest per thread
-    all_ivs = session.exec(
-        select(Interview).where(Interview.thread_id.in_(candidate_thread_ids))
-    ).all()
-    thread_iv_map: dict[uuid.UUID, list[Interview]] = {}
-    for iv in all_ivs:
-        thread_iv_map.setdefault(iv.thread_id, []).append(iv)
+        lt_map_3 = {
+            lt.thread_id: lt
+            for lt in session.exec(
+                select(LeadThread).where(LeadThread.thread_id.in_(candidate_thread_ids_3))
+            ).all()
+        }
 
-    # Load LeadThread rows (some threads may not have a row yet)
-    lt_map: dict[uuid.UUID, Optional[LeadThread]] = {tid: None for tid in candidate_thread_ids}
-    for lt in session.exec(
-        select(LeadThread).where(LeadThread.thread_id.in_(candidate_thread_ids))
-    ).all():
-        lt_map[lt.thread_id] = lt
-
-    for thread_id in candidate_thread_ids:
-        if thread_id in seen:
-            continue
-
-        lt = lt_map.get(thread_id)
-
-        # Skip if the thread has a terminal explicit override (including "unresponsive" which
-        # would already be in the explicit results above)
-        if lt:
-            override = (lt.outcome_override or "").strip().lower()
-            if override in _TERMINAL_OVERRIDES:
+        for thread_id in candidate_thread_ids_3:
+            if thread_id in seen:
                 continue
 
-        ivs = thread_iv_map.get(thread_id)
-        if not ivs:
-            continue
+            lt = lt_map_3.get(thread_id)
+            if lt:
+                override = (lt.outcome_override or "").strip().lower()
+                if override in _TERMINAL_OVERRIDES:
+                    continue
 
-        # True latest interview in this thread
-        latest = max(ivs, key=lambda x: (x.interview_date or date.min, x.created_at))
-
-        # Must have no explicit status (otherwise it's not "Unresponsed")
-        if latest.status and latest.status.strip():
-            continue
-
-        if latest.interview_date:
-            if latest.interview_date > today:
-                continue                                           # still upcoming
-            days_past = (today - latest.interview_date).days
-            if days_past >= UNRESPONSIVE_TO_DEAD_DAYS:
-                continue                                           # would compute as Dead
-            if days_past < UNRESPONSIVE_FOLLOWUP_DAYS:
-                continue                                           # not 15 days yet
-            days_unresponsive = days_past
-        else:
-            days_past = (today - latest.created_at.date()).days
-            if days_past >= UNRESPONSIVE_TO_DEAD_DAYS:
+            ivs = thread_iv_map_3.get(thread_id)
+            if not ivs:
                 continue
-            if days_past < UNRESPONSIVE_FOLLOWUP_DAYS:
-                continue
-            days_unresponsive = days_past
 
-        # Create a minimal LeadThread stand-in if no row exists yet
-        lead_row = lt if lt is not None else LeadThread(thread_id=thread_id)
-        result.append(UnresponsiveLeadInfo(
-            thread_id=thread_id,
-            lead_thread=lead_row,
-            days_unresponsive=days_unresponsive,
-        ))
-        seen.add(thread_id)
+            latest = _latest_interview(ivs)
+
+            if latest.status and latest.status.strip():
+                continue  # latest interview has an explicit status → not null-derived
+
+            if latest.interview_date:
+                if latest.interview_date > today:
+                    continue  # upcoming
+                days_past = (today - latest.interview_date).days
+                if days_past >= UNRESPONSIVE_TO_DEAD_DAYS:
+                    continue  # would compute as Dead
+                if days_past < UNRESPONSIVE_FOLLOWUP_DAYS:
+                    continue
+                days_unresponsive = days_past
+            else:
+                days_past = (today - latest.created_at.date()).days
+                if days_past >= UNRESPONSIVE_TO_DEAD_DAYS:
+                    continue
+                if days_past < UNRESPONSIVE_FOLLOWUP_DAYS:
+                    continue
+                days_unresponsive = days_past
+
+            lead_row = lt if lt is not None else LeadThread(thread_id=thread_id)
+            result.append(UnresponsiveLeadInfo(
+                thread_id=thread_id,
+                lead_thread=lead_row,
+                days_unresponsive=days_unresponsive,
+            ))
+            seen.add(thread_id)
 
     result.sort(key=lambda x: x.days_unresponsive, reverse=True)
     return result
