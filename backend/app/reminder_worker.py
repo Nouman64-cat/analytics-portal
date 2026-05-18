@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_, and_
 
 from app.activity_log import record_activity
 from app.config import Settings
@@ -24,14 +24,27 @@ UNRESPONSIVE_TO_DEAD_DAYS = 30
 
 
 def _escalate_explicit_unresponsive_leads() -> None:
-    """Lead explicitly set to Unresponsive → Dead after 30 days with no change."""
+    """Lead explicitly set to Unresponsive → Dead after 30 days with no change.
+
+    Uses unresponsive_since when available; falls back to updated_at for rows
+    that were set to unresponsive via a path that didn't stamp the field (e.g.
+    the chat router before the fix).
+    """
     cutoff = datetime.utcnow() - timedelta(days=UNRESPONSIVE_TO_DEAD_DAYS)
     with Session(engine) as session:
         rows = session.exec(
             select(LeadThread).where(
                 LeadThread.outcome_override == "unresponsive",
-                LeadThread.unresponsive_since.isnot(None),
-                LeadThread.unresponsive_since <= cutoff,
+                or_(
+                    and_(
+                        LeadThread.unresponsive_since.isnot(None),
+                        LeadThread.unresponsive_since <= cutoff,
+                    ),
+                    and_(
+                        LeadThread.unresponsive_since.is_(None),
+                        LeadThread.updated_at <= cutoff,
+                    ),
+                ),
             )
         ).all()
         for row in rows:

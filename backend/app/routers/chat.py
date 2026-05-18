@@ -675,7 +675,13 @@ def _exec_tool(
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
         lt = ensure_lead_thread(session, thread_id)
+        prev_outcome = (lt.outcome_override or "").strip().lower()
         lt.outcome_override = outcome
+        if outcome == "unresponsive":
+            if prev_outcome != "unresponsive":
+                lt.unresponsive_since = datetime.utcnow()
+        else:
+            lt.unresponsive_since = None
         lt.updated_at = datetime.utcnow()
         session.add(lt)
         session.commit()
