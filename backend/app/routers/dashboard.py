@@ -431,19 +431,26 @@ def get_lead_outcomes_by_candidate(
         select(Interview).where(Interview.thread_id.is_not(None))
     ).all()
 
-    cand_ids = {iv.candidate_id for iv in all_ivs if iv.candidate_id}
-    if cand_ids:
-        cands = session.exec(select(Candidate).where(Candidate.id.in_(cand_ids))).all()
-    else:
-        cands = []
-    cand_map = {c.id: c.name for c in cands}
-
     thread_ivs: dict[uuid.UUID, list[Interview]] = defaultdict(list)
     for iv in all_ivs:
         if iv.thread_id:
             thread_ivs[iv.thread_id].append(iv)
 
     lead_map = load_lead_map(session, set(thread_ivs.keys()))
+
+    # Collect all candidate IDs: from interview rows AND from entertaining_candidate_id
+    # on each lead thread (the leads page uses entertaining_candidate_id first).
+    cand_ids: set[uuid.UUID] = {iv.candidate_id for iv in all_ivs if iv.candidate_id}
+    cand_ids |= {
+        lt.entertaining_candidate_id
+        for lt in lead_map.values()
+        if lt.entertaining_candidate_id
+    }
+    if cand_ids:
+        cands = session.exec(select(Candidate).where(Candidate.id.in_(cand_ids))).all()
+    else:
+        cands = []
+    cand_map = {c.id: c.name for c in cands}
 
     # outcome slug → candidate → period → count
     buckets: dict[str, dict[str, dict[str, int]]] = {
@@ -472,33 +479,22 @@ def get_lead_outcomes_by_candidate(
         if not dated:
             continue
 
-        sorted_dated = sorted(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
-        first_iv = sorted_dated[0]
+        # Use first_interview_date (min) — same baseline the leads page uses for
+        # date filtering so per-period counts stay consistent with the leads list.
+        first_date = min(iv.interview_date for iv in dated)
 
-        if bucket_key == "converted":
-            # Credit the round that actually carried "converted" status.
-            ref_iv = next(
-                (iv for iv in sorted_dated if "converted" in (iv.status or "").lower()),
-                first_iv,
-            )
-        elif bucket_key == "rejected":
-            # Credit the round that carried the rejection — "rejected" is NOT a
-            # lead-only status, so it can appear on individual interview rows.
-            ref_iv = next(
-                (iv for iv in sorted_dated if "reject" in (iv.status or "").lower()),
-                first_iv,
-            )
+        # Mirror _list_candidate_display from leads.py:
+        # prefer entertaining_candidate_id on the thread, then first interview's candidate.
+        if lt and lt.entertaining_candidate_id:
+            cand_name = cand_map.get(lt.entertaining_candidate_id)
         else:
-            # "dropped" is a lead-level override with no specific round; use first.
-            ref_iv = first_iv
-
-        ref_date = ref_iv.interview_date
-        cand_name = cand_map.get(ref_iv.candidate_id) if ref_iv.candidate_id else None
+            first_iv = min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
+            cand_name = cand_map.get(first_iv.candidate_id) if first_iv.candidate_id else None
         cand_name = cand_name or "Unassigned"
 
-        iso_year, iso_week, _ = ref_date.isocalendar()
+        iso_year, iso_week, _ = first_date.isocalendar()
         weekly_key = f"{iso_year}-W{iso_week:02d}"
-        monthly_key = ref_date.strftime("%Y-%m")
+        monthly_key = first_date.strftime("%Y-%m")
 
         buckets[bucket_key][cand_name][weekly_key] += 1
         buckets[bucket_key][cand_name]["_m_" + monthly_key] += 1
