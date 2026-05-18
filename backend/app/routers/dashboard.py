@@ -466,13 +466,18 @@ def get_lead_outcomes_by_candidate(
         lo = (eff.get("lead_outcome") or "").lower()
         is_conv = eff.get("is_converted", False)
 
+        # Mirror _compute_lead_stats on the leads page: rejected/dropped/converted are
+        # counted independently — a lead with is_converted=True AND lead_outcome="rejected"
+        # increments BOTH buckets, just as the leads page reports converted:2, rejected:2.
+        active_buckets: list[str] = []
         if is_conv:
-            bucket_key = "converted"
-        elif lo == "dropped":
-            bucket_key = "dropped"
-        elif lo == "rejected":
-            bucket_key = "rejected"
-        else:
+            active_buckets.append("converted")
+        if lo == "dropped":
+            active_buckets.append("dropped")
+        if lo == "rejected":
+            active_buckets.append("rejected")
+
+        if not active_buckets:
             continue
 
         dated = [iv for iv in ivs if iv.interview_date]
@@ -496,8 +501,9 @@ def get_lead_outcomes_by_candidate(
         weekly_key = f"{iso_year}-W{iso_week:02d}"
         monthly_key = first_date.strftime("%Y-%m")
 
-        buckets[bucket_key][cand_name][weekly_key] += 1
-        buckets[bucket_key][cand_name]["_m_" + monthly_key] += 1
+        for bucket_key in active_buckets:
+            buckets[bucket_key][cand_name][weekly_key] += 1
+            buckets[bucket_key][cand_name]["_m_" + monthly_key] += 1
 
     def split_bucket(raw: dict) -> tuple[dict, dict]:
         weekly_out: dict[str, dict[str, int]] = {}
