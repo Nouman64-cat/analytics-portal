@@ -459,30 +459,42 @@ def get_lead_outcomes_by_candidate(
         lo = (eff.get("lead_outcome") or "").lower()
         is_conv = eff.get("is_converted", False)
 
-        if lo == "dropped":
+        if is_conv:
+            bucket_key = "converted"
+        elif lo == "dropped":
             bucket_key = "dropped"
         elif lo == "rejected":
             bucket_key = "rejected"
-        elif is_conv or lo == "closed":
-            bucket_key = "converted"
         else:
             continue
 
         dated = [iv for iv in ivs if iv.interview_date]
         if not dated:
             continue
-        first_iv = min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
-        first_date = first_iv.interview_date
 
-        cand_name = cand_map.get(first_iv.candidate_id) if first_iv.candidate_id else None
+        if bucket_key == "converted":
+            # Use the interview that actually carried the "converted" status so the
+            # date and candidate are attributed to the round where conversion happened.
+            conv_iv = next(
+                (
+                    iv for iv in sorted(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
+                    if "converted" in (iv.status or "").lower()
+                ),
+                min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min)),
+            )
+            ref_iv = conv_iv
+        else:
+            ref_iv = min(dated, key=lambda x: (x.interview_date, x.created_at or datetime.min))
+
+        ref_date = ref_iv.interview_date
+        cand_name = cand_map.get(ref_iv.candidate_id) if ref_iv.candidate_id else None
         cand_name = cand_name or "Unassigned"
 
-        iso_year, iso_week, _ = first_date.isocalendar()
+        iso_year, iso_week, _ = ref_date.isocalendar()
         weekly_key = f"{iso_year}-W{iso_week:02d}"
-        monthly_key = first_date.strftime("%Y-%m")
+        monthly_key = ref_date.strftime("%Y-%m")
 
         buckets[bucket_key][cand_name][weekly_key] += 1
-        # reuse monthly_key — store in a parallel structure
         buckets[bucket_key][cand_name]["_m_" + monthly_key] += 1
 
     def split_bucket(raw: dict) -> tuple[dict, dict]:
