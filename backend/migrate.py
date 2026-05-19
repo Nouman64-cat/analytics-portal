@@ -211,6 +211,9 @@ def migrate():
             ON notification_reads (user_id, thread_id);
             """,
              "Migration successful! Unique index on notification_reads (user_id, thread_id) ensured."),
+            ("ALTER TABLE business_developers ADD COLUMN IF NOT EXISTS email VARCHAR(255);",
+             "Migration successful! 'email' column added to 'business_developers' table."),
+
             # Drop any FK on thread_id — not all interview threads have a lead_threads row
             ("""
             DO $$

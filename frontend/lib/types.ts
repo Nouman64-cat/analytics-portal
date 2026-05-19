@@ -57,6 +57,7 @@ export interface ResumeProfile {
 export interface BusinessDeveloper {
   id: string;
   name: string;
+  email: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -436,6 +437,7 @@ export interface DatabaseBackupListResponse {
 
 export interface BusinessDeveloperFormData {
   name: string;
+  email?: string | null;
 }
 
 export interface CandidateFormData {

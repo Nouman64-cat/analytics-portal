@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlmodel import SQLModel, Field
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 
 class BusinessDeveloper(SQLModel, table=True):
@@ -11,6 +11,7 @@ class BusinessDeveloper(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(index=True, max_length=255)
+    email: Optional[str] = Field(default=None, max_length=255)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

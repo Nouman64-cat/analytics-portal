@@ -29,7 +29,7 @@ def create_business_developer(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new business developer."""
-    bd = BusinessDeveloper(name=data.name)
+    bd = BusinessDeveloper(name=data.name, email=data.email or None)
     session.add(bd)
     session.flush()
     record_activity(

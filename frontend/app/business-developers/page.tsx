@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight, Mail } from "lucide-react";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { businessDevelopersService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
@@ -33,7 +33,7 @@ export default function BusinessDevelopersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<BusinessDeveloperFormData>({ name: "" });
+  const [formData, setFormData] = useState<BusinessDeveloperFormData>({ name: "", email: "" });
   const [deleteModal, setDeleteModal] = useState<BusinessDeveloper | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
@@ -63,13 +63,13 @@ export default function BusinessDevelopersPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: "" });
+    setFormData({ name: "", email: "" });
     setModalOpen(true);
   };
 
   const openEdit = (bd: BusinessDeveloper) => {
     setEditingId(bd.id);
-    setFormData({ name: bd.name });
+    setFormData({ name: bd.name, email: bd.email ?? "" });
     setModalOpen(true);
   };
 
@@ -407,6 +407,12 @@ export default function BusinessDevelopersPage() {
                         {bd.is_active ? "Active" : "Inactive"}
                       </span>
                     </div>
+                    {bd.email && (
+                      <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        <Mail size={10} className="shrink-0" />
+                        <span className="truncate">{bd.email}</span>
+                      </div>
+                    )}
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                       Added {formatDate(bd.created_at)}
                     </p>
@@ -425,15 +431,26 @@ export default function BusinessDevelopersPage() {
         title={editingId ? "Edit Business Developer" : "Add Business Developer"}
         size="sm"
       >
+        <div className="space-y-4">
         <FormField label="Full Name">
           <input
             value={formData.name}
-            onChange={(e) => setFormData({ name: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g., Ahmed Khan"
             className={inputClass}
             autoFocus
           />
         </FormField>
+        <FormField label="Email (optional)">
+          <input
+            type="email"
+            value={formData.email ?? ""}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value || null })}
+            placeholder="e.g., ahmed@example.com"
+            className={inputClass}
+          />
+        </FormField>
+        </div>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
           <button onClick={handleSubmit} disabled={isSubmitting} className={`${buttonPrimary} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}>
