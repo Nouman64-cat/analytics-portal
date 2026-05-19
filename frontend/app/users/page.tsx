@@ -73,7 +73,7 @@ export default function UsersPage() {
   useEffect(() => {
     if (hasAccess) {
       fetchData();
-      if (isSuperadmin) {
+      if (isSuperadmin || isBdTeamLead || isDeptLead) {
         departmentsService.list().then(setDepartments).catch(() => {});
       }
     } else {
@@ -329,6 +329,14 @@ export default function UsersPage() {
                 ))}
               </select>
             </FormField>
+          )}
+
+          {(isBdTeamLead || isDeptLead) && myDeptId && (
+            <div className="p-3 rounded-xl bg-slate-500/10 border border-slate-500/20">
+              <p className="text-[12px] text-slate-400 leading-relaxed font-medium">
+                This user will be assigned to your department: <span className="text-white">{deptMap[myDeptId] ?? "your department"}</span>.
+              </p>
+            </div>
           )}
 
           {editingId ? (
