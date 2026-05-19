@@ -50,7 +50,8 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unread = notifications.filter((n) => !n.is_read);
+  const unreadCount = unread.length;
   const totalCount = notifications.length;
 
   function getDaysStyle(days: number) {
@@ -113,9 +114,9 @@ export default function NotificationBell() {
               <span className="text-[13px] font-semibold text-amber-800 dark:text-amber-300 truncate">
                 Follow-up Required
               </span>
-              {totalCount > 0 && (
+              {unreadCount > 0 && (
                 <span className="shrink-0 text-[11px] text-amber-600 dark:text-amber-400">
-                  {unreadCount > 0 ? `${unreadCount} unread` : "all read"}
+                  {unreadCount} unread
                 </span>
               )}
             </div>
@@ -138,69 +139,51 @@ export default function NotificationBell() {
             </div>
           </div>
 
-          {/* Body */}
+          {/* Body — only show unread items */}
           <div className="max-h-80 overflow-y-auto">
             {loading && totalCount === 0 ? (
               <div className="flex items-center justify-center py-8 text-slate-400 text-sm">
                 Loading…
               </div>
-            ) : totalCount === 0 ? (
+            ) : unreadCount === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-8 text-slate-400">
                 <Bell size={24} className="opacity-40" />
-                <span className="text-sm">No follow-ups needed</span>
+                <span className="text-sm">
+                  {totalCount > 0 ? "All caught up!" : "No follow-ups needed"}
+                </span>
               </div>
             ) : (
               <ul className="divide-y divide-slate-100 dark:divide-white/[0.04]">
-                {notifications.map((n) => (
+                {unread.map((n) => (
                   <li
                     key={n.thread_id}
-                    className={`relative px-4 py-3 transition-colors cursor-pointer group
-                      ${n.is_read
-                        ? "hover:bg-slate-50 dark:hover:bg-white/[0.02]"
-                        : "bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                      }`}
-                    onClick={() => { if (!n.is_read) handleMarkRead(n.thread_id); }}
+                    className="relative px-4 py-3 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer group"
+                    onClick={() => handleMarkRead(n.thread_id)}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      {/* Unread dot */}
-                      <div className="mt-1.5 shrink-0 w-1.5">
-                        {!n.is_read && (
-                          <span className="block h-1.5 w-1.5 rounded-full bg-amber-500" />
-                        )}
-                      </div>
+                      <span className="mt-2 shrink-0 block h-1.5 w-1.5 rounded-full bg-amber-500" />
 
                       <div className="min-w-0 flex-1">
-                        <p className={`text-[13px] truncate ${
-                          n.is_read
-                            ? "font-medium text-slate-500 dark:text-slate-400"
-                            : "font-semibold text-slate-900 dark:text-white"
-                        }`}>
+                        <p className="text-[13px] font-semibold text-slate-900 dark:text-white truncate">
                           {n.company_name}
                         </p>
-                        <p className={`text-[12px] truncate ${
-                          n.is_read
-                            ? "text-slate-400 dark:text-slate-500"
-                            : "text-slate-500 dark:text-slate-400"
-                        }`}>
+                        <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
                           {n.role}{n.candidate_name ? ` · ${n.candidate_name}` : ""}
                         </p>
                       </div>
 
                       <div className="shrink-0 flex items-center gap-1.5">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${getDaysStyle(n.days_unresponsive)} ${n.is_read ? "opacity-50" : ""}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${getDaysStyle(n.days_unresponsive)}`}>
                           <Clock size={10} />
                           {n.days_unresponsive}d
                         </span>
-                        {/* Per-item mark-read button, visible on hover for unread */}
-                        {!n.is_read && (
-                          <button
-                            title="Mark as read"
-                            onClick={(e) => { e.stopPropagation(); handleMarkRead(n.thread_id); }}
-                            className="opacity-0 group-hover:opacity-100 rounded-md p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
-                          >
-                            <CheckCheck size={12} />
-                          </button>
-                        )}
+                        <button
+                          title="Mark as read"
+                          onClick={(e) => { e.stopPropagation(); handleMarkRead(n.thread_id); }}
+                          className="opacity-0 group-hover:opacity-100 rounded-md p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+                        >
+                          <CheckCheck size={12} />
+                        </button>
                       </div>
                     </div>
                   </li>
@@ -210,17 +193,15 @@ export default function NotificationBell() {
           </div>
 
           {/* Footer */}
-          {totalCount > 0 && (
-            <div className="border-t border-slate-100 dark:border-white/[0.06] px-4 py-2.5 bg-slate-50 dark:bg-white/[0.02]">
-              <Link
-                href="/leads?outcome=unresponsive"
-                onClick={() => setOpen(false)}
-                className="block text-center text-[12px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
-              >
-                View all unresponsive leads →
-              </Link>
-            </div>
-          )}
+          <div className="border-t border-slate-100 dark:border-white/[0.06] px-4 py-2.5 bg-slate-50 dark:bg-white/[0.02]">
+            <Link
+              href="/leads?outcome=unresponsive"
+              onClick={() => setOpen(false)}
+              className="block text-center text-[12px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+            >
+              View all unresponsive leads →
+            </Link>
+          </div>
         </div>
       )}
     </div>
