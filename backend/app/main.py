@@ -13,7 +13,7 @@ from app.reminder_worker import run_reminder_worker
 from migrate import migrate
 
 # Import all models so SQLModel registers them
-from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay, UnresponsiveFollowUpLog  # noqa: F401
+from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay, UnresponsiveFollowUpLog, NotificationRead  # noqa: F401
 
 from app.routers import (
     candidates,

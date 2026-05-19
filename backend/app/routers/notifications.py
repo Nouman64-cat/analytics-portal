@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Optional
 import uuid
 
@@ -15,6 +14,7 @@ from app.deps import get_current_user
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
+from app.models.notification_read import NotificationRead
 from app.models.user import User, UserRole
 from app.unresponsive_utils import find_unresponsive_leads_needing_followup
 
@@ -31,6 +31,7 @@ class UnresponsiveLeadNotification(BaseModel):
     role: str
     candidate_name: Optional[str]
     days_unresponsive: int
+    is_read: bool
 
 
 def _require_bd_or_superadmin(current_user: User) -> None:
@@ -41,23 +42,28 @@ def _require_bd_or_superadmin(current_user: User) -> None:
         )
 
 
-@router.get("/unresponsive-leads", response_model=list[UnresponsiveLeadNotification])
-def get_unresponsive_lead_notifications(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+def _build_notifications(
+    session: Session,
+    current_user: User,
 ) -> list[UnresponsiveLeadNotification]:
-    """Return all leads (explicit or derived) that have been Unresponsive for 15+ days.
-
-    Restricted to BD and superadmin only.
-    """
-    _require_bd_or_superadmin(current_user)
-
     qualifying = find_unresponsive_leads_needing_followup(session)
     if not qualifying:
         return []
 
-    # Load one representative interview per thread for company/role/candidate info
     thread_ids = [info.thread_id for info in qualifying]
+
+    # Load read state for this user in one query
+    read_thread_ids: set[uuid.UUID] = {
+        r.thread_id
+        for r in session.exec(
+            select(NotificationRead).where(
+                NotificationRead.user_id == current_user.id,
+                NotificationRead.thread_id.in_(thread_ids),
+            )
+        ).all()
+    }
+
+    # Load one representative interview per thread for company/role/candidate
     interviews = session.exec(
         select(Interview).where(Interview.thread_id.in_(thread_ids))
     ).all()
@@ -90,7 +96,74 @@ def get_unresponsive_lead_notifications(
                 role=role,
                 candidate_name=candidate_name,
                 days_unresponsive=info.days_unresponsive,
+                is_read=info.thread_id in read_thread_ids,
             )
         )
 
-    return result  # already sorted by find_unresponsive_leads_needing_followup
+    # Unread first, then sort by days descending within each group
+    result.sort(key=lambda n: (n.is_read, -n.days_unresponsive))
+    return result
+
+
+@router.get("/unresponsive-leads", response_model=list[UnresponsiveLeadNotification])
+def get_unresponsive_lead_notifications(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[UnresponsiveLeadNotification]:
+    """Return all leads unresponsive for 15+ days with per-user read state."""
+    _require_bd_or_superadmin(current_user)
+    return _build_notifications(session, current_user)
+
+
+@router.post("/unresponsive-leads/{thread_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+def mark_notification_read(
+    thread_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Mark a single notification as read for the current user."""
+    _require_bd_or_superadmin(current_user)
+
+    existing = session.exec(
+        select(NotificationRead).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.thread_id == thread_id,
+        )
+    ).first()
+    if not existing:
+        session.add(NotificationRead(user_id=current_user.id, thread_id=thread_id))
+        session.commit()
+
+
+@router.post("/unresponsive-leads/mark-all-read", status_code=status.HTTP_204_NO_CONTENT)
+def mark_all_notifications_read(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Mark all current unresponsive-lead notifications as read for the current user."""
+    _require_bd_or_superadmin(current_user)
+
+    qualifying = find_unresponsive_leads_needing_followup(session)
+    if not qualifying:
+        return
+
+    thread_ids = [info.thread_id for info in qualifying]
+    already_read: set[uuid.UUID] = {
+        r.thread_id
+        for r in session.exec(
+            select(NotificationRead).where(
+                NotificationRead.user_id == current_user.id,
+                NotificationRead.thread_id.in_(thread_ids),
+            )
+        ).all()
+    }
+
+    new_reads = [
+        NotificationRead(user_id=current_user.id, thread_id=tid)
+        for tid in thread_ids
+        if tid not in already_read
+    ]
+    if new_reads:
+        for r in new_reads:
+            session.add(r)
+        session.commit()

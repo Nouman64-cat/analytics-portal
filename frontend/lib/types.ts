@@ -6,6 +6,7 @@ export interface UnresponsiveLeadNotification {
   role: string;
   candidate_name: string | null;
   days_unresponsive: number;
+  is_read: boolean;
 }
 
 // ─── Chat ────────────────────────────────────────────────────

@@ -434,4 +434,8 @@ export const busyDaysService = {
 export const notificationsService = {
   getUnresponsiveLeads: () =>
     apiFetch<import("./types").UnresponsiveLeadNotification[]>("/notifications/unresponsive-leads"),
+  markRead: (threadId: string) =>
+    apiFetch<void>(`/notifications/unresponsive-leads/${threadId}/read`, { method: "POST" }),
+  markAllRead: () =>
+    apiFetch<void>("/notifications/unresponsive-leads/mark-all-read", { method: "POST" }),
 };

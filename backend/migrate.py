@@ -191,6 +191,26 @@ def migrate():
             ON unresponsive_followup_logs (thread_id);
             """,
              "Migration successful! Unique de-dup index for unresponsive follow-up logs ensured."),
+
+            # ── Per-user notification read tracking ───────────────────────────────────
+            ("""
+            CREATE TABLE IF NOT EXISTS notification_reads (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                thread_id UUID NOT NULL REFERENCES lead_threads(thread_id) ON DELETE CASCADE,
+                read_at TIMESTAMP NOT NULL
+            );
+            """,
+             "Migration successful! 'notification_reads' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_notification_reads_user_id ON notification_reads (user_id);",
+             "Migration successful! Index on notification_reads.user_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_notification_reads_thread_id ON notification_reads (thread_id);",
+             "Migration successful! Index on notification_reads.thread_id ensured."),
+            ("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_notification_read_user_thread
+            ON notification_reads (user_id, thread_id);
+            """,
+             "Migration successful! Unique index on notification_reads (user_id, thread_id) ensured."),
         ]
         for sql, msg in migrations:
             try:
