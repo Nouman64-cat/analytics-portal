@@ -503,6 +503,12 @@ def try_send_welcome_email(
     password: str,
 ) -> bool:
     """Logs errors, does not raise."""
+    if not settings.AWS_SES_FROM_EMAIL:
+        logger.warning("Skipping welcome email: AWS_SES_FROM_EMAIL not set")
+        return False
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        logger.warning("Skipping welcome email: AWS_SES SMTP credentials not set")
+        return False
     try:
         send_welcome_email(settings, to_email=to_email, full_name=full_name, password=password)
         return True
@@ -793,6 +799,12 @@ def try_send_password_reset_email(
     reset_link: str,
 ) -> bool:
     """Logs errors, does not raise."""
+    if not settings.AWS_SES_FROM_EMAIL:
+        logger.warning("Skipping password reset email: AWS_SES_FROM_EMAIL not set")
+        return False
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        logger.warning("Skipping password reset email: AWS_SES SMTP credentials not set")
+        return False
     try:
         send_password_reset_email(settings, to_email=to_email, full_name=full_name, reset_link=reset_link)
         return True

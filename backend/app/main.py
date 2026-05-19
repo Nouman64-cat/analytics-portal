@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from starlette.status import HTTP_413_REQUEST_ENTITY_TOO_LARGE
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
@@ -6,6 +7,11 @@ from fastapi import Request, HTTPException
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 from app.config import get_settings
 from app.database import create_db_and_tables
@@ -32,6 +38,7 @@ from app.routers import (
     notifications,
 )
 from app.routers import departments
+from app.routers import debug
 
 settings = get_settings()
 
@@ -106,6 +113,7 @@ app.include_router(backup.router)
 app.include_router(busy_days.router)
 app.include_router(chat.router)
 app.include_router(notifications.router)
+app.include_router(debug.router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])
