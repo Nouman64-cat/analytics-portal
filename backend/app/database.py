@@ -24,7 +24,7 @@ _connect_args: dict = {"options": f"-c search_path={_schema}"}
 
 engine = create_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=False,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
