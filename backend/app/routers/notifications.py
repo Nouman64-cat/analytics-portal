@@ -9,8 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from sqlalchemy import func
+
 from app.database import get_session
 from app.deps import get_current_user
+from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
@@ -42,6 +45,14 @@ def _require_bd_or_superadmin(current_user: User) -> None:
         )
 
 
+def _primary_bd_id(ivs: list) -> Optional[uuid.UUID]:
+    """Return the bd_id of the earliest interview in the thread that has one."""
+    for iv in sorted(ivs, key=lambda x: (x.interview_date or "", x.created_at)):
+        if iv.bd_id:
+            return iv.bd_id
+    return None
+
+
 def _build_notifications(
     session: Session,
     current_user: User,
@@ -52,7 +63,33 @@ def _build_notifications(
 
     thread_ids = [info.thread_id for info in qualifying]
 
-    # Load read state for this user in one query
+    # Load all interviews for these threads up-front (used for BD filtering + display)
+    all_interviews = session.exec(
+        select(Interview).where(Interview.thread_id.in_(thread_ids))
+    ).all()
+    thread_iv_map: dict[uuid.UUID, list] = {}
+    for iv in all_interviews:
+        thread_iv_map.setdefault(iv.thread_id, []).append(iv)
+
+    # BD users: scope to only threads where they are the primary BD.
+    # Match by email: business_developers.email == current_user.email
+    if current_user.role == UserRole.BD:
+        bd_record = session.exec(
+            select(BusinessDeveloper).where(
+                func.lower(BusinessDeveloper.email) == current_user.email.lower()
+            )
+        ).first()
+        if not bd_record:
+            return []
+        qualifying = [
+            info for info in qualifying
+            if _primary_bd_id(thread_iv_map.get(info.thread_id, [])) == bd_record.id
+        ]
+        if not qualifying:
+            return []
+        thread_ids = [info.thread_id for info in qualifying]
+
+    # Load read state for this user
     read_thread_ids: set[uuid.UUID] = {
         r.thread_id
         for r in session.exec(
@@ -63,13 +100,10 @@ def _build_notifications(
         ).all()
     }
 
-    # Load one representative interview per thread for company/role/candidate
-    interviews = session.exec(
-        select(Interview).where(Interview.thread_id.in_(thread_ids))
-    ).all()
+    # Pick one representative interview per thread for display
     thread_interview: dict = {}
-    for iv in interviews:
-        if iv.thread_id not in thread_interview:
+    for iv in all_interviews:
+        if iv.thread_id in thread_ids and iv.thread_id not in thread_interview:
             thread_interview[iv.thread_id] = iv
 
     company_ids = {iv.company_id for iv in thread_interview.values() if iv.company_id}
