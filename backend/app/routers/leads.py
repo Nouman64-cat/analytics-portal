@@ -34,11 +34,11 @@ router = APIRouter(prefix="/api/v1/leads", tags=["Leads"], dependencies=[Depends
 
 
 def _require_lead_write_role(current_user: User) -> None:
-    """Create/update/delete leads: superadmin, team member, BD, and dept lead."""
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD, UserRole.DEPT_LEAD):
+    """Create/update/delete leads: superadmin, team member, BD, dept lead, and BD team lead."""
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin, team members, BDs, and dept leads can create, edit, or delete leads.",
+            detail="Only superadmin, team members, BDs, dept leads, and BD team leads can create, edit, or delete leads.",
         )
 
 
@@ -559,10 +559,10 @@ def update_lead(
     patch = data.model_dump(exclude_unset=True)
 
     lt = ensure_lead_thread(session, thread_id)
-    if "notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.DEPT_LEAD):
+    if "notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         n = patch["notes"]
         lt.notes = (n.strip() if isinstance(n, str) else None) or None
-    if "bd_notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD):
+    if "bd_notes" in patch and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         n = patch["bd_notes"]
         lt.bd_notes = (n.strip() if isinstance(n, str) else None) or None
     if "candidate_id" in patch:

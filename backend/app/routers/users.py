@@ -18,8 +18,11 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-# Roles that dept leads are not allowed to create or assign
-_RESTRICTED_ROLES = {UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.DEPT_LEAD}
+# Roles that dept leads / bd-team-leads are not allowed to create or assign
+_RESTRICTED_ROLES = {UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD}
+
+# Roles that have dept-scoped user management authority
+_DEPT_MANAGER_ROLES = (UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD)
 
 
 def generate_password(length: int = 12) -> str:
@@ -28,10 +31,10 @@ def generate_password(length: int = 12) -> str:
 
 
 def _require_user_manage(current_user: User) -> None:
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.DEPT_LEAD):
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmins and dept leads can manage users",
+            detail="Only superadmins, dept leads, and BD team leads can manage users",
         )
 
 
@@ -43,7 +46,7 @@ def list_users(
     _require_user_manage(current_user)
 
     query = select(User).order_by(User.created_at.desc())
-    if current_user.role == UserRole.DEPT_LEAD:
+    if current_user.role in _DEPT_MANAGER_ROLES:
         if current_user.department_id is None:
             return []
         query = query.where(User.department_id == current_user.department_id)
@@ -59,11 +62,11 @@ def create_user(
 ):
     _require_user_manage(current_user)
 
-    if current_user.role == UserRole.DEPT_LEAD:
+    if current_user.role in _DEPT_MANAGER_ROLES:
         if UserRole(user_in.role) in _RESTRICTED_ROLES:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Dept leads can only create team-member or bd accounts",
+                detail="Dept leads and BD team leads can only create team-member or bd accounts",
             )
 
     existing = session.exec(select(User).where(User.email == user_in.email)).first()
@@ -73,8 +76,8 @@ def create_user(
             detail="A user with this email already exists",
         )
 
-    # Dept lead: always assign to their own department
-    dept_id = current_user.department_id if current_user.role == UserRole.DEPT_LEAD else user_in.department_id
+    # Dept-scoped managers: always assign to their own department
+    dept_id = current_user.department_id if current_user.role in _DEPT_MANAGER_ROLES else user_in.department_id
 
     temp_password = generate_password()
     hashed = bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode()
@@ -116,15 +119,15 @@ def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if current_user.role == UserRole.DEPT_LEAD:
+    if current_user.role in _DEPT_MANAGER_ROLES:
         if user.department_id != current_user.department_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")
         if user_in.role and UserRole(user_in.role) in _RESTRICTED_ROLES:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Dept leads cannot assign superadmin, manager, or dept-lead roles",
+                detail="Cannot assign superadmin, manager, dept-lead, or bd-team-lead roles",
             )
-        # Prevent moving user out of the dept lead's department
+        # Prevent moving user out of their department
         if user_in.department_id is not None and user_in.department_id != current_user.department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -170,13 +173,13 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if current_user.role == UserRole.DEPT_LEAD:
+    if current_user.role in _DEPT_MANAGER_ROLES:
         if user.department_id != current_user.department_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")
         if user.role in _RESTRICTED_ROLES:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot delete superadmin, manager, or dept-lead accounts",
+                detail="Cannot delete superadmin, manager, dept-lead, or bd-team-lead accounts",
             )
 
     session.delete(user)

@@ -22,7 +22,7 @@ def list_activities(
     current_user: User = Depends(get_current_user),
 ):
     """Read-only paginated activity feed (latest first)."""
-    if current_user.role in {UserRole.MANAGER, UserRole.BD}:
+    if current_user.role in {UserRole.MANAGER, UserRole.BD, UserRole.BD_TEAM_LEAD}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to activities",
