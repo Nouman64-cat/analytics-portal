@@ -19,5 +19,5 @@ class NotificationRead(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(index=True, foreign_key="users.id")
-    thread_id: uuid.UUID = Field(index=True, foreign_key="lead_threads.thread_id")
+    thread_id: uuid.UUID = Field(index=True)  # no FK — not all threads have a lead_threads row
     read_at: datetime = Field(default_factory=datetime.utcnow)

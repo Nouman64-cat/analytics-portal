@@ -197,7 +197,7 @@ def migrate():
             CREATE TABLE IF NOT EXISTS notification_reads (
                 id UUID PRIMARY KEY,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                thread_id UUID NOT NULL REFERENCES lead_threads(thread_id) ON DELETE CASCADE,
+                thread_id UUID NOT NULL,
                 read_at TIMESTAMP NOT NULL
             );
             """,
@@ -211,6 +211,24 @@ def migrate():
             ON notification_reads (user_id, thread_id);
             """,
              "Migration successful! Unique index on notification_reads (user_id, thread_id) ensured."),
+            # Drop any FK on thread_id — not all interview threads have a lead_threads row
+            ("""
+            DO $$
+            DECLARE r RECORD;
+            BEGIN
+              FOR r IN
+                SELECT c.conname
+                FROM pg_constraint c
+                JOIN pg_class t ON t.oid = c.conrelid
+                JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+                WHERE t.relname = 'notification_reads' AND c.contype = 'f' AND a.attname = 'thread_id'
+              LOOP
+                EXECUTE 'ALTER TABLE notification_reads DROP CONSTRAINT ' || r.conname;
+              END LOOP;
+            END;
+            $$;
+            """,
+             "Migration successful! Any FK on notification_reads.thread_id dropped."),
         ]
         for sql, msg in migrations:
             try:

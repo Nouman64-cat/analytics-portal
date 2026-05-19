@@ -12,6 +12,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<UnresponsiveLeadNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<"unread" | "read">("unread");
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -114,11 +115,6 @@ export default function NotificationBell() {
               <span className="text-[13px] font-semibold text-amber-800 dark:text-amber-300 truncate">
                 Follow-up Required
               </span>
-              {unreadCount > 0 && (
-                <span className="shrink-0 text-[11px] text-amber-600 dark:text-amber-400">
-                  {unreadCount} unread
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {unreadCount > 0 && (
@@ -139,56 +135,115 @@ export default function NotificationBell() {
             </div>
           </div>
 
-          {/* Body — only show unread items */}
+          {/* Tabs */}
+          <div className="flex border-b border-slate-100 dark:border-white/[0.06]">
+            <button
+              onClick={() => setTab("unread")}
+              className={`flex-1 py-2 text-[12px] font-semibold transition-colors relative ${
+                tab === "unread"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              }`}
+            >
+              Unread
+              {unreadCount > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 rounded-full bg-amber-500 text-[9px] font-bold text-white px-1">
+                  {unreadCount}
+                </span>
+              )}
+              {tab === "unread" && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setTab("read")}
+              className={`flex-1 py-2 text-[12px] font-semibold transition-colors relative ${
+                tab === "read"
+                  ? "text-slate-700 dark:text-slate-200"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              }`}
+            >
+              Read
+              {notifications.filter((n) => n.is_read).length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 rounded-full bg-slate-200 dark:bg-white/[0.08] text-[9px] font-bold text-slate-500 dark:text-slate-400 px-1">
+                  {notifications.filter((n) => n.is_read).length}
+                </span>
+              )}
+              {tab === "read" && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-400 dark:bg-slate-500 rounded-full" />
+              )}
+            </button>
+          </div>
+
+          {/* Body */}
           <div className="max-h-80 overflow-y-auto">
             {loading && totalCount === 0 ? (
-              <div className="flex items-center justify-center py-8 text-slate-400 text-sm">
-                Loading…
-              </div>
-            ) : unreadCount === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-8 text-slate-400">
-                <Bell size={24} className="opacity-40" />
-                <span className="text-sm">
-                  {totalCount > 0 ? "All caught up!" : "No follow-ups needed"}
-                </span>
-              </div>
+              <div className="flex items-center justify-center py-8 text-slate-400 text-sm">Loading…</div>
+            ) : tab === "unread" ? (
+              unread.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-slate-400">
+                  <Bell size={24} className="opacity-40" />
+                  <span className="text-sm">All caught up!</span>
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+                  {unread.map((n) => (
+                    <li
+                      key={n.thread_id}
+                      className="relative px-4 py-3 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer group"
+                      onClick={() => handleMarkRead(n.thread_id)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="mt-2 shrink-0 block h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-semibold text-slate-900 dark:text-white truncate">{n.company_name}</p>
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+                            {n.role}{n.candidate_name ? ` · ${n.candidate_name}` : ""}
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${getDaysStyle(n.days_unresponsive)}`}>
+                            <Clock size={10} />{n.days_unresponsive}d
+                          </span>
+                          <button
+                            title="Mark as read"
+                            onClick={(e) => { e.stopPropagation(); handleMarkRead(n.thread_id); }}
+                            className="opacity-0 group-hover:opacity-100 rounded-md p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+                          >
+                            <CheckCheck size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )
             ) : (
-              <ul className="divide-y divide-slate-100 dark:divide-white/[0.04]">
-                {unread.map((n) => (
-                  <li
-                    key={n.thread_id}
-                    className="relative px-4 py-3 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer group"
-                    onClick={() => handleMarkRead(n.thread_id)}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="mt-2 shrink-0 block h-1.5 w-1.5 rounded-full bg-amber-500" />
-
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-slate-900 dark:text-white truncate">
-                          {n.company_name}
-                        </p>
-                        <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
-                          {n.role}{n.candidate_name ? ` · ${n.candidate_name}` : ""}
-                        </p>
-                      </div>
-
-                      <div className="shrink-0 flex items-center gap-1.5">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${getDaysStyle(n.days_unresponsive)}`}>
-                          <Clock size={10} />
-                          {n.days_unresponsive}d
+              notifications.filter((n) => n.is_read).length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-slate-400">
+                  <Bell size={24} className="opacity-40" />
+                  <span className="text-sm">Nothing read yet</span>
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+                  {notifications.filter((n) => n.is_read).map((n) => (
+                    <li key={n.thread_id} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="mt-2 shrink-0 block h-1.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-medium text-slate-400 dark:text-slate-500 truncate">{n.company_name}</p>
+                          <p className="text-[12px] text-slate-400 dark:text-slate-600 truncate">
+                            {n.role}{n.candidate_name ? ` · ${n.candidate_name}` : ""}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold opacity-40 ${getDaysStyle(n.days_unresponsive)}`}>
+                          <Clock size={10} />{n.days_unresponsive}d
                         </span>
-                        <button
-                          title="Mark as read"
-                          onClick={(e) => { e.stopPropagation(); handleMarkRead(n.thread_id); }}
-                          className="opacity-0 group-hover:opacity-100 rounded-md p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
-                        >
-                          <CheckCheck size={12} />
-                        </button>
                       </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              )
             )}
           </div>
 
