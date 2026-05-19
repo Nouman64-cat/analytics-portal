@@ -80,7 +80,7 @@ export default function ProfilesPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const role = getUserRole();
-  const cannotCRUD = role === "bd" || role === "manager";
+  const cannotCRUD = role === "manager";
   const isSuperadmin = role === "superadmin";
   const { departmentId } = useDepartmentContext();
 

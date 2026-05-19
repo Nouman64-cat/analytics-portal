@@ -9,7 +9,7 @@ from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
-from app.dept_scope import apply_dept_filter
+from app.dept_scope import apply_dept_filter, is_cross_dept
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.resume_profile import ResumeProfile
@@ -92,6 +92,10 @@ def _effective_dept_for_user(
         # Linked candidate has no dept → fall back to user's own dept
         return current_user.department_id
 
+    # Cross-dept roles (superadmin, manager, BD) see all when no explicit filter
+    if is_cross_dept(current_user):
+        return None
+
     return current_user.department_id
 
 
@@ -119,7 +123,7 @@ def list_resume_profiles(
     )
     if effective_dept:
         query = query.where(ResumeProfile.department_id == effective_dept)
-    elif current_user.role != UserRole.SUPERADMIN:
+    elif not is_cross_dept(current_user):
         return []
 
     rows = session.exec(query).all()
