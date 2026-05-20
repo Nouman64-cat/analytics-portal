@@ -800,18 +800,25 @@ export default function ProfilesPage() {
 
           {isSuperadmin && (
             <FormField label="Department">
-              <select
-                value={formData.department_id ?? ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, department_id: e.target.value || null })
-                }
-                className={selectClass}
-              >
-                <option value="">— Select department —</option>
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, department_id: null })}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${!formData.department_id ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+                >
+                  None
+                </button>
                 {departments.filter((d) => d.is_active).map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, department_id: d.id })}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${formData.department_id === d.id ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+                  >
+                    {d.name}
+                  </button>
                 ))}
-              </select>
+              </div>
             </FormField>
           )}
 

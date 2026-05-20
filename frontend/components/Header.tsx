@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Menu, Layers } from "lucide-react";
+import { Menu, Layers, Clock } from "lucide-react";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
 import { usePathname } from "next/navigation";
@@ -18,6 +18,57 @@ interface HeaderProps {
 const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
 const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead"]);
 const NOTIFICATION_ROLES = new Set(["superadmin", "bd", "bd-team-lead"]);
+
+const CLOCKS = [
+  { tz: "America/New_York",    label: "ET",  labelColor: "text-indigo-500 dark:text-indigo-400",  timeColor: "text-indigo-700 dark:text-indigo-300"  },
+  { tz: "America/Los_Angeles", label: "PT",  labelColor: "text-emerald-500 dark:text-emerald-400", timeColor: "text-emerald-700 dark:text-emerald-300" },
+  { tz: "Asia/Karachi",        label: "PKT", labelColor: "text-amber-500 dark:text-amber-400",    timeColor: "text-amber-700 dark:text-amber-300"    },
+];
+
+function LiveClocks() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!now) return null;
+
+  const fmt = (tz: string) =>
+    now.toLocaleTimeString("en-US", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+
+  const abbr = (tz: string) =>
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" })
+      .formatToParts(now)
+      .find((p) => p.type === "timeZoneName")?.value ?? tz;
+
+  return (
+    <div className="hidden lg:flex items-center gap-1 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-1.5 bg-slate-50/70 dark:bg-white/[0.03]">
+      <Clock size={11} className="text-slate-400 dark:text-slate-500 mr-1 shrink-0" />
+      {CLOCKS.map(({ tz, labelColor, timeColor }, i) => (
+        <div key={tz} className="flex items-center gap-1">
+          {i > 0 && <span className="text-slate-200 dark:text-white/10 select-none">·</span>}
+          <div className="text-center">
+            <span className={`block text-[9px] font-semibold uppercase tracking-wider leading-none mb-0.5 ${labelColor}`}>
+              {abbr(tz)}
+            </span>
+            <span className={`block text-[11px] font-mono font-medium tabular-nums leading-none ${timeColor}`}>
+              {fmt(tz)}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   const [user, setUser] = useState<UserType | null>(null);
@@ -95,7 +146,7 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
       style={{ left: typeof window !== "undefined" && window.innerWidth >= 768 ? (collapsed ? "72px" : "260px") : "0" }}
     >
       <div className="flex h-full items-center justify-between px-4 md:px-8 gap-4">
-        {/* Left: mobile menu */}
+        {/* Left: mobile menu + clocks */}
         <div className="flex items-center gap-3">
           <button
             onClick={onMobileMenuOpen}
@@ -103,6 +154,7 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
           >
             <Menu size={20} />
           </button>
+          <LiveClocks />
         </div>
 
         {/* Center: dept selector for multi-dept users */}
