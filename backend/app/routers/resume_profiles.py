@@ -9,7 +9,7 @@ from app.deps import get_current_user
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
-from app.dept_scope import apply_dept_filter, is_cross_dept
+from app.dept_scope import apply_dept_filter, is_cross_dept, get_user_allowed_depts
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.resume_profile import ResumeProfile
@@ -63,39 +63,15 @@ def _to_read(profile: ResumeProfile, dept: Optional[Department]) -> ResumeProfil
     )
 
 
-def _effective_dept_for_user(
-    session: Session,
-    current_user: User,
-    explicit_dept_id: Optional[uuid.UUID],
-) -> Optional[uuid.UUID]:
-    """
-    Resolve which department to scope resume profiles to.
-
-    Priority:
-    1. Explicit ?department_id query param (for superadmin/manager dept selector)
-    2. Team-member: the linked candidate's department (authoritative — user.department_id
-       may be stale or mismatched; the candidate row is the source of truth)
-    3. Any other user with a department_id: their own department
-    4. None → caller decides (only superadmin falls through to unscoped)
-    """
-    if explicit_dept_id:
-        return explicit_dept_id
-
-    if current_user.role == UserRole.TEAM_MEMBER:
-        cand = session.exec(
-            select(Candidate).where(
-                func.lower(Candidate.email) == current_user.email.lower()
-            )
-        ).first()
-        if cand and cand.department_id:
-            return cand.department_id
-        # Linked candidate has no dept → fall back to user's own dept
-        return current_user.department_id
-
-    # Cross-dept roles (superadmin, manager, BD) see all when no explicit filter
-    if is_cross_dept(current_user):
-        return None
-
+def _team_member_dept(session: Session, current_user: User) -> Optional[uuid.UUID]:
+    """Resolve a team member's department via their linked candidate row (authoritative)."""
+    cand = session.exec(
+        select(Candidate).where(
+            func.lower(Candidate.email) == current_user.email.lower()
+        )
+    ).first()
+    if cand and cand.department_id:
+        return cand.department_id
     return current_user.department_id
 
 
@@ -105,26 +81,27 @@ def list_resume_profiles(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List resume profiles scoped by department.
-
-    Scoping rules:
-    - Explicit ?department_id always takes priority (used by header dept selector).
-    - Team-members: scoped to their linked candidate's department (not user.department_id
-      which may be stale).
-    - All other roles with a department: scoped to that department.
-    - Only a global superadmin (no department assigned) sees profiles from all depts.
-    """
-    effective_dept = _effective_dept_for_user(session, current_user, department_id)
-
     query = (
         select(ResumeProfile, Department)
         .join(Department, ResumeProfile.department_id == Department.id, isouter=True)
         .order_by(ResumeProfile.name)
     )
-    if effective_dept:
-        query = query.where(ResumeProfile.department_id == effective_dept)
-    elif not is_cross_dept(current_user):
-        return []
+
+    if department_id:
+        query = query.where(ResumeProfile.department_id == department_id)
+    elif current_user.role == UserRole.TEAM_MEMBER:
+        dept = _team_member_dept(session, current_user)
+        if not dept:
+            return []
+        query = query.where(ResumeProfile.department_id == dept)
+    else:
+        allowed = get_user_allowed_depts(current_user)
+        if allowed is None:
+            pass  # no filter — see all
+        elif allowed:
+            query = query.where(ResumeProfile.department_id.in_(allowed))
+        else:
+            return []
 
     rows = session.exec(query).all()
     return [_to_read(p, d) for p, d in rows]

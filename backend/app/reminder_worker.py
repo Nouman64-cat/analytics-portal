@@ -9,7 +9,7 @@ from sqlmodel import Session, select, or_, and_
 from app.activity_log import record_activity
 from app.config import Settings
 from app.database import engine
-from app.email_ses import try_send_interview_reminder_email, try_send_unresponsive_followup_email
+from app.email_ses import try_send_interview_reminder_email
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
@@ -196,15 +196,15 @@ def _process_due_reminders(settings: Settings) -> None:
 
 
 def _notify_unresponsive_followup(settings: Settings) -> None:
-    """Send a follow-up email to all BD and superadmin users for leads that have
-    been Unresponsive (explicit or derived) for 15+ days and haven't been notified yet.
+    """Mark leads that have been Unresponsive for 15+ days in the follow-up log
+    so they appear as in-app notifications. No emails are sent.
     """
     with Session(engine) as session:
         qualifying_leads = find_unresponsive_leads_needing_followup(session)
         if not qualifying_leads:
             return
 
-        # Skip leads already notified
+        # Skip leads already logged
         all_thread_ids = [info.thread_id for info in qualifying_leads]
         already_notified = {
             log.thread_id
@@ -218,75 +218,16 @@ def _notify_unresponsive_followup(settings: Settings) -> None:
         if not qualifying:
             return
 
-        # Fetch recipients: BD and superadmin users
-        recipients = session.exec(
-            select(User).where(User.role.in_([UserRole.BD, UserRole.SUPERADMIN]))
-        ).all()
-        if not recipients:
-            logger.warning("Unresponsive follow-up: no BD/superadmin users found to notify")
-            return
-
-        # Load one representative interview per thread for company/role info
-        thread_ids = [info.thread_id for info in qualifying]
-        interviews = session.exec(
-            select(Interview).where(Interview.thread_id.in_(thread_ids))
-        ).all()
-        thread_interview: dict = {}
-        for iv in interviews:
-            if iv.thread_id not in thread_interview:
-                thread_interview[iv.thread_id] = iv
-
-        company_ids = {iv.company_id for iv in thread_interview.values() if iv.company_id}
-        candidate_ids = {iv.candidate_id for iv in thread_interview.values() if iv.candidate_id}
-        company_map = {
-            c.id: c
-            for c in session.exec(select(Company).where(Company.id.in_(company_ids))).all()
-        }
-        candidate_map = {
-            c.id: c
-            for c in session.exec(select(Candidate).where(Candidate.id.in_(candidate_ids))).all()
-        }
-
-        portal_url = settings.CLIENT_URL
-        notified_count = 0
-
         for info in qualifying:
-            iv = thread_interview.get(info.thread_id)
-            company_name = company_map[iv.company_id].name if iv and iv.company_id in company_map else "Unknown"
-            role = iv.role if iv else "Unknown"
-            candidate = candidate_map.get(iv.candidate_id) if iv and iv.candidate_id else None
-            candidate_name = candidate.name if candidate else None
-
-            sent_to_any = False
-            for user in recipients:
-                sent = try_send_unresponsive_followup_email(
-                    settings,
-                    to_email=user.email,
-                    recipient_name=user.full_name,
-                    company_name=company_name,
-                    role=role,
-                    candidate_name=candidate_name,
-                    days_unresponsive=info.days_unresponsive,
-                    portal_url=portal_url,
-                )
-                if sent:
-                    sent_to_any = True
-                    logger.info(
-                        "Unresponsive follow-up sent: thread_id=%s recipient=%s days=%s",
-                        info.thread_id,
-                        user.email,
-                        info.days_unresponsive,
-                    )
-
-            if sent_to_any:
-                session.add(UnresponsiveFollowUpLog(thread_id=info.thread_id))
-                notified_count += 1
-
-        if notified_count:
-            session.commit()
+            session.add(UnresponsiveFollowUpLog(thread_id=info.thread_id))
             logger.info(
-                "Sent unresponsive follow-up notifications for %s lead(s)", notified_count
+                "Unresponsive follow-up logged for in-app notification: thread_id=%s days=%s",
+                info.thread_id,
+                info.days_unresponsive,
             )
+
+        session.commit()
+        logger.info("Logged in-app unresponsive notifications for %s lead(s)", len(qualifying))
 
 
 async def run_reminder_worker(stop_event: asyncio.Event, settings: Settings) -> None:

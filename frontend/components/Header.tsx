@@ -15,15 +15,15 @@ interface HeaderProps {
   collapsed: boolean;
 }
 
-const CROSS_DEPT_ROLES = new Set(["superadmin", "manager", "bd"]);
-const NOTIFICATION_ROLES = new Set(["superadmin", "bd"]);
+const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead"]);
+const NOTIFICATION_ROLES = new Set(["superadmin", "bd", "bd-team-lead"]);
 
 export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   const [user, setUser] = useState<UserType | null>(null);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const pathname = usePathname();
   const role = getUserRole();
-  const isCrossDept = role ? CROSS_DEPT_ROLES.has(role) : false;
   const showNotifications = role ? NOTIFICATION_ROLES.has(role) : false;
   const { departmentId, setDepartmentId } = useDepartmentContext();
 
@@ -37,11 +37,36 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   useEffect(() => { fetchUser(); }, [fetchUser]);
 
   useEffect(() => {
-    if (!isCrossDept) return;
+    if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return;
     departmentsService.list()
-      .then((depts) => setDepartments(depts.filter((d) => d.is_active)))
+      .then((depts) => setAllDepartments(depts.filter((d) => d.is_active)))
       .catch(() => {});
-  }, [isCrossDept]);
+  }, [role]);
+
+  // Compute which departments to show in the switcher for this user
+  const departments = (() => {
+    if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return [];
+    // Superadmin / manager: always all depts
+    if (CROSS_DEPT_ROLES.has(role)) return allDepartments;
+    // BD / BD-team-lead: governed by allowed_dept_ids
+    const allowed = user?.allowed_dept_ids;
+    if (allowed === null || allowed === undefined) {
+      // No explicit setting — bd is cross-dept by default, bd-team-lead is single-dept
+      return role === "bd" ? allDepartments : [];
+    }
+    if (allowed.length === 0) return allDepartments; // [] = All
+    return allDepartments.filter((d) => allowed.includes(d.id));
+  })();
+
+  const showSwitcher = departments.length > 1;
+
+  // Auto-select first department when list loads and nothing valid is selected
+  useEffect(() => {
+    if (departments.length === 0) return;
+    const isValid = departments.some((d) => d.id === departmentId);
+    if (!isValid) setDepartmentId(departments[0].id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments]);
 
   const getPageTitle = () => {
     if (pathname === "/") return "Dashboard Overview";
@@ -76,17 +101,16 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
           </button>
         </div>
 
-        {/* Center: dept selector for cross-dept roles */}
-        {isCrossDept && departments.length > 0 && (
+        {/* Center: dept selector for multi-dept users */}
+        {showSwitcher && (
           <div className="flex-1 flex justify-center">
             <div className="relative flex items-center gap-2">
               <Layers size={14} className="text-indigo-400 shrink-0" />
               <select
                 value={departmentId ?? ""}
-                onChange={(e) => setDepartmentId(e.target.value || null)}
+                onChange={(e) => setDepartmentId(e.target.value)}
                 className="appearance-none rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] pl-2 pr-7 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
               >
-                <option value="">All Departments</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}

@@ -376,6 +376,8 @@ export interface User {
   full_name: string;
   role: string;
   department_id: string | null;
+  /** null = role default; [] = all depts; [uuid,...] = specific depts. BD / BD Team Lead only. */
+  allowed_dept_ids: string[] | null;
   must_change_password: boolean;
   alarm_enabled: boolean;
   created_at: string;
@@ -389,6 +391,8 @@ export interface UserFormData {
   full_name: string;
   role: string;
   department_id: string | null;
+  /** null = role default; [] = all depts; [uuid,...] = specific depts. */
+  allowed_dept_ids: string[] | null;
 }
 
 // ─── Form Payloads ──────────────────────────────────────────

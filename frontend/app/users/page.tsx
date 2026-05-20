@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil, Trash2 } from "lucide-react";
-import { usersService, departmentsService, candidatesService } from "@/lib/services";
+import { usersService, departmentsService, candidatesService, authService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
@@ -26,6 +26,7 @@ export default function UsersPage() {
     email: "",
     role: "team-member",
     department_id: null,
+    allowed_dept_ids: null,
   });
   const [search, setSearch] = useState("");
   const [deleteModal, setDeleteModal] = useState<User | null>(null);
@@ -39,6 +40,19 @@ export default function UsersPage() {
   const isBdTeamLead = role === "bd-team-lead";
   const myDeptId = getUserDeptId();
   const hasAccess = isSuperadmin || isDeptLead || isBdTeamLead;
+
+  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
+
+  // Departments the current bd-team-lead is allowed to operate in
+  const myAllowedDepts = useMemo(() => {
+    if (!isBdTeamLead) return departments.filter((d) => d.is_active);
+    const allowed = currentUserProfile?.allowed_dept_ids;
+    if (allowed === null || allowed === undefined) return [];
+    if (allowed.length === 0) return departments.filter((d) => d.is_active);
+    return departments.filter((d) => d.is_active && allowed.includes(d.id));
+  }, [isBdTeamLead, currentUserProfile, departments]);
+
+  const isMultiDeptBdLead = isBdTeamLead && myAllowedDepts.length > 1;
 
   const deptMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -76,6 +90,9 @@ export default function UsersPage() {
       if (isSuperadmin || isBdTeamLead || isDeptLead) {
         departmentsService.list().then(setDepartments).catch(() => {});
       }
+      if (isBdTeamLead) {
+        authService.getMe().then(setCurrentUserProfile).catch(() => {});
+      }
     } else {
       setLoading(false);
       setError("Access denied.");
@@ -84,7 +101,7 @@ export default function UsersPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ full_name: "", email: "", role: "team-member", department_id: null });
+    setFormData({ full_name: "", email: "", role: "team-member", department_id: null, allowed_dept_ids: null });
     setAlsoCandidate(false);
     setModalOpen(true);
   };
@@ -96,6 +113,7 @@ export default function UsersPage() {
       email: user.email,
       role: user.role,
       department_id: user.department_id ?? null,
+      allowed_dept_ids: user.allowed_dept_ids ?? null,
     });
     setModalOpen(true);
   };
@@ -104,6 +122,10 @@ export default function UsersPage() {
     if (isSubmitting) return;
     if (!formData.full_name || !formData.email || !formData.role) {
       alert("Please fill in all fields");
+      return;
+    }
+    if (isMultiDeptBdLead && formData.role !== "bd" && formData.role !== "bd-team-lead" && !formData.department_id) {
+      alert("Please select a department for this user");
       return;
     }
     
@@ -229,10 +251,28 @@ export default function UsersPage() {
                       }`}>
                         {user.role}
                       </span>
-                      {user.department_id && deptMap[user.department_id] && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-                          {deptMap[user.department_id]}
-                        </span>
+                      {(user.role === "bd" || user.role === "bd-team-lead") ? (
+                        user.allowed_dept_ids !== null && user.allowed_dept_ids.length === 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                            All Departments
+                          </span>
+                        ) : Array.isArray(user.allowed_dept_ids) && user.allowed_dept_ids.length > 0 ? (
+                          user.allowed_dept_ids.map((id) => deptMap[id] && (
+                            <span key={id} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20">
+                              {deptMap[id]}
+                            </span>
+                          ))
+                        ) : user.department_id && deptMap[user.department_id] ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                            {deptMap[user.department_id]}
+                          </span>
+                        ) : null
+                      ) : (
+                        user.department_id && deptMap[user.department_id] && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                            {deptMap[user.department_id]}
+                          </span>
+                        )
                       )}
                     </div>
                   </div>
@@ -288,7 +328,7 @@ export default function UsersPage() {
           <FormField label="Role">
             <select
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: null })}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: null, allowed_dept_ids: null })}
               className={inputClass}
             >
               <option value="team-member">Team Member</option>
@@ -316,7 +356,7 @@ export default function UsersPage() {
             </button>
           )}
 
-          {isSuperadmin && (formData.role === "team-member" || formData.role === "bd" || formData.role === "dept-lead" || formData.role === "bd-team-lead") && (
+          {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead") && (
             <FormField label="Department">
               <select
                 value={formData.department_id ?? ""}
@@ -331,10 +371,79 @@ export default function UsersPage() {
             </FormField>
           )}
 
-          {(isBdTeamLead || isDeptLead) && myDeptId && (
+          {isMultiDeptBdLead && formData.role !== "bd" && formData.role !== "bd-team-lead" && (
+            <FormField label="Department">
+              <select
+                value={formData.department_id ?? ""}
+                onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
+                className={inputClass}
+              >
+                <option value="">— Select department —</option>
+                {myAllowedDepts.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
+          {!isMultiDeptBdLead && (isBdTeamLead || isDeptLead) && myDeptId && (
             <div className="p-3 rounded-xl bg-slate-500/10 border border-slate-500/20">
               <p className="text-[12px] text-slate-400 leading-relaxed font-medium">
                 This user will be assigned to your department: <span className="text-white">{deptMap[myDeptId] ?? "your department"}</span>.
+              </p>
+            </div>
+          )}
+
+          {(formData.role === "bd" || formData.role === "bd-team-lead") && (isSuperadmin || isMultiDeptBdLead) && (
+            <div className="space-y-2">
+              <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Department Access</p>
+              <div className="flex flex-wrap gap-2">
+                {/* All badge — superadmin only; bd-team-leads can't grant beyond their own scope */}
+                {isSuperadmin && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, allowed_dept_ids: [] })}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                      formData.allowed_dept_ids !== null && formData.allowed_dept_ids.length === 0
+                        ? "bg-indigo-500 text-white border-indigo-500"
+                        : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-indigo-400 hover:text-indigo-400"
+                    }`}
+                  >
+                    All
+                  </button>
+                )}
+                {/* Per-department badges scoped to what this user can grant */}
+                {(isSuperadmin ? departments.filter((d) => d.is_active) : myAllowedDepts).map((d) => {
+                  const selected = Array.isArray(formData.allowed_dept_ids) && formData.allowed_dept_ids.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => {
+                        const current = Array.isArray(formData.allowed_dept_ids) && formData.allowed_dept_ids.length > 0
+                          ? formData.allowed_dept_ids
+                          : [];
+                        const next = selected
+                          ? current.filter((id) => id !== d.id)
+                          : [...current, d.id];
+                        setFormData({ ...formData, allowed_dept_ids: next.length ? next : null });
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                        selected
+                          ? "bg-teal-500 text-white border-teal-500"
+                          : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-teal-400 hover:text-teal-400"
+                      }`}
+                    >
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-500">
+                {formData.allowed_dept_ids === null
+                  ? "No restriction set — defaults to role behavior."
+                  : formData.allowed_dept_ids.length === 0
+                    ? "All departments — no restriction."
+                    : `Restricted to ${formData.allowed_dept_ids.length} department(s).`}
               </p>
             </div>
           )}

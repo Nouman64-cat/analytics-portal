@@ -1,15 +1,18 @@
-"""Send transactional email via Amazon SES SMTP (credentials: AWS_SES_USERNAME / AWS_SES_PASSWORD)."""
+"""Send transactional email via AWS SES SMTP or Resend, controlled by EMAIL_PROVIDER in .env."""
 
 from __future__ import annotations
 
 import html as html_module
 import logging
 import smtplib
+import socket
 import ssl
 from datetime import date, time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Optional
+
+import httpx
 
 if TYPE_CHECKING:
     from app.config import Settings
@@ -17,8 +20,99 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _ses_smtp_host(region: str) -> str:
-    return f"email-smtp.{region}.amazonaws.com"
+# ── Shared helpers ────────────────────────────────────────────────────────────
+
+def _email_configured(settings: "Settings") -> bool:
+    """Return True when the active email provider has all required credentials."""
+    provider = (settings.EMAIL_PROVIDER or "ses").lower()
+    if not settings.AWS_SES_FROM_EMAIL:
+        return False
+    if provider == "resend":
+        return bool(settings.RESEND_API_KEY)
+    return bool(settings.AWS_SES_USERNAME and settings.AWS_SES_PASSWORD)
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    """smtplib.SMTP subclass that forces IPv4 resolution.
+
+    macOS Python 3.12 tries AAAA first for SES hostnames; the query returns
+    EAI_NONAME even though A records exist, crashing before a TCP connection
+    is established.  Resolving with AF_INET explicitly avoids the issue while
+    still using the hostname for TLS SNI and certificate validation.
+    """
+
+    def _get_socket(self, host, port, timeout):
+        addrs = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        ip = addrs[0][4][0]
+        return socket.create_connection((ip, port), timeout)
+
+
+def _send_via_ses(
+    settings: "Settings",
+    *,
+    to_email: str,
+    subject: str,
+    html: str,
+    plain: str,
+) -> None:
+    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
+        raise RuntimeError("AWS SES SMTP credentials are not set")
+    host = f"email-smtp.{settings.AWS_REGION}.amazonaws.com"
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = settings.AWS_SES_FROM_EMAIL
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    with _IPv4SMTP(host, 587, timeout=30) as server:
+        server.starttls(context=ssl.create_default_context())
+        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
+        server.send_message(msg)
+
+
+def _send_via_resend(
+    settings: "Settings",
+    *,
+    to_email: str,
+    subject: str,
+    html: str,
+    plain: str,
+) -> None:
+    if not settings.RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY is not set")
+    resp = httpx.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": settings.AWS_SES_FROM_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+            "text": plain,
+        },
+        timeout=30,
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Resend API error {resp.status_code}: {resp.text}")
+
+
+def _dispatch_email(
+    settings: "Settings",
+    *,
+    to_email: str,
+    subject: str,
+    html: str,
+    plain: str,
+) -> None:
+    """Route to the active email provider."""
+    provider = (settings.EMAIL_PROVIDER or "ses").lower()
+    if provider == "resend":
+        _send_via_resend(settings, to_email=to_email, subject=subject, html=html, plain=plain)
+    else:
+        _send_via_ses(settings, to_email=to_email, subject=subject, html=html, plain=plain)
 
 
 def _format_date(d: Optional[date]) -> str:
@@ -236,12 +330,7 @@ def send_interview_created_email(
     interview_link: Optional[str],
     is_phone_call: bool,
 ) -> None:
-    """Raise on SMTP failure; caller should catch and log."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        raise RuntimeError("AWS_SES SMTP credentials are not set")
-
+    """Raise on send failure; caller should catch and log."""
     html = interview_notification_html(
         candidate_name=candidate_name,
         company_name=company_name,
@@ -269,21 +358,13 @@ def send_interview_created_email(
     )
     if interview_link:
         plain += f"Link: {interview_link}\n"
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Interview scheduled — {company_name or 'Interview'}"
-    msg["From"] = settings.AWS_SES_FROM_EMAIL
-    msg["To"] = to_email
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    host = _ses_smtp_host(settings.AWS_REGION)
-    context = ssl.create_default_context()
-    with smtplib.SMTP(host, 587, timeout=30) as server:
-        server.starttls(context=context)
-        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
-        server.send_message(msg)
-
+    _dispatch_email(
+        settings,
+        to_email=to_email,
+        subject=f"Interview scheduled — {company_name or 'Interview'}",
+        html=html,
+        plain=plain,
+    )
     logger.info("Sent interview notification email to %s", to_email)
 
 
@@ -303,12 +384,7 @@ def send_interview_reminder_email(
     is_phone_call: bool,
     reminder_minutes: int,
 ) -> None:
-    """Raise on SMTP failure; caller should catch and log."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        raise RuntimeError("AWS_SES SMTP credentials are not set")
-
+    """Raise on send failure; caller should catch and log."""
     html = interview_notification_html(
         candidate_name=candidate_name,
         company_name=company_name,
@@ -337,21 +413,13 @@ def send_interview_reminder_email(
     )
     if interview_link:
         plain += f"Link: {interview_link}\n"
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Reminder: interview in {reminder_minutes} minutes — {company_name or 'Interview'}"
-    msg["From"] = settings.AWS_SES_FROM_EMAIL
-    msg["To"] = to_email
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    host = _ses_smtp_host(settings.AWS_REGION)
-    context = ssl.create_default_context()
-    with smtplib.SMTP(host, 587, timeout=30) as server:
-        server.starttls(context=context)
-        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
-        server.send_message(msg)
-
+    _dispatch_email(
+        settings,
+        to_email=to_email,
+        subject=f"Reminder: interview in {reminder_minutes} minutes — {company_name or 'Interview'}",
+        html=html,
+        plain=plain,
+    )
     logger.info("Sent interview reminder email (%s min) to %s", reminder_minutes, to_email)
 
 
@@ -370,15 +438,12 @@ def try_send_interview_created_email(
     interview_link: Optional[str],
     is_phone_call: bool,
 ) -> bool:
-    """Send if SES + from address are configured; no-op if candidate has no email. Logs errors, does not raise."""
+    """Send if email provider is configured; no-op if candidate has no email. Logs errors, does not raise."""
     if not to_email or not str(to_email).strip():
         logger.debug("Skipping interview email: no candidate email")
         return False
-    if not settings.AWS_SES_FROM_EMAIL:
-        logger.warning("Skipping interview email: AWS_SES_FROM_EMAIL not set")
-        return False
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        logger.warning("Skipping interview email: AWS_SES SMTP credentials not set")
+    if not _email_configured(settings):
+        logger.warning("Skipping interview email: email provider not configured (EMAIL_PROVIDER=%s)", settings.EMAIL_PROVIDER)
         return False
     try:
         send_interview_created_email(
@@ -417,15 +482,12 @@ def try_send_interview_reminder_email(
     is_phone_call: bool,
     reminder_minutes: int,
 ) -> bool:
-    """Send reminder if SES is configured; no-op if candidate has no email. Logs errors, does not raise."""
+    """Send reminder if email provider is configured; no-op if candidate has no email. Logs errors, does not raise."""
     if not to_email or not str(to_email).strip():
         logger.debug("Skipping interview reminder: no candidate email")
         return False
-    if not settings.AWS_SES_FROM_EMAIL:
-        logger.warning("Skipping interview reminder: AWS_SES_FROM_EMAIL not set")
-        return False
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        logger.warning("Skipping interview reminder: AWS_SES SMTP credentials not set")
+    if not _email_configured(settings):
+        logger.warning("Skipping interview reminder: email provider not configured (EMAIL_PROVIDER=%s)", settings.EMAIL_PROVIDER)
         return False
     try:
         send_interview_reminder_email(
@@ -456,12 +518,7 @@ def send_welcome_email(
     full_name: str,
     password: str,
 ) -> None:
-    """Raise on SMTP failure; caller should catch and log."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        raise RuntimeError("AWS_SES SMTP credentials are not set")
-
+    """Raise on send failure; caller should catch and log."""
     app_link = settings.CLIENT_URL
     html = welcome_notification_html(
         full_name=full_name,
@@ -477,21 +534,13 @@ def send_welcome_email(
         f"Password: {password}\n\n"
         f"You will be required to change your password upon your first login."
     )
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Welcome to RizViz Analytics Portal"
-    msg["From"] = settings.AWS_SES_FROM_EMAIL
-    msg["To"] = to_email
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    host = _ses_smtp_host(settings.AWS_REGION)
-    context = ssl.create_default_context()
-    with smtplib.SMTP(host, 587, timeout=30) as server:
-        server.starttls(context=context)
-        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
-        server.send_message(msg)
-
+    _dispatch_email(
+        settings,
+        to_email=to_email,
+        subject="Welcome to RizViz Analytics Portal",
+        html=html,
+        plain=plain,
+    )
     logger.info("Sent welcome email to %s", to_email)
 
 
@@ -503,11 +552,8 @@ def try_send_welcome_email(
     password: str,
 ) -> bool:
     """Logs errors, does not raise."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        logger.warning("Skipping welcome email: AWS_SES_FROM_EMAIL not set")
-        return False
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        logger.warning("Skipping welcome email: AWS_SES SMTP credentials not set")
+    if not _email_configured(settings):
+        logger.warning("Skipping welcome email: email provider not configured (EMAIL_PROVIDER=%s)", settings.EMAIL_PROVIDER)
         return False
     try:
         send_welcome_email(settings, to_email=to_email, full_name=full_name, password=password)
@@ -582,12 +628,7 @@ def send_password_reset_email(
     full_name: str,
     reset_link: str,
 ) -> None:
-    """Raise on SMTP failure; caller should catch and log."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        raise RuntimeError("AWS_SES SMTP credentials are not set")
-
+    """Raise on send failure; caller should catch and log."""
     html = password_reset_html(full_name=full_name, reset_link=reset_link)
     plain = (
         f"Hi {full_name},\n\n"
@@ -595,21 +636,13 @@ def send_password_reset_email(
         f"Reset your password here (expires in 1 hour):\n{reset_link}\n\n"
         f"If you did not request this, you can safely ignore this email."
     )
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Reset your RizViz Analytics Portal password"
-    msg["From"] = settings.AWS_SES_FROM_EMAIL
-    msg["To"] = to_email
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    host = _ses_smtp_host(settings.AWS_REGION)
-    context = ssl.create_default_context()
-    with smtplib.SMTP(host, 587, timeout=30) as server:
-        server.starttls(context=context)
-        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
-        server.send_message(msg)
-
+    _dispatch_email(
+        settings,
+        to_email=to_email,
+        subject="Reset your RizViz Analytics Portal password",
+        html=html,
+        plain=plain,
+    )
     logger.info("Sent password reset email to %s", to_email)
 
 
@@ -711,12 +744,7 @@ def send_unresponsive_followup_email(
     days_unresponsive: int,
     portal_url: str,
 ) -> None:
-    """Raise on SMTP failure; caller should catch and log."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        raise RuntimeError("AWS_SES_FROM_EMAIL is not set")
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        raise RuntimeError("AWS_SES SMTP credentials are not set")
-
+    """Raise on send failure; caller should catch and log."""
     html = unresponsive_followup_html(
         recipient_name=recipient_name,
         company_name=company_name,
@@ -735,21 +763,13 @@ def send_unresponsive_followup_email(
         f"\nPlease follow up or update the lead status in the portal: {portal_url}\n\n"
         f"Note: This lead will be automatically marked as Dead after 30 days of no activity."
     )
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Follow-up required: {company_name} lead unresponsive for {days_unresponsive} days"
-    msg["From"] = settings.AWS_SES_FROM_EMAIL
-    msg["To"] = to_email
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    host = _ses_smtp_host(settings.AWS_REGION)
-    context = ssl.create_default_context()
-    with smtplib.SMTP(host, 587, timeout=30) as server:
-        server.starttls(context=context)
-        server.login(settings.AWS_SES_USERNAME, settings.AWS_SES_PASSWORD)
-        server.send_message(msg)
-
+    _dispatch_email(
+        settings,
+        to_email=to_email,
+        subject=f"Follow-up required: {company_name} lead unresponsive for {days_unresponsive} days",
+        html=html,
+        plain=plain,
+    )
     logger.info("Sent unresponsive follow-up email to %s", to_email)
 
 
@@ -764,15 +784,12 @@ def try_send_unresponsive_followup_email(
     days_unresponsive: int,
     portal_url: str,
 ) -> bool:
-    """Send if SES is configured and recipient has an email. Logs errors, does not raise."""
+    """Send if email provider is configured and recipient has an email. Logs errors, does not raise."""
     if not to_email or not str(to_email).strip():
         logger.debug("Skipping unresponsive follow-up email: no recipient email")
         return False
-    if not settings.AWS_SES_FROM_EMAIL:
-        logger.warning("Skipping unresponsive follow-up email: AWS_SES_FROM_EMAIL not set")
-        return False
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        logger.warning("Skipping unresponsive follow-up email: AWS_SES SMTP credentials not set")
+    if not _email_configured(settings):
+        logger.warning("Skipping unresponsive follow-up email: email provider not configured (EMAIL_PROVIDER=%s)", settings.EMAIL_PROVIDER)
         return False
     try:
         send_unresponsive_followup_email(
@@ -799,11 +816,8 @@ def try_send_password_reset_email(
     reset_link: str,
 ) -> bool:
     """Logs errors, does not raise."""
-    if not settings.AWS_SES_FROM_EMAIL:
-        logger.warning("Skipping password reset email: AWS_SES_FROM_EMAIL not set")
-        return False
-    if not settings.AWS_SES_USERNAME or not settings.AWS_SES_PASSWORD:
-        logger.warning("Skipping password reset email: AWS_SES SMTP credentials not set")
+    if not _email_configured(settings):
+        logger.warning("Skipping password reset email: email provider not configured (EMAIL_PROVIDER=%s)", settings.EMAIL_PROVIDER)
         return False
     try:
         send_password_reset_email(settings, to_email=to_email, full_name=full_name, reset_link=reset_link)

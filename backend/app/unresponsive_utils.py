@@ -109,10 +109,11 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
                 continue
 
             lt = lt_map_2.get(thread_id)
-            if lt:
-                override = (lt.outcome_override or "").strip().lower()
-                if override in _TERMINAL_OVERRIDES:
-                    continue
+            if lt is None:
+                continue  # orphaned interview — no lead_thread row, skip to avoid FK violation
+            override = (lt.outcome_override or "").strip().lower()
+            if override in _TERMINAL_OVERRIDES:
+                continue
 
             ivs = thread_iv_map_2.get(thread_id)
             if not ivs:
@@ -131,10 +132,9 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
             if days_unresponsive < UNRESPONSIVE_FOLLOWUP_DAYS:
                 continue
 
-            lead_row = lt if lt is not None else LeadThread(thread_id=thread_id)
             result.append(UnresponsiveLeadInfo(
                 thread_id=thread_id,
-                lead_thread=lead_row,
+                lead_thread=lt,
                 days_unresponsive=days_unresponsive,
             ))
             seen.add(thread_id)
@@ -181,10 +181,11 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
                 continue
 
             lt = lt_map_3.get(thread_id)
-            if lt:
-                override = (lt.outcome_override or "").strip().lower()
-                if override in _TERMINAL_OVERRIDES:
-                    continue
+            if lt is None:
+                continue  # orphaned interview — no lead_thread row, skip to avoid FK violation
+            override = (lt.outcome_override or "").strip().lower()
+            if override in _TERMINAL_OVERRIDES:
+                continue
 
             ivs = thread_iv_map_3.get(thread_id)
             if not ivs:
@@ -212,10 +213,9 @@ def find_unresponsive_leads_needing_followup(session: Session) -> list[Unrespons
                     continue
                 days_unresponsive = days_past
 
-            lead_row = lt if lt is not None else LeadThread(thread_id=thread_id)
             result.append(UnresponsiveLeadInfo(
                 thread_id=thread_id,
-                lead_thread=lead_row,
+                lead_thread=lt,
                 days_unresponsive=days_unresponsive,
             ))
             seen.add(thread_id)

@@ -1,7 +1,8 @@
+import json
 from uuid import UUID
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from app.models.user import UserRole
 
 
@@ -13,6 +14,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     department_id: Optional[UUID] = None
+    allowed_dept_ids: Optional[list[str]] = None
 
 
 class UserUpdate(BaseModel):
@@ -20,15 +22,29 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
     department_id: Optional[UUID] = None
+    allowed_dept_ids: Optional[list[str]] = None
 
 
 class UserRead(UserBase):
     id: UUID
     department_id: Optional[UUID] = None
+    allowed_dept_ids: Optional[list[str]] = None
     must_change_password: bool
     alarm_enabled: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("allowed_dept_ids", mode="before")
+    @classmethod
+    def _parse_allowed_dept_ids(cls, v):
+        if v is None or isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return None
+        return None
 
     class Config:
         from_attributes = True

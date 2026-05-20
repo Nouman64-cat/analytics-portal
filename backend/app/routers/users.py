@@ -1,3 +1,4 @@
+import json
 import secrets
 import string
 import bcrypt
@@ -25,6 +26,25 @@ _RESTRICTED_ROLES = {UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.DEPT_LEAD, 
 _DEPT_MANAGER_ROLES = (UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD)
 
 
+def _btl_scope(user: User) -> tuple[bool, list[str] | None]:
+    """Return (is_multi, allowed) for a BD_TEAM_LEAD.
+
+    is_multi  – True when the lead has access to 2+ depts and may choose one.
+    allowed   – None means unrestricted (all depts); a non-empty list means
+                specific dept IDs the lead is allowed to operate in.
+    """
+    if user.role != UserRole.BD_TEAM_LEAD:
+        return False, None
+    if user.allowed_dept_ids is None:
+        return False, None            # single-dept default behaviour
+    ids: list[str] = json.loads(user.allowed_dept_ids)
+    if len(ids) == 0:
+        return True, None             # [] = all depts, unrestricted
+    if len(ids) > 1:
+        return True, ids              # explicit multi-dept list
+    return False, ids                 # exactly one explicit dept
+
+
 def generate_password(length: int = 12) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%"
     return "".join(secrets.choice(alphabet) for _ in range(length))
@@ -46,7 +66,9 @@ def list_users(
     _require_user_manage(current_user)
 
     query = select(User).order_by(User.created_at.desc())
-    if current_user.role in _DEPT_MANAGER_ROLES:
+    if current_user.role == UserRole.BD_TEAM_LEAD:
+        query = query.where(User.created_by == current_user.id)
+    elif current_user.role == UserRole.DEPT_LEAD:
         if current_user.department_id is None:
             return []
         query = query.where(User.department_id == current_user.department_id)
@@ -76,11 +98,42 @@ def create_user(
             detail="A user with this email already exists",
         )
 
-    # Dept-scoped managers: always assign to their own department
-    dept_id = current_user.department_id if current_user.role in _DEPT_MANAGER_ROLES else user_in.department_id
+    # Determine the target department_id
+    if current_user.role == UserRole.DEPT_LEAD:
+        dept_id = current_user.department_id
+    elif current_user.role == UserRole.BD_TEAM_LEAD:
+        is_multi, btl_allowed = _btl_scope(current_user)
+        if is_multi:
+            dept_id = user_in.department_id
+            if btl_allowed is not None and dept_id is not None and str(dept_id) not in btl_allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Department is not in your allowed list",
+                )
+        else:
+            dept_id = current_user.department_id
+    else:
+        dept_id = user_in.department_id
+
+    # For BD team leads: validate allowed_dept_ids stays within their scope
+    if current_user.role == UserRole.BD_TEAM_LEAD and user_in.allowed_dept_ids is not None:
+        _, btl_allowed = _btl_scope(current_user)
+        if btl_allowed is not None:
+            for did in user_in.allowed_dept_ids:
+                if did not in btl_allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Cannot grant access to departments outside your scope",
+                    )
 
     temp_password = generate_password()
     hashed = bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode()
+
+    allowed_dept_ids_json = (
+        json.dumps(user_in.allowed_dept_ids)
+        if user_in.allowed_dept_ids is not None
+        else None
+    )
 
     user = User(
         email=user_in.email,
@@ -89,6 +142,8 @@ def create_user(
         hashed_password=hashed,
         must_change_password=True,
         department_id=dept_id,
+        allowed_dept_ids=allowed_dept_ids_json,
+        created_by=current_user.id,
     )
     session.add(user)
     session.commit()
@@ -119,20 +174,28 @@ def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if current_user.role in _DEPT_MANAGER_ROLES:
+    if current_user.role == UserRole.BD_TEAM_LEAD:
+        if user.created_by != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit users you created")
+        if user_in.role and UserRole(user_in.role) in _RESTRICTED_ROLES:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign superadmin, manager, dept-lead, or bd-team-lead roles")
+        _, btl_allowed = _btl_scope(current_user)
+        if btl_allowed is not None:
+            if user_in.department_id is not None and str(user_in.department_id) not in btl_allowed:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                    detail="Department is not in your allowed list")
+            if user_in.allowed_dept_ids is not None:
+                for did in user_in.allowed_dept_ids:
+                    if did not in btl_allowed:
+                        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                            detail="Cannot grant access to departments outside your scope")
+    elif current_user.role == UserRole.DEPT_LEAD:
         if user.department_id != current_user.department_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")
         if user_in.role and UserRole(user_in.role) in _RESTRICTED_ROLES:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot assign superadmin, manager, dept-lead, or bd-team-lead roles",
-            )
-        # Prevent moving user out of their department
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign superadmin, manager, dept-lead, or bd-team-lead roles")
         if user_in.department_id is not None and user_in.department_id != current_user.department_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot move users to a different department",
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot move users to a different department")
 
     if user_in.email and user_in.email != user.email:
         existing = session.exec(select(User).where(User.email == user_in.email)).first()
@@ -142,7 +205,10 @@ def update_user(
                 detail="A user with this email already exists",
             )
 
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
+    if "allowed_dept_ids" in update_data:
+        v = update_data.pop("allowed_dept_ids")
+        user.allowed_dept_ids = json.dumps(v) if v is not None else None
     for field, value in update_data.items():
         setattr(user, field, value)
 
@@ -173,14 +239,16 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if current_user.role in _DEPT_MANAGER_ROLES:
+    if current_user.role == UserRole.BD_TEAM_LEAD:
+        if user.created_by != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete users you created")
+        if user.role in _RESTRICTED_ROLES:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete superadmin, manager, dept-lead, or bd-team-lead accounts")
+    elif current_user.role == UserRole.DEPT_LEAD:
         if user.department_id != current_user.department_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")
         if user.role in _RESTRICTED_ROLES:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot delete superadmin, manager, dept-lead, or bd-team-lead accounts",
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete superadmin, manager, dept-lead, or bd-team-lead accounts")
 
     session.delete(user)
     session.commit()

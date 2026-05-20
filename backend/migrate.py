@@ -213,6 +213,13 @@ def migrate():
              "Migration successful! Unique index on notification_reads (user_id, thread_id) ensured."),
             ("ALTER TABLE business_developers ADD COLUMN IF NOT EXISTS email VARCHAR(255);",
              "Migration successful! 'email' column added to 'business_developers' table."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_dept_ids TEXT;",
+             "Migration successful! 'allowed_dept_ids' column added to 'users' table."),
+
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;",
+             "Migration successful! 'created_by' column added to 'users' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_users_created_by ON users (created_by);",
+             "Migration successful! Index on users.created_by ensured."),
 
             # Drop any FK on thread_id — not all interview threads have a lead_threads row
             ("""
