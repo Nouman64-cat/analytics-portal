@@ -356,8 +356,8 @@ export default function UsersPage() {
             </button>
           )}
 
-          {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead") && (
-            <FormField label="Department">
+          {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead" || formData.role === "bd") && (
+            <FormField label={formData.role === "bd" ? "Primary Department" : "Department"}>
               <select
                 value={formData.department_id ?? ""}
                 onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
@@ -368,6 +368,11 @@ export default function UsersPage() {
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
+              {formData.role === "bd" && (
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
+                  Sets the department where this BD&apos;s leads and interviews are created.
+                </p>
+              )}
             </FormField>
           )}
 

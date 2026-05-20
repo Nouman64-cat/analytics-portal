@@ -50,8 +50,12 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
     if (CROSS_DEPT_ROLES.has(role)) return allDepartments;
     // BD / BD-team-lead: governed by allowed_dept_ids
     const allowed = user?.allowed_dept_ids;
-    if (allowed === null || allowed === undefined) {
-      // No explicit setting — bd is cross-dept by default, bd-team-lead is single-dept
+    if (allowed === undefined) {
+      // User profile not loaded yet — show nothing to avoid flashing wrong depts
+      return [];
+    }
+    if (allowed === null) {
+      // Explicit null: no restriction set, use role default
       return role === "bd" ? allDepartments : [];
     }
     if (allowed.length === 0) return allDepartments; // [] = All

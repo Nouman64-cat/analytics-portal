@@ -9,7 +9,7 @@ from sqlalchemy import false as sql_false
 
 from app.models.user import User, UserRole
 
-CROSS_DEPT_ROLES = frozenset({UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.BD})
+CROSS_DEPT_ROLES = frozenset({UserRole.SUPERADMIN, UserRole.MANAGER})
 
 
 def is_cross_dept(user: User) -> bool:
@@ -25,23 +25,31 @@ def get_user_allowed_depts(user: User) -> Optional[list[uuid.UUID]]:
 
     Priority:
     1. user.allowed_dept_ids JSON column (explicit assignment for BD / BD_TEAM_LEAD).
-    2. Cross-dept role default → None (all).
-    3. Scoped role → [user.department_id] or [] if no dept assigned.
+    2. Cross-dept role (superadmin / manager) → None (all).
+    3. BD with no allowed_dept_ids:
+       - has department_id → restricted to that dept
+       - no department_id  → cross-dept (backwards-compat default)
+    4. Other scoped roles → [department_id] or [] if unassigned.
     """
     if user.allowed_dept_ids is not None:
         try:
             ids: list = json.loads(user.allowed_dept_ids)
             if not ids:
-                return None  # empty list means "All"
+                return None  # [] = All departments
             return [uuid.UUID(str(d)) for d in ids]
         except Exception:
             pass  # malformed — fall through to role default
 
-    if is_cross_dept(user):
+    if user.role in CROSS_DEPT_ROLES:
         return None  # all departments
 
     if user.department_id:
         return [user.department_id]
+
+    # BD with no explicit assignment and no department_id: cross-dept by default
+    # (preserves backwards-compat for existing BD accounts).
+    if user.role == UserRole.BD:
+        return None
 
     return []  # no dept assigned → no access
 

@@ -115,6 +115,22 @@ def create_user(
     else:
         dept_id = user_in.department_id
 
+    # Convenience: if creating a BD with a single allowed dept and no explicit
+    # department_id, mirror the single allowed dept as department_id so that
+    # leads/interviews they create get the correct department.
+    if (
+        current_user.role == UserRole.SUPERADMIN
+        and UserRole(user_in.role) == UserRole.BD
+        and dept_id is None
+        and user_in.allowed_dept_ids is not None
+        and len(user_in.allowed_dept_ids) == 1
+    ):
+        import uuid as _uuid
+        try:
+            dept_id = _uuid.UUID(user_in.allowed_dept_ids[0])
+        except Exception:
+            pass
+
     # For BD team leads: validate allowed_dept_ids stays within their scope
     if current_user.role == UserRole.BD_TEAM_LEAD and user_in.allowed_dept_ids is not None:
         _, btl_allowed = _btl_scope(current_user)
