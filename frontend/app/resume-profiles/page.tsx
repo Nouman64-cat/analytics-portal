@@ -63,6 +63,7 @@ export default function ProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"active" | "closed" | "all">("active");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -189,6 +190,12 @@ export default function ProfilesPage() {
   // ─── Dashboard Configuration ─────────────────────────────────────
   const activeProfiles = profiles.filter((p) => p.is_active !== false).length;
   const closedProfiles = profiles.filter((p) => p.is_active === false).length;
+
+  const filteredProfiles = useMemo(() => {
+    if (statusFilter === "active") return profiles.filter((p) => p.is_active !== false);
+    if (statusFilter === "closed") return profiles.filter((p) => p.is_active === false);
+    return profiles;
+  }, [profiles, statusFilter]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -423,11 +430,32 @@ export default function ProfilesPage() {
       )}
 
       {/* Profiles Modular Grid */}
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">
-        Deployed Profiles
-      </h3>
+      <div className="flex items-center justify-between mt-8 mb-2 flex-wrap gap-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          Deployed Profiles
+        </h3>
+        <div className="flex gap-1.5">
+          {(["active", "closed", "all"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
+                statusFilter === f
+                  ? f === "active"
+                    ? "bg-emerald-500 text-white"
+                    : f === "closed"
+                      ? "bg-slate-500 text-white"
+                      : "bg-indigo-500 text-white"
+                  : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"
+              }`}
+            >
+              {f === "active" ? `Active (${activeProfiles})` : f === "closed" ? `Closed (${closedProfiles})` : `All (${profiles.length})`}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
-        {profiles.map((profile) => {
+        {filteredProfiles.map((profile) => {
           const isActive = profile.is_active !== false;
           return (
             <div
@@ -604,6 +632,9 @@ export default function ProfilesPage() {
 
       {profiles.length === 0 && (
         <EmptyState message="No robust profiles generated yet" />
+      )}
+      {profiles.length > 0 && filteredProfiles.length === 0 && (
+        <EmptyState message={`No ${statusFilter} profiles found`} />
       )}
 
       {/* View Profile Modal */}
