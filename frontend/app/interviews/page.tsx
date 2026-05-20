@@ -29,6 +29,7 @@ import {
   List,
   Ban,
   SlidersHorizontal,
+  ExternalLink,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -87,6 +88,7 @@ import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
 import DateRangeFilter from "@/components/DateRangeFilter";
+import Link from "next/link";
 
 // ─── Quick-create lead (used inside the interview form) ─────
 
@@ -378,6 +380,13 @@ function LeadThreadPanel({
             Lead
           </span>
           {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+          <Link
+            href={`/leads?thread_id=${threadId}`}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline ml-auto shrink-0"
+          >
+            <ExternalLink size={11} className="shrink-0" />
+            View lead
+          </Link>
         </div>
       ) : embedded ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

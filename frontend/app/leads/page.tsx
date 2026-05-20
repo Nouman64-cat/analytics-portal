@@ -262,6 +262,19 @@ export default function LeadsPage() {
       setProfiles(profs);
       setBusinessDevs(bds);
       setCandidates(cands);
+
+      // Deep-link: open detail modal for a specific lead via ?thread_id=
+      if (!initialFetchDone.current && typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const targetThreadId = params.get("thread_id");
+        if (targetThreadId) {
+          window.history.replaceState({}, "", "/leads");
+          try {
+            const targetLead = await leadsService.get(targetThreadId);
+            setDetailLead(targetLead);
+          } catch {}
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load leads");
     } finally {
