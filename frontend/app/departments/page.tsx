@@ -142,65 +142,89 @@ export default function DepartmentsPage() {
       ) : filteredDepartments.length === 0 ? (
         <EmptyState message="No departments match your search" />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 stagger-children">
-          {filteredDepartments.map((dept) => (
-            <div
-              key={dept.id}
-              className={`group relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg ${
-                dept.is_active
-                  ? "border-slate-200 dark:border-white/[0.06] hover:border-indigo-300/50 dark:hover:border-indigo-500/30"
-                  : "border-slate-200/50 dark:border-white/[0.03] opacity-60"
-              }`}
-            >
-              <div className="absolute right-3 top-3 flex items-center gap-1">
-                <button
-                  onClick={() => openEdit(dept)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
-                  title="Edit"
-                >
-                  <Pencil size={13} />
-                </button>
-                <button
-                  onClick={() => handleToggleActive(dept)}
-                  disabled={togglingId === dept.id}
-                  className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
-                    dept.is_active
-                      ? "text-emerald-500 hover:bg-emerald-500/10"
-                      : "text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06]"
-                  }`}
-                  title={dept.is_active ? "Deactivate" : "Activate"}
-                >
-                  {dept.is_active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                </button>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md">
-                  <Layers size={20} className="text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="mb-2">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                      {dept.name}
-                    </h3>
-                    <span className="text-[12px] font-mono text-slate-400 dark:text-slate-500">
-                      /{dept.slug}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[13px] text-slate-500 dark:text-slate-400">
-                    <span>Created {formatDate(dept.created_at)}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      dept.is_active
-                        ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                        : "bg-slate-500/10 text-slate-400 border border-slate-500/20"
-                    }`}>
-                      {dept.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Name</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Slug</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Users</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDepartments.map((dept) => (
+                  <tr
+                    key={dept.id}
+                    className={`border-b border-slate-200 dark:border-white/[0.06] last:border-b-0 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.02] ${!dept.is_active ? "opacity-60" : ""}`}
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md">
+                          <Layers size={14} className="text-white" />
+                        </div>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {dept.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <code className="text-[13px] font-mono text-slate-400 dark:text-slate-500">
+                        /{dept.slug}
+                      </code>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        dept.is_active
+                          ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                          : "bg-slate-500/10 text-slate-400 border border-slate-500/20"
+                      }`}>
+                        {dept.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 dark:text-slate-400">
+                      {dept.user_count}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
+                      {formatDate(dept.created_at)}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(dept)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleActive(dept)}
+                          disabled={togglingId === dept.id}
+                          className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
+                            dept.is_active
+                              ? "text-emerald-500 hover:bg-emerald-500/10"
+                              : "text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06]"
+                          }`}
+                          title={dept.is_active ? "Deactivate" : "Activate"}
+                        >
+                          {togglingId === dept.id ? (
+                            <Loader2 className="animate-spin" size={14} />
+                          ) : dept.is_active ? (
+                            <ToggleRight size={14} />
+                          ) : (
+                            <ToggleLeft size={14} />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

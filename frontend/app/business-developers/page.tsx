@@ -367,96 +367,114 @@ export default function BusinessDevelopersPage() {
         </div>
       )}
 
-      {/* Cards */}
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mt-8 mb-2">
-        {statusFilter === "all" ? "All Business Developers" : statusFilter === "active" ? "Active Business Developers" : "Inactive Business Developers"}
-      </h3>
+      {/* Table */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          {statusFilter === "all" ? "All Business Developers" : statusFilter === "active" ? "Active Business Developers" : "Inactive Business Developers"}
+        </h3>
+      </div>
       {filteredBds.length === 0 ? (
         <EmptyState message={statusFilter === "inactive" ? "No inactive business developers" : statusFilter === "active" ? "No active business developers" : "No business developers yet"} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
-          {[...filteredBds].sort((a, b) => (bdThreadCounts[b.id] || 0) - (bdThreadCounts[a.id] || 0)).map((bd) => {
-            const count = bdThreadCounts[bd.id] || 0;
-            const isToggling = togglingId === bd.id;
-            return (
-              <div
-                key={bd.id}
-                className={`group relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg hover:shadow-black/20 ${bd.is_active ? "border-slate-200 dark:border-white/[0.06] hover:border-amber-300/50 dark:hover:border-amber-500/30" : "border-slate-200/60 dark:border-white/[0.03] opacity-70"}`}
-              >
-                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-amber-500/10 to-orange-500/10 blur-2xl transition-all group-hover:opacity-80" />
-                <div className="relative">
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400">
-                      <Briefcase size={18} />
-                    </div>
-                    <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-                      {isSuperAdmin && (
-                        <button
-                          onClick={() => void handleToggleStatus(bd)}
-                          disabled={isToggling}
-                          title={bd.is_active ? "Set inactive" : "Set active"}
-                          className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${bd.is_active ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06]"}`}
-                        >
-                          {isToggling ? <Loader2 size={13} className="animate-spin" /> : bd.is_active ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
-                        </button>
-                      )}
-                      {!cannotCRUD && (
-                        <>
-                          <button
-                            onClick={() => openEdit(bd)}
-                            className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteModal(bd)}
-                            className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{count}</p>
-                    <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                      {count === 1 ? "Attributed lead" : "Attributed leads"}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 border-t border-slate-100 dark:border-white/[0.04] pt-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{bd.name}</p>
-                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${bd.is_active ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400"}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${bd.is_active ? "bg-emerald-400" : "bg-slate-400"}`} />
-                        {bd.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    {bd.email && (
-                      <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        <Mail size={10} className="shrink-0" />
-                        <span className="truncate">{bd.email}</span>
-                      </div>
-                    )}
-                    {Array.isArray(bd.department_ids) && bd.department_ids.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {bd.department_ids.map((id) => deptMap[id] && (
-                          <span key={id} className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20">
-                            {deptMap[id]}
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Name</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Email</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Departments</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Leads</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...filteredBds].sort((a, b) => (bdThreadCounts[b.id] || 0) - (bdThreadCounts[a.id] || 0)).map((bd) => {
+                  const count = bdThreadCounts[bd.id] || 0;
+                  const isToggling = togglingId === bd.id;
+                  return (
+                    <tr
+                      key={bd.id}
+                      className={`border-b border-slate-200 dark:border-white/[0.06] last:border-b-0 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.02] ${!bd.is_active ? "opacity-60" : ""}`}
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400">
+                            <Briefcase size={14} />
+                          </div>
+                          <span className="font-medium text-slate-900 dark:text-white truncate max-w-[180px]">
+                            {bd.name}
                           </span>
-                        ))}
-                      </div>
-                    )}
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
-                      Added {formatDate(bd.created_at)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                        {bd.email || <span className="text-slate-400 dark:text-slate-500">—</span>}
+                      </td>
+                      <td className="px-5 py-4">
+                        {Array.isArray(bd.department_ids) && bd.department_ids.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {bd.department_ids.map((id) => deptMap[id] && (
+                              <span key={id} className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20">
+                                {deptMap[id]}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${bd.is_active ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${bd.is_active ? "bg-emerald-400" : "bg-slate-400"}`} />
+                          {bd.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="font-semibold text-slate-900 dark:text-white">{count}</span>
+                      </td>
+                      <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
+                        {formatDate(bd.created_at)}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => void handleToggleStatus(bd)}
+                              disabled={isToggling}
+                              title={bd.is_active ? "Set inactive" : "Set active"}
+                              className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${bd.is_active ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06]"}`}
+                            >
+                              {isToggling ? <Loader2 size={13} className="animate-spin" /> : bd.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                            </button>
+                          )}
+                          {!cannotCRUD && (
+                            <>
+                              <button
+                                onClick={() => openEdit(bd)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteModal(bd)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
