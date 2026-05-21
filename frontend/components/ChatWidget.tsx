@@ -6,7 +6,7 @@ import { chatService } from "@/lib/services";
 import type { ChatMessage, ChatAction } from "@/lib/types";
 import { getUserRole } from "@/lib/auth";
 
-const ALLOWED_ROLES = ["superadmin", "team-member"];
+const ALLOWED_ROLES = ["superadmin", "team-member", "bd-team-lead"];
 
 const WELCOME: ChatMessage = {
   role: "assistant",
@@ -260,6 +260,14 @@ export default function ChatWidget() {
         </div>
       )}
 
+      {/* Floating trigger button */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform"
+        aria-label="Toggle AI assistant"
+      >
+        {open ? <X size={22} className="text-white" /> : <Bot size={22} className="text-white" />}
+      </button>
     </>
   );
 }

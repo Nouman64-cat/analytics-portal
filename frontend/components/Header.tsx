@@ -20,9 +20,11 @@ const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-tea
 const NOTIFICATION_ROLES = new Set(["superadmin", "bd", "bd-team-lead"]);
 
 const CLOCKS = [
-  { tz: "America/New_York",    label: "ET",  labelColor: "text-indigo-500 dark:text-indigo-400",  timeColor: "text-indigo-700 dark:text-indigo-300"  },
+  { tz: "America/New_York",    label: "ET",  labelColor: "text-indigo-500 dark:text-indigo-400",   timeColor: "text-indigo-700 dark:text-indigo-300"   },
+  { tz: "America/Chicago",     label: "CT",  labelColor: "text-rose-500 dark:text-rose-400",       timeColor: "text-rose-700 dark:text-rose-300"       },
+  { tz: "America/Edmonton",    label: "MT",  labelColor: "text-sky-500 dark:text-sky-400",         timeColor: "text-sky-700 dark:text-sky-300"         },
   { tz: "America/Los_Angeles", label: "PT",  labelColor: "text-emerald-500 dark:text-emerald-400", timeColor: "text-emerald-700 dark:text-emerald-300" },
-  { tz: "Asia/Karachi",        label: "PKT", labelColor: "text-amber-500 dark:text-amber-400",    timeColor: "text-amber-700 dark:text-amber-300"    },
+  { tz: "Asia/Karachi",        label: "PKT", labelColor: "text-amber-500 dark:text-amber-400",     timeColor: "text-amber-700 dark:text-amber-300"     },
 ];
 
 function LiveClocks() {
