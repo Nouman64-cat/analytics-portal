@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Menu, Layers, Clock, Sun, Moon } from "lucide-react";
+import {
+  Menu,
+  Layers,
+  Clock,
+  Sun,
+  Moon,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
@@ -14,6 +22,7 @@ import NotificationBell from "@/components/NotificationBell";
 interface HeaderProps {
   onMobileMenuOpen: () => void;
   collapsed: boolean;
+  onSidebarToggle: () => void;
 }
 
 const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
@@ -119,7 +128,11 @@ function LiveClocks() {
   );
 }
 
-export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
+export default function Header({
+  onMobileMenuOpen,
+  collapsed,
+  onSidebarToggle,
+}: HeaderProps) {
   const [user, setUser] = useState<UserType | null>(null);
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -209,8 +222,16 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
       className={`fixed top-0 right-0 z-30 h-16 bg-white/80 dark:bg-[#0c0e14]/80 backdrop-blur-md border-b border-slate-200 dark:border-white/[0.06] transition-all duration-300 left-0 ${collapsed ? "md:left-16" : "md:left-[13.75rem]"}`}
     >
       <div className="flex h-full items-center justify-between px-4 md:px-8 gap-4">
-        {/* Left: mobile menu + clocks */}
+        {/* Left: desktop collapse toggle + mobile menu + clocks */}
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onSidebarToggle}
+            className="hidden md:inline-flex items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors"
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
           <button
             onClick={onMobileMenuOpen}
             className="md:hidden rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors"

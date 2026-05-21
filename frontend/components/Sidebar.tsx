@@ -17,8 +17,6 @@ import {
   FileUser,
   Briefcase,
   History,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
   UserCog,
   User,
@@ -165,16 +163,6 @@ export default function Sidebar({
 
         {/* Footer Actions */}
         <div className="mt-auto border-t border-slate-200 dark:border-white/[0.06] p-3 space-y-1">
-          {/* Collapse button — hidden on mobile */}
-          <button
-            onClick={() => onCollapse(!collapsed)}
-            className={`hidden md:flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white ${collapsed ? "justify-center px-0" : ""}`}
-            title={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            {!collapsed && <span>Collapse Sidebar</span>}
-          </button>
-
           {/* Logout */}
           <button
             onClick={handleLogout}

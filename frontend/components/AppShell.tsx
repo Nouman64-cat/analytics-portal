@@ -102,6 +102,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Header
         onMobileMenuOpen={() => setMobileOpen(true)}
         collapsed={collapsed}
+        onSidebarToggle={() => setCollapsed((value) => !value)}
       />
 
       <Sidebar
