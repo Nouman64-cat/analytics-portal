@@ -13,6 +13,7 @@ import { getUserRole } from "@/lib/auth";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  LineChart, Line, Legend,
 } from "recharts";
 
 const BAR_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#f97316", "#eab308"];
@@ -20,6 +21,30 @@ const BAR_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43
 function formatMonthLabel(ym: string) {
   const [year, month] = ym.split("-");
   return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("default", { month: "long", year: "numeric" });
+}
+
+function getWeekKey(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+function formatFreqLabel(period: string, mode: "weekly" | "monthly"): string {
+  if (mode === "monthly") {
+    const [y, mo] = period.split("-").map(Number);
+    return new Date(y, mo - 1, 1).toLocaleDateString("default", { month: "short", year: "2-digit" });
+  }
+  const [yearStr, wStr] = period.split("-W");
+  const y = Number(yearStr);
+  const wk = Number(wStr);
+  const jan4 = new Date(Date.UTC(y, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const monday = new Date(Date.UTC(y, 0, 4 - jan4Day + 1 + (wk - 1) * 7));
+  return monday.toLocaleDateString("default", { month: "short", day: "numeric" });
 }
 
 export default function BusinessDevelopersPage() {
@@ -38,6 +63,7 @@ export default function BusinessDevelopersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [freqMode, setFreqMode] = useState<"weekly" | "monthly">("monthly");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
   const role = getUserRole();
@@ -238,6 +264,54 @@ export default function BusinessDevelopersPage() {
         .sort((a, b) => b.leads - a.leads),
     [filteredBds, bdThreadCounts],
   );
+
+  const freqChartData = useMemo(() => {
+    const periodBdMap = new Map<string, Record<string, number>>();
+
+    threadsMap.forEach((rows) => {
+      const pbd = primaryBdForThread(rows);
+      if (!pbd) return;
+      const earliest = [...rows]
+        .filter((r) => r.interview_date)
+        .sort((a, b) => a.interview_date!.localeCompare(b.interview_date!))[0];
+      if (!earliest?.interview_date) return;
+
+      const period =
+        freqMode === "monthly"
+          ? earliest.interview_date.slice(0, 7)
+          : getWeekKey(earliest.interview_date);
+
+      if (!periodBdMap.has(period)) periodBdMap.set(period, {});
+      const entry = periodBdMap.get(period)!;
+      entry[pbd] = (entry[pbd] || 0) + 1;
+    });
+
+    const periods = [...periodBdMap.keys()].sort();
+
+    const bdTotals: Record<string, number> = {};
+    periodBdMap.forEach((entry) => {
+      Object.entries(entry).forEach(([id, n]) => { bdTotals[id] = (bdTotals[id] || 0) + n; });
+    });
+    const topIds = Object.entries(bdTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([id]) => id);
+
+    const data = periods.map((period) => {
+      const row: Record<string, string | number> = {
+        period,
+        label: formatFreqLabel(period, freqMode),
+      };
+      topIds.forEach((id) => {
+        const name = bds.find((b) => b.id === id)?.name ?? id;
+        row[name] = periodBdMap.get(period)?.[id] ?? 0;
+      });
+      return row;
+    });
+
+    const lines = topIds.map((id) => bds.find((b) => b.id === id)?.name ?? id);
+    return { data, lines };
+  }, [threadsMap, freqMode, bds]);
   // ─────────────────────────────────────────────────────────────────
 
   if (loading) return <PageLoader />;
@@ -334,36 +408,105 @@ export default function BusinessDevelopersPage() {
         </p>
       )}
 
-      {/* Bar Chart */}
-      {chartData.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm">
-          <h3 className="mb-4 sm:mb-6 text-sm font-semibold text-slate-900 dark:text-white">
-            {selectedMonth !== "all"
-              ? `Pipeline leads — ${formatMonthLabel(selectedMonth)}${dateFrom || dateTo ? ` · ${dateFrom || "…"} to ${dateTo || "…"}` : ""}`
-              : dateFrom || dateTo
-                ? `Pipeline leads — ${dateFrom || "…"} to ${dateTo || "…"}`
-                : "Pipeline leads per BD (thread attributed by first BD on timeline)"}
-          </h3>
-          <div className="h-[200px] sm:h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" interval={0} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff" }}
-                  itemStyle={{ color: "#e2e8f0" }}
-                  cursor={{ fill: "rgba(99,102,241,0.08)" }}
-                  formatter={(value) => [value ?? 0, "Leads"]}
-                />
-                <Bar dataKey="leads" radius={[6, 6, 0, 0]}>
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+      {/* Charts side by side */}
+      {(chartData.length > 0 || freqChartData.data.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+
+          {/* Left: Pipeline leads bar chart (25%) */}
+          {chartData.length > 0 && (
+            <div className="lg:col-span-1 rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm flex flex-col">
+              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+                {selectedMonth !== "all"
+                  ? `Pipeline leads — ${formatMonthLabel(selectedMonth)}${dateFrom || dateTo ? ` · ${dateFrom || "…"} to ${dateTo || "…"}` : ""}`
+                  : dateFrom || dateTo
+                    ? `Pipeline leads — ${dateFrom || "…"} to ${dateTo || "…"}`
+                    : "Pipeline leads per BD"}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2 mb-4">Thread attributed by first BD on timeline</p>
+              <div className="flex-1 min-h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 28 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" interval={0} />
+                    <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
+                      itemStyle={{ color: "#e2e8f0" }}
+                      cursor={{ fill: "rgba(99,102,241,0.08)" }}
+                      formatter={(value) => [value ?? 0, "Leads"]}
+                    />
+                    <Bar dataKey="leads" radius={[6, 6, 0, 0]}>
+                      {chartData.map((_, i) => (
+                        <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Right: Leads frequency line chart (75%) */}
+          {freqChartData.data.length > 0 && (
+            <div className="lg:col-span-3 rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 sm:p-6 shadow-sm flex flex-col">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Leads frequency per BD</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">All-time lead counts grouped by {freqMode === "monthly" ? "month" : "week"}</p>
+                </div>
+                <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-white/[0.08] p-0.5 shrink-0">
+                  {(["monthly", "weekly"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setFreqMode(m)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                        freqMode === m
+                          ? "bg-indigo-500 text-white"
+                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </button>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+                </div>
+              </div>
+              <div className="flex-1 min-h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={freqChartData.data} margin={{ top: 5, right: 10, left: -10, bottom: 28 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fill: "#64748b", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                      angle={-35}
+                      textAnchor="end"
+                      interval={freqMode === "weekly" ? Math.max(0, Math.floor(freqChartData.data.length / 8)) : 0}
+                    />
+                    <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1e293b", border: "none", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
+                      itemStyle={{ color: "#e2e8f0" }}
+                      labelStyle={{ color: "#94a3b8", marginBottom: "4px" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "10px", paddingTop: "10px" }} iconType="circle" iconSize={7} />
+                    {freqChartData.lines.map((name, i) => (
+                      <Line
+                        key={name}
+                        type="monotone"
+                        dataKey={name}
+                        stroke={BAR_COLORS[i % BAR_COLORS.length]}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, strokeWidth: 0 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 
