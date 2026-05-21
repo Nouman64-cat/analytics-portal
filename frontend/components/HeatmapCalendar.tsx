@@ -131,6 +131,19 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
 
       <div className="overflow-x-auto pb-1">
         <div className="min-w-fit">
+          {/* Day-number column headers */}
+          <div className="flex mb-1 pl-[calc(2rem+12px)]">
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+              <div
+                key={d}
+                className="text-[9px] text-slate-400 dark:text-slate-500 text-center select-none"
+                style={{ width: CELL_SIZE, marginRight: CELL_GAP, flexShrink: 0 }}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
           <div className="flex">
             <div className="flex flex-col pr-3 pt-1 justify-between" style={{ height: 12 * (CELL_SIZE + CELL_GAP) }}>
               {months.map((m, i) => (
@@ -155,10 +168,13 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
                     const isToday = day.date === today;
                     const isSelected = selectedDay?.date === day.date;
                     const isWeekend = day.isWeekend;
+                    const [, mm, dd] = day.date.split("-");
+                    const hoverTitle = `${month.month} ${Number(dd)}, ${currentYear}${day.count > 0 ? ` — ${day.count} interview${day.count !== 1 ? "s" : ""}` : ""}`;
 
                     return (
                       <div
                         key={dayIndex}
+                        title={hoverTitle}
                         className={`w-[20px] h-[20px] rounded-[2px] transition-all cursor-pointer hover:scale-110 ${getColor(day.count, isWeekend)} ${
                           isToday ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-0" : ""
                         } ${isSelected ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-0" : ""}`}

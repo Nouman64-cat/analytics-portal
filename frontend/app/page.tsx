@@ -362,7 +362,7 @@ export default function DashboardPage() {
           </ChartCard>
 
           {dailyInterviews.length > 0 ? (
-            <ChartCard title="Interview Activity" subtitle="This year" className="h-full">
+            <ChartCard title="Interview Activity" subtitle={`Jan 1 – Dec 31, ${new Date().getFullYear()}`} className="h-full">
               <HeatmapCalendar days={dailyInterviews} />
             </ChartCard>
           ) : (
