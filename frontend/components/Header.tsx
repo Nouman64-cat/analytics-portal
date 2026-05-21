@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Menu, Layers, Clock } from "lucide-react";
+import { Menu, Layers, Clock, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
 import { usePathname } from "next/navigation";
@@ -122,6 +123,8 @@ function LiveClocks() {
 export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   const [user, setUser] = useState<UserType | null>(null);
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const role = getUserRole();
   const showNotifications = role ? NOTIFICATION_ROLES.has(role) : false;
@@ -137,6 +140,10 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return;
@@ -249,8 +256,22 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
           </div>
         )}
 
-        {/* Right: bell + avatar */}
+        {/* Right: theme switcher, bell + avatar */}
         <div className="flex items-center gap-2 md:gap-4">
+          {mounted && (
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors"
+              title={
+                theme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          )}
           <div className="flex h-10 items-center gap-1 border-l border-slate-200 dark:border-white/[0.06] pl-2 md:pl-4">
             {showNotifications && <NotificationBell />}
             <Link

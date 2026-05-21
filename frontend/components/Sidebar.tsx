@@ -2,9 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
-
 interface SidebarProps {
   collapsed: boolean;
   onCollapse: (collapsed: boolean) => void;
@@ -22,8 +19,6 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
-  Sun,
-  Moon,
   LogOut,
   UserCog,
   User,
@@ -63,13 +58,6 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const handleLogout = () => {
     clearToken();
     router.replace("/login");
@@ -177,24 +165,6 @@ export default function Sidebar({
 
         {/* Footer Actions */}
         <div className="mt-auto border-t border-slate-200 dark:border-white/[0.06] p-3 space-y-1">
-          {/* Theme Toggle */}
-          {mounted && (
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white ${collapsed ? "justify-center px-0" : ""}`}
-              title={collapsed ? "Toggle Theme" : undefined}
-            >
-              {theme === "dark" ? (
-                <Sun size={18} className="shrink-0" />
-              ) : (
-                <Moon size={18} className="shrink-0" />
-              )}
-              {!collapsed && (
-                <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
-              )}
-            </button>
-          )}
-
           {/* Collapse button — hidden on mobile */}
           <button
             onClick={() => onCollapse(!collapsed)}
