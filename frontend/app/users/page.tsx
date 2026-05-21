@@ -86,6 +86,12 @@ export default function UsersPage() {
     return [];
   }, [isSuperadmin, isDeptLead, isBdTeamLead, myDeptId, myAllowedDepts, departments]);
 
+  const userDeptIds = useCallback((u: User): string[] => {
+    if (u.department_id) return [u.department_id];
+    if (Array.isArray(u.allowed_dept_ids) && u.allowed_dept_ids.length > 0) return u.allowed_dept_ids;
+    return [];
+  }, []);
+
   // Server-side filtered users based on roleFilter and deptFilter
   const filteredUsers = useMemo(() => {
     let result = users;
@@ -93,7 +99,7 @@ export default function UsersPage() {
       result = result.filter((u) => u.role === roleFilter);
     }
     if (deptFilter !== "all") {
-      result = result.filter((u) => u.department_id === deptFilter);
+      result = result.filter((u) => userDeptIds(u).includes(deptFilter));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -104,7 +110,7 @@ export default function UsersPage() {
       );
     }
     return result;
-  }, [users, roleFilter, deptFilter, search]);
+  }, [users, roleFilter, deptFilter, search, userDeptIds]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -302,13 +308,26 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      {user.department_id && deptMap[user.department_id] ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-                          {deptMap[user.department_id]}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-500">—</span>
-                      )}
+                      {(() => {
+                        const deptIds = userDeptIds(user);
+                        if (deptIds.length === 0) {
+                          if (Array.isArray(user.allowed_dept_ids) && user.allowed_dept_ids.length === 0) {
+                            return <span className="text-slate-400 dark:text-slate-500 text-[13px]">All depts</span>;
+                          }
+                          return <span className="text-slate-400 dark:text-slate-500">—</span>;
+                        }
+                        const names = deptIds.map((id) => deptMap[id]).filter(Boolean);
+                        if (names.length === 0) return <span className="text-slate-400 dark:text-slate-500">—</span>;
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {names.map((name) => (
+                              <span key={name} className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
                       {formatDate(user.created_at)}
