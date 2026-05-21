@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight, Mail } from "lucide-react";
+import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight, Mail, Search } from "lucide-react";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { businessDevelopersService, interviewsService, departmentsService, authService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
@@ -62,6 +62,8 @@ export default function BusinessDevelopersPage() {
   const [deleteModal, setDeleteModal] = useState<BusinessDeveloper | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
+  const [search, setSearch] = useState("");
+  const [deptFilter, setDeptFilter] = useState<string>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [freqMode, setFreqMode] = useState<"weekly" | "monthly">("monthly");
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -237,10 +239,18 @@ export default function BusinessDevelopersPage() {
   );
 
   const filteredBds = useMemo(() => {
-    if (statusFilter === "active") return bds.filter((b) => b.is_active);
-    if (statusFilter === "inactive") return bds.filter((b) => !b.is_active);
-    return bds;
-  }, [bds, statusFilter]);
+    let result = bds;
+    if (statusFilter === "active") result = result.filter((b) => b.is_active);
+    else if (statusFilter === "inactive") result = result.filter((b) => !b.is_active);
+    if (deptFilter !== "all") result = result.filter((b) => Array.isArray(b.department_ids) && b.department_ids.includes(deptFilter));
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (b) => b.name.toLowerCase().includes(q) || (b.email?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return result;
+  }, [bds, statusFilter, deptFilter, search]);
 
   const activeBdCount = useMemo(() => bds.filter((b) => b.is_active).length, [bds]);
 
@@ -358,6 +368,42 @@ export default function BusinessDevelopersPage() {
             );
           })}
         </div>
+      </div>
+
+      {/* Search + department filter */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 w-64 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] pl-8 pr-3 text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/20"
+          />
+        </div>
+        {departments.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0">Dept:</span>
+            <div className="flex gap-1.5 flex-wrap">
+              <button
+                onClick={() => setDeptFilter("all")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${deptFilter === "all" ? "bg-indigo-500 text-white" : "bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.10]"}`}
+              >
+                All
+              </button>
+              {departments.filter((d) => d.is_active).map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setDeptFilter(d.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${deptFilter === d.id ? "bg-teal-500 text-white" : "bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-500/20"}`}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Period filter: month pills + date range */}
@@ -514,10 +560,23 @@ export default function BusinessDevelopersPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
           {statusFilter === "all" ? "All Business Developers" : statusFilter === "active" ? "Active Business Developers" : "Inactive Business Developers"}
+          {(search.trim() || deptFilter !== "all") && (
+            <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+              — {filteredBds.length} result{filteredBds.length !== 1 ? "s" : ""}
+            </span>
+          )}
         </h3>
+        {(search.trim() || deptFilter !== "all") && (
+          <button
+            onClick={() => { setSearch(""); setDeptFilter("all"); }}
+            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
       {filteredBds.length === 0 ? (
-        <EmptyState message={statusFilter === "inactive" ? "No inactive business developers" : statusFilter === "active" ? "No active business developers" : "No business developers yet"} />
+        <EmptyState message={search.trim() || deptFilter !== "all" ? "No business developers match your filters" : statusFilter === "inactive" ? "No inactive business developers" : statusFilter === "active" ? "No active business developers" : "No business developers yet"} />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
           <div className="overflow-x-auto">

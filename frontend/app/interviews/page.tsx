@@ -82,6 +82,7 @@ import Modal, {
 } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import CompanyCombobox from "@/components/CompanyCombobox";
+import SearchableSelect from "@/components/SearchableSelect";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
@@ -182,17 +183,13 @@ function QuickCreateLead({
             </FormField>
 
             <FormField label="Resume profile">
-              <select
+              <SearchableSelect
+                options={profiles.map((p) => ({ id: p.id, label: p.name }))}
                 value={profileId}
-                onChange={(e) => setProfileId(e.target.value)}
-                className={selectClass}
+                onChange={setProfileId}
+                placeholder="Select profile…"
                 required
-              >
-                <option value="">Select profile…</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              />
             </FormField>
 
             <FormField label="Role / title">
@@ -207,17 +204,13 @@ function QuickCreateLead({
 
             {!isTeamMember && (
               <FormField label="Candidate">
-                <select
+                <SearchableSelect
+                  options={candidates.map((c) => ({ id: c.id, label: c.name }))}
                   value={candidateId}
-                  onChange={(e) => setCandidateId(e.target.value)}
-                  className={selectClass}
+                  onChange={setCandidateId}
+                  placeholder="Select candidate…"
                   required
-                >
-                  <option value="">Select candidate…</option>
-                  {candidates.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                />
               </FormField>
             )}
 
@@ -2218,24 +2211,13 @@ export default function InterviewsPage() {
                       : "No candidate linked to your email — contact an admin."}
                   </div>
                 ) : (
-                  <select
+                  <SearchableSelect
+                    options={candidates.map((c) => ({ id: c.id, label: c.name }))}
                     value={formData.candidate_id}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        candidate_id: e.target.value,
-                      })
-                    }
-                    className={selectClass}
+                    onChange={(id) => setFormData({ ...formData, candidate_id: id })}
+                    placeholder="Select candidate…"
                     required
-                  >
-                    <option value="">Select candidate…</option>
-                    {candidates.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 )}
               </FormField>
             </div>

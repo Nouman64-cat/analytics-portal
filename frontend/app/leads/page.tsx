@@ -49,6 +49,7 @@ import type {
 } from "@/lib/types";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import CompanyCombobox, { CompanyComboboxHandle } from "@/components/CompanyCombobox";
+import SearchableSelect from "@/components/SearchableSelect";
 import {
   PageLoader,
   ErrorState,
@@ -962,21 +963,13 @@ export default function LeadsPage() {
             )}
           </FormField>
           <FormField label="Resume profile">
-            <select
+            <SearchableSelect
+              options={profiles.map((p) => ({ id: p.id, label: p.name }))}
               value={form.resume_profile_id}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, resume_profile_id: e.target.value }))
-              }
-              className={selectClass}
+              onChange={(id) => setForm((f) => ({ ...f, resume_profile_id: id }))}
+              placeholder="Select profile…"
               required
-            >
-              <option value="">Select profile…</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            />
           </FormField>
           <FormField label="Role / job title">
             <input
@@ -1009,20 +1002,13 @@ export default function LeadsPage() {
             />
           </FormField>
           <FormField label="Business developer (optional)">
-            <select
+            <SearchableSelect
+              options={businessDevs.map((b) => ({ id: b.id, label: b.name }))}
               value={form.bd_id || ""}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, bd_id: e.target.value || "" }))
-              }
-              className={selectClass}
-            >
-              <option value="">—</option>
-              {businessDevs.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
+              placeholder="Select BD…"
+              optional
+            />
           </FormField>
           <FormField label="Entertains By (Candidate)">
             {isTeamMember && modalMode === "create" && meCandidateId ? (
@@ -1038,23 +1024,16 @@ export default function LeadsPage() {
                 </span>
               </div>
             ) : (
-              <select
-                value={form.candidate_id || ""}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, candidate_id: e.target.value || "" }))
-                }
-                className={selectClass}
-              >
-                <option value="">—</option>
-                {candidates
+              <SearchableSelect
+                options={candidates
                   .slice()
                   .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
+                  .map((c) => ({ id: c.id, label: c.name }))}
+                value={form.candidate_id || ""}
+                onChange={(id) => setForm((f) => ({ ...f, candidate_id: id }))}
+                placeholder="Select candidate…"
+                optional
+              />
             )}
           </FormField>
           {isSuperAdmin && modalMode === "edit" && (
