@@ -356,8 +356,8 @@ export default function UsersPage() {
             </button>
           )}
 
-          {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead" || formData.role === "bd") && (
-            <FormField label={formData.role === "bd" ? "Primary Department" : "Department"}>
+          {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead") && (
+            <FormField label="Department">
               <select
                 value={formData.department_id ?? ""}
                 onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
@@ -368,29 +368,6 @@ export default function UsersPage() {
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
-              {formData.role === "bd" && (
-                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
-                  Sets the department where this BD&apos;s leads and interviews are created.
-                </p>
-              )}
-            </FormField>
-          )}
-
-          {isMultiDeptBdLead && formData.role === "bd" && (
-            <FormField label="Primary Department">
-              <select
-                value={formData.department_id ?? ""}
-                onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
-                className={inputClass}
-              >
-                <option value="">— Select primary department —</option>
-                {myAllowedDepts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
-                Sets the department where this BD&apos;s leads and interviews are created.
-              </p>
             </FormField>
           )}
 
@@ -408,17 +385,8 @@ export default function UsersPage() {
               </select>
             </FormField>
           )}
-          {!isMultiDeptBdLead && (isBdTeamLead || isDeptLead) && myDeptId && (
-            <div className="p-3 rounded-xl bg-slate-500/10 border border-slate-500/20">
-              <p className="text-[12px] text-slate-400 leading-relaxed font-medium">
-                This user will be assigned to your department: <span className="text-white">{deptMap[myDeptId] ?? "your department"}</span>.
-              </p>
-            </div>
-          )}
-
           {(formData.role === "bd" || formData.role === "bd-team-lead") && (isSuperadmin || isMultiDeptBdLead) && (
             <div className="space-y-2">
-              <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Department Access</p>
               <div className="flex flex-wrap gap-2">
                 {/* All badge — superadmin only; bd-team-leads can't grant beyond their own scope */}
                 {isSuperadmin && (
@@ -461,13 +429,6 @@ export default function UsersPage() {
                   );
                 })}
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-500">
-                {formData.allowed_dept_ids === null
-                  ? "No restriction set — defaults to role behavior."
-                  : formData.allowed_dept_ids.length === 0
-                    ? "All departments — no restriction."
-                    : `Restricted to ${formData.allowed_dept_ids.length} department(s).`}
-              </p>
             </div>
           )}
 
