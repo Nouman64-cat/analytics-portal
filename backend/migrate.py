@@ -218,6 +218,8 @@ def migrate():
 
             ("ALTER TABLE business_developers ADD COLUMN IF NOT EXISTS department_ids TEXT;",
              "Migration successful! 'department_ids' column added to 'business_developers' table."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS accent_color VARCHAR(20);",
+             "Migration successful! 'accent_color' column added to 'users' table."),
 
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;",
              "Migration successful! 'created_by' column added to 'users' table."),

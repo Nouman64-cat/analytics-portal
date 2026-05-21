@@ -121,7 +121,7 @@ export const authService = {
       body: JSON.stringify(data),
     }),
 
-  updateSettings: (data: { alarm_enabled: boolean }) =>
+  updateSettings: (data: { alarm_enabled: boolean; accent_color?: string | null }) =>
     apiFetch<User>("/auth/settings", {
       method: "PUT",
       body: JSON.stringify(data),

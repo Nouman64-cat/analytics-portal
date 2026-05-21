@@ -73,6 +73,7 @@ class User(SQLModel, table=True):
     )
     must_change_password: bool = Field(default=True)
     alarm_enabled: bool = Field(default=False)
+    accent_color: Optional[str] = Field(default=None, max_length=20)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     allowed_dept_ids: Optional[str] = Field(default=None)  # JSON list of UUID strings; [] = all; null = role default
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)

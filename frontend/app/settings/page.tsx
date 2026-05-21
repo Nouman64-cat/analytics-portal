@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Clock, CheckCircle, Loader2 } from "lucide-react";
+import { Bell, BellOff, Clock, CheckCircle, Loader2, Palette } from "lucide-react";
 import { authService } from "@/lib/services";
 import { saveAlarmEnabled } from "@/lib/settings";
+import { ACCENT_OPTIONS, type AccentId, getAccentColor, saveAccentColor, persistAccentColor } from "@/lib/accent";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 
 export default function SettingsPage() {
@@ -12,6 +13,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accentId, setAccentId] = useState<AccentId>("indigo");
+
+  useEffect(() => {
+    setAccentId(getAccentColor());
+  }, []);
 
   useEffect(() => {
     authService.getMe()
@@ -36,6 +42,13 @@ export default function SettingsPage() {
     }
   };
 
+  const pickAccent = (id: AccentId) => {
+    setAccentId(id);
+    saveAccentColor(id);
+    // Fire-and-forget — also save to server so the choice survives any browser
+    persistAccentColor(id, alarmEnabled).catch(() => {});
+  };
+
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={() => { setError(null); setLoading(true); authService.getMe().then((u) => setAlarmEnabled(u.alarm_enabled)).catch((e) => setError(e instanceof Error ? e.message : "Failed")).finally(() => setLoading(false)); }} />;
 
@@ -45,6 +58,54 @@ export default function SettingsPage() {
         title="Settings"
         subtitle="Manage your personal preferences"
       />
+
+      {/* App Color card */}
+      <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/[0.04]">
+          <div className="h-9 w-9 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+            <Palette size={18} />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white leading-none">App Color</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Choose the accent color used throughout the app</p>
+          </div>
+        </div>
+
+        <div className="px-6 py-6">
+          <div className="flex flex-wrap gap-3">
+            {ACCENT_OPTIONS.map((accent) => {
+              const isActive = accentId === accent.id;
+              return (
+                <button
+                  key={accent.id}
+                  onClick={() => pickAccent(accent.id)}
+                  title={accent.label}
+                  className="flex flex-col items-center gap-1.5 group"
+                >
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
+                      isActive ? "scale-110" : "hover:scale-105"
+                    }`}
+                    style={{
+                      backgroundColor: accent.hex,
+                      boxShadow: isActive ? `0 0 0 2px white, 0 0 0 4px ${accent.hex}` : undefined,
+                    }}
+                  >
+                    {isActive && (
+                      <svg viewBox="0 0 12 12" className="h-4 w-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="2,6 5,9 10,3" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className={`text-[10px] font-medium transition-colors ${isActive ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}>
+                    {accent.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Interview Alerts card */}
       <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">

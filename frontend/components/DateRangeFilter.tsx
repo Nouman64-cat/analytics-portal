@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ConfigProvider, DatePicker, theme as antTheme } from "antd";
 import type { RangePickerProps } from "antd/es/date-picker";
 import dayjs, { Dayjs } from "dayjs";
+import { getAccentHex } from "@/lib/accent";
 
 const { RangePicker } = DatePicker;
 
@@ -25,13 +26,18 @@ export default function DateRangeFilter({
   className = "",
 }: DateRangeFilterProps) {
   const [isDark, setIsDark] = useState(false);
+  const [accentHex, setAccentHex] = useState("#6366f1");
 
   useEffect(() => {
-    const check = () => setIsDark(document.documentElement.classList.contains("dark"));
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
+    const checkDark = () => setIsDark(document.documentElement.classList.contains("dark"));
+    const checkAccent = () => setAccentHex(getAccentHex());
+    checkDark();
+    checkAccent();
+    const observer = new MutationObserver(() => { checkDark(); checkAccent(); });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent"] });
+    const onAccentChange = () => checkAccent();
+    window.addEventListener("accent-changed", onAccentChange);
+    return () => { observer.disconnect(); window.removeEventListener("accent-changed", onAccentChange); };
   }, []);
 
   const value: RangePickerProps["value"] = [
@@ -54,7 +60,7 @@ export default function DateRangeFilter({
       theme={{
         algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
         token: {
-          colorPrimary: "#6366f1",        // indigo-500
+          colorPrimary: accentHex,
           colorBgContainer: isDark ? "#12141c" : "#ffffff",
           colorBorder: isDark ? "rgba(255,255,255,0.08)" : "#e2e8f0",
           colorBorderSecondary: isDark ? "rgba(255,255,255,0.06)" : "#e2e8f0",
@@ -69,7 +75,7 @@ export default function DateRangeFilter({
             colorText: isDark ? "#cbd5e1" : "#334155",
             colorTextPlaceholder: isDark ? "#475569" : "#94a3b8",
             colorBorder: isDark ? "rgba(255,255,255,0.08)" : "#e2e8f0",
-            activeBorderColor: "#6366f1",
+            activeBorderColor: accentHex,
             hoverBorderColor: isDark ? "rgba(255,255,255,0.14)" : "#cbd5e1",
           },
         },

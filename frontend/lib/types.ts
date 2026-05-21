@@ -381,6 +381,7 @@ export interface User {
   allowed_dept_ids: string[] | null;
   must_change_password: boolean;
   alarm_enabled: boolean;
+  accent_color: string | null;
   created_at: string;
   updated_at: string;
   /** Present for team-member role when a Candidate row matches this user's email. */

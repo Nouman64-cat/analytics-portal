@@ -15,6 +15,116 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ─── Accent color remapping ────────────────────────────── */
+/* Remap every --color-indigo-* to the chosen accent palette.
+   Tailwind v4 generates utilities as var(--color-indigo-*) so
+   overriding the variables here changes every indigo class globally. */
+
+[data-accent="blue"] {
+  --color-indigo-50: var(--color-blue-50);
+  --color-indigo-100: var(--color-blue-100);
+  --color-indigo-200: var(--color-blue-200);
+  --color-indigo-300: var(--color-blue-300);
+  --color-indigo-400: var(--color-blue-400);
+  --color-indigo-500: var(--color-blue-500);
+  --color-indigo-600: var(--color-blue-600);
+  --color-indigo-700: var(--color-blue-700);
+  --color-indigo-800: var(--color-blue-800);
+  --color-indigo-900: var(--color-blue-900);
+  --color-indigo-950: var(--color-blue-950);
+}
+[data-accent="violet"] {
+  --color-indigo-50: var(--color-violet-50);
+  --color-indigo-100: var(--color-violet-100);
+  --color-indigo-200: var(--color-violet-200);
+  --color-indigo-300: var(--color-violet-300);
+  --color-indigo-400: var(--color-violet-400);
+  --color-indigo-500: var(--color-violet-500);
+  --color-indigo-600: var(--color-violet-600);
+  --color-indigo-700: var(--color-violet-700);
+  --color-indigo-800: var(--color-violet-800);
+  --color-indigo-900: var(--color-violet-900);
+  --color-indigo-950: var(--color-violet-950);
+}
+[data-accent="rose"] {
+  --color-indigo-50: var(--color-rose-50);
+  --color-indigo-100: var(--color-rose-100);
+  --color-indigo-200: var(--color-rose-200);
+  --color-indigo-300: var(--color-rose-300);
+  --color-indigo-400: var(--color-rose-400);
+  --color-indigo-500: var(--color-rose-500);
+  --color-indigo-600: var(--color-rose-600);
+  --color-indigo-700: var(--color-rose-700);
+  --color-indigo-800: var(--color-rose-800);
+  --color-indigo-900: var(--color-rose-900);
+  --color-indigo-950: var(--color-rose-950);
+}
+[data-accent="emerald"] {
+  --color-indigo-50: var(--color-emerald-50);
+  --color-indigo-100: var(--color-emerald-100);
+  --color-indigo-200: var(--color-emerald-200);
+  --color-indigo-300: var(--color-emerald-300);
+  --color-indigo-400: var(--color-emerald-400);
+  --color-indigo-500: var(--color-emerald-500);
+  --color-indigo-600: var(--color-emerald-600);
+  --color-indigo-700: var(--color-emerald-700);
+  --color-indigo-800: var(--color-emerald-800);
+  --color-indigo-900: var(--color-emerald-900);
+  --color-indigo-950: var(--color-emerald-950);
+}
+[data-accent="amber"] {
+  --color-indigo-50: var(--color-amber-50);
+  --color-indigo-100: var(--color-amber-100);
+  --color-indigo-200: var(--color-amber-200);
+  --color-indigo-300: var(--color-amber-300);
+  --color-indigo-400: var(--color-amber-400);
+  --color-indigo-500: var(--color-amber-500);
+  --color-indigo-600: var(--color-amber-600);
+  --color-indigo-700: var(--color-amber-700);
+  --color-indigo-800: var(--color-amber-800);
+  --color-indigo-900: var(--color-amber-900);
+  --color-indigo-950: var(--color-amber-950);
+}
+[data-accent="teal"] {
+  --color-indigo-50: var(--color-teal-50);
+  --color-indigo-100: var(--color-teal-100);
+  --color-indigo-200: var(--color-teal-200);
+  --color-indigo-300: var(--color-teal-300);
+  --color-indigo-400: var(--color-teal-400);
+  --color-indigo-500: var(--color-teal-500);
+  --color-indigo-600: var(--color-teal-600);
+  --color-indigo-700: var(--color-teal-700);
+  --color-indigo-800: var(--color-teal-800);
+  --color-indigo-900: var(--color-teal-900);
+  --color-indigo-950: var(--color-teal-950);
+}
+[data-accent="cyan"] {
+  --color-indigo-50: var(--color-cyan-50);
+  --color-indigo-100: var(--color-cyan-100);
+  --color-indigo-200: var(--color-cyan-200);
+  --color-indigo-300: var(--color-cyan-300);
+  --color-indigo-400: var(--color-cyan-400);
+  --color-indigo-500: var(--color-cyan-500);
+  --color-indigo-600: var(--color-cyan-600);
+  --color-indigo-700: var(--color-cyan-700);
+  --color-indigo-800: var(--color-cyan-800);
+  --color-indigo-900: var(--color-cyan-900);
+  --color-indigo-950: var(--color-cyan-950);
+}
+[data-accent="orange"] {
+  --color-indigo-50: var(--color-orange-50);
+  --color-indigo-100: var(--color-orange-100);
+  --color-indigo-200: var(--color-orange-200);
+  --color-indigo-300: var(--color-orange-300);
+  --color-indigo-400: var(--color-orange-400);
+  --color-indigo-500: var(--color-orange-500);
+  --color-indigo-600: var(--color-orange-600);
+  --color-indigo-700: var(--color-orange-700);
+  --color-indigo-800: var(--color-orange-800);
+  --color-indigo-900: var(--color-orange-900);
+  --color-indigo-950: var(--color-orange-950);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

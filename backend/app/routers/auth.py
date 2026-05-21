@@ -135,6 +135,8 @@ def update_settings(
     """Update per-user preferences (e.g. alarm_enabled)."""
     user = session.get(User, current_user.id)
     user.alarm_enabled = body.alarm_enabled
+    if body.accent_color is not None:
+        user.accent_color = body.accent_color
     user.updated_at = datetime.utcnow()
     session.add(user)
     session.commit()

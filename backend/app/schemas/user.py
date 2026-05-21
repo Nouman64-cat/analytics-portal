@@ -31,6 +31,7 @@ class UserRead(UserBase):
     allowed_dept_ids: Optional[list[str]] = None
     must_change_password: bool
     alarm_enabled: bool
+    accent_color: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -52,6 +53,7 @@ class UserRead(UserBase):
 
 class UserSettingsUpdate(BaseModel):
     alarm_enabled: bool
+    accent_color: Optional[str] = None
 
 
 class UserMeRead(UserRead):
