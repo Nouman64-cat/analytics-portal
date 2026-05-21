@@ -314,6 +314,14 @@ def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: 
             "You are assisting a TEAM MEMBER whose account has no linked candidate record. "
             "Inform them an admin must link their account before you can create leads or interviews."
         )
+    elif user.role == UserRole.BD_TEAM_LEAD:
+        role_ctx = (
+            "You are assisting a BD TEAM LEAD. They manage a team of business developers and oversee the pipeline. "
+            "They can create companies, open leads, schedule interviews, and update existing records. "
+            "When a candidate is not specified, call list_candidates and ask which candidate the opportunity is for. "
+            "When a BD is mentioned, call list_business_developers to find the exact match and always pass bd_id. "
+            "If no BD is specified for a lead or interview, ask if they'd like to assign one."
+        )
     else:
         role_ctx = (
             "You are assisting a SUPERADMIN with full access. "
@@ -703,8 +711,8 @@ def chat_message(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chat is only available to team members and admins.")
+    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chat is only available to team members, BD team leads, and admins.")
 
     settings = get_settings()
     if not settings.OPENAI_API_KEY:
