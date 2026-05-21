@@ -7,12 +7,22 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
 import ChatWidget from "@/components/ChatWidget";
-import { isAuthenticated, mustChangePassword, clearToken, getUserRole } from "@/lib/auth";
+import {
+  isAuthenticated,
+  mustChangePassword,
+  clearToken,
+  getUserRole,
+} from "@/lib/auth";
 import { authService } from "@/lib/services";
 import { hydrateSettingsCache } from "@/lib/settings";
 import { DepartmentProvider } from "@/lib/DepartmentContext";
 
-const PUBLIC_PATHS = ["/login", "/change-password", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/change-password",
+  "/forgot-password",
+  "/reset-password",
+];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -24,6 +34,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth < 1280) {
+      setCollapsed(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (PUBLIC_PATHS.includes(pathname)) {
@@ -40,7 +57,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
     const role = getUserRole();
-    if (role === "manager" && (pathname === "/" || pathname === "/business-developers" || pathname.startsWith("/activities"))) {
+    if (
+      role === "manager" &&
+      (pathname === "/" ||
+        pathname === "/business-developers" ||
+        pathname.startsWith("/activities"))
+    ) {
       router.replace("/interviews");
       return;
     }
@@ -48,19 +70,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/interviews");
       return;
     }
-    if (role === "bd-manager" && (
-      pathname.startsWith("/activities") ||
-      pathname.startsWith("/users") ||
-      pathname.startsWith("/backup")
-    )) {
+    if (
+      role === "bd-manager" &&
+      (pathname.startsWith("/activities") ||
+        pathname.startsWith("/users") ||
+        pathname.startsWith("/backup"))
+    ) {
       router.replace("/");
       return;
     }
     // Hydrate alarm setting from the server so the monitor has the correct
     // value immediately, even on first load or after a cache miss.
-    authService.getMe().then((user) => {
-      hydrateSettingsCache(user.alarm_enabled);
-    }).catch(() => {});
+    authService
+      .getMe()
+      .then((user) => {
+        hydrateSettingsCache(user.alarm_enabled);
+      })
+      .catch(() => {});
 
     setChecked(true);
   }, [pathname, router]);
@@ -87,7 +113,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <main
         className={`flex-1 min-w-0 min-h-screen transition-all duration-300 pt-16 ${
-          collapsed ? "md:ml-[72px]" : "md:ml-[260px]"
+          collapsed ? "md:ml-16" : "md:ml-[13.75rem]"
         }`}
       >
         <div className="px-4 py-8 md:px-8 md:py-10">{children}</div>

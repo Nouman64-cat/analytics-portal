@@ -55,7 +55,12 @@ const ICON_MAP: Record<string, React.ElementType> = {
   BarChart2,
 };
 
-export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {
+export default function Sidebar({
+  collapsed,
+  onCollapse,
+  mobileOpen,
+  onMobileClose,
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -72,15 +77,36 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
 
   const role = getUserRole();
   const HIDDEN_BY_ROLE: Record<string, string[]> = {
-    manager: ["/", "/business-developers", "/activities", "/users", "/backup", "/departments"],
+    manager: [
+      "/",
+      "/business-developers",
+      "/activities",
+      "/users",
+      "/backup",
+      "/departments",
+    ],
     bd: ["/activities", "/users", "/backup", "/departments", "/stats"],
-    "team-member": ["/candidates", "/business-developers", "/users", "/backup", "/departments", "/stats"],
-    "dept-lead": ["/business-developers", "/activities", "/backup", "/departments"],
+    "team-member": [
+      "/candidates",
+      "/business-developers",
+      "/users",
+      "/backup",
+      "/departments",
+      "/stats",
+    ],
+    "dept-lead": [
+      "/business-developers",
+      "/activities",
+      "/backup",
+      "/departments",
+    ],
     "bd-team-lead": ["/activities", "/backup", "/departments"],
     "bd-manager": ["/activities", "/users", "/backup"],
   };
   const hiddenHrefs = role ? HIDDEN_BY_ROLE[role] || [] : [];
-  const visibleNavItems = NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href));
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !hiddenHrefs.includes(item.href),
+  );
 
   return (
     <>
@@ -93,7 +119,7 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
       )}
       <aside
         className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] flex flex-col transition-all duration-300
-        ${collapsed ? "w-[72px]" : "w-[260px]"}
+        ${collapsed ? "w-16" : "w-[220px]"}
         ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0`}
       >
@@ -114,27 +140,31 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
           {visibleNavItems.map((item) => {
             const Icon = ICON_MAP[item.icon];
             const isActive =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200
-                ${isActive
+                ${
+                  isActive
                     ? "bg-gradient-to-r from-indigo-50 to-indigo-100 dark:from-indigo-500/15 dark:to-purple-500/10 text-indigo-700 dark:text-white shadow-sm dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white"
-                  }
+                }
                 ${collapsed ? "justify-center px-0" : ""}
               `}
                 title={collapsed ? item.label : undefined}
               >
                 <Icon
                   size={18}
-                  className={`shrink-0 ${isActive
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
-                    }`}
+                  className={`shrink-0 ${
+                    isActive
+                      ? "text-indigo-600 dark:text-indigo-400"
+                      : "text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+                  }`}
                 />
                 {!collapsed && <span>{item.label}</span>}
                 {isActive && !collapsed && (
@@ -159,7 +189,9 @@ export default function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClo
               ) : (
                 <Moon size={18} className="shrink-0" />
               )}
-              {!collapsed && <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>}
+              {!collapsed && (
+                <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+              )}
             </button>
           )}
 

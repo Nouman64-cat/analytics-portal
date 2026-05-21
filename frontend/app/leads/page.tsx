@@ -48,7 +48,9 @@ import type {
   Candidate,
 } from "@/lib/types";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
-import CompanyCombobox, { CompanyComboboxHandle } from "@/components/CompanyCombobox";
+import CompanyCombobox, {
+  CompanyComboboxHandle,
+} from "@/components/CompanyCombobox";
 import SearchableSelect from "@/components/SearchableSelect";
 import {
   PageLoader,
@@ -181,9 +183,8 @@ export default function LeadsPage() {
   const [profileFilter, setProfileFilter] = useState<string>("all");
   const [candidateFilter, setCandidateFilter] = useState<string>("all");
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
-  const [sortFilter, setSortFilter] = useState<LeadListSort>(
-    "last_activity_desc",
-  );
+  const [sortFilter, setSortFilter] =
+    useState<LeadListSort>("last_activity_desc");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showExtraFilters, setShowExtraFilters] = useState(false);
@@ -215,7 +216,12 @@ export default function LeadsPage() {
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const [meCandidateName, setMeCandidateName] = useState<string | null>(null);
   /** Create / edit / delete leads — superadmin, team member, BD, dept lead, and BD team lead. Manager: read-only. */
-  const canMutateLeads = role === "superadmin" || role === "team-member" || role === "bd" || role === "dept-lead" || role === "bd-team-lead";
+  const canMutateLeads =
+    role === "superadmin" ||
+    role === "team-member" ||
+    role === "bd" ||
+    role === "dept-lead" ||
+    role === "bd-team-lead";
   const canEditLeadStatus = canMutateLeads;
   const [savingLeadThreadId, setSavingLeadThreadId] = useState<string | null>(
     null,
@@ -302,13 +308,17 @@ export default function LeadsPage() {
   // Resolve the team member's own candidate once on mount
   useEffect(() => {
     if (role !== "team-member") return;
-    authService.getMe().then((me) => {
-      if (!me?.candidate_id) return;
-      setMeCandidateId(me.candidate_id);
-      candidatesService.get(me.candidate_id)
-        .then((c) => setMeCandidateName(c.name))
-        .catch(() => {});
-    }).catch(() => {});
+    authService
+      .getMe()
+      .then((me) => {
+        if (!me?.candidate_id) return;
+        setMeCandidateId(me.candidate_id);
+        candidatesService
+          .get(me.candidate_id)
+          .then((c) => setMeCandidateName(c.name))
+          .catch(() => {});
+      })
+      .catch(() => {});
   }, [role]);
 
   const bdOptions = useMemo(
@@ -320,8 +330,7 @@ export default function LeadsPage() {
   );
 
   const profileOptions = useMemo(
-    () =>
-      [...profiles].sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...profiles].sort((a, b) => a.name.localeCompare(b.name)),
     [profiles],
   );
   const candidateOptions = useMemo(
@@ -355,10 +364,10 @@ export default function LeadsPage() {
     if (!isSuperAdmin) return;
     setSavingLeadThreadId(lead.thread_id);
     try {
-      // Toggle logic: If NO (derived or forced), cycle to Force YES. 
-      // Actually, let's keep it simple: 
+      // Toggle logic: If NO (derived or forced), cycle to Force YES.
+      // Actually, let's keep it simple:
       // If currently true, force false. If currently false, force true.
-      // For a more advanced cycle (Auto -> Yes -> No -> Auto), 
+      // For a more advanced cycle (Auto -> Yes -> No -> Auto),
       // we'd need to store the override state in the list item.
       // Since LeadListItem only has the final 'is_converted' boolean,
       // we'll just toggle it.
@@ -367,7 +376,9 @@ export default function LeadsPage() {
       });
       await fetchData();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to update conversion status");
+      alert(
+        e instanceof Error ? e.message : "Failed to update conversion status",
+      );
     } finally {
       setSavingLeadThreadId(null);
     }
@@ -410,7 +421,9 @@ export default function LeadsPage() {
       }
       await fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update lead status");
+      alert(
+        err instanceof Error ? err.message : "Failed to update lead status",
+      );
     } finally {
       setSavingLeadThreadId(null);
     }
@@ -519,7 +532,9 @@ export default function LeadsPage() {
         notes: form.notes?.trim() || null,
         bd_notes: form.bd_notes?.trim() || null,
         arrived_on: form.arrived_on || null,
-        is_converted_override: isSuperAdmin ? form.is_converted_override : undefined,
+        is_converted_override: isSuperAdmin
+          ? form.is_converted_override
+          : undefined,
       });
       resetLeadFormModal();
       await fetchData();
@@ -576,7 +591,11 @@ export default function LeadsPage() {
         }
         action={
           canMutateLeads ? (
-            <button type="button" onClick={openCreateModal} className={buttonPrimary}>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className={buttonPrimary}
+            >
               <Plus size={16} />
               Add lead
             </button>
@@ -590,15 +609,19 @@ export default function LeadsPage() {
           <>
             {" "}
             If you set a lead to{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-300">Unresponsive</span>{" "}
+            <span className="font-medium text-slate-700 dark:text-slate-300">
+              Unresponsive
+            </span>{" "}
             explicitly, it is automatically marked{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-300">Dead</span> after 30
-            days (background job).
+            <span className="font-medium text-slate-700 dark:text-slate-300">
+              Dead
+            </span>{" "}
+            after 30 days (background job).
           </>
         ) : null}
       </p>
 
-      <StatsGrid cols={6}>
+      <StatsGrid cols={4}>
         <StatsCard
           title="Total leads"
           value={total}
@@ -638,14 +661,15 @@ export default function LeadsPage() {
       </StatsGrid>
       {displayStats.other > 0 && (
         <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
-          {displayStats.other} lead{displayStats.other === 1 ? "" : "s"} in other
-          states (e.g. in pipeline).
+          {displayStats.other} lead{displayStats.other === 1 ? "" : "s"} in
+          other states (e.g. in pipeline).
         </p>
       )}
 
       <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-3 sm:p-4">
         {(() => {
-          const lSel = "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
+          const lSel =
+            "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
           const extraCount = [
             profileFilter !== "all",
             sortFilter !== "last_activity_desc",
@@ -658,21 +682,55 @@ export default function LeadsPage() {
               {/* Primary filter row */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[180px]">
-                  <LeadsSearchField resetKey={searchResetKey} onDebouncedChange={setDebouncedSearch} />
+                  <LeadsSearchField
+                    resetKey={searchResetKey}
+                    onDebouncedChange={setDebouncedSearch}
+                  />
                 </div>
-                <select value={outcomeFilter} onChange={(e) => { setOutcomeFilter(e.target.value); setPage(1); }} className={lSel}>
+                <select
+                  value={outcomeFilter}
+                  onChange={(e) => {
+                    setOutcomeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className={lSel}
+                >
                   <option value="all">Any outcome</option>
                   {LEAD_OUTCOME_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
-                <select value={candidateFilter} onChange={(e) => { setCandidateFilter(e.target.value); setPage(1); }} className={lSel}>
+                <select
+                  value={candidateFilter}
+                  onChange={(e) => {
+                    setCandidateFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className={lSel}
+                >
                   <option value="all">All candidates</option>
-                  {candidateOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {candidateOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
-                <select value={bdFilter} onChange={(e) => { setBdFilter(e.target.value); setPage(1); }} className={lSel}>
+                <select
+                  value={bdFilter}
+                  onChange={(e) => {
+                    setBdFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className={lSel}
+                >
                   <option value="all">All BDs</option>
-                  {bdOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                  {bdOptions.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
                 <button
                   type="button"
@@ -690,7 +748,10 @@ export default function LeadsPage() {
                       {extraCount}
                     </span>
                   )}
-                  <ChevronDown size={12} className={`shrink-0 transition-transform ${showExtraFilters ? "rotate-180" : ""}`} />
+                  <ChevronDown
+                    size={12}
+                    className={`shrink-0 transition-transform ${showExtraFilters ? "rotate-180" : ""}`}
+                  />
                 </button>
                 {anyFilter && (
                   <button
@@ -706,20 +767,52 @@ export default function LeadsPage() {
               {/* Expandable extra filters */}
               {showExtraFilters && (
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.05] animate-fade-in overflow-x-auto pb-0.5">
-                  <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(1); }} className={lSel}>
+                  <select
+                    value={profileFilter}
+                    onChange={(e) => {
+                      setProfileFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className={lSel}
+                  >
                     <option value="all">All profiles</option>
-                    {profileOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {profileOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
                   </select>
-                  <select value={sortFilter} onChange={(e) => { setSortFilter(e.target.value as LeadListSort); setPage(1); }} className={lSel}>
-                    {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  <select
+                    value={sortFilter}
+                    onChange={(e) => {
+                      setSortFilter(e.target.value as LeadListSort);
+                      setPage(1);
+                    }}
+                    className={lSel}
+                  >
+                    {SORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
                   </select>
                   <div className="shrink-0">
                     <DateRangeFilter
                       from={dateFrom}
                       to={dateTo}
-                      onFromChange={(v) => { setDateFrom(v); setPage(1); }}
-                      onToChange={(v) => { setDateTo(v); setPage(1); }}
-                      onClear={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                      onFromChange={(v) => {
+                        setDateFrom(v);
+                        setPage(1);
+                      }}
+                      onToChange={(v) => {
+                        setDateTo(v);
+                        setPage(1);
+                      }}
+                      onClear={() => {
+                        setDateFrom("");
+                        setDateTo("");
+                        setPage(1);
+                      }}
                     />
                   </div>
                 </div>
@@ -737,30 +830,41 @@ export default function LeadsPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto -mx-1">
-            <table className="w-full min-w-[980px] text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-full table-auto text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-white/[0.06] text-xs uppercase tracking-wider text-slate-500">
-                  <th className="py-3 pr-4 font-medium">Company</th>
-                  <th className="py-3 pr-4 font-medium">Status</th>
-                  <th className="py-3 pr-4 font-medium">Entertains</th>
-                  <th className="py-3 pr-4 font-medium">BD</th>
-                  <th className="py-3 pr-4 font-medium">Conv.</th>
-                  <th className="py-3 pr-4 font-medium">Rounds</th>
-                  <th className="py-3 pr-4 font-medium">Last activity</th>
-                  <th className="py-3 text-center font-medium">Interviews</th>
-                  <th className="py-3 text-right font-medium w-[1%] whitespace-nowrap pl-2">
+                  <th className="py-2.5 pr-3 font-medium">Company</th>
+                  <th className="py-2.5 pr-3 font-medium">Status</th>
+                  <th className="py-2.5 pr-3 font-medium">Entertains</th>
+                  <th className="hidden xl:table-cell py-2.5 pr-3 font-medium">
+                    BD
+                  </th>
+                  <th className="hidden md:table-cell py-2.5 pr-3 font-medium">
+                    Conv.
+                  </th>
+                  <th className="hidden md:table-cell py-2.5 pr-3 font-medium">
+                    Rounds
+                  </th>
+                  <th className="py-2.5 pr-3 font-medium">Last activity</th>
+                  <th className="hidden sm:table-cell py-2.5 text-center font-medium">
+                    Interviews
+                  </th>
+                  <th className="py-2.5 text-right font-medium w-[1%] whitespace-nowrap pl-2">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04]">
                 {leads.map((l) => (
-                  <tr key={l.thread_id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02]">
-                    <td className="py-3 pr-4 text-slate-800 dark:text-slate-200">
+                  <tr
+                    key={l.thread_id}
+                    className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02]"
+                  >
+                    <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.company_name ?? "—"}
                     </td>
-                    <td className="py-3 pr-4 align-top min-w-[200px]">
+                    <td className="py-2.5 pr-3 align-top">
                       {canEditLeadStatus ? (
                         <select
                           value={
@@ -776,13 +880,14 @@ export default function LeadsPage() {
                           <option value="">
                             {l.lead_source === "explicit" && l.lead_outcome
                               ? "Use status from interviews"
-                              : (l.lead_status_label || "—")}
+                              : l.lead_status_label || "—"}
                           </option>
                           {LEAD_OUTCOME_OPTIONS.filter(
                             (o) =>
                               !(
                                 l.lead_source === "derived" &&
-                                (l.lead_outcome || "").toLowerCase() === "active" &&
+                                (l.lead_outcome || "").toLowerCase() ===
+                                  "active" &&
                                 o.value === "active"
                               ),
                           ).map((o) => (
@@ -798,13 +903,13 @@ export default function LeadsPage() {
                         />
                       )}
                     </td>
-                    <td className="py-3 pr-4 text-slate-800 dark:text-slate-200">
+                    <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.candidate_name ?? "—"}
                     </td>
-                    <td className="py-3 pr-4 text-slate-800 dark:text-slate-200">
+                    <td className="hidden xl:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.primary_bd_name ?? "—"}
                     </td>
-                    <td className="py-3 pr-4">
+                    <td className="hidden md:table-cell py-2.5 pr-3">
                       {isSuperAdmin ? (
                         <button
                           onClick={() => void handleToggleConversion(l)}
@@ -824,39 +929,43 @@ export default function LeadsPage() {
                             </span>
                           )}
                         </button>
+                      ) : l.is_converted ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+                          <Check size={10} className="shrink-0" />
+                          YES
+                        </span>
                       ) : (
-                        l.is_converted ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300">
-                            <Check size={10} className="shrink-0" />
-                            YES
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-600">
-                            NO
-                          </span>
-                        )
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-600">
+                          NO
+                        </span>
                       )}
                     </td>
-                    <td className="py-3 pr-4 tabular-nums text-slate-700 dark:text-slate-300">
+                    <td className="hidden md:table-cell py-2.5 pr-3 tabular-nums text-slate-700 dark:text-slate-300">
                       {l.interview_count}
                     </td>
-                    <td className="py-3 pr-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                      {l.last_interview_date ? formatDate(l.last_interview_date) : "—"}
+                    <td className="py-2.5 pr-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      {l.last_interview_date
+                        ? formatDate(l.last_interview_date)
+                        : "—"}
                     </td>
-                    <td className="py-3 align-middle text-center">
+                    <td className="hidden sm:table-cell py-2.5 align-middle text-center">
                       {l.first_interview_id ? (
                         <Link
                           href={`/interviews?id=${l.first_interview_id}`}
                           className="inline-flex items-center justify-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline font-medium mx-auto"
                         >
-                          <ExternalLink size={14} className="shrink-0 opacity-90" aria-hidden />
+                          <ExternalLink
+                            size={14}
+                            className="shrink-0 opacity-90"
+                            aria-hidden
+                          />
                           View interviews
                         </Link>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="py-3 align-middle text-right pl-2">
+                    <td className="py-2.5 align-middle text-right pl-2">
                       <div className="inline-flex items-center justify-end gap-0.5">
                         <button
                           type="button"
@@ -905,8 +1014,11 @@ export default function LeadsPage() {
               <strong className="text-slate-700 dark:text-slate-200">
                 {rangeStart}–{rangeEnd}
               </strong>{" "}
-              of <strong className="text-slate-700 dark:text-slate-200">{total}</strong> (page{" "}
-              {page} of {totalPages}).{" "}
+              of{" "}
+              <strong className="text-slate-700 dark:text-slate-200">
+                {total}
+              </strong>{" "}
+              (page {page} of {totalPages}).{" "}
               <span className="text-slate-500 dark:text-slate-500">
                 {PAGE_SIZE} per page
               </span>
@@ -950,11 +1062,17 @@ export default function LeadsPage() {
                 companies={companies}
                 value={form.company_id}
                 onChange={(id) => setForm((f) => ({ ...f, company_id: id }))}
-                onCompanyCreated={(c) => setCompanies((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))}
+                onCompanyCreated={(c) =>
+                  setCompanies((prev) =>
+                    [...prev, c].sort((a, b) => a.name.localeCompare(b.name)),
+                  )
+                }
               />
             ) : (
               <input
-                value={companies.find((c) => c.id === form.company_id)?.name ?? "—"}
+                value={
+                  companies.find((c) => c.id === form.company_id)?.name ?? "—"
+                }
                 className={`${inputClass} opacity-80 cursor-not-allowed`}
                 readOnly
                 disabled
@@ -966,7 +1084,9 @@ export default function LeadsPage() {
             <SearchableSelect
               options={profiles.map((p) => ({ id: p.id, label: p.name }))}
               value={form.resume_profile_id}
-              onChange={(id) => setForm((f) => ({ ...f, resume_profile_id: id }))}
+              onChange={(id) =>
+                setForm((f) => ({ ...f, resume_profile_id: id }))
+              }
               placeholder="Select profile…"
               required
             />
@@ -1013,10 +1133,18 @@ export default function LeadsPage() {
           <FormField label="Entertains By (Candidate)">
             {isTeamMember && modalMode === "create" && meCandidateId ? (
               // Team member: show their own candidate as a read-only display
-              <div className={`${selectClass} flex items-center gap-2 bg-slate-50 dark:bg-white/[0.03] cursor-not-allowed opacity-80`}>
+              <div
+                className={`${selectClass} flex items-center gap-2 bg-slate-50 dark:bg-white/[0.03] cursor-not-allowed opacity-80`}
+              >
                 <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
                   {meCandidateName
-                    ? meCandidateName.split(" ").filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase()
+                    ? meCandidateName
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((p) => p[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()
                     : "…"}
                 </span>
                 <span className="text-sm text-slate-800 dark:text-slate-200">
@@ -1039,12 +1167,19 @@ export default function LeadsPage() {
           {isSuperAdmin && modalMode === "edit" && (
             <FormField label="Conversion Override (Superadmin)">
               <select
-                value={form.is_converted_override === null ? "auto" : form.is_converted_override ? "true" : "false"}
+                value={
+                  form.is_converted_override === null
+                    ? "auto"
+                    : form.is_converted_override
+                      ? "true"
+                      : "false"
+                }
                 onChange={(e) => {
                   const val = e.target.value;
                   setForm((f) => ({
                     ...f,
-                    is_converted_override: val === "auto" ? null : val === "true"
+                    is_converted_override:
+                      val === "auto" ? null : val === "true",
                   }));
                 }}
                 className={selectClass}
@@ -1060,7 +1195,9 @@ export default function LeadsPage() {
               <FormField label="Team Notes">
                 <textarea
                   value={form.notes || ""}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, notes: e.target.value }))
+                  }
                   className={textareaClass}
                   rows={2}
                   placeholder="Internal context for this lead (visible to team)…"
@@ -1073,7 +1210,9 @@ export default function LeadsPage() {
               <FormField label="BD Notes">
                 <textarea
                   value={form.bd_notes || ""}
-                  onChange={(e) => setForm((f) => ({ ...f, bd_notes: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, bd_notes: e.target.value }))
+                  }
                   className={textareaClass}
                   rows={2}
                   placeholder="BD-facing notes for this lead…"
@@ -1117,7 +1256,9 @@ export default function LeadsPage() {
         {detailLead ? (
           <div className="space-y-4">
             {detailLoading ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Refreshing…</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Refreshing…
+              </p>
             ) : null}
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <div>
@@ -1245,7 +1386,11 @@ export default function LeadsPage() {
         isDeleting={deleteSubmitting}
         title="Delete lead"
         description="All interview rounds in this pipeline will be removed. This cannot be undone."
-        itemName={deleteLead?.company_name?.trim() ? deleteLead.company_name : "This lead"}
+        itemName={
+          deleteLead?.company_name?.trim()
+            ? deleteLead.company_name
+            : "This lead"
+        }
         itemDetail={
           deleteLead
             ? `${deleteLead.interview_count} round${deleteLead.interview_count === 1 ? "" : "s"} in this thread`

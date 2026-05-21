@@ -120,7 +120,9 @@ function QuickCreateLead({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyId || !profileId || !role.trim()) return;
-    const effectiveCandidateId = isTeamMember ? (meCandidateId ?? "") : candidateId;
+    const effectiveCandidateId = isTeamMember
+      ? (meCandidateId ?? "")
+      : candidateId;
     if (!effectiveCandidateId) {
       alert("Select a candidate for this lead.");
       return;
@@ -178,7 +180,10 @@ function QuickCreateLead({
                 companies={companies}
                 value={companyId}
                 onChange={setCompanyId}
-                onCompanyCreated={(c) => { onCompanyCreated(c); setCompanyId(c.id); }}
+                onCompanyCreated={(c) => {
+                  onCompanyCreated(c);
+                  setCompanyId(c.id);
+                }}
               />
             </FormField>
 
@@ -219,7 +224,11 @@ function QuickCreateLead({
               disabled={saving || !companyId || !profileId || !role.trim()}
               className={`${buttonPrimary} w-full justify-center`}
             >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              {saving ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Plus size={14} />
+              )}
               Create lead & select
             </button>
           </form>
@@ -342,16 +351,21 @@ function LeadThreadPanel({
 
   const sourceHint = (
     <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
-      ({interview.lead_source === "explicit" ? "manual override" : "from interviews"})
+      (
+      {interview.lead_source === "explicit"
+        ? "manual override"
+        : "from interviews"}
+      )
     </span>
   );
 
-  const embeddedLeadLbl =
-    "text-indigo-800 dark:text-indigo-200/90";
-  const cardLeadLbl =
-    "text-amber-800 dark:text-amber-200/90";
+  const embeddedLeadLbl = "text-indigo-800 dark:text-indigo-200/90";
+  const cardLeadLbl = "text-amber-800 dark:text-amber-200/90";
 
-  const leadBadge = (outcome: string | null | undefined, label: string | null | undefined) => {
+  const leadBadge = (
+    outcome: string | null | undefined,
+    label: string | null | undefined,
+  ) => {
     const loStyle = getLeadOutcomeBadgeStyle(outcome);
     return (
       <span
@@ -423,7 +437,9 @@ function LeadThreadPanel({
               onChange={(e) => setOverride(e.target.value)}
               className={`${selectClass} ${getLeadOutcomeSelectShellClass(override || interview.lead_outcome)}`}
             >
-              <option value="">Use status from interviews (clear override)</option>
+              <option value="">
+                Use status from interviews (clear override)
+              </option>
               {LEAD_OUTCOME_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -634,7 +650,12 @@ export default function InterviewsPage() {
   const { departmentId } = useDepartmentContext();
   const cannotCRUD = role === "manager" || role === "bd-manager";
   const isTeamMember = role === "team-member";
-  const canEditLeadThreadPanel = role === "superadmin" || role === "team-member" || role === "bd" || role === "dept-lead" || role === "bd-team-lead";
+  const canEditLeadThreadPanel =
+    role === "superadmin" ||
+    role === "team-member" ||
+    role === "bd" ||
+    role === "dept-lead" ||
+    role === "bd-team-lead";
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const canAddPipelineRound = !isTeamMember || !!meCandidateId;
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -664,12 +685,18 @@ export default function InterviewsPage() {
         leadsData,
         me,
       ] = await Promise.all([
-        interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
+        interviewsService.list(
+          departmentId ? { department_id: departmentId } : undefined,
+        ),
         companiesService.list(),
         candidatesService.list({ department_id: departmentId }),
         profilesService.list({ department_id: departmentId }),
         businessDevelopersService.list(),
-        leadsService.list({ page: 1, page_size: 500, department_id: departmentId ?? undefined }),
+        leadsService.list({
+          page: 1,
+          page_size: 500,
+          department_id: departmentId ?? undefined,
+        }),
         authService.getMe(),
       ]);
 
@@ -888,10 +915,12 @@ export default function InterviewsPage() {
 
       delete (payload as { thread_id?: string }).thread_id;
       if (editingId) {
-        (payload as { parent_interview_id?: string | null }).parent_interview_id =
-          formData.parent_interview_id || null;
+        (
+          payload as { parent_interview_id?: string | null }
+        ).parent_interview_id = formData.parent_interview_id || null;
       } else if (!payload.parent_interview_id) {
-        delete (payload as { parent_interview_id?: string }).parent_interview_id;
+        delete (payload as { parent_interview_id?: string })
+          .parent_interview_id;
       }
       if (!payload.interviewer) payload.interviewer = null;
       if (payload.is_phone_call || !payload.interview_link)
@@ -1139,14 +1168,12 @@ export default function InterviewsPage() {
         role: formData.role || "—",
         salary: formData.salary_range?.trim() || "—",
         bd: formData.bd_id
-          ? businessDevs.find((b) => b.id === formData.bd_id)?.name ?? "—"
+          ? (businessDevs.find((b) => b.id === formData.bd_id)?.name ?? "—")
           : "—",
       };
     }
     if (formData.parent_interview_id) {
-      const iv = interviews.find(
-        (i) => i.id === formData.parent_interview_id,
-      );
+      const iv = interviews.find((i) => i.id === formData.parent_interview_id);
       if (iv) {
         return {
           company: iv.company_name ?? "—",
@@ -1247,8 +1274,12 @@ export default function InterviewsPage() {
       }
     }
 
-    const matchDateFrom = !filters.date_from || (!!i.interview_date && i.interview_date >= filters.date_from);
-    const matchDateTo = !filters.date_to || (!!i.interview_date && i.interview_date <= filters.date_to);
+    const matchDateFrom =
+      !filters.date_from ||
+      (!!i.interview_date && i.interview_date >= filters.date_from);
+    const matchDateTo =
+      !filters.date_to ||
+      (!!i.interview_date && i.interview_date <= filters.date_to);
 
     return (
       matchSearch &&
@@ -1372,12 +1403,13 @@ export default function InterviewsPage() {
             Candidate link required
           </p>
           <p className="mt-1 text-amber-900/85 dark:text-amber-100/75">
-            Add a candidate in the system whose email matches your login email so interviews can be tied to your account.
+            Add a candidate in the system whose email matches your login email
+            so interviews can be tied to your account.
           </p>
         </div>
       )}
 
-      <StatsGrid cols={6}>
+      <StatsGrid cols={3}>
         <StatsCard
           title="Total interviews"
           value={filtered.length}
@@ -1418,7 +1450,8 @@ export default function InterviewsPage() {
 
       {/* Filters Row */}
       {(() => {
-        const iSel = "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
+        const iSel =
+          "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
         const extraCount = [
           filters.company_id !== "All",
           filters.resume_profile_id !== "All",
@@ -1444,7 +1477,10 @@ export default function InterviewsPage() {
             {/* Primary row */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[180px]">
-                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 pointer-events-none" />
+                <Search
+                  size={15}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 pointer-events-none"
+                />
                 <input
                   type="text"
                   placeholder="Search interviews..."
@@ -1455,7 +1491,9 @@ export default function InterviewsPage() {
               </div>
               <select
                 value={filters.status}
-                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                onChange={(e) =>
+                  setFilters({ ...filters, status: e.target.value })
+                }
                 className={iSel}
               >
                 <option value="All">All statuses</option>
@@ -1466,13 +1504,25 @@ export default function InterviewsPage() {
                 <option value="Rejected">Rejected</option>
               </select>
               {!isTeamMember && (
-                <select value={filters.candidate_id} onChange={(e) => setFilters({ ...filters, candidate_id: e.target.value })} className={iSel}>
+                <select
+                  value={filters.candidate_id}
+                  onChange={(e) =>
+                    setFilters({ ...filters, candidate_id: e.target.value })
+                  }
+                  className={iSel}
+                >
                   <option value="All">All candidates</option>
-                  {candidates.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {candidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               )}
               <button
-                onClick={() => setFilters({ ...filters, is_today: !filters.is_today })}
+                onClick={() =>
+                  setFilters({ ...filters, is_today: !filters.is_today })
+                }
                 className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all focus:outline-none cursor-pointer min-h-[2.25rem] ${
                   filters.is_today
                     ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
@@ -1497,11 +1547,27 @@ export default function InterviewsPage() {
                     {extraCount}
                   </span>
                 )}
-                <ChevronDown size={12} className={`shrink-0 transition-transform ${showExtraFilters ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={12}
+                  className={`shrink-0 transition-transform ${showExtraFilters ? "rotate-180" : ""}`}
+                />
               </button>
               {anyFilter && (
                 <button
-                  onClick={() => setFilters({ status: "All", company_id: "All", candidate_id: "All", resume_profile_id: "All", round: "All", bd_id: "All", month: "All", is_today: false, date_from: "", date_to: "" })}
+                  onClick={() =>
+                    setFilters({
+                      status: "All",
+                      company_id: "All",
+                      candidate_id: "All",
+                      resume_profile_id: "All",
+                      round: "All",
+                      bd_id: "All",
+                      month: "All",
+                      is_today: false,
+                      date_from: "",
+                      date_to: "",
+                    })
+                  }
                   className="text-xs font-medium text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
                 >
                   Clear all
@@ -1512,36 +1578,89 @@ export default function InterviewsPage() {
             {/* Expandable extra filters */}
             {showExtraFilters && (
               <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.05] animate-fade-in overflow-x-auto pb-0.5">
-                <select value={filters.company_id} onChange={(e) => setFilters({ ...filters, company_id: e.target.value })} className={`${iSel} shrink-0`}>
+                <select
+                  value={filters.company_id}
+                  onChange={(e) =>
+                    setFilters({ ...filters, company_id: e.target.value })
+                  }
+                  className={`${iSel} shrink-0`}
+                >
                   <option value="All">All companies</option>
                   <option value="staffing">Staffing firm</option>
                   <option value="direct">Direct client</option>
                 </select>
-                <select value={filters.resume_profile_id} onChange={(e) => setFilters({ ...filters, resume_profile_id: e.target.value })} className={`${iSel} shrink-0`}>
+                <select
+                  value={filters.resume_profile_id}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      resume_profile_id: e.target.value,
+                    })
+                  }
+                  className={`${iSel} shrink-0`}
+                >
                   <option value="All">All profiles</option>
-                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <select value={filters.round} onChange={(e) => setFilters({ ...filters, round: e.target.value })} className={`${iSel} shrink-0`}>
-                  <option value="All">All rounds</option>
-                  {Array.from(new Set(interviews.map((i) => i.round))).filter(Boolean).map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
-                <select value={filters.bd_id} onChange={(e) => setFilters({ ...filters, bd_id: e.target.value })} className={`${iSel} shrink-0`}>
-                  <option value="All">All BDs</option>
-                  {businessDevs.map((bd) => <option key={bd.id} value={bd.id}>{bd.name}</option>)}
+                <select
+                  value={filters.round}
+                  onChange={(e) =>
+                    setFilters({ ...filters, round: e.target.value })
+                  }
+                  className={`${iSel} shrink-0`}
+                >
+                  <option value="All">All rounds</option>
+                  {Array.from(new Set(interviews.map((i) => i.round)))
+                    .filter(Boolean)
+                    .map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
                 </select>
-                <select value={filters.month} onChange={(e) => setFilters({ ...filters, month: e.target.value })} className={`${iSel} shrink-0`}>
+                <select
+                  value={filters.bd_id}
+                  onChange={(e) =>
+                    setFilters({ ...filters, bd_id: e.target.value })
+                  }
+                  className={`${iSel} shrink-0`}
+                >
+                  <option value="All">All BDs</option>
+                  {businessDevs.map((bd) => (
+                    <option key={bd.id} value={bd.id}>
+                      {bd.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={filters.month}
+                  onChange={(e) =>
+                    setFilters({ ...filters, month: e.target.value })
+                  }
+                  className={`${iSel} shrink-0`}
+                >
                   <option value="All">All months</option>
-                  {availableMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+                  {availableMonths.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
                 </select>
                 <div className="shrink-0">
                   <DateRangeFilter
                     from={filters.date_from}
                     to={filters.date_to}
-                    onFromChange={(v) => setFilters({ ...filters, date_from: v })}
+                    onFromChange={(v) =>
+                      setFilters({ ...filters, date_from: v })
+                    }
                     onToChange={(v) => setFilters({ ...filters, date_to: v })}
-                    onClear={() => setFilters({ ...filters, date_from: "", date_to: "" })}
+                    onClear={() =>
+                      setFilters({ ...filters, date_from: "", date_to: "" })
+                    }
                   />
                 </div>
               </div>
@@ -1560,8 +1679,8 @@ export default function InterviewsPage() {
               Date (EST)
             </span>{" "}
             is the calendar day in US Eastern for this interview, using the
-            interview date and EST time (stable regardless of your computer&apos;s
-            timezone).{" "}
+            interview date and EST time (stable regardless of your
+            computer&apos;s timezone).{" "}
             <span className="font-medium text-slate-600 dark:text-slate-300">
               EST
             </span>{" "}
@@ -1571,74 +1690,73 @@ export default function InterviewsPage() {
             </span>{" "}
             columns show the same moment as clock times in each region.
           </p>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Company
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Role
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Candidate
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Profile
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Round
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Pipeline
-                  </th>
-                  <th
-                    className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
-                    title="Calendar day in US Eastern (from interview date + EST time)"
-                  >
-                    Date (EST)
-                  </th>
-                  <th
-                    className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
-                    title="Wall-clock time in US Eastern (same instant as PKT column)"
-                  >
-                    EST
-                  </th>
-                  <th
-                    className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
-                    title="Wall-clock time in Pakistan (same instant as EST column)"
-                  >
-                    PKT
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    BD
-                  </th>
-                  <th className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedInterviews.map((interview) => {
-                  const isUpcoming =
-                    interview.computed_status.toLowerCase() === "upcoming";
-                  const isClosed =
-                    interview.computed_status.toLowerCase() === "closed";
-                  const minsLeft = isUpcoming
-                    ? minutesUntilInterview(interview, nowMs)
-                    : null;
-                  // Alert tiers: imminent ≤15 min, warning ≤60 min
-                  const isImminent =
-                    minsLeft !== null && minsLeft >= 0 && minsLeft <= 15;
-                  const isWarning =
-                    minsLeft !== null && minsLeft > 15 && minsLeft <= 60;
-                  const rowSep =
-                    isImminent
+          <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-full table-auto">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Company
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Role
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Candidate
+                    </th>
+                    <th className="hidden xl:table-cell px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Profile
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Round
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Pipeline
+                    </th>
+                    <th
+                      className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                      title="Calendar day in US Eastern (from interview date + EST time)"
+                    >
+                      Date (EST)
+                    </th>
+                    <th
+                      className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                      title="Wall-clock time in US Eastern (same instant as PKT column)"
+                    >
+                      EST
+                    </th>
+                    <th
+                      className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                      title="Wall-clock time in Pakistan (same instant as EST column)"
+                    >
+                      PKT
+                    </th>
+                    <th className="hidden xl:table-cell px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      BD
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Status
+                    </th>
+                    <th className="px-3 py-2.5 text-right text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedInterviews.map((interview) => {
+                    const isUpcoming =
+                      interview.computed_status.toLowerCase() === "upcoming";
+                    const isClosed =
+                      interview.computed_status.toLowerCase() === "closed";
+                    const minsLeft = isUpcoming
+                      ? minutesUntilInterview(interview, nowMs)
+                      : null;
+                    // Alert tiers: imminent ≤15 min, warning ≤60 min
+                    const isImminent =
+                      minsLeft !== null && minsLeft >= 0 && minsLeft <= 15;
+                    const isWarning =
+                      minsLeft !== null && minsLeft > 15 && minsLeft <= 60;
+                    const rowSep = isImminent
                       ? "border-b border-red-300 dark:border-red-500/30"
                       : isWarning
                         ? "border-b border-amber-200 dark:border-amber-500/20"
@@ -1647,365 +1765,378 @@ export default function InterviewsPage() {
                           : isClosed
                             ? "border-b border-emerald-200 dark:border-white/[0.08]"
                             : "border-b border-slate-200 dark:border-white/[0.06]";
-                  const rowBg = isImminent
-                    ? "iv-row-imminent border-l-4 border-l-red-500"
-                    : isWarning
-                      ? "iv-row-warning border-l-4 border-l-amber-500"
-                      : isUpcoming
-                        ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
-                        : isClosed
-                          ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
-                          : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
-                  return (
-                    <tr
-                      key={interview.id}
-                      className={`transition-colors ${rowSep} ${rowBg}`}
-                    >
-                      <td className="px-5 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
-                        {(() => {
-                          const company = companies.find(
-                            (c) => c.id === interview.company_id,
-                          );
-                          if (!company?.detail)
-                            return <span>{interview.company_name}</span>;
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const rect = (
-                                  e.target as HTMLElement
-                                ).getBoundingClientRect();
-                                setProfilePopover(null);
-                                setPipelinePopover(null);
-                                setCompanyPopover((prev) =>
-                                  prev?.company.id === company.id
-                                    ? null
-                                    : {
-                                        company,
-                                        x: rect.left,
-                                        y: rect.bottom + 6,
-                                      },
-                                );
-                              }}
-                              className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                            >
-                              {interview.company_name}
-                            </button>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
-                        {truncate(interview.role, 40)}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">
-                        {interview.candidate_name}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                        {(() => {
-                          const profile = profiles.find(
-                            (p) => p.id === interview.resume_profile_id,
-                          );
-                          if (
-                            !profile?.linkedin_url &&
-                            !profile?.github_url &&
-                            !profile?.portfolio_url &&
-                            !profile?.resume_url
-                          )
-                            return <span>{interview.resume_profile_name}</span>;
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const rect = (
-                                  e.target as HTMLElement
-                                ).getBoundingClientRect();
-                                setCompanyPopover(null);
-                                setPipelinePopover(null);
-                                setProfilePopover((prev) =>
-                                  prev?.profile.id === profile.id
-                                    ? null
-                                    : {
-                                        profile,
-                                        x: rect.left,
-                                        y: rect.bottom + 6,
-                                      },
-                                );
-                              }}
-                              className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                            >
-                              {interview.resume_profile_name}
-                            </button>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span
-                          className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
-                        >
-                          {interview.round}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        {(() => {
-                          const { step, total } = chainStep(interview);
-                          if (total <= 1) {
+                    const rowBg = isImminent
+                      ? "iv-row-imminent border-l-4 border-l-red-500"
+                      : isWarning
+                        ? "iv-row-warning border-l-4 border-l-amber-500"
+                        : isUpcoming
+                          ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                          : isClosed
+                            ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
+                            : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
+                    return (
+                      <tr
+                        key={interview.id}
+                        className={`transition-colors ${rowSep} ${rowBg}`}
+                      >
+                        <td className="px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-white">
+                          {(() => {
+                            const company = companies.find(
+                              (c) => c.id === interview.company_id,
+                            );
+                            if (!company?.detail)
+                              return <span>{interview.company_name}</span>;
                             return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = (
+                                    e.target as HTMLElement
+                                  ).getBoundingClientRect();
+                                  setProfilePopover(null);
+                                  setPipelinePopover(null);
+                                  setCompanyPopover((prev) =>
+                                    prev?.company.id === company.id
+                                      ? null
+                                      : {
+                                          company,
+                                          x: rect.left,
+                                          y: rect.bottom + 6,
+                                        },
+                                  );
+                                }}
+                                className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                              >
+                                {interview.company_name}
+                              </button>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
+                          {truncate(interview.role, 40)}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
+                          {interview.candidate_name}
+                        </td>
+                        <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                          {(() => {
+                            const profile = profiles.find(
+                              (p) => p.id === interview.resume_profile_id,
+                            );
+                            if (
+                              !profile?.linkedin_url &&
+                              !profile?.github_url &&
+                              !profile?.portfolio_url &&
+                              !profile?.resume_url
+                            )
+                              return (
+                                <span>{interview.resume_profile_name}</span>
+                              );
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = (
+                                    e.target as HTMLElement
+                                  ).getBoundingClientRect();
+                                  setCompanyPopover(null);
+                                  setPipelinePopover(null);
+                                  setProfilePopover((prev) =>
+                                    prev?.profile.id === profile.id
+                                      ? null
+                                      : {
+                                          profile,
+                                          x: rect.left,
+                                          y: rect.bottom + 6,
+                                        },
+                                  );
+                                }}
+                                className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                              >
+                                {interview.resume_profile_name}
+                              </button>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span
+                            className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
+                          >
+                            {interview.round}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {(() => {
+                            const { step, total } = chainStep(interview);
+                            if (total <= 1) {
+                              return (
+                                <span className="text-slate-400 dark:text-slate-600">
+                                  —
+                                </span>
+                              );
+                            }
+                            const tid = interview.thread_id ?? interview.id;
+                            const chain = chainByThreadId.get(tid) || [
+                              interview,
+                            ];
+                            return (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors cursor-help"
+                                title="Hover for pipeline details"
+                                aria-label={`Pipeline step ${step} of ${total}, hover or focus for conversion path`}
+                                onMouseEnter={(e) => {
+                                  if (pipelineHoverTimerRef.current) {
+                                    clearTimeout(pipelineHoverTimerRef.current);
+                                    pipelineHoverTimerRef.current = null;
+                                  }
+                                  setCompanyPopover(null);
+                                  setProfilePopover(null);
+                                  const rect =
+                                    e.currentTarget.getBoundingClientRect();
+                                  const layout = getPipelinePopoverLayout(rect);
+                                  setPipelinePopover({
+                                    interview,
+                                    chain,
+                                    x: layout.x,
+                                    y: layout.y,
+                                    flipAbove: layout.flipAbove,
+                                  });
+                                }}
+                                onMouseLeave={() => {
+                                  pipelineHoverTimerRef.current = setTimeout(
+                                    () => setPipelinePopover(null),
+                                    200,
+                                  );
+                                }}
+                                onFocus={(e) => {
+                                  if (pipelineHoverTimerRef.current) {
+                                    clearTimeout(pipelineHoverTimerRef.current);
+                                    pipelineHoverTimerRef.current = null;
+                                  }
+                                  setCompanyPopover(null);
+                                  setProfilePopover(null);
+                                  const rect =
+                                    e.currentTarget.getBoundingClientRect();
+                                  const layout = getPipelinePopoverLayout(rect);
+                                  setPipelinePopover({
+                                    interview,
+                                    chain,
+                                    x: layout.x,
+                                    y: layout.y,
+                                    flipAbove: layout.flipAbove,
+                                  });
+                                }}
+                                onBlur={() => {
+                                  pipelineHoverTimerRef.current = setTimeout(
+                                    () => setPipelinePopover(null),
+                                    150,
+                                  );
+                                }}
+                              >
+                                <GitBranch
+                                  className="size-3.5 shrink-0 opacity-85"
+                                  aria-hidden
+                                />
+                                {step}/{total}
+                              </button>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                          {isUpcoming ? (
+                            <span className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                              </span>
+                              {formatInterviewDateEst(
+                                interview.interview_date,
+                                interview.time_est,
+                              )}
+                            </span>
+                          ) : (
+                            formatInterviewDateEst(
+                              interview.interview_date,
+                              interview.time_est,
+                            )
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                          <div className="flex flex-col gap-1">
+                            {interview.time_est ? (
+                              formatTime(interview.time_est)
+                            ) : (
                               <span className="text-slate-400 dark:text-slate-600">
                                 —
                               </span>
-                            );
-                          }
-                          const tid = interview.thread_id ?? interview.id;
-                          const chain =
-                            chainByThreadId.get(tid) || [interview];
-                          return (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors cursor-help"
-                              title="Hover for pipeline details"
-                              aria-label={`Pipeline step ${step} of ${total}, hover or focus for conversion path`}
-                              onMouseEnter={(e) => {
-                                if (pipelineHoverTimerRef.current) {
-                                  clearTimeout(pipelineHoverTimerRef.current);
-                                  pipelineHoverTimerRef.current = null;
-                                }
-                                setCompanyPopover(null);
-                                setProfilePopover(null);
-                                const rect =
-                                  e.currentTarget.getBoundingClientRect();
-                                const layout = getPipelinePopoverLayout(rect);
-                                setPipelinePopover({
-                                  interview,
-                                  chain,
-                                  x: layout.x,
-                                  y: layout.y,
-                                  flipAbove: layout.flipAbove,
-                                });
-                              }}
-                              onMouseLeave={() => {
-                                pipelineHoverTimerRef.current = setTimeout(
-                                  () => setPipelinePopover(null),
-                                  200,
-                                );
-                              }}
-                              onFocus={(e) => {
-                                if (pipelineHoverTimerRef.current) {
-                                  clearTimeout(pipelineHoverTimerRef.current);
-                                  pipelineHoverTimerRef.current = null;
-                                }
-                                setCompanyPopover(null);
-                                setProfilePopover(null);
-                                const rect =
-                                  e.currentTarget.getBoundingClientRect();
-                                const layout = getPipelinePopoverLayout(rect);
-                                setPipelinePopover({
-                                  interview,
-                                  chain,
-                                  x: layout.x,
-                                  y: layout.y,
-                                  flipAbove: layout.flipAbove,
-                                });
-                              }}
-                              onBlur={() => {
-                                pipelineHoverTimerRef.current = setTimeout(
-                                  () => setPipelinePopover(null),
-                                  150,
-                                );
-                              }}
-                            >
-                              <GitBranch
-                                className="size-3.5 shrink-0 opacity-85"
-                                aria-hidden
-                              />
-                              {step}/{total}
-                            </button>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                        {isUpcoming ? (
-                          <span className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                            </span>
-                            {formatInterviewDateEst(
-                              interview.interview_date,
-                              interview.time_est,
                             )}
-                          </span>
-                        ) : (
-                          formatInterviewDateEst(
-                            interview.interview_date,
-                            interview.time_est,
-                          )
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                        <div className="flex flex-col gap-1">
-                          {interview.time_est ? (
-                            formatTime(interview.time_est)
+                            {isImminent && minsLeft !== null && (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
+                                🚨 {minsLeft}m
+                              </span>
+                            )}
+                            {isWarning && minsLeft !== null && (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
+                                ⚠ {minsLeft}m
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                          {interview.time_pkt ? (
+                            formatTime(interview.time_pkt)
                           ) : (
                             <span className="text-slate-400 dark:text-slate-600">
                               —
                             </span>
                           )}
-                          {isImminent && minsLeft !== null && (
-                            <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
-                              🚨 {minsLeft}m
+                        </td>
+                        <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                          {interview.bd_name || (
+                            <span className="text-slate-400 dark:text-slate-600">
+                              —
                             </span>
                           )}
-                          {isWarning && minsLeft !== null && (
-                            <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
-                              ⚠ {minsLeft}m
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                        {interview.time_pkt ? (
-                          formatTime(interview.time_pkt)
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-600">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">
-                        {interview.bd_name || (
-                          <span className="text-slate-400 dark:text-slate-600">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <StatusBadge status={interview.computed_status} />
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setDetailModal(interview)}
-                            className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                            title="View details"
-                          >
-                            <Eye size={14} />
-                          </button>
-                          {!cannotCRUD && (
-                            <>
-                              {!isRejectedInterview(interview) && canAddPipelineRound && (
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <StatusBadge status={interview.computed_status} />
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setDetailModal(interview)}
+                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                              title="View details"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            {!cannotCRUD && (
+                              <>
+                                {!isRejectedInterview(interview) &&
+                                  canAddPipelineRound && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openCreateNextRound(interview)
+                                      }
+                                      className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                                      title="Add next round (same pipeline)"
+                                    >
+                                      <ArrowRight size={14} aria-hidden />
+                                      <span className="sr-only">
+                                        Add next round
+                                      </span>
+                                    </button>
+                                  )}
                                 <button
-                                  type="button"
-                                  onClick={() => openCreateNextRound(interview)}
-                                  className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
-                                  title="Add next round (same pipeline)"
+                                  onClick={() => openEditModal(interview)}
+                                  className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                                  title="Edit"
                                 >
-                                  <ArrowRight size={14} aria-hidden />
-                                  <span className="sr-only">Add next round</span>
+                                  <Pencil size={14} />
                                 </button>
-                              )}
-                              <button
-                                onClick={() => openEditModal(interview)}
-                                className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                                title="Edit"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                onClick={() => setDeleteModal(interview)}
-                                className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] px-4 py-3 sm:px-6">
-              <div className="flex flex-1 justify-between sm:hidden">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="relative ml-3 inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-slate-700 dark:text-slate-400">
-                    Showing{" "}
-                    <span className="font-medium">
-                      {(currentPage - 1) * ITEMS_PER_PAGE + 1}
-                    </span>{" "}
-                    to{" "}
-                    <span className="font-medium">
-                      {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}
-                    </span>{" "}
-                    of <span className="font-medium">{filtered.length}</span>{" "}
-                    results
-                  </p>
-                </div>
-                <div>
-                  <nav
-                    className="isolate inline-flex -space-x-px rounded-md shadow-sm"
-                    aria-label="Pagination"
-                  >
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Previous</span>
-                      <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                    {/* Generates page buttons limited to total pages */}
-                    {[...Array(totalPages)].map((_, i) => (
-                      <button
-                        key={i + 1}
-                        onClick={() => setCurrentPage(i + 1)}
-                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
-                          currentPage === i + 1
-                            ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                            : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() =>
-                        setCurrentPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Next</span>
-                      <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                  </nav>
-                </div>
-              </div>
+                                <button
+                                  onClick={() => setDeleteModal(interview)}
+                                  className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] px-4 py-3 sm:px-6">
+                <div className="flex flex-1 justify-between sm:hidden">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="relative ml-3 inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-slate-700 dark:text-slate-400">
+                      Showing{" "}
+                      <span className="font-medium">
+                        {(currentPage - 1) * ITEMS_PER_PAGE + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-medium">
+                        {Math.min(
+                          currentPage * ITEMS_PER_PAGE,
+                          filtered.length,
+                        )}
+                      </span>{" "}
+                      of <span className="font-medium">{filtered.length}</span>{" "}
+                      results
+                    </p>
+                  </div>
+                  <div>
+                    <nav
+                      className="isolate inline-flex -space-x-px rounded-md shadow-sm"
+                      aria-label="Pagination"
+                    >
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Previous</span>
+                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                      {/* Generates page buttons limited to total pages */}
+                      {[...Array(totalPages)].map((_, i) => (
+                        <button
+                          key={i + 1}
+                          onClick={() => setCurrentPage(i + 1)}
+                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
+                            currentPage === i + 1
+                              ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                              : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Next</span>
+                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2107,9 +2238,7 @@ export default function InterviewsPage() {
                     {leadsForInterviewPicker.map((l) => (
                       <option key={l.thread_id} value={l.thread_id}>
                         {l.company_name ?? "Company"}
-                        {l.primary_bd_name
-                          ? ` · ${l.primary_bd_name}`
-                          : ""}
+                        {l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""}
                       </option>
                     ))}
                   </select>
@@ -2125,38 +2254,47 @@ export default function InterviewsPage() {
                   if you need to attach to a different opportunity.
                 </p>
               ) : null}
-              {!lockLeadPicker && <QuickCreateLead
-                companies={companies}
-                profiles={profiles}
-                candidates={candidates}
-                isTeamMember={isTeamMember}
-                meCandidateId={meCandidateId}
-                onCompanyCreated={(c) => setCompanies((prev) => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))}
-                onLeadCreated={(lead) => {
-                  setLeadsList((prev) => [...prev, lead]);
-                  setSelectedLeadThreadId(lead.thread_id);
-                  const l = lead;
-                  setFormData({
-                    company_id: l.company_id,
-                    candidate_id: isTeamMember && meCandidateId ? meCandidateId : l.candidate_id || "",
-                    resume_profile_id: l.resume_profile_id,
-                    role: l.primary_role || "",
-                    salary_range: l.salary_range || "",
-                    round: "Phone Screen",
-                    interview_date: "",
-                    time_est: "",
-                    time_pkt: "",
-                    status: "",
-                    feedback: "",
-                    recruiter_feedback: "",
-                    bd_id: l.primary_bd_id || "",
-                    interviewer: "",
-                    interview_link: "",
-                    is_phone_call: false,
-                    parent_interview_id: l.last_interview_id,
-                  });
-                }}
-              />}
+              {!lockLeadPicker && (
+                <QuickCreateLead
+                  companies={companies}
+                  profiles={profiles}
+                  candidates={candidates}
+                  isTeamMember={isTeamMember}
+                  meCandidateId={meCandidateId}
+                  onCompanyCreated={(c) =>
+                    setCompanies((prev) =>
+                      [...prev, c].sort((a, b) => a.name.localeCompare(b.name)),
+                    )
+                  }
+                  onLeadCreated={(lead) => {
+                    setLeadsList((prev) => [...prev, lead]);
+                    setSelectedLeadThreadId(lead.thread_id);
+                    const l = lead;
+                    setFormData({
+                      company_id: l.company_id,
+                      candidate_id:
+                        isTeamMember && meCandidateId
+                          ? meCandidateId
+                          : l.candidate_id || "",
+                      resume_profile_id: l.resume_profile_id,
+                      role: l.primary_role || "",
+                      salary_range: l.salary_range || "",
+                      round: "Phone Screen",
+                      interview_date: "",
+                      time_est: "",
+                      time_pkt: "",
+                      status: "",
+                      feedback: "",
+                      recruiter_feedback: "",
+                      bd_id: l.primary_bd_id || "",
+                      interviewer: "",
+                      interview_link: "",
+                      is_phone_call: false,
+                      parent_interview_id: l.last_interview_id,
+                    });
+                  }}
+                />
+              )}
             </div>
           ) : null}
           {opportunitySnapshot ? (
@@ -2212,9 +2350,14 @@ export default function InterviewsPage() {
                   </div>
                 ) : (
                   <SearchableSelect
-                    options={candidates.map((c) => ({ id: c.id, label: c.name }))}
+                    options={candidates.map((c) => ({
+                      id: c.id,
+                      label: c.name,
+                    }))}
                     value={formData.candidate_id}
-                    onChange={(id) => setFormData({ ...formData, candidate_id: id })}
+                    onChange={(id) =>
+                      setFormData({ ...formData, candidate_id: id })
+                    }
                     placeholder="Select candidate…"
                     required
                   />
@@ -2235,9 +2378,7 @@ export default function InterviewsPage() {
                   }
                   className={selectClass}
                 >
-                  <option value="">
-                    None — not linked to a prior round
-                  </option>
+                  <option value="">None — not linked to a prior round</option>
                   {pipelineParentSelectOptions.map((i) => (
                     <option key={i.id} value={i.id}>
                       {i.round} ·{" "}
@@ -2247,9 +2388,9 @@ export default function InterviewsPage() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Connect this row to an existing interview for the same company,
-                  candidate, and profile. Rounds that come after this one in the
-                  chain cannot be selected.
+                  Connect this row to an existing interview for the same
+                  company, candidate, and profile. Rounds that come after this
+                  one in the chain cannot be selected.
                 </p>
               </FormField>
             </div>
@@ -2355,7 +2496,15 @@ export default function InterviewsPage() {
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Round status">
               <div className="flex flex-wrap gap-2">
-                {(["", "Upcoming", "Converted", "Unresponsed", "Rejected"] as const).map((val) => {
+                {(
+                  [
+                    "",
+                    "Upcoming",
+                    "Converted",
+                    "Unresponsed",
+                    "Rejected",
+                  ] as const
+                ).map((val) => {
                   const label = val === "" ? "Unresponsed" : val;
                   const s = getStatusStyle(val === "" ? null : val);
                   const selected = (formData.status || "") === val;
@@ -2363,14 +2512,19 @@ export default function InterviewsPage() {
                     <button
                       key={val}
                       type="button"
-                      onClick={() => setFormData({ ...formData, status: val || null })}
+                      onClick={() =>
+                        setFormData({ ...formData, status: val || null })
+                      }
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all
-                        ${selected
-                          ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-current`
-                          : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
+                        ${
+                          selected
+                            ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-current`
+                            : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
                         }`}
                     >
-                      <span className={`h-1.5 w-1.5 rounded-full ${selected ? s.dot : "bg-slate-400 dark:bg-slate-500"}`} />
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${selected ? s.dot : "bg-slate-400 dark:bg-slate-500"}`}
+                      />
                       {label}
                     </button>
                   );
@@ -2406,7 +2560,8 @@ export default function InterviewsPage() {
               ) : null}
               {existingInterviewDocUrl && interviewDocFile ? (
                 <p className="mb-2 text-xs text-amber-800 dark:text-amber-200/90">
-                  New file below will replace the current document when you save.
+                  New file below will replace the current document when you
+                  save.
                 </p>
               ) : null}
               <input
@@ -2478,10 +2633,7 @@ export default function InterviewsPage() {
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={closeInterviewModal}
-            className={buttonSecondary}
-          >
+          <button onClick={closeInterviewModal} className={buttonSecondary}>
             Cancel
           </button>
           <button
@@ -2554,8 +2706,7 @@ export default function InterviewsPage() {
             )} */}
             {(() => {
               const tid = detailModal.thread_id ?? detailModal.id;
-              const chain =
-                chainByThreadId.get(tid) || [detailModal];
+              const chain = chainByThreadId.get(tid) || [detailModal];
               return (
                 <InterviewChainTimeline
                   chain={chain}
@@ -2572,7 +2723,9 @@ export default function InterviewsPage() {
                   fetchData={fetchData}
                   readOnly={true}
                   onUpdateDetail={(patch) =>
-                    setDetailModal((prev) => (prev ? { ...prev, ...patch } : null))
+                    setDetailModal((prev) =>
+                      prev ? { ...prev, ...patch } : null,
+                    )
                   }
                 />
               ) : (
@@ -2870,7 +3023,9 @@ export default function InterviewsPage() {
             position: "fixed",
             top: pipelinePopover.y,
             left: pipelinePopover.x,
-            transform: pipelinePopover.flipAbove ? "translateY(-100%)" : undefined,
+            transform: pipelinePopover.flipAbove
+              ? "translateY(-100%)"
+              : undefined,
             zIndex: 10000,
           }}
           className="w-[min(calc(100vw-1.25rem),16.5rem)] max-h-[min(52vh,17.5rem)] overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl px-2.5 py-2 sm:px-3 sm:py-2.5"
