@@ -14,6 +14,7 @@ class UserRole(str, Enum):
     TEAM_MEMBER = "team-member"
     DEPT_LEAD = "dept-lead"
     BD_TEAM_LEAD = "bd-team-lead"
+    BD_MANAGER = "bd-manager"
 
 
 class UserRoleColumn(TypeDecorator):
@@ -29,6 +30,7 @@ class UserRoleColumn(TypeDecorator):
         "TEAM_MEMBER": UserRole.TEAM_MEMBER,
         "DEPT_LEAD": UserRole.DEPT_LEAD,
         "BD_TEAM_LEAD": UserRole.BD_TEAM_LEAD,
+        "BD_MANAGER": UserRole.BD_MANAGER,
     }
 
     def process_bind_param(self, value, dialect):

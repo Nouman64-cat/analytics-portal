@@ -2,7 +2,7 @@ import json
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.deps import get_current_user
+from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
@@ -64,6 +64,7 @@ def create_business_developer(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new business developer."""
+    assert_write_access(current_user)
     dept_ids = data.department_ids
 
     if current_user.role == UserRole.BD_TEAM_LEAD:
@@ -106,6 +107,7 @@ def update_business_developer(
     current_user: User = Depends(get_current_user),
 ):
     """Update a business developer."""
+    assert_write_access(current_user)
     bd = session.get(BusinessDeveloper, bd_id)
     if not bd:
         raise HTTPException(status_code=404, detail="Business developer not found")
@@ -186,6 +188,7 @@ def delete_business_developer(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a business developer."""
+    assert_write_access(current_user)
     bd = session.get(BusinessDeveloper, bd_id)
     if not bd:
         raise HTTPException(status_code=404, detail="Business developer not found")

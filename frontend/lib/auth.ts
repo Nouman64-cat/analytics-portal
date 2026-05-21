@@ -58,6 +58,10 @@ export function getUserId(): string | null {
   }
 }
 
+export function isReadOnlyRole(): boolean {
+  return getUserRole() === "bd-manager";
+}
+
 export function getUserDeptId(): string | null {
   const token = getToken();
   if (!token) return null;

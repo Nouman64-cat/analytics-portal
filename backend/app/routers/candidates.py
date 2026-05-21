@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.deps import get_current_user
+from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
@@ -58,6 +58,7 @@ def create_candidate(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new candidate. department_id is stamped automatically from the creator's department."""
+    assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
     candidate = Candidate(name=data.name, email=data.email, department_id=dept_id)
     session.add(candidate)
@@ -122,6 +123,7 @@ def update_candidate(
     current_user: User = Depends(get_current_user),
 ):
     """Update a candidate."""
+    assert_write_access(current_user)
     candidate = session.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -159,6 +161,7 @@ def delete_candidate(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a candidate. Nullifies interview and lead-thread references before removal."""
+    assert_write_access(current_user)
     candidate = session.get(Candidate, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")

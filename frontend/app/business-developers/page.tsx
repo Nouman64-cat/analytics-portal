@@ -67,7 +67,7 @@ export default function BusinessDevelopersPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
   const role = getUserRole();
-  const cannotCRUD = role === "bd" || role === "manager";
+  const cannotCRUD = role === "bd" || role === "manager" || role === "bd-manager";
   const isSuperAdmin = role === "superadmin";
   const isBdTeamLead = role === "bd-team-lead";
 

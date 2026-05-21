@@ -27,7 +27,7 @@ export default function CompaniesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [viewModal, setViewModal] = useState<Company | null>(null);
   const role = getUserRole();
-  const cannotCRUD = role === "bd" || role === "manager";
+  const cannotCRUD = role === "bd" || role === "manager" || role === "bd-manager";
 
   const interviewCounts = useMemo(() => {
     const counts: Record<string, number> = {};

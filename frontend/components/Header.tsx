@@ -16,8 +16,8 @@ interface HeaderProps {
 }
 
 const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
-const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead"]);
-const NOTIFICATION_ROLES = new Set(["superadmin", "bd", "bd-team-lead"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead", "bd-manager"]);
+const NOTIFICATION_ROLES = new Set(["superadmin", "bd", "bd-team-lead", "bd-manager"]);
 
 const CLOCKS = [
   { tz: "America/New_York",    label: "ET",  labelColor: "text-indigo-500 dark:text-indigo-400",   timeColor: "text-indigo-700 dark:text-indigo-300"   },
@@ -109,7 +109,7 @@ export default function Header({ onMobileMenuOpen, collapsed }: HeaderProps) {
     }
     if (allowed === null) {
       // Explicit null: no restriction set, use role default
-      return role === "bd" ? allDepartments : [];
+      return role === "bd" || role === "bd-manager" ? allDepartments : [];
     }
     if (allowed.length === 0) return allDepartments; // [] = All
     return allDepartments.filter((d) => allowed.includes(d.id));

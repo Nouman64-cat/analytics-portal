@@ -16,6 +16,7 @@ const ROLE_OPTIONS = [
   { value: "manager", label: "Manager" },
   { value: "dept-lead", label: "Dept Lead" },
   { value: "bd-team-lead", label: "BD Team Lead" },
+  { value: "bd-manager", label: "BD Manager" },
   { value: "bd", label: "Business Developer" },
   { value: "team-member", label: "Team Member" },
 ];
@@ -26,6 +27,7 @@ function roleBadgeClass(role: string) {
     case "manager": return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
     case "dept-lead": return "bg-teal-500/10 text-teal-400 border border-teal-500/20";
     case "bd-team-lead": return "bg-orange-500/10 text-orange-400 border border-orange-500/20";
+    case "bd-manager": return "bg-rose-500/10 text-rose-400 border border-rose-500/20";
     case "bd": return "bg-blue-500/10 text-blue-400 border border-blue-500/20";
     default: return "bg-slate-500/10 text-slate-400 border border-slate-500/20";
   }
@@ -405,6 +407,7 @@ export default function UsersPage() {
               {isSuperadmin && <option value="dept-lead">Dept Lead</option>}
               {isSuperadmin && <option value="bd-team-lead">BD Team Lead</option>}
               {isSuperadmin && <option value="manager">Manager</option>}
+              {isSuperadmin && <option value="bd-manager">BD Manager</option>}
               {isSuperadmin && <option value="superadmin">Superadmin</option>}
             </select>
           </FormField>

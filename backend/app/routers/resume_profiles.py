@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
-from app.deps import get_current_user
+from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
@@ -114,6 +114,7 @@ def create_resume_profile(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new resume profile stamped with the creator's department."""
+    assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
     profile = ResumeProfile(name=data.name, department_id=dept_id)
     session.add(profile)
@@ -148,8 +149,10 @@ def upload_resume_pdf(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload a PDF resume to S3 and attach URL to the resume profile."""
+    assert_write_access(current_user)
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
@@ -203,6 +206,7 @@ def update_resume_profile(
     current_user: User = Depends(get_current_user),
 ):
     """Update a resume profile."""
+    assert_write_access(current_user)
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
@@ -235,6 +239,7 @@ def delete_resume_profile(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a resume profile."""
+    assert_write_access(current_user)
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")

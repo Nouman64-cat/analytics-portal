@@ -41,3 +41,12 @@ def require_superadmin(
             detail="Only superadmins can access this resource",
         )
     return current_user
+
+
+def assert_write_access(user: User) -> None:
+    """Raise 403 for roles that have read-only access (e.g. BD Manager)."""
+    if user.role == UserRole.BD_MANAGER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="BD Managers have read-only access",
+        )

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.deps import get_current_user
+from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
@@ -31,6 +31,7 @@ def create_company(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new company."""
+    assert_write_access(current_user)
     company = Company(name=data.name, is_staffing_firm=data.is_staffing_firm)
     session.add(company)
     session.flush()
@@ -83,6 +84,7 @@ def update_company(
     current_user: User = Depends(get_current_user),
 ):
     """Update a company."""
+    assert_write_access(current_user)
     company = session.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -114,6 +116,7 @@ def delete_company(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a company."""
+    assert_write_access(current_user)
     company = session.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")

@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
-from app.deps import get_current_user
+from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select, col
 from sqlalchemy import nulls_last
 from sqlalchemy.orm import joinedload, selectinload
@@ -455,6 +455,7 @@ def create_interview(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new interview record."""
+    assert_write_access(current_user)
     payload = data.model_dump()
     _reject_lead_only_interview_status(payload.get("status"))
 
@@ -609,6 +610,7 @@ def upload_interview_document(
     current_user: User = Depends(get_current_user),
 ):
     """Upload interview detail document (Word DOC or DOCX) to S3."""
+    assert_write_access(current_user)
     interview = session.get(Interview, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -677,6 +679,7 @@ def update_interview(
     current_user: User = Depends(get_current_user),
 ):
     """Update an interview record."""
+    assert_write_access(current_user)
     interview = _get_interview_for_enrichment(session, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -762,6 +765,7 @@ def delete_interview(
     current_user: User = Depends(get_current_user),
 ):
     """Delete an interview record."""
+    assert_write_access(current_user)
     interview = session.get(Interview, interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")

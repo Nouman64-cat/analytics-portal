@@ -22,6 +22,7 @@ export default function DepartmentsPage() {
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
+  const canView = isSuperadmin || role === "bd-manager";
 
   const filteredDepartments = useMemo(() => {
     if (!search.trim()) return departments;
@@ -45,13 +46,13 @@ export default function DepartmentsPage() {
   }, []);
 
   useEffect(() => {
-    if (isSuperadmin) {
+    if (canView) {
       fetchData();
     } else {
       setLoading(false);
       setError("Access denied.");
     }
-  }, [fetchData, isSuperadmin]);
+  }, [fetchData, canView]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -100,7 +101,7 @@ export default function DepartmentsPage() {
     }
   };
 
-  if (!isSuperadmin) {
+  if (!canView) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Shield size={48} className="text-red-500/50" />
@@ -119,10 +120,12 @@ export default function DepartmentsPage() {
         title="Departments"
         subtitle={`${departments.length} department${departments.length !== 1 ? "s" : ""}`}
         action={
-          <button onClick={openCreate} className={buttonPrimary}>
-            <Plus size={16} />
-            Add Department
-          </button>
+          isSuperadmin ? (
+            <button onClick={openCreate} className={buttonPrimary}>
+              <Plus size={16} />
+              Add Department
+            </button>
+          ) : undefined
         }
       />
 
@@ -152,7 +155,7 @@ export default function DepartmentsPage() {
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Users</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
-                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
+                  {isSuperadmin && <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -191,35 +194,37 @@ export default function DepartmentsPage() {
                     <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
                       {formatDate(dept.created_at)}
                     </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(dept)}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(dept)}
-                          disabled={togglingId === dept.id}
-                          className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
-                            dept.is_active
-                              ? "text-emerald-500 hover:bg-emerald-500/10"
-                              : "text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06]"
-                          }`}
-                          title={dept.is_active ? "Deactivate" : "Activate"}
-                        >
-                          {togglingId === dept.id ? (
-                            <Loader2 className="animate-spin" size={14} />
-                          ) : dept.is_active ? (
-                            <ToggleRight size={14} />
-                          ) : (
-                            <ToggleLeft size={14} />
-                          )}
-                        </button>
-                      </div>
-                    </td>
+                    {isSuperadmin && (
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEdit(dept)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleToggleActive(dept)}
+                            disabled={togglingId === dept.id}
+                            className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
+                              dept.is_active
+                                ? "text-emerald-500 hover:bg-emerald-500/10"
+                                : "text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06]"
+                            }`}
+                            title={dept.is_active ? "Deactivate" : "Activate"}
+                          >
+                            {togglingId === dept.id ? (
+                              <Loader2 className="animate-spin" size={14} />
+                            ) : dept.is_active ? (
+                              <ToggleRight size={14} />
+                            ) : (
+                              <ToggleLeft size={14} />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

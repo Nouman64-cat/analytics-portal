@@ -236,7 +236,7 @@ export default function StatsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const isAllowed = role === "superadmin" || role === "manager" || role === "dept-lead";
+  const isAllowed = role === "superadmin" || role === "manager" || role === "dept-lead" || role === "bd-manager";
 
   const fetchData = useCallback(async () => {
     try {

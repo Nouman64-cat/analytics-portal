@@ -38,10 +38,10 @@ class UnresponsiveLeadNotification(BaseModel):
 
 
 def _require_bd_or_superadmin(current_user: User) -> None:
-    if current_user.role not in (UserRole.BD, UserRole.SUPERADMIN, UserRole.BD_TEAM_LEAD):
+    if current_user.role not in (UserRole.BD, UserRole.SUPERADMIN, UserRole.BD_TEAM_LEAD, UserRole.BD_MANAGER):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only BD, BD team leads, and superadmin users can access notifications.",
+            detail="Only BD, BD team leads, BD managers, and superadmin users can access notifications.",
         )
 
 

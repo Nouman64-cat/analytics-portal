@@ -48,6 +48,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/interviews");
       return;
     }
+    if (role === "bd-manager" && (
+      pathname.startsWith("/activities") ||
+      pathname.startsWith("/users") ||
+      pathname.startsWith("/backup")
+    )) {
+      router.replace("/");
+      return;
+    }
     // Hydrate alarm setting from the server so the monitor has the correct
     // value immediately, even on first load or after a cache miss.
     authService.getMe().then((user) => {
