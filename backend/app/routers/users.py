@@ -27,11 +27,25 @@ _DEPT_MANAGER_ROLES = (UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD)
 
 
 def _bd_in_btl_scope(lead: User, bd: User, is_multi: bool, btl_allowed: list[str] | None) -> bool:
-    """Return True if bd's department_id falls within the BD_TEAM_LEAD's scope."""
+    """Return True if bd falls within the BD_TEAM_LEAD's scope.
+
+    Checks both department_id and allowed_dept_ids since BD users may have
+    their scope stored in either field.
+    """
     if is_multi and btl_allowed is None:
         return True  # lead has access to all departments
     if btl_allowed is not None:
-        return bd.department_id is not None and str(bd.department_id) in btl_allowed
+        # Check direct department_id match
+        if bd.department_id is not None and str(bd.department_id) in btl_allowed:
+            return True
+        # Also check allowed_dept_ids overlap (BD users may use this instead of department_id)
+        if bd.allowed_dept_ids is not None:
+            try:
+                bd_depts = json.loads(bd.allowed_dept_ids)
+                return any(str(d) in btl_allowed for d in bd_depts)
+            except Exception:
+                pass
+        return False
     # single-dept (is_multi=False, btl_allowed=None)
     return bd.department_id == lead.department_id
 
@@ -77,19 +91,41 @@ def list_users(
 ):
     _require_user_manage(current_user)
 
-    query = select(User).order_by(User.created_at.desc())
+    import uuid as _uuid
+
     if current_user.role == UserRole.BD_TEAM_LEAD:
-        import uuid as _uuid
         is_multi, btl_allowed = _btl_scope(current_user)
-        query = query.where(User.role == UserRole.BD)
+        all_bds = session.exec(
+            select(User).where(User.role == UserRole.BD).order_by(User.created_at.desc())
+        ).all()
         if btl_allowed is not None:
-            query = query.where(User.department_id.in_([_uuid.UUID(d) for d in btl_allowed]))
+            allowed_set = set(btl_allowed)
+
+            def _in_scope(bd: User) -> bool:
+                if bd.department_id is not None and str(bd.department_id) in allowed_set:
+                    return True
+                if bd.allowed_dept_ids is not None:
+                    try:
+                        return any(d in allowed_set for d in json.loads(bd.allowed_dept_ids))
+                    except Exception:
+                        pass
+                return False
+
+            all_bds = [bd for bd in all_bds if _in_scope(bd)]
         elif not is_multi:
             if current_user.department_id is None:
                 return []
-            query = query.where(User.department_id == current_user.department_id)
-        # is_multi and btl_allowed is None → all depts, no additional filter
-    elif current_user.role == UserRole.DEPT_LEAD:
+            all_bds = [bd for bd in all_bds if bd.department_id == current_user.department_id]
+        # is_multi and btl_allowed is None → unrestricted, keep all
+        if role:
+            all_bds = [bd for bd in all_bds if bd.role == role]
+        if department_id:
+            dept_uuid = _uuid.UUID(department_id)
+            all_bds = [bd for bd in all_bds if bd.department_id == dept_uuid]
+        return all_bds
+
+    query = select(User).order_by(User.created_at.desc())
+    if current_user.role == UserRole.DEPT_LEAD:
         if current_user.department_id is None:
             return []
         query = query.where(User.department_id == current_user.department_id)
@@ -98,7 +134,6 @@ def list_users(
         query = query.where(User.role == role)
 
     if department_id:
-        import uuid as _uuid
         query = query.where(User.department_id == _uuid.UUID(department_id))
 
     return session.exec(query).all()
@@ -273,6 +308,13 @@ def update_user(
     if "allowed_dept_ids" in update_data:
         v = update_data.pop("allowed_dept_ids")
         user.allowed_dept_ids = json.dumps(v) if v is not None else None
+        # Sync department_id from first allowed dept for BD users without one
+        if user.role == UserRole.BD and user.department_id is None and v:
+            import uuid as _sync_uuid
+            try:
+                user.department_id = _sync_uuid.UUID(v[0])
+            except Exception:
+                pass
     for field, value in update_data.items():
         setattr(user, field, value)
 
