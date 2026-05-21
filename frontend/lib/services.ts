@@ -360,7 +360,16 @@ export const activitiesService = {
 // ─── Users (Superadmin only) ────────────────────────────────
 
 export const usersService = {
-  list: () => apiFetch<User[]>("/users/"),
+  list: (params?: { role?: string; department_id?: string }) => {
+    const query = params
+      ? "?" + new URLSearchParams(
+          Object.fromEntries(
+            Object.entries(params).filter(([_, v]) => v !== undefined && v !== "")
+          )
+        ).toString()
+      : "";
+    return apiFetch<User[]>(`/users/${query}`);
+  },
   create: (data: UserFormData) =>
     apiFetch<User>("/users/", {
       method: "POST",

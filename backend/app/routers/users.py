@@ -2,8 +2,8 @@ import json
 import secrets
 import string
 import bcrypt
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 
 from app.database import get_session
@@ -72,6 +72,8 @@ def _require_user_manage(current_user: User) -> None:
 def list_users(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    role: Optional[str] = Query(None),
+    department_id: Optional[str] = Query(None),
 ):
     _require_user_manage(current_user)
 
@@ -91,6 +93,13 @@ def list_users(
         if current_user.department_id is None:
             return []
         query = query.where(User.department_id == current_user.department_id)
+
+    if role:
+        query = query.where(User.role == role)
+
+    if department_id:
+        import uuid as _uuid
+        query = query.where(User.department_id == _uuid.UUID(department_id))
 
     return session.exec(query).all()
 

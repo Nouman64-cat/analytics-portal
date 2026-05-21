@@ -41,15 +41,14 @@ def list_business_developers(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List business developers, scoped to the caller's department(s) for BD_TEAM_LEAD."""
+    """List business developers, scoped to the caller's department(s) for BD_TEAM_LEAD and BD."""
     all_bds = session.exec(select(BusinessDeveloper).order_by(BusinessDeveloper.name)).all()
 
-    if current_user.role == UserRole.BD_TEAM_LEAD:
+    if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
         allowed = _allowed_dept_strs(current_user)
         if allowed is not None:
             def visible(bd: BusinessDeveloper) -> bool:
                 bd_depts = _bd_dept_ids(bd)
-                # BD with no dept assignment is visible to all leads
                 if not bd_depts:
                     return True
                 return any(d in allowed for d in bd_depts)

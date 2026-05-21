@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, UserCog, Mail, Shield, Calendar, Pencil, Trash2 } from "lucide-react";
+import { Plus, Loader2, Search, Pencil, Trash2, Shield } from "lucide-react";
 import { usersService, departmentsService, candidatesService, authService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department } from "@/lib/types";
@@ -10,8 +10,25 @@ import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole, getUserDeptId } from "@/lib/auth";
 
-function getInitials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+const ROLE_OPTIONS = [
+  { value: "all", label: "All Roles" },
+  { value: "superadmin", label: "Superadmin" },
+  { value: "manager", label: "Manager" },
+  { value: "dept-lead", label: "Dept Lead" },
+  { value: "bd-team-lead", label: "BD Team Lead" },
+  { value: "bd", label: "Business Developer" },
+  { value: "team-member", label: "Team Member" },
+];
+
+function roleBadgeClass(role: string) {
+  switch (role) {
+    case "superadmin": return "bg-purple-500/10 text-purple-400 border border-purple-500/20";
+    case "manager": return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+    case "dept-lead": return "bg-teal-500/10 text-teal-400 border border-teal-500/20";
+    case "bd-team-lead": return "bg-orange-500/10 text-orange-400 border border-orange-500/20";
+    case "bd": return "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+    default: return "bg-slate-500/10 text-slate-400 border border-slate-500/20";
+  }
 }
 
 export default function UsersPage() {
@@ -29,6 +46,8 @@ export default function UsersPage() {
     allowed_dept_ids: null,
   });
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [deptFilter, setDeptFilter] = useState("all");
   const [deleteModal, setDeleteModal] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -43,7 +62,6 @@ export default function UsersPage() {
 
   const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
 
-  // Departments the current bd-team-lead is allowed to operate in
   const myAllowedDepts = useMemo(() => {
     if (!isBdTeamLead) return departments.filter((d) => d.is_active);
     const allowed = currentUserProfile?.allowed_dept_ids;
@@ -60,16 +78,33 @@ export default function UsersPage() {
     return m;
   }, [departments]);
 
+  // Determine which department options to show in the filter
+  const deptOptions = useMemo(() => {
+    if (isSuperadmin) return departments.filter((d) => d.is_active);
+    if (isDeptLead) return departments.filter((d) => d.is_active && d.id === myDeptId);
+    if (isBdTeamLead) return myAllowedDepts;
+    return [];
+  }, [isSuperadmin, isDeptLead, isBdTeamLead, myDeptId, myAllowedDepts, departments]);
+
+  // Server-side filtered users based on roleFilter and deptFilter
   const filteredUsers = useMemo(() => {
-    if (!search.trim()) return users;
-    const q = search.toLowerCase();
-    return users.filter(
-      (u) =>
-        u.full_name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q)
-    );
-  }, [users, search]);
+    let result = users;
+    if (roleFilter !== "all") {
+      result = result.filter((u) => u.role === roleFilter);
+    }
+    if (deptFilter !== "all") {
+      result = result.filter((u) => u.department_id === deptFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (u) =>
+          u.full_name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [users, roleFilter, deptFilter, search]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -87,9 +122,7 @@ export default function UsersPage() {
   useEffect(() => {
     if (hasAccess) {
       fetchData();
-      if (isSuperadmin || isBdTeamLead || isDeptLead) {
-        departmentsService.list().then(setDepartments).catch(() => {});
-      }
+      departmentsService.list().then(setDepartments).catch(() => {});
       if (isBdTeamLead) {
         authService.getMe().then(setCurrentUserProfile).catch(() => {});
       }
@@ -128,7 +161,7 @@ export default function UsersPage() {
       alert("Please select a department for this user");
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       if (editingId) {
@@ -183,7 +216,7 @@ export default function UsersPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="User Management"
-        subtitle={(isDeptLead || isBdTeamLead) ? `${users.length} users in your department` : `${users.length} registered accounts`}
+        subtitle={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''} found`}
         action={
           <button onClick={openCreate} className={buttonPrimary}>
             <Plus size={16} />
@@ -192,114 +225,131 @@ export default function UsersPage() {
         }
       />
 
-      {/* Search */}
-      <div className="relative sm:max-w-sm">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input
-          type="text"
-          placeholder="Search by name, email or role..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className={`${inputClass} pl-10`}
-        />
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={`${inputClass} pl-10`}
+          />
+        </div>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className={`${inputClass} sm:max-w-[180px]`}
+        >
+          {ROLE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <select
+          value={deptFilter}
+          onChange={(e) => setDeptFilter(e.target.value)}
+          className={`${inputClass} sm:max-w-[200px]`}
+        >
+          <option value="all">All Departments</option>
+          {deptOptions.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
       </div>
 
       {users.length === 0 ? (
         <EmptyState message="No users found" />
       ) : filteredUsers.length === 0 ? (
-        <EmptyState message="No users match your search" />
+        <EmptyState message="No users match your filters" />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 stagger-children">
-          {filteredUsers.map((user) => (
-            <div
-              key={user.id}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-indigo-300/50 dark:hover:border-indigo-500/30 hover:shadow-lg"
-            >
-              <div className="absolute right-3 top-3 flex items-center gap-1">
-                <button
-                  onClick={(e) => { e.stopPropagation(); openEdit(user); }}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
-                  title="Edit User"
-                >
-                  <Pencil size={13} />
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteModal(user); }}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                  title="Delete User"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-sm font-bold text-white shadow-md">
-                  {getInitials(user.full_name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="mb-3">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                      {user.full_name}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        user.role === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                        user.role === 'manager' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
-                        user.role === 'dept-lead' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
-                        user.role === 'bd-team-lead' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                        'bg-slate-500/10 text-slate-400 border border-slate-500/20'
-                      }`}>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Name</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Email</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Role</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Department</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="border-b border-slate-200 dark:border-white/[0.06] last:border-b-0 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.02]"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-[11px] font-bold text-white">
+                          {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                        <span className="font-medium text-slate-900 dark:text-white truncate max-w-[180px]">
+                          {user.full_name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 dark:text-slate-400 truncate max-w-[220px]">
+                      {user.email}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${roleBadgeClass(user.role)}`}>
                         {user.role}
                       </span>
-                      {(user.role === "bd" || user.role === "bd-team-lead") ? (
-                        user.allowed_dept_ids !== null && user.allowed_dept_ids.length === 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-                            All Departments
-                          </span>
-                        ) : Array.isArray(user.allowed_dept_ids) && user.allowed_dept_ids.length > 0 ? (
-                          user.allowed_dept_ids.map((id) => deptMap[id] && (
-                            <span key={id} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20">
-                              {deptMap[id]}
-                            </span>
-                          ))
-                        ) : user.department_id && deptMap[user.department_id] ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-                            {deptMap[user.department_id]}
-                          </span>
-                        ) : null
+                    </td>
+                    <td className="px-5 py-4">
+                      {user.department_id && deptMap[user.department_id] ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                          {deptMap[user.department_id]}
+                        </span>
                       ) : (
-                        user.department_id && deptMap[user.department_id] && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-                            {deptMap[user.department_id]}
-                          </span>
-                        )
+                        <span className="text-slate-400 dark:text-slate-500">—</span>
                       )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
-                    <div className="flex items-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
-                      <Mail size={14} className="shrink-0" />
-                      <span className="truncate">{user.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
-                      <Calendar size={14} className="shrink-0" />
-                      <span>{formatDate(user.created_at)}</span>
-                    </div>
-                  </div>
-                  {user.must_change_password && (
-                    <div className="mt-4 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/10 text-amber-500 text-[11px] font-medium border border-amber-500/20">
-                      <Shield size={12} />
-                      Pending Password Change
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
+                      {formatDate(user.created_at)}
+                    </td>
+                    <td className="px-5 py-4">
+                      {user.must_change_password ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-medium border border-amber-500/20 whitespace-nowrap">
+                          <Shield size={10} />
+                          Pending
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500 text-[13px]">Active</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(user)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                          title="Edit User"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteModal(user)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -402,7 +452,6 @@ export default function UsersPage() {
           {(formData.role === "bd" || formData.role === "bd-team-lead") && (isSuperadmin || isMultiDeptBdLead) && (
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
-                {/* All badge — superadmin only; bd-team-leads can't grant beyond their own scope */}
                 {isSuperadmin && (
                   <button
                     type="button"
@@ -416,7 +465,6 @@ export default function UsersPage() {
                     All
                   </button>
                 )}
-                {/* Per-department badges scoped to what this user can grant */}
                 {(isSuperadmin ? departments.filter((d) => d.is_active) : myAllowedDepts).map((d) => {
                   const selected = Array.isArray(formData.allowed_dept_ids) && formData.allowed_dept_ids.includes(d.id);
                   return (
@@ -455,7 +503,7 @@ export default function UsersPage() {
           ) : (
             <div className="mt-2 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
               <p className="text-[12px] text-indigo-400 leading-relaxed font-medium">
-                A temporary password will be automatically generated and emailed to the user. 
+                A temporary password will be automatically generated and emailed to the user.
                 They will be required to change it upon their first login.
               </p>
             </div>
@@ -464,9 +512,9 @@ export default function UsersPage() {
 
         <div className="mt-8 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>
-          <button 
-            onClick={handleSubmit} 
-            disabled={isSubmitting} 
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
             className={`${buttonPrimary} disabled:opacity-70 flex items-center gap-2`}
           >
             {isSubmitting && <Loader2 className="animate-spin" size={16} />}
