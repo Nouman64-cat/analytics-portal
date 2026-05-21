@@ -8,8 +8,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { interviewsService, busyDaysService } from "@/lib/services";
-import type { Interview, BusyDay } from "@/lib/types";
+import { interviewsService, busyDaysService, departmentsService } from "@/lib/services";
+import type { Interview, BusyDay, Department } from "@/lib/types";
 import {
   formatInterviewDateEst,
   formatTime,
@@ -72,8 +72,10 @@ export default function CalendarPage() {
   // Busy day modal state
   const [dayModal, setDayModal] = useState<{ date: string } | null>(null);
   const [busyReason, setBusyReason] = useState("");
+  const [busyDeptId, setBusyDeptId] = useState<string | null>(null);
   const [busyLoading, setBusyLoading] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   const role = getUserRole();
   const currentUserId = getUserId();
@@ -87,7 +89,7 @@ export default function CalendarPage() {
       setError(null);
       const [interviewData, busyData] = await Promise.all([
         interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
-        busyDaysService.list(),
+        busyDaysService.list(departmentId ? { department_id: departmentId } : undefined),
       ]);
       setInterviews(interviewData);
       setBusyDays(busyData);
@@ -102,7 +104,10 @@ export default function CalendarPage() {
 
   useEffect(() => {
     void fetchData();
-  }, [fetchData]);
+    if (isSuperadmin) {
+      departmentsService.list().then((depts) => setDepartments(depts.filter((d) => d.is_active))).catch(() => {});
+    }
+  }, [fetchData, isSuperadmin]);
 
   const openInterviewPreview = useCallback((interview: Interview) => {
     setPreview(interview);
@@ -118,13 +123,15 @@ export default function CalendarPage() {
   const openDayModal = useCallback((date: string) => {
     setBusyReason("");
     setBusyError(null);
+    setBusyDeptId(departmentId ?? null);
     setDayModal({ date });
-  }, []);
+  }, [departmentId]);
 
   const closeDayModal = useCallback(() => {
     setDayModal(null);
     setBusyReason("");
     setBusyError(null);
+    setBusyDeptId(null);
   }, []);
 
   const handleMarkBusy = useCallback(async (date: string) => {
@@ -134,6 +141,7 @@ export default function CalendarPage() {
       const created = await busyDaysService.create({
         date,
         reason: busyReason.trim() || null,
+        department_id: busyDeptId,
       });
       setBusyDays((prev) => [...prev, created]);
       setBusyReason("");
@@ -142,7 +150,7 @@ export default function CalendarPage() {
     } finally {
       setBusyLoading(false);
     }
-  }, [busyReason]);
+  }, [busyReason, busyDeptId]);
 
   const handleRemoveBusy = useCallback(async (id: string) => {
     setBusyLoading(true);
@@ -167,7 +175,10 @@ export default function CalendarPage() {
   const dayBusyList = dayModal
     ? busyDays.filter((b) => b.date === dayModal.date)
     : [];
-  const myBusyDay = dayBusyList.find((b) => b.user_id === currentUserId);
+  // For superadmin: check if already marked for the currently-selected dept scope
+  const myBusyDay = dayBusyList.find(
+    (b) => b.user_id === currentUserId && b.department_id === busyDeptId,
+  );
 
   return (
     <div className="mx-auto min-w-0 max-w-full space-y-6 sm:space-y-8">
@@ -291,9 +302,20 @@ export default function CalendarPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                              {isOwn ? "You" : bd.user_name}
-                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                {isOwn ? "You" : bd.user_name}
+                              </p>
+                              {bd.department_id ? (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+                                  {departments.find((d) => d.id === bd.department_id)?.name ?? "Dept"}
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400">
+                                  All depts
+                                </span>
+                              )}
+                            </div>
                             <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
                               {bd.reason ? (
                                 <>&ldquo;{bd.reason}&rdquo;</>
@@ -330,13 +352,50 @@ export default function CalendarPage() {
 
             {/* ── Mark as busy (superadmin / team-member only, and only if not already marked) ── */}
             {canMarkBusy && !myBusyDay && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Your availability
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   You are available on this day.
                 </p>
+
+                {/* Department selector — superadmin only */}
+                {isSuperadmin && departments.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      Department scope
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setBusyDeptId(null)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                          busyDeptId === null
+                            ? "bg-slate-700 text-white border-slate-700 dark:bg-white/20 dark:border-white/20"
+                            : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        All departments
+                      </button>
+                      {departments.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => setBusyDeptId(d.id)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                            busyDeptId === d.id
+                              ? "bg-teal-500 text-white border-teal-500"
+                              : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-teal-400 hover:text-teal-500"
+                          }`}
+                        >
+                          {d.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <input
                   type="text"
                   placeholder="Reason (optional)"

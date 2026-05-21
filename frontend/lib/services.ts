@@ -425,9 +425,12 @@ export const departmentsService = {
 // ─── Busy Days (team-member & superadmin) ────────────────────
 
 export const busyDaysService = {
-  list: (params?: { user_id?: string }) => {
-    const q = params?.user_id ? `?user_id=${params.user_id}` : "";
-    return apiFetch<BusyDay[]>(`/busy-days/${q}`);
+  list: (params?: { user_id?: string; department_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.user_id) sp.set("user_id", params.user_id);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    const q = sp.toString();
+    return apiFetch<BusyDay[]>(`/busy-days/${q ? `?${q}` : ""}`);
   },
   create: (data: BusyDayCreate) =>
     apiFetch<BusyDay>("/busy-days/", {

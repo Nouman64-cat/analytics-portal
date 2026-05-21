@@ -226,6 +226,21 @@ def migrate():
             ("CREATE INDEX IF NOT EXISTS ix_users_created_by ON users (created_by);",
              "Migration successful! Index on users.created_by ensured."),
 
+            # ── Busy days: department scope ───────────────────────────────────────────
+            ("ALTER TABLE busy_days ADD COLUMN IF NOT EXISTS department_id UUID;",
+             "Migration successful! 'department_id' column added to 'busy_days' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_busy_days_department_id ON busy_days (department_id);",
+             "Migration successful! Index on busy_days.department_id ensured."),
+            # Drop old per-(user, date) unique constraint; replace with partial indexes
+            ("ALTER TABLE busy_days DROP CONSTRAINT IF EXISTS uq_busy_day_per_user_date;",
+             "Migration successful! Old unique constraint on busy_days (user_id, date) dropped."),
+            # Dept-specific busy days: unique per (user, date, department)
+            ("CREATE UNIQUE INDEX IF NOT EXISTS uq_busy_day_user_date_dept ON busy_days (user_id, date, department_id) WHERE department_id IS NOT NULL;",
+             "Migration successful! Partial unique index for dept-specific busy days ensured."),
+            # General busy days (null dept): unique per (user, date)
+            ("CREATE UNIQUE INDEX IF NOT EXISTS uq_busy_day_user_date_nodept ON busy_days (user_id, date) WHERE department_id IS NULL;",
+             "Migration successful! Partial unique index for general busy days ensured."),
+
             # Drop any FK on thread_id — not all interview threads have a lead_threads row
             ("""
             DO $$

@@ -465,6 +465,8 @@ export interface BusyDay {
   user_name: string;
   /** YYYY-MM-DD */
   date: string;
+  /** null = applies to all departments */
+  department_id: string | null;
   reason: string | null;
   created_at: string;
 }
@@ -475,6 +477,8 @@ export interface BusyDayCreate {
   reason?: string | null;
   /** Superadmin only — defaults to current user when omitted. */
   user_id?: string | null;
+  /** null = all departments; UUID = specific department */
+  department_id?: string | null;
 }
 
 export interface ResumeProfileFormData {

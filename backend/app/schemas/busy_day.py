@@ -7,7 +7,8 @@ from pydantic import BaseModel
 class BusyDayCreate(BaseModel):
     date: datetime.date
     reason: Optional[str] = None
-    user_id: Optional[uuid.UUID] = None  # superadmin only; defaults to current user
+    user_id: Optional[uuid.UUID] = None       # superadmin only; defaults to current user
+    department_id: Optional[uuid.UUID] = None  # None = all departments
 
 
 class BusyDayRead(BaseModel):
@@ -15,6 +16,7 @@ class BusyDayRead(BaseModel):
     user_id: uuid.UUID
     user_name: str
     date: datetime.date
+    department_id: Optional[uuid.UUID] = None
     reason: Optional[str] = None
     created_at: datetime.datetime
 

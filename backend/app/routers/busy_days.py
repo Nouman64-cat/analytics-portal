@@ -8,6 +8,7 @@ from app.deps import get_current_user
 from app.models.busy_day import BusyDay
 from app.models.user import User, UserRole
 from app.schemas.busy_day import BusyDayCreate, BusyDayRead
+from app.dept_scope import get_user_allowed_depts
 
 router = APIRouter(
     prefix="/api/v1/busy-days",
@@ -32,6 +33,7 @@ def _to_read(busy_day: BusyDay, user_name: str) -> BusyDayRead:
         user_id=busy_day.user_id,
         user_name=user_name,
         date=busy_day.date,
+        department_id=busy_day.department_id,
         reason=busy_day.reason,
         created_at=busy_day.created_at,
     )
@@ -40,16 +42,54 @@ def _to_read(busy_day: BusyDay, user_name: str) -> BusyDayRead:
 @router.get("/", response_model=List[BusyDayRead])
 def list_busy_days(
     user_id: Optional[uuid.UUID] = Query(None, description="Filter by user (superadmin only)"),
+    department_id: Optional[uuid.UUID] = Query(None, description="Filter to a specific department (also includes general/all-dept busy days)"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    # All authenticated users can read busy days.
-    # Superadmin/BD/Manager see everyone's; team-member sees only their own.
     stmt = select(BusyDay)
+
+    # ── User-level filter ────────────────────────────────────────────────────
     if current_user.role == UserRole.TEAM_MEMBER:
         stmt = stmt.where(BusyDay.user_id == current_user.id)
     elif user_id and current_user.role == UserRole.SUPERADMIN:
         stmt = stmt.where(BusyDay.user_id == user_id)
+
+    # ── Department-level scoping ─────────────────────────────────────────────
+    # BD / BD_TEAM_LEAD: always restrict to their allowed departments + general (NULL).
+    # This prevents them seeing busy days scoped to departments they have no access to.
+    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD):
+        allowed = get_user_allowed_depts(current_user)
+        if allowed is not None:
+            # User has a specific (possibly empty) department list
+            if not allowed:
+                # No department access at all — show only general busy days
+                stmt = stmt.where(BusyDay.department_id == None)  # noqa: E711
+            elif department_id is not None:
+                if department_id in allowed:
+                    # Requested dept is allowed — show that dept + general
+                    stmt = stmt.where(
+                        (BusyDay.department_id == department_id) | (BusyDay.department_id == None)  # noqa: E711
+                    )
+                else:
+                    # Requested dept is outside their scope — show only general
+                    stmt = stmt.where(BusyDay.department_id == None)  # noqa: E711
+            else:
+                # No specific dept filter — show all their allowed depts + general
+                stmt = stmt.where(
+                    BusyDay.department_id.in_(allowed) | (BusyDay.department_id == None)  # noqa: E711
+                )
+        else:
+            # Unrestricted BD — apply optional dept filter if provided
+            if department_id is not None:
+                stmt = stmt.where(
+                    (BusyDay.department_id == department_id) | (BusyDay.department_id == None)  # noqa: E711
+                )
+    else:
+        # SUPERADMIN, MANAGER, TEAM_MEMBER (team-member already user-filtered above)
+        if department_id is not None:
+            stmt = stmt.where(
+                (BusyDay.department_id == department_id) | (BusyDay.department_id == None)  # noqa: E711
+            )
 
     busy_days = session.exec(stmt.order_by(BusyDay.date)).all()
 
@@ -80,21 +120,28 @@ def create_busy_day(
         target_user_id = current_user.id
         target_user = current_user
 
+    # Team-members are always scoped to their own department
+    dept_id = data.department_id
+    if current_user.role == UserRole.TEAM_MEMBER:
+        dept_id = current_user.department_id
+
     existing = session.exec(
         select(BusyDay).where(
             BusyDay.user_id == target_user_id,
             BusyDay.date == data.date,
+            BusyDay.department_id == dept_id,
         )
     ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This day is already marked as busy for that user",
+            detail="This day is already marked as busy for that department",
         )
 
     busy_day = BusyDay(
         user_id=target_user_id,
         date=data.date,
+        department_id=dept_id,
         reason=data.reason or None,
     )
     session.add(busy_day)
