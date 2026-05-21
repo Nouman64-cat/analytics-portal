@@ -103,7 +103,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [leadsFrequencyView, setLeadsFrequencyView] = useState<"weekly" | "monthly">("weekly");
+  const [leadsFrequencyView, setLeadsFrequencyView] = useState<"weekly" | "monthly">("monthly");
   const [dailyInterviews, setDailyInterviews] = useState<DayInterviews[]>([]);
   const [leadOutcomesData, setLeadOutcomesData] = useState<LeadOutcomesByCandidateData | null>(null);
   const [outcomePeriodView, setOutcomePeriodView] = useState<"weekly" | "monthly">("weekly");
@@ -184,7 +184,7 @@ export default function DashboardPage() {
     : null;
 
   const candidateData = recordToChartData(stats.interviews_by_candidate);
-  const leadsWeeklyData = toChronologicalChartData(stats.leads_frequency_weekly || {}).map((d) => ({
+  const leadsWeeklyData = toChronologicalChartData(stats.leads_frequency_weekly || {}).slice(-7).map((d) => ({
     ...d,
     name: formatIsoWeekToWeekdayRange(d.name),
   }));
@@ -332,23 +332,28 @@ export default function DashboardPage() {
             title="Leads Frequency"
             subtitle={
               leadsFrequencyView === "weekly"
-                ? "Leads grouped by Monday-Friday range"
+                ? "Last 7 weeks (Monday–Friday range)"
                 : "Leads grouped by month"
             }
             className="h-full"
+            headerAction={
+              <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-white/[0.08] p-0.5">
+                {(["monthly", "weekly"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setLeadsFrequencyView(m)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      leadsFrequencyView === m
+                        ? "bg-indigo-500 text-white"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                  </button>
+                ))}
+              </div>
+            }
           >
-            <div className="mb-3 flex justify-end">
-              <select
-                value={leadsFrequencyView}
-                onChange={(e) =>
-                  setLeadsFrequencyView(e.target.value as "weekly" | "monthly")
-                }
-                className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            </div>
             <BarChartWidget
               data={leadsChartData}
               color={leadsFrequencyView === "weekly" ? "#22c55e" : "#0ea5e9"}

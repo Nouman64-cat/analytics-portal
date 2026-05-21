@@ -37,16 +37,20 @@ interface ChartCardProps {
   subtitle?: string;
   children: React.ReactNode;
   className?: string;
+  headerAction?: React.ReactNode;
 }
 
-export function ChartCard({ title, subtitle, children, className }: ChartCardProps) {
+export function ChartCard({ title, subtitle, children, className, headerAction }: ChartCardProps) {
   return (
     <div className={`rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 ${className ?? ""}`}>
-      <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
-        {subtitle && (
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">{subtitle}</p>
-        )}
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
+          {subtitle && (
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">{subtitle}</p>
+          )}
+        </div>
+        {headerAction && <div className="shrink-0">{headerAction}</div>}
       </div>
       {children}
     </div>
