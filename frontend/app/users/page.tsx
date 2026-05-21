@@ -124,7 +124,7 @@ export default function UsersPage() {
       alert("Please fill in all fields");
       return;
     }
-    if (isMultiDeptBdLead && formData.role !== "bd" && formData.role !== "bd-team-lead" && !formData.department_id) {
+    if (isMultiDeptBdLead && formData.role !== "bd-team-lead" && !formData.department_id) {
       alert("Please select a department for this user");
       return;
     }
@@ -373,6 +373,24 @@ export default function UsersPage() {
                   Sets the department where this BD&apos;s leads and interviews are created.
                 </p>
               )}
+            </FormField>
+          )}
+
+          {isMultiDeptBdLead && formData.role === "bd" && (
+            <FormField label="Primary Department">
+              <select
+                value={formData.department_id ?? ""}
+                onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
+                className={inputClass}
+              >
+                <option value="">— Select primary department —</option>
+                {myAllowedDepts.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">
+                Sets the department where this BD&apos;s leads and interviews are created.
+              </p>
             </FormField>
           )}
 

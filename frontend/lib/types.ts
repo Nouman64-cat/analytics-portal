@@ -59,6 +59,7 @@ export interface BusinessDeveloper {
   name: string;
   email: string | null;
   is_active: boolean;
+  department_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -442,6 +443,7 @@ export interface DatabaseBackupListResponse {
 export interface BusinessDeveloperFormData {
   name: string;
   email?: string | null;
+  department_ids?: string[] | null;
 }
 
 export interface CandidateFormData {

@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight, Mail } from "lucide-react";
 import DateRangeFilter from "@/components/DateRangeFilter";
-import { businessDevelopersService, interviewsService } from "@/lib/services";
+import { businessDevelopersService, interviewsService, departmentsService, authService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
-import type { BusinessDeveloper, BusinessDeveloperFormData, Interview } from "@/lib/types";
+import type { BusinessDeveloper, BusinessDeveloperFormData, Interview, Department, User } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
@@ -38,9 +38,28 @@ export default function BusinessDevelopersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager";
   const isSuperAdmin = role === "superadmin";
+  const isBdTeamLead = role === "bd-team-lead";
+
+  const myAllowedDepts = useMemo(() => {
+    if (!isBdTeamLead) return departments.filter((d) => d.is_active);
+    const allowed = currentUserProfile?.allowed_dept_ids;
+    if (allowed === null || allowed === undefined) return [];
+    if (allowed.length === 0) return departments.filter((d) => d.is_active);
+    return departments.filter((d) => d.is_active && allowed.includes(d.id));
+  }, [isBdTeamLead, currentUserProfile, departments]);
+
+  const deptMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    departments.forEach((d) => { m[d.id] = d.name; });
+    return m;
+  }, [departments]);
+
+  const canManageDepts = isSuperAdmin || isBdTeamLead;
 
   const fetchData = useCallback(async () => {
     try {
@@ -59,17 +78,25 @@ export default function BusinessDevelopersPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    if (isSuperAdmin || isBdTeamLead) {
+      departmentsService.list().then(setDepartments).catch(() => {});
+    }
+    if (isBdTeamLead) {
+      authService.getMe().then(setCurrentUserProfile).catch(() => {});
+    }
+  }, [fetchData]);
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: "", email: "" });
+    setFormData({ name: "", email: "", department_ids: null });
     setModalOpen(true);
   };
 
   const openEdit = (bd: BusinessDeveloper) => {
     setEditingId(bd.id);
-    setFormData({ name: bd.name, email: bd.email ?? "" });
+    setFormData({ name: bd.name, email: bd.email ?? "", department_ids: bd.department_ids ?? null });
     setModalOpen(true);
   };
 
@@ -413,6 +440,15 @@ export default function BusinessDevelopersPage() {
                         <span className="truncate">{bd.email}</span>
                       </div>
                     )}
+                    {Array.isArray(bd.department_ids) && bd.department_ids.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {bd.department_ids.map((id) => deptMap[id] && (
+                          <span key={id} className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20">
+                            {deptMap[id]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">
                       Added {formatDate(bd.created_at)}
                     </p>
@@ -450,6 +486,42 @@ export default function BusinessDevelopersPage() {
             className={inputClass}
           />
         </FormField>
+
+        {canManageDepts && (
+          <div className="space-y-2">
+            <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Departments
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(isSuperAdmin ? departments.filter((d) => d.is_active) : myAllowedDepts).map((d) => {
+                const selected = Array.isArray(formData.department_ids) && formData.department_ids.includes(d.id);
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      const current = Array.isArray(formData.department_ids) ? formData.department_ids : [];
+                      const next = selected ? current.filter((id) => id !== d.id) : [...current, d.id];
+                      setFormData({ ...formData, department_ids: next.length ? next : null });
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                      selected
+                        ? "bg-teal-500 text-white border-teal-500"
+                        : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-teal-400 hover:text-teal-400"
+                    }`}
+                  >
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-500">
+              {!formData.department_ids || formData.department_ids.length === 0
+                ? "No department assigned."
+                : `Assigned to ${formData.department_ids.length} department(s).`}
+            </p>
+          </div>
+        )}
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className={buttonSecondary}>Cancel</button>

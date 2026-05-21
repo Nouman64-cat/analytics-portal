@@ -26,6 +26,16 @@ _RESTRICTED_ROLES = {UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.DEPT_LEAD, 
 _DEPT_MANAGER_ROLES = (UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD)
 
 
+def _bd_in_btl_scope(lead: User, bd: User, is_multi: bool, btl_allowed: list[str] | None) -> bool:
+    """Return True if bd's department_id falls within the BD_TEAM_LEAD's scope."""
+    if is_multi and btl_allowed is None:
+        return True  # lead has access to all departments
+    if btl_allowed is not None:
+        return bd.department_id is not None and str(bd.department_id) in btl_allowed
+    # single-dept (is_multi=False, btl_allowed=None)
+    return bd.department_id == lead.department_id
+
+
 def _btl_scope(user: User) -> tuple[bool, list[str] | None]:
     """Return (is_multi, allowed) for a BD_TEAM_LEAD.
 
@@ -67,7 +77,16 @@ def list_users(
 
     query = select(User).order_by(User.created_at.desc())
     if current_user.role == UserRole.BD_TEAM_LEAD:
-        query = query.where(User.created_by == current_user.id)
+        import uuid as _uuid
+        is_multi, btl_allowed = _btl_scope(current_user)
+        query = query.where(User.role == UserRole.BD)
+        if btl_allowed is not None:
+            query = query.where(User.department_id.in_([_uuid.UUID(d) for d in btl_allowed]))
+        elif not is_multi:
+            if current_user.department_id is None:
+                return []
+            query = query.where(User.department_id == current_user.department_id)
+        # is_multi and btl_allowed is None → all depts, no additional filter
     elif current_user.role == UserRole.DEPT_LEAD:
         if current_user.department_id is None:
             return []
@@ -115,15 +134,15 @@ def create_user(
     else:
         dept_id = user_in.department_id
 
-    # Convenience: if creating a BD with a single allowed dept and no explicit
-    # department_id, mirror the single allowed dept as department_id so that
+    # Convenience: if creating a BD with allowed_dept_ids but no explicit
+    # department_id, mirror the first allowed dept as department_id so that
     # leads/interviews they create get the correct department.
     if (
-        current_user.role == UserRole.SUPERADMIN
-        and UserRole(user_in.role) == UserRole.BD
+        UserRole(user_in.role) == UserRole.BD
         and dept_id is None
         and user_in.allowed_dept_ids is not None
-        and len(user_in.allowed_dept_ids) == 1
+        and len(user_in.allowed_dept_ids) >= 1
+        and current_user.role in (UserRole.SUPERADMIN, UserRole.BD_TEAM_LEAD)
     ):
         import uuid as _uuid
         try:
@@ -191,11 +210,13 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     if current_user.role == UserRole.BD_TEAM_LEAD:
-        if user.created_by != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit users you created")
+        if user.role != UserRole.BD:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit BD accounts")
+        is_multi, btl_allowed = _btl_scope(current_user)
+        if not _bd_in_btl_scope(current_user, user, is_multi, btl_allowed):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This BD is not in your department scope")
         if user_in.role and UserRole(user_in.role) in _RESTRICTED_ROLES:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign superadmin, manager, dept-lead, or bd-team-lead roles")
-        _, btl_allowed = _btl_scope(current_user)
         if btl_allowed is not None:
             if user_in.department_id is not None and str(user_in.department_id) not in btl_allowed:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -256,10 +277,11 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     if current_user.role == UserRole.BD_TEAM_LEAD:
-        if user.created_by != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete users you created")
-        if user.role in _RESTRICTED_ROLES:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete superadmin, manager, dept-lead, or bd-team-lead accounts")
+        if user.role != UserRole.BD:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete BD accounts")
+        is_multi, btl_allowed = _btl_scope(current_user)
+        if not _bd_in_btl_scope(current_user, user, is_multi, btl_allowed):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This BD is not in your department scope")
     elif current_user.role == UserRole.DEPT_LEAD:
         if user.department_id != current_user.department_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")

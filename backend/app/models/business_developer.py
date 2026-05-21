@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlmodel import SQLModel, Field
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 
 class BusinessDeveloper(SQLModel, table=True):
@@ -13,5 +13,7 @@ class BusinessDeveloper(SQLModel, table=True):
     name: str = Field(index=True, max_length=255)
     email: Optional[str] = Field(default=None, max_length=255)
     is_active: bool = Field(default=True)
+    # JSON list of department UUID strings, e.g. '["uuid1","uuid2"]'
+    department_ids: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

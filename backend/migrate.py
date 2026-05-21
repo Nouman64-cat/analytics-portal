@@ -216,6 +216,9 @@ def migrate():
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_dept_ids TEXT;",
              "Migration successful! 'allowed_dept_ids' column added to 'users' table."),
 
+            ("ALTER TABLE business_developers ADD COLUMN IF NOT EXISTS department_ids TEXT;",
+             "Migration successful! 'department_ids' column added to 'business_developers' table."),
+
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;",
              "Migration successful! 'created_by' column added to 'users' table."),
             ("CREATE INDEX IF NOT EXISTS ix_users_created_by ON users (created_by);",
