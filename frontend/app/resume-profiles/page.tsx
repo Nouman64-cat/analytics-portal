@@ -10,6 +10,7 @@ import {
   Target,
   Loader2,
   Eye,
+  Search,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { profilesService, interviewsService, departmentsService } from "@/lib/services";
@@ -64,6 +65,7 @@ export default function ProfilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"active" | "closed" | "all">("active");
+  const [search, setSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -192,10 +194,19 @@ export default function ProfilesPage() {
   const closedProfiles = profiles.filter((p) => p.is_active === false).length;
 
   const filteredProfiles = useMemo(() => {
-    if (statusFilter === "active") return profiles.filter((p) => p.is_active !== false);
-    if (statusFilter === "closed") return profiles.filter((p) => p.is_active === false);
-    return profiles;
-  }, [profiles, statusFilter]);
+    let result = profiles;
+    if (statusFilter === "active") result = result.filter((p) => p.is_active !== false);
+    if (statusFilter === "closed") result = result.filter((p) => p.is_active === false);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.department_name && p.department_name.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [profiles, statusFilter, search]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -429,11 +440,20 @@ export default function ProfilesPage() {
         </div>
       )}
 
-      {/* Profiles Modular Grid */}
-      <div className="flex items-center justify-between mt-8 mb-2 flex-wrap gap-3">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-          Deployed Profiles
-        </h3>
+      {/* Profiles Table */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="relative sm:max-w-xs">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search profiles..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${inputClass} pl-10`}
+            />
+          </div>
+        </div>
         <div className="flex gap-1.5">
           {(["active", "closed", "all"] as const).map((f) => (
             <button
@@ -454,187 +474,196 @@ export default function ProfilesPage() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
-        {filteredProfiles.map((profile) => {
-          const isActive = profile.is_active !== false;
-          return (
-            <div
-              key={profile.id}
-              className={`group relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg ${isActive ? "border-indigo-100 hover:border-indigo-300 dark:border-indigo-500/20 dark:hover:border-indigo-500/50" : "border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.1] opacity-70"}`}
-            >
-              <div
-                className={`absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-all group-hover:opacity-60 ${isActive ? "bg-gradient-to-br from-indigo-500/20 to-purple-500/20" : "bg-slate-500/10"}`}
-              />
 
-              <div className="relative flex flex-col gap-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${isActive ? "from-indigo-500/20 to-purple-500/20 text-indigo-400" : "from-slate-500/20 to-slate-400/20 text-slate-400"}`}
+      {profiles.length === 0 ? (
+        <EmptyState message="No robust profiles generated yet" />
+      ) : search.trim() && filteredProfiles.length === 0 ? (
+        <EmptyState message="No profiles match your search" />
+      ) : profiles.length > 0 && statusFilter !== "all" && filteredProfiles.length === 0 ? (
+        <EmptyState message={`No ${statusFilter} profiles found`} />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Name</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Department</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Interviews</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Links</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProfiles.map((profile) => {
+                  const isActive = profile.is_active !== false;
+                  return (
+                    <tr
+                      key={profile.id}
+                      className="border-b border-slate-200 dark:border-white/[0.06] last:border-b-0 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.02]"
                     >
-                      <FileUser size={18} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        {profile.name}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${isActive ? "from-indigo-500/30 to-purple-500/30 text-indigo-400" : "from-slate-500/20 to-slate-400/20 text-slate-400"}`}>
+                            <FileUser size={14} />
+                          </div>
+                          <span className="font-medium text-slate-900 dark:text-white truncate max-w-[200px]">
+                            {profile.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        {profile.department_name ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
+                            {profile.department_name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
                         {isActive ? (
-                          <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded-full font-medium shadow-sm">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                             Active
                           </span>
                         ) : (
-                          <span className="bg-slate-500/10 text-slate-500 text-[10px] px-2 py-0.5 rounded-full font-medium">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
                             Closed
                           </span>
                         )}
-                      </h3>
-                      {profile.department_name && (
-                        <span className="inline-block mt-0.5 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 text-[10px] px-2 py-0.5 rounded-full font-medium">
-                          {profile.department_name}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="font-semibold text-slate-900 dark:text-white text-sm">
+                          {profileCounts[profile.id] || 0}
                         </span>
-                      )}
-                      <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-0.5">
-                        Added {formatDate(profile.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-                    <button
-                      onClick={() => setViewModal(profile)}
-                      className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                      title="View Profile"
-                    >
-                      <Eye size={13} />
-                    </button>
-                    {!cannotCRUD && (
-                      <>
-                        <button
-                          onClick={() => openEdit(profile)}
-                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                          title="Edit Profile Details"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteModal(profile)}
-                          className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                          title="Delete Locally"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Exact Statistics Pipeline Count */}
-                <div className="mt-2 text-sm bg-slate-50 dark:bg-white/[0.02] rounded-xl p-3 border border-slate-100 dark:border-white/[0.04]">
-                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                    <span className="text-xs font-medium uppercase tracking-wider">
-                      Total Interviews Loaded
-                    </span>
-                    <span className="font-semibold text-slate-900 dark:text-white text-base">
-                      {profileCounts[profile.id] || 0}
-                    </span>
-                  </div>
-                </div>
-
-                {/* LinkedIn / GitHub / Resume tags */}
-                <div className="flex gap-2 flex-wrap">
-                  {profile.linkedin_url && (
-                    <a
-                      href={profile.linkedin_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
-                    >
-                      <FaLinkedin size={11} />
-                      LinkedIn
-                    </a>
-                  )}
-                  {profile.github_url && (
-                    <a
-                      href={profile.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.10] transition-colors"
-                    >
-                      <FaGithub size={11} />
-                      GitHub
-                    </a>
-                  )}
-                  {profile.portfolio_url && (
-                    <a
-                      href={profile.portfolio_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-fuchsia-50 dark:bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-500/20 transition-colors"
-                    >
-                      <Target size={11} />
-                      Portfolio
-                    </a>
-                  )}
-                  {profile.resume_url ? (
-                    <a
-                      href={profile.resume_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors break-all"
-                    >
-                      <Eye size={11} />
-                      Resume
-                    </a>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 dark:bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      <FileUser size={11} />
-                      No resume yet
-                    </span>
-                  )}
-                </div>
-
-                {!cannotCRUD && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      id={`resume-input-${profile.id}`}
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleResumeUpload(profile.id, f);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        document
-                          .getElementById(`resume-input-${profile.id}`)
-                          ?.click()
-                      }
-                      className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-all"
-                      disabled={uploadingProfileId === profile.id}
-                    >
-                      {uploadingProfileId === profile.id
-                        ? "Uploading..."
-                        : profile.resume_url
-                          ? "Replace Resume"
-                          : "Upload Resume"}
-                    </button>
-                  </div>
-                )}
-                {uploadError && uploadingProfileId === profile.id && (
-                  <p className="text-[11px] text-red-500 mt-1">{uploadError}</p>
-                )}
-              </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-1.5">
+                          {profile.linkedin_url && (
+                            <a
+                              href={profile.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                              title="LinkedIn"
+                            >
+                              <FaLinkedin size={13} />
+                            </a>
+                          )}
+                          {profile.github_url && (
+                            <a
+                              href={profile.github_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+                              title="GitHub"
+                            >
+                              <FaGithub size={13} />
+                            </a>
+                          )}
+                          {profile.portfolio_url && (
+                            <a
+                              href={profile.portfolio_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg p-1.5 text-fuchsia-500 hover:bg-fuchsia-50 dark:hover:bg-fuchsia-500/10 transition-colors"
+                              title="Portfolio"
+                            >
+                              <Target size={13} />
+                            </a>
+                          )}
+                          {profile.resume_url ? (
+                            <a
+                              href={profile.resume_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
+                              title="Resume"
+                            >
+                              <Eye size={13} />
+                            </a>
+                          ) : (
+                            <span className="rounded-lg p-1.5 text-slate-400 cursor-default" title="No resume uploaded">
+                              <FileUser size={13} />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
+                        {formatDate(profile.created_at)}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setViewModal(profile)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                            title="View Profile"
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {!cannotCRUD && (
+                            <>
+                              <button
+                                onClick={() => openEdit(profile)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                                title="Edit Profile"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteModal(profile)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                title="Delete Profile"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                              <div className="relative">
+                                <input
+                                  id={`resume-input-${profile.id}`}
+                                  type="file"
+                                  accept="application/pdf"
+                                  className="hidden"
+                                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleResumeUpload(profile.id, f);
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    document
+                                      .getElementById(`resume-input-${profile.id}`)
+                                      ?.click()
+                                  }
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                                  title={profile.resume_url ? "Replace Resume" : "Upload Resume"}
+                                  disabled={uploadingProfileId === profile.id}
+                                >
+                                  {uploadingProfileId === profile.id ? (
+                                    <Loader2 className="animate-spin" size={13} />
+                                  ) : (
+                                    <FileUser size={13} />
+                                  )}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {uploadError && (
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-white/[0.06]">
+              <p className="text-[12px] text-red-500">{uploadError}</p>
             </div>
-          );
-        })}
-      </div>
-
-      {profiles.length === 0 && (
-        <EmptyState message="No robust profiles generated yet" />
-      )}
-      {profiles.length > 0 && filteredProfiles.length === 0 && (
-        <EmptyState message={`No ${statusFilter} profiles found`} />
+          )}
+        </div>
       )}
 
       {/* View Profile Modal */}
