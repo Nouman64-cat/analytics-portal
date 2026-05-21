@@ -357,33 +357,47 @@ export default function UsersPage() {
           )}
 
           {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead") && (
-            <FormField label="Department">
-              <select
-                value={formData.department_id ?? ""}
-                onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
-                className={inputClass}
-              >
-                <option value="">— Select department —</option>
-                {departments.filter((d) => d.is_active).map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </FormField>
+            <div className="flex flex-wrap gap-2">
+              {departments.filter((d) => d.is_active).map((d) => {
+                const selected = formData.department_id === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, department_id: selected ? null : d.id })}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                      selected
+                        ? "bg-teal-500 text-white border-teal-500"
+                        : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-teal-400 hover:text-teal-400"
+                    }`}
+                  >
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {isMultiDeptBdLead && formData.role !== "bd" && formData.role !== "bd-team-lead" && (
-            <FormField label="Department">
-              <select
-                value={formData.department_id ?? ""}
-                onChange={(e) => setFormData({ ...formData, department_id: e.target.value || null })}
-                className={inputClass}
-              >
-                <option value="">— Select department —</option>
-                {myAllowedDepts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </FormField>
+            <div className="flex flex-wrap gap-2">
+              {myAllowedDepts.map((d) => {
+                const selected = formData.department_id === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, department_id: selected ? null : d.id })}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                      selected
+                        ? "bg-teal-500 text-white border-teal-500"
+                        : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-teal-400 hover:text-teal-400"
+                    }`}
+                  >
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
           )}
           {(formData.role === "bd" || formData.role === "bd-team-lead") && (isSuperadmin || isMultiDeptBdLead) && (
             <div className="space-y-2">
