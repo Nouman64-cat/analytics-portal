@@ -126,26 +126,46 @@ def create_user(
             detail="A user with this email already exists",
         )
 
-    # Determine the target department_id
+    # ── Determine dept_id; compute BTL scope vars for later use ─────────────
+    import uuid as _uuid
+    btl_is_multi: bool = False
+    btl_allowed_ids: list[str] | None = None
+
     if current_user.role == UserRole.DEPT_LEAD:
         dept_id = current_user.department_id
     elif current_user.role == UserRole.BD_TEAM_LEAD:
-        is_multi, btl_allowed = _btl_scope(current_user)
-        if is_multi:
+        btl_is_multi, btl_allowed_ids = _btl_scope(current_user)
+        if btl_is_multi:
             dept_id = user_in.department_id
-            if btl_allowed is not None and dept_id is not None and str(dept_id) not in btl_allowed:
+            if btl_allowed_ids is not None and dept_id is not None and str(dept_id) not in btl_allowed_ids:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Department is not in your allowed list",
                 )
         else:
+            # Single-dept BTL: prefer department_id, fall back to allowed_dept_ids[0]
             dept_id = current_user.department_id
+            if dept_id is None and btl_allowed_ids:
+                try:
+                    dept_id = _uuid.UUID(btl_allowed_ids[0])
+                except Exception:
+                    pass
     else:
         dept_id = user_in.department_id
 
-    # Convenience: if creating a BD with allowed_dept_ids but no explicit
-    # department_id, mirror the first allowed dept as department_id so that
-    # leads/interviews they create get the correct department.
+    # For BD users created by a single-dept BTL that didn't send allowed_dept_ids
+    # (the form hides the selector when isMultiDeptBdLead=false), auto-scope them
+    # to the BTL's own department(s) so they don't inherit unrestricted access.
+    if (
+        UserRole(user_in.role) == UserRole.BD
+        and current_user.role == UserRole.BD_TEAM_LEAD
+        and not btl_is_multi
+        and btl_allowed_ids is not None
+        and user_in.allowed_dept_ids is None
+    ):
+        user_in.allowed_dept_ids = btl_allowed_ids
+
+    # Convenience: mirror first allowed dept as department_id
     if (
         UserRole(user_in.role) == UserRole.BD
         and dept_id is None
@@ -153,7 +173,6 @@ def create_user(
         and len(user_in.allowed_dept_ids) >= 1
         and current_user.role in (UserRole.SUPERADMIN, UserRole.BD_TEAM_LEAD)
     ):
-        import uuid as _uuid
         try:
             dept_id = _uuid.UUID(user_in.allowed_dept_ids[0])
         except Exception:
@@ -161,10 +180,9 @@ def create_user(
 
     # For BD team leads: validate allowed_dept_ids stays within their scope
     if current_user.role == UserRole.BD_TEAM_LEAD and user_in.allowed_dept_ids is not None:
-        _, btl_allowed = _btl_scope(current_user)
-        if btl_allowed is not None:
+        if btl_allowed_ids is not None:
             for did in user_in.allowed_dept_ids:
-                if did not in btl_allowed:
+                if did not in btl_allowed_ids:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Cannot grant access to departments outside your scope",
