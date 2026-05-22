@@ -3,20 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Menu,
-  Layers,
-  Clock,
   Sun,
   Moon,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { authService, departmentsService } from "@/lib/services";
-import type { User as UserType, Department } from "@/lib/types";
+import { authService } from "@/lib/services";
+import type { User as UserType } from "@/lib/types";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { getUserRole } from "@/lib/auth";
-import { useDepartmentContext } from "@/lib/DepartmentContext";
 import NotificationBell from "@/components/NotificationBell";
 
 interface HeaderProps {
@@ -25,14 +22,6 @@ interface HeaderProps {
   onSidebarToggle: () => void;
 }
 
-const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
-const MULTI_DEPT_CAPABLE_ROLES = new Set([
-  "superadmin",
-  "manager",
-  "bd",
-  "bd-team-lead",
-  "bd-manager",
-]);
 const NOTIFICATION_ROLES = new Set([
   "superadmin",
   "bd",
@@ -43,33 +32,33 @@ const NOTIFICATION_ROLES = new Set([
 const CLOCKS = [
   {
     tz: "America/New_York",
-    label: "ET",
+    pill: "bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30",
     labelColor: "text-indigo-500 dark:text-indigo-400",
-    timeColor: "text-indigo-700 dark:text-indigo-300",
+    timeColor: "text-indigo-900 dark:text-indigo-100",
   },
   {
     tz: "America/Chicago",
-    label: "CT",
+    pill: "bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30",
     labelColor: "text-rose-500 dark:text-rose-400",
-    timeColor: "text-rose-700 dark:text-rose-300",
+    timeColor: "text-rose-900 dark:text-rose-100",
   },
   {
     tz: "America/Edmonton",
-    label: "MT",
+    pill: "bg-sky-50 dark:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30",
     labelColor: "text-sky-500 dark:text-sky-400",
-    timeColor: "text-sky-700 dark:text-sky-300",
+    timeColor: "text-sky-900 dark:text-sky-100",
   },
   {
     tz: "America/Los_Angeles",
-    label: "PT",
-    labelColor: "text-emerald-500 dark:text-emerald-400",
-    timeColor: "text-emerald-700 dark:text-emerald-300",
+    pill: "bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30",
+    labelColor: "text-emerald-600 dark:text-emerald-400",
+    timeColor: "text-emerald-900 dark:text-emerald-100",
   },
   {
     tz: "Asia/Karachi",
-    label: "PKT",
-    labelColor: "text-amber-500 dark:text-amber-400",
-    timeColor: "text-amber-700 dark:text-amber-300",
+    pill: "bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30",
+    labelColor: "text-amber-600 dark:text-amber-400",
+    timeColor: "text-amber-900 dark:text-amber-100",
   },
 ];
 
@@ -98,30 +87,15 @@ function LiveClocks() {
       .find((p) => p.type === "timeZoneName")?.value ?? tz;
 
   return (
-    <div className="hidden lg:flex items-center gap-1 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-1.5 bg-slate-50/70 dark:bg-white/[0.03]">
-      <Clock
-        size={11}
-        className="text-slate-400 dark:text-slate-500 mr-1 shrink-0"
-      />
-      {CLOCKS.map(({ tz, labelColor, timeColor }, i) => (
-        <div key={tz} className="flex items-center gap-1">
-          {i > 0 && (
-            <span className="text-slate-200 dark:text-white/10 select-none">
-              ·
-            </span>
-          )}
-          <div className="text-center">
-            <span
-              className={`block text-[9px] font-semibold uppercase tracking-wider leading-none mb-0.5 ${labelColor}`}
-            >
-              {abbr(tz)}
-            </span>
-            <span
-              className={`block text-[12px] sm:text-[13px] font-mono font-semibold tabular-nums leading-none ${timeColor}`}
-            >
-              {fmt(tz)}
-            </span>
-          </div>
+    <div className="hidden lg:flex items-center gap-1.5">
+      {CLOCKS.map(({ tz, pill, labelColor, timeColor }) => (
+        <div key={tz} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${pill}`}>
+          <span className={`text-[12px] font-bold uppercase tracking-widest leading-none ${labelColor}`}>
+            {abbr(tz)}
+          </span>
+          <span className={`text-[14px] font-mono font-bold tabular-nums leading-none ${timeColor}`}>
+            {fmt(tz)}
+          </span>
         </div>
       ))}
     </div>
@@ -134,13 +108,11 @@ export default function Header({
   onSidebarToggle,
 }: HeaderProps) {
   const [user, setUser] = useState<UserType | null>(null);
-  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const role = getUserRole();
   const showNotifications = role ? NOTIFICATION_ROLES.has(role) : false;
-  const { departmentId, setDepartmentId } = useDepartmentContext();
 
   const fetchUser = useCallback(async () => {
     try {
@@ -156,43 +128,6 @@ export default function Header({
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return;
-    departmentsService
-      .list()
-      .then((depts) => setAllDepartments(depts.filter((d) => d.is_active)))
-      .catch(() => {});
-  }, [role]);
-
-  // Compute which departments to show in the switcher for this user
-  const departments = (() => {
-    if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return [];
-    // Superadmin / manager: always all depts
-    if (CROSS_DEPT_ROLES.has(role)) return allDepartments;
-    // BD / BD-team-lead: governed by allowed_dept_ids
-    const allowed = user?.allowed_dept_ids;
-    if (allowed === undefined) {
-      // User profile not loaded yet — show nothing to avoid flashing wrong depts
-      return [];
-    }
-    if (allowed === null) {
-      // Explicit null: no restriction set, use role default
-      return role === "bd" || role === "bd-manager" ? allDepartments : [];
-    }
-    if (allowed.length === 0) return allDepartments; // [] = All
-    return allDepartments.filter((d) => allowed.includes(d.id));
-  })();
-
-  const showSwitcher = departments.length > 1;
-
-  // Auto-select first department when list loads and nothing valid is selected
-  useEffect(() => {
-    if (departments.length === 0) return;
-    const isValid = departments.some((d) => d.id === departmentId);
-    if (!isValid) setDepartmentId(departments[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [departments]);
 
   const getPageTitle = () => {
     if (pathname === "/") return "Dashboard Overview";
@@ -240,41 +175,6 @@ export default function Header({
           </button>
           <LiveClocks />
         </div>
-
-        {/* Center: dept selector for multi-dept users */}
-        {showSwitcher && (
-          <div className="flex-1 flex justify-center">
-            <div className="relative flex items-center gap-2">
-              <Layers size={14} className="text-indigo-400 shrink-0" />
-              <select
-                value={departmentId ?? ""}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="appearance-none rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] pl-2 pr-7 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
-              >
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
-                <svg
-                  className="h-3 w-3 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Right: theme switcher, bell + avatar */}
         <div className="flex items-center gap-2 md:gap-4">

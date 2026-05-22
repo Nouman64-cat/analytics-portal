@@ -12,41 +12,39 @@ interface StatsCardProps {
   onClick?: () => void;
 }
 
-export default function StatsCard({ title, value, icon: Icon, trend, gradient, onClick }: StatsCardProps) {
+export default function StatsCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  gradient,
+  onClick,
+}: StatsCardProps) {
   const Tag = onClick ? "button" : "div";
   return (
     <Tag
       onClick={onClick}
-      className={`group relative min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-4 transition-all duration-300 hover:border-slate-300 dark:hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20 sm:p-5 text-left${onClick ? " cursor-pointer active:scale-[0.98]" : ""}`}
+      className={`group relative min-w-0 w-full overflow-hidden rounded-[26px] border border-slate-200/80 dark:border-slate-700/80 bg-white/95 dark:bg-slate-950/95 p-4 text-left transition-shadow duration-200 ${onClick ? "cursor-pointer hover:shadow-sm" : "shadow-sm"}`}
     >
-      {/* Background glow */}
-      <div
-        className={`absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-20 blur-2xl transition-all duration-500 group-hover:opacity-30 ${gradient}`}
-      />
-
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400 sm:text-xs">
-            {title}
-          </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 dark:text-white sm:mt-2 sm:text-3xl">
-            {value}
-          </p>
-          {trend && (
-            <p className="mt-1 text-xs text-emerald-400">{trend}</p>
-          )}
-        </div>
+      <div className="relative pr-12">
         <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${gradient} bg-opacity-10`}
+          className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-white shadow-sm ${gradient}`}
         >
-          <Icon size={20} className="text-slate-900 dark:text-white/80" />
+          <Icon size={18} />
         </div>
-      </div>
-      {onClick && (
-        <p className="relative mt-2 text-[10px] text-slate-400 dark:text-slate-600">
-          Click to view leads →
+
+        <p className="truncate text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 leading-none">
+          {title}
         </p>
-      )}
+        <p className="mt-1.5 text-[1.55rem] font-semibold leading-tight text-slate-900 dark:text-white sm:text-[1.7rem]">
+          {value}
+        </p>
+        {trend && (
+          <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+            {trend}
+          </p>
+        )}
+      </div>
     </Tag>
   );
 }
@@ -69,9 +67,7 @@ const STATS_GRID_COLS: Record<3 | 4 | 5 | 6 | 7, string> = {
 
 export function StatsGrid({ children, cols = 4 }: StatsGridProps) {
   return (
-    <div
-      className={`grid grid-cols-1 gap-3 sm:gap-4 ${STATS_GRID_COLS[cols]}`}
-    >
+    <div className={`grid grid-cols-1 gap-2 sm:gap-3 ${STATS_GRID_COLS[cols]}`}>
       {children}
     </div>
   );

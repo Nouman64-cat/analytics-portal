@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-interface SidebarProps {
-  collapsed: boolean;
-  onCollapse: (collapsed: boolean) => void;
-  mobileOpen: boolean;
-  onMobileClose: () => void;
-}
+import { useEffect, useState, useMemo } from "react";
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -25,10 +20,24 @@ import {
   Settings2,
   Layers,
   BarChart2,
+  ChevronDown,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { authService, departmentsService } from "@/lib/services";
+import type { User as UserType, Department } from "@/lib/types";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
+
+interface SidebarProps {
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead", "bd-manager"]);
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
@@ -62,6 +71,34 @@ export default function Sidebar({
   };
 
   const role = getUserRole();
+  const { departmentId, setDepartmentId } = useDepartmentContext();
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
+  const [userProfile, setUserProfile] = useState<UserType | null>(null);
+
+  useEffect(() => {
+    if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return;
+    departmentsService.list().then((d) => setAllDepartments(d.filter((x) => x.is_active))).catch(() => {});
+    authService.getMe().then(setUserProfile).catch(() => {});
+  }, [role]);
+
+  const departments = useMemo((): Department[] => {
+    if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return [];
+    if (CROSS_DEPT_ROLES.has(role)) return allDepartments;
+    const allowed = userProfile?.allowed_dept_ids;
+    if (allowed === undefined) return [];
+    if (allowed === null) return role === "bd" || role === "bd-manager" ? allDepartments : [];
+    if (allowed.length === 0) return allDepartments;
+    return allDepartments.filter((d) => allowed.includes(d.id));
+  }, [role, allDepartments, userProfile]);
+
+  // Auto-select first valid department
+  useEffect(() => {
+    if (departments.length === 0) return;
+    if (!departments.some((d) => d.id === departmentId)) setDepartmentId(departments[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments]);
+
+  const showSwitcher = departments.length > 1;
   const HIDDEN_BY_ROLE: Record<string, string[]> = {
     manager: [
       "/",
@@ -120,6 +157,34 @@ export default function Sidebar({
             </span>
           )}
         </div>
+
+        {/* Department switcher */}
+        {showSwitcher && (
+          <div className="px-3 py-2 border-b border-slate-200 dark:border-white/[0.06]">
+            {collapsed ? (
+              <div
+                className="flex justify-center py-1"
+                title={departments.find((d) => d.id === departmentId)?.name ?? "Department"}
+              >
+                <Layers size={17} className="text-indigo-400" />
+              </div>
+            ) : (
+              <div className="relative">
+                <Layers size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none" />
+                <select
+                  value={departmentId ?? ""}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  className="w-full appearance-none rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] pl-7 pr-6 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
+                >
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
