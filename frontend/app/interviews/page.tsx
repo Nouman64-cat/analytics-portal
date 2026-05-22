@@ -83,6 +83,7 @@ import Modal, {
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import CompanyCombobox from "@/components/CompanyCombobox";
 import SearchableSelect from "@/components/SearchableSelect";
+import TypeableSelect from "@/components/TypeableSelect";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
@@ -1614,13 +1615,15 @@ export default function InterviewsPage() {
                   className={`${iSel} shrink-0`}
                 >
                   <option value="All">All rounds</option>
-                  {Array.from(new Set(interviews.map((i) => i.round)))
-                    .filter(Boolean)
-                    .map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
+                  <option value="Recruiter's Call">Recruiter's Call</option>
+                  <option value="Phone Screen">Phone Screen</option>
+                  <option value="1st">1st</option>
+                  <option value="2nd">2nd</option>
+                  <option value="3rd">3rd</option>
+                  <option value="4th">4th</option>
+                  <option value="5th">5th</option>
+                  <option value="6th">6th</option>
+                  <option value="Final">Final</option>
                 </select>
                 <select
                   value={filters.bd_id}
@@ -2396,13 +2399,21 @@ export default function InterviewsPage() {
             </div>
           ) : null}
           <FormField label="Round">
-            <input
+            <TypeableSelect
+              options={[
+                "Recruiter's Call",
+                "Phone Screen",
+                "1st",
+                "2nd",
+                "3rd",
+                "4th",
+                "5th",
+                "6th",
+                "Final",
+              ]}
               value={formData.round}
-              onChange={(e) =>
-                setFormData({ ...formData, round: e.target.value })
-              }
-              placeholder="e.g., 1st, 2nd, Recruiter's Call"
-              className={inputClass}
+              onChange={(val) => setFormData({ ...formData, round: val })}
+              placeholder="Type or select round…"
             />
           </FormField>
           <FormField label="Interviewer">
