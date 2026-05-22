@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  Menu,
-  Sun,
-  Moon,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Menu, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTheme } from "next-themes";
 import { authService } from "@/lib/services";
 import type { User as UserType } from "@/lib/types";
@@ -89,11 +83,18 @@ function LiveClocks() {
   return (
     <div className="hidden lg:flex items-center gap-1.5">
       {CLOCKS.map(({ tz, pill, labelColor, timeColor }) => (
-        <div key={tz} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${pill}`}>
-          <span className={`text-[12px] font-bold uppercase tracking-widest leading-none ${labelColor}`}>
+        <div
+          key={tz}
+          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 ${pill}`}
+        >
+          <span
+            className={`text-[12px] font-bold uppercase tracking-widest leading-none ${labelColor}`}
+          >
             {abbr(tz)}
           </span>
-          <span className={`text-[14px] font-mono font-bold tabular-nums leading-none ${timeColor}`}>
+          <span
+            className={`text-[14px] font-mono font-bold tabular-nums leading-none ${timeColor}`}
+          >
             {fmt(tz)}
           </span>
         </div>
