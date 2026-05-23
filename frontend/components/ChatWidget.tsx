@@ -123,13 +123,14 @@ export default function ChatWidget() {
       {open && (
         <div className={[
           "fixed z-50 flex flex-col",
-          "bg-slate-50 dark:bg-[#0e0f18] shadow-2xl overflow-hidden",
+          "bg-slate-50 dark:bg-[#0e0f18] overflow-hidden",
           // Mobile: full-screen overlay
           "inset-0 rounded-none border-0",
           // Desktop: anchored bottom-right, large but contained
           "md:inset-auto md:bottom-24 md:right-6 md:rounded-2xl md:border md:border-slate-200 md:dark:border-white/[0.07]",
-          "md:w-[540px] md:h-[700px]",
-        ].join(" ")}>
+          "md:w-[540px] md:max-h-[calc(100vh-10rem)] md:h-[600px]",
+        ].join(" ")}
+          style={{ boxShadow: '0 30px 80px -12px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.08)' }}>
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 py-4 md:py-3 bg-white dark:bg-[#12141c] border-b border-slate-200 dark:border-white/[0.06] shrink-0">
             <div className="h-9 w-9 md:h-8 md:w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
