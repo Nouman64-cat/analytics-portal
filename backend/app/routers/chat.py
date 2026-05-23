@@ -144,7 +144,8 @@ _TOOLS = [
                     "resume_profile_id": {"type": "string", "description": "UUID of the resume profile"},
                     "role": {"type": "string", "description": "Job title / opportunity name"},
                     "candidate_id": {"type": "string", "description": "UUID of the candidate (leave blank for team members — set automatically)"},
-                    "bd_id": {"type": "string", "description": "UUID of the business developer (optional)"},
+                    "bd_id": {"type": "string", "description": "UUID of the business developer (optional if bd_name provided)"},
+                    "bd_name": {"type": "string", "description": "Name of the business developer (optional if bd_id provided — I will look it up for you)"},
                     "salary_range": {"type": "string", "description": "e.g. '$120k–$140k' (optional)"},
                     "notes": {"type": "string", "description": "Free-text notes (optional)"},
                     "arrived_on": {"type": "string", "description": "Date received, YYYY-MM-DD (optional)"},
@@ -168,7 +169,8 @@ _TOOLS = [
                     "interview_date": {"type": "string", "description": "YYYY-MM-DD (optional)"},
                     "time_est": {"type": "string", "description": "HH:MM 24-hour EST (optional)"},
                     "candidate_id": {"type": "string", "description": "UUID of the candidate (leave blank for team members)"},
-                    "bd_id": {"type": "string", "description": "UUID of the business developer (optional)"},
+                    "bd_id": {"type": "string", "description": "UUID of the business developer (optional if bd_name provided)"},
+                    "bd_name": {"type": "string", "description": "Name of the business developer (optional if bd_id provided — I will look it up for you)"},
                     "interview_link": {"type": "string", "description": "Meeting URL (optional)"},
                     "is_phone_call": {"type": "boolean", "description": "True if phone call", "default": False},
                     "interviewer": {"type": "string", "description": "Interviewer name (optional)"},
@@ -222,7 +224,8 @@ _TOOLS = [
                     "role": {"type": "string", "description": "New job title (optional)"},
                     "salary_range": {"type": "string", "description": "e.g. '$120k–$140k' (optional)"},
                     "notes": {"type": "string", "description": "Thread-level notes (optional)"},
-                    "bd_id": {"type": "string", "description": "UUID of the new business developer (optional)"},
+                    "bd_id": {"type": "string", "description": "UUID of the new business developer (optional if bd_name provided)"},
+                    "bd_name": {"type": "string", "description": "Name of the new business developer (optional if bd_id provided)"},
                 },
                 "required": ["interview_id"],
             },
@@ -466,6 +469,13 @@ def _exec_tool(
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
 
+        if not bd_id and args.get("bd_name"):
+            bd_row = session.exec(
+                select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
+            ).first()
+            if bd_row:
+                bd_id = bd_row.id
+
         if not session.get(Company, company_id):
             return {"error": "Company not found"}, None
         if not session.get(ResumeProfile, resume_profile_id):
@@ -492,6 +502,12 @@ def _exec_tool(
         lt.updated_at = datetime.utcnow()
         session.add(lt)
 
+        dept_id = user.department_id
+        if candidate_id:
+            cand = session.get(Candidate, candidate_id)
+            if cand and cand.department_id:
+                dept_id = cand.department_id
+
         interview = Interview(
             thread_id=thread_id,
             company_id=company_id,
@@ -502,6 +518,7 @@ def _exec_tool(
             bd_id=bd_id,
             round="Lead",
             interview_date=arrived_on,
+            department_id=dept_id,
         )
         session.add(interview)
         session.commit()
@@ -520,6 +537,13 @@ def _exec_tool(
             bd_id = uuid.UUID(args["bd_id"]) if args.get("bd_id") else None
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
+
+        if not bd_id and args.get("bd_name"):
+            bd_row = session.exec(
+                select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
+            ).first()
+            if bd_row:
+                bd_id = bd_row.id
 
         if not session.get(Company, company_id):
             return {"error": "Company not found"}, None
@@ -545,6 +569,12 @@ def _exec_tool(
             except (ValueError, IndexError):
                 pass
 
+        dept_id = user.department_id
+        if candidate_id:
+            cand = session.get(Candidate, candidate_id)
+            if cand and cand.department_id:
+                dept_id = cand.department_id
+
         interview = Interview(
             thread_id=uuid.uuid4(),
             company_id=company_id,
@@ -559,6 +589,7 @@ def _exec_tool(
             interview_link=args.get("interview_link"),
             is_phone_call=args.get("is_phone_call", False),
             interviewer=args.get("interviewer"),
+            department_id=dept_id,
         )
         session.add(interview)
         session.commit()
@@ -654,7 +685,16 @@ def _exec_tool(
             if not session.get(BusinessDeveloper, bd_id):
                 return {"error": "Business developer not found"}, None
             iv.bd_id = bd_id
-            changed.append("bd")
+            changed.append("bd_id")
+        elif "bd_name" in args and args["bd_name"]:
+            bd_row = session.exec(
+                select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
+            ).first()
+            if bd_row:
+                iv.bd_id = bd_row.id
+                changed.append("bd_id")
+            else:
+                return {"error": f"Business developer '{args['bd_name']}' not found"}, None
 
         if "notes" in args and args["notes"]:
             lt = ensure_lead_thread(session, iv.thread_id)
