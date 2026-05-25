@@ -30,6 +30,7 @@ import {
   Ban,
   SlidersHorizontal,
   ExternalLink,
+  Copy,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -2927,14 +2928,23 @@ export default function InterviewsPage() {
                       Phone Call
                     </p>
                   ) : detailModal.interview_link ? (
-                    <a
-                      href={detailModal.interview_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 text-sm text-indigo-500 hover:text-indigo-400 break-all"
-                    >
-                      {detailModal.interview_link}
-                    </a>
+                    <div className="mt-1 flex items-start gap-2">
+                      <a
+                        href={detailModal.interview_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-indigo-500 hover:text-indigo-400 break-all flex-1 min-w-0"
+                      >
+                        {detailModal.interview_link}
+                      </a>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(detailModal.interview_link!)}
+                        className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                        title="Copy link"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
                   ) : (
                     <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
                       —
