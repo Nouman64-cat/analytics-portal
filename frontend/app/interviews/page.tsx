@@ -557,6 +557,7 @@ export default function InterviewsPage() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<Interview | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadingInterviewId, setUploadingInterviewId] = useState<
@@ -2687,7 +2688,7 @@ export default function InterviewsPage() {
       {/* Detail Modal */}
       <Modal
         open={!!detailModal}
-        onClose={() => setDetailModal(null)}
+        onClose={() => { setDetailModal(null); setLinkCopied(false); }}
         title="Interview Details"
         size="lg"
       >
@@ -2938,11 +2939,15 @@ export default function InterviewsPage() {
                         {detailModal.interview_link}
                       </a>
                       <button
-                        onClick={() => navigator.clipboard.writeText(detailModal.interview_link!)}
+                        onClick={() => {
+                          navigator.clipboard.writeText(detailModal.interview_link!);
+                          setLinkCopied(true);
+                          setTimeout(() => setLinkCopied(false), 2000);
+                        }}
                         className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
                         title="Copy link"
                       >
-                        <Copy size={14} />
+                        {linkCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
                       </button>
                     </div>
                   ) : (
