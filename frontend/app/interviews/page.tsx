@@ -559,6 +559,8 @@ export default function InterviewsPage() {
   const [detailModal, setDetailModal] = useState<Interview | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [deleteModal, setDeleteModal] = useState<Interview | null>(null);
+  const [leadOpen, setLeadOpen] = useState(true);
+  const [ivOpen, setIvOpen] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadingInterviewId, setUploadingInterviewId] = useState<
     string | null
@@ -2727,291 +2729,152 @@ export default function InterviewsPage() {
                 />
               );
             })()}
-            <div className="rounded-xl border border-indigo-200/90 dark:border-indigo-500/35 bg-indigo-50/60 dark:bg-indigo-500/[0.08] p-4 space-y-4">
-              {detailModal.thread_id ? (
-                <LeadThreadPanel
-                  embedded
-                  threadId={detailModal.thread_id}
-                  interview={detailModal}
-                  fetchData={fetchData}
-                  readOnly={true}
-                  onUpdateDetail={(patch) =>
-                    setDetailModal((prev) =>
-                      prev ? { ...prev, ...patch } : null,
-                    )
-                  }
-                />
-              ) : (
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-indigo-800 dark:text-indigo-200/90">
-                  Opportunity
-                </h4>
-              )}
-              <div
-                className={
-                  detailModal.thread_id
-                    ? "grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/70 dark:border-indigo-500/25"
-                    : "grid grid-cols-1 sm:grid-cols-2 gap-4"
-                }
+            <div className="rounded-xl border border-indigo-200/90 dark:border-indigo-500/35 bg-indigo-50/60 dark:bg-indigo-500/[0.08]">
+              <button
+                onClick={() => setLeadOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Company
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
-                    {detailModal.company_name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Role
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {detailModal.role}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Candidate
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {detailModal.candidate_name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Profile
-                  </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <p className="text-sm text-slate-900 dark:text-white">
-                      {detailModal.resume_profile_name}
-                    </p>
-                    {(() => {
-                      const profile = profiles.find(
-                        (p) => p.id === detailModal.resume_profile_id,
-                      );
-                      if (!profile) return null;
-                      return (
-                        <div className="flex gap-2">
-                          {profile.linkedin_url && (
-                            <a
-                              href={profile.linkedin_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-500 hover:text-blue-400 transition-colors"
-                            >
-                              <FaLinkedin size={14} />
-                            </a>
-                          )}
-                          {profile.github_url && (
-                            <a
-                              href={profile.github_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-400 hover:text-slate-300 transition-colors"
-                            >
-                              <FaGithub size={14} />
-                            </a>
-                          )}
-                          {profile.portfolio_url && (
-                            <a
-                              href={profile.portfolio_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors"
-                              title="Portfolio"
-                            >
-                              <Target size={14} />
-                            </a>
-                          )}
-                          {profile.resume_url && (
-                            <a
-                              href={profile.resume_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-500 hover:text-emerald-400 transition-colors"
-                              title="Resume (PDF)"
-                            >
-                              <Eye size={14} />
-                            </a>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-                {detailModal.salary_range && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                      Salary Range
-                    </p>
-                    <p className="mt-1 text-sm text-emerald-400">
-                      {detailModal.salary_range}
-                    </p>
-                  </div>
-                )}
-                {detailModal.bd_name && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                      Business Developer
-                    </p>
-                    <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                      {detailModal.bd_name}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                This interview
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Round
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {detailModal.round}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Date
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {formatInterviewDateEst(
-                      detailModal.interview_date,
-                      detailModal.time_est,
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Time (EST)
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {formatTime(detailModal.time_est)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Time (PKT)
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                    {formatTime(detailModal.time_pkt)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Status
-                  </p>
-                  <div className="mt-1">
-                    <StatusBadge status={detailModal.computed_status} />
-                  </div>
-                </div>
-                {detailModal.interviewer && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                      Interviewer
-                    </p>
-                    <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                      {detailModal.interviewer}
-                    </p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Interview Medium
-                  </p>
-                  {detailModal.is_phone_call ? (
-                    <p className="mt-1 text-sm text-slate-900 dark:text-white">
-                      Phone Call
-                    </p>
-                  ) : detailModal.interview_link ? (
-                    <div className="mt-1 flex items-start gap-2">
-                      <a
-                        href={detailModal.interview_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-indigo-500 hover:text-indigo-400 break-all flex-1 min-w-0"
-                      >
-                        {detailModal.interview_link}
-                      </a>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(detailModal.interview_link!);
-                          setLinkCopied(true);
-                          setTimeout(() => setLinkCopied(false), 2000);
-                        }}
-                        className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
-                        title="Copy link"
-                      >
-                        {linkCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
-                      —
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                    Interview Detail Document
-                  </p>
-                  {detailModal.interview_doc_url ? (
-                    <a
-                      href={detailModal.interview_doc_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
-                    >
-                      <Download size={14} />
-                      Download Document
-                    </a>
-                  ) : (
-                    <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
-                      Not uploaded
-                    </p>
-                  )}
-                  {!cannotCRUD && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        id={`interview-doc-input-${detailModal.id}`}
-                        type="file"
-                        accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-                        className="hidden"
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                          const file = e.target.files?.[0];
-                          if (file)
-                            handleInterviewDocUpload(detailModal.id, file);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          document
-                            .getElementById(
-                              `interview-doc-input-${detailModal.id}`,
+                <span className="text-xs font-semibold uppercase tracking-wider text-indigo-800 dark:text-indigo-200/90">
+                  {detailModal.thread_id ? "Opportunity" : "Lead Details"}
+                </span>
+                <ChevronDown size={14} className={`text-indigo-500 transition-transform ${leadOpen ? "" : "-rotate-90"}`} />
+              </button>
+              {leadOpen && (
+                    <div className="px-4 pb-4 space-y-4">
+                      {detailModal.thread_id && (
+                        <LeadThreadPanel
+                          embedded
+                          threadId={detailModal.thread_id}
+                          interview={detailModal}
+                          fetchData={fetchData}
+                          readOnly={true}
+                          onUpdateDetail={(patch) =>
+                            setDetailModal((prev) =>
+                              prev ? { ...prev, ...patch } : null,
                             )
-                            ?.click()
-                        }
-                        className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
-                        disabled={uploadingInterviewId === detailModal.id}
-                      >
-                        {uploadingInterviewId === detailModal.id
-                          ? "Uploading..."
-                          : "Upload Document"}
-                      </button>
+                          }
+                        />
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/70 dark:border-indigo-500/25">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Company</p>
+                          <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{detailModal.company_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Role</p>
+                          <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.role}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Candidate</p>
+                          <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.candidate_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Profile</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <p className="text-sm text-slate-900 dark:text-white">{detailModal.resume_profile_name}</p>
+                            {(() => {
+                              const profile = profiles.find((p) => p.id === detailModal.resume_profile_id);
+                              if (!profile) return null;
+                              return (
+                                <div className="flex gap-2">
+                                  {profile.linkedin_url && <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 transition-colors"><FaLinkedin size={14} /></a>}
+                                  {profile.github_url && <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-300 transition-colors"><FaGithub size={14} /></a>}
+                                  {profile.portfolio_url && <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors" title="Portfolio"><Target size={14} /></a>}
+                                  {profile.resume_url && <a href={profile.resume_url} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors" title="Resume (PDF)"><Eye size={14} /></a>}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        {detailModal.salary_range && (
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Salary Range</p>
+                            <p className="mt-1 text-sm text-emerald-400">{detailModal.salary_range}</p>
+                          </div>
+                        )}
+                        {detailModal.bd_name && (
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Business Developer</p>
+                            <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.bd_name}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  {uploadError && uploadingInterviewId === detailModal.id && (
-                    <p className="mt-1 text-sm text-red-500">{uploadError}</p>
-                  )}
                 </div>
-              </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+              <button
+                onClick={() => setIvOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">This interview</span>
+                <ChevronDown size={14} className={`text-slate-500 transition-transform dark:text-slate-400 ${ivOpen ? "" : "-rotate-90"}`} />
+              </button>
+              {ivOpen && (
+                <div className="px-4 pb-4 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Round</p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.round}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Date</p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatInterviewDateEst(detailModal.interview_date, detailModal.time_est)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (EST)</p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_est)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (PKT)</p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_pkt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
+                      <div className="mt-1"><StatusBadge status={detailModal.computed_status} /></div>
+                    </div>
+                    {detailModal.interviewer && (
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interviewer</p>
+                        <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.interviewer}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Medium</p>
+                      {detailModal.is_phone_call ? (
+                        <p className="mt-1 text-sm text-slate-900 dark:text-white">Phone Call</p>
+                      ) : detailModal.interview_link ? (
+                        <div className="mt-1 flex items-start gap-2">
+                          <a href={detailModal.interview_link} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-500 hover:text-indigo-400 break-all flex-1 min-w-0">{detailModal.interview_link}</a>
+                          <button onClick={() => { navigator.clipboard.writeText(detailModal.interview_link!); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors" title="Copy link">
+                            {linkCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">—</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Detail Document</p>
+                      {detailModal.interview_doc_url ? (
+                        <a href={detailModal.interview_doc_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"><Download size={14} /> Download Document</a>
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">Not uploaded</p>
+                      )}
+                      {!cannotCRUD && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <input id={`interview-doc-input-${detailModal.id}`} type="file" accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleInterviewDocUpload(detailModal.id, file); }} />
+                          <button type="button" onClick={() => document.getElementById(`interview-doc-input-${detailModal.id}`)?.click()} className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors" disabled={uploadingInterviewId === detailModal.id}>
+                            {uploadingInterviewId === detailModal.id ? "Uploading..." : "Upload Document"}
+                          </button>
+                        </div>
+                      )}
+                      {uploadError && uploadingInterviewId === detailModal.id && <p className="mt-1 text-sm text-red-500">{uploadError}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {(detailModal.feedback || detailModal.recruiter_feedback) && (
               <div className="space-y-4">
