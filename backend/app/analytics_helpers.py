@@ -259,6 +259,128 @@ def get_bd_performance(session: Session) -> list[dict]:
     return results
 
 
+def get_weekly_interview_summary(
+    session: Session,
+    date_from: date,
+    date_to: date,
+) -> dict:
+    """Weekly summary of leads and interview rounds grouped by candidate.
+
+    Returns one entry per candidate containing all lead threads that had any
+    activity (created_at) in [date_from, date_to], plus overall outcome counts.
+    """
+    from datetime import datetime as _dt
+
+    date_from_dt = _dt.combine(date_from, _dt.min.time())
+    date_to_dt = _dt.combine(date_to, _dt.max.time())
+
+    stmt = (
+        select(Interview)
+        .where(Interview.created_at >= date_from_dt)
+        .where(Interview.created_at <= date_to_dt)
+        .order_by(Interview.created_at)
+    )
+    all_interviews = session.exec(stmt).all()
+
+    # Group by thread_id → collect all rounds
+    thread_rounds: dict[uuid.UUID, list[Interview]] = defaultdict(list)
+    for iv in all_interviews:
+        thread_rounds[iv.thread_id].append(iv)
+
+    # Resolve outcome label for a thread
+    def _outcome_label(tid: uuid.UUID) -> str:
+        lt = session.get(LeadThread, tid)
+        o = _outcome_of(lt)
+        if o == "closed":
+            return "Converted"
+        if o in {"rejected", "dead", "dropped"}:
+            return "Rejected"
+        if o == "unresponsive":
+            return "Unresponsive"
+        return "Active"
+
+    # Group by candidate
+    cand_threads: dict[uuid.UUID | None, list[uuid.UUID]] = defaultdict(list)
+    for tid, ivs in thread_rounds.items():
+        # Use the candidate_id from the Lead row if available, else first round
+        lead_row = next((iv for iv in ivs if iv.round == "Lead"), ivs[0])
+        cand_threads[lead_row.candidate_id].append(tid)
+
+    # Resolve candidate names
+    cand_names: dict[uuid.UUID | None, str] = {}
+    for cid in cand_threads:
+        if cid:
+            c = session.get(Candidate, cid)
+            cand_names[cid] = c.name if c else "Unknown"
+        else:
+            cand_names[None] = "Unassigned"
+
+    # Build per-candidate rows
+    by_candidate = []
+    outcome_totals: dict[str, int] = defaultdict(int)
+    total_leads = 0
+    total_rounds = 0
+
+    for cid, tids in cand_threads.items():
+        candidate_entry: dict = {
+            "candidate": cand_names.get(cid, "Unknown"),
+            "leads": len(tids),
+            "interviews": [],
+        }
+        for tid in tids:
+            ivs = thread_rounds[tid]
+            outcome = _outcome_label(tid)
+            outcome_totals[outcome] += 1
+            total_leads += 1
+
+            lead_iv = next((iv for iv in ivs if iv.round == "Lead"), ivs[0])
+            company = session.get(Company, lead_iv.company_id)
+            company_name = company.name if company else "Unknown"
+
+            # Collect non-Lead rounds (actual interview rounds)
+            interview_rounds = [iv for iv in ivs if iv.round != "Lead"]
+            total_rounds += len(interview_rounds)
+
+            if interview_rounds:
+                for iv in interview_rounds:
+                    candidate_entry["interviews"].append({
+                        "company": company_name,
+                        "role": iv.role,
+                        "round": iv.round,
+                        "date": str(iv.interview_date) if iv.interview_date else None,
+                        "status": iv.status,
+                        "outcome": outcome,
+                    })
+            else:
+                # Lead only — no interview round yet
+                candidate_entry["interviews"].append({
+                    "company": company_name,
+                    "role": lead_iv.role,
+                    "round": "Lead",
+                    "date": str(lead_iv.interview_date) if lead_iv.interview_date else None,
+                    "status": lead_iv.status,
+                    "outcome": outcome,
+                })
+
+        by_candidate.append(candidate_entry)
+
+    # Sort by candidate name
+    by_candidate.sort(key=lambda x: x["candidate"])
+
+    return {
+        "period": f"{date_from.isoformat()} to {date_to.isoformat()}",
+        "total_leads": total_leads,
+        "total_interview_rounds": total_rounds,
+        "by_candidate": by_candidate,
+        "outcome_summary": {
+            "converted": outcome_totals.get("Converted", 0),
+            "rejected": outcome_totals.get("Rejected", 0),
+            "unresponsive": outcome_totals.get("Unresponsive", 0),
+            "active": outcome_totals.get("Active", 0),
+        },
+    }
+
+
 def get_interview_notes(
     session: Session,
     candidate_id: Optional[str] = None,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, date, time as dt_time
+from datetime import datetime, date, time as dt_time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -342,6 +342,32 @@ _ANALYTICS_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_weekly_summary",
+            "description": (
+                "Generate a weekly summary of leads and interviews taken by each candidate, "
+                "including the status of each opportunity (Converted, Rejected, Unresponsive, or Active). "
+                "Use this when the admin asks for a 'summary of interviews', 'weekly report', or similar. "
+                "Pass week_type='current' for the current week (Monday to today) or 'last' for the previous "
+                "Mon–Sun week. Alternatively, pass explicit date_from and date_to (YYYY-MM-DD) to cover any range."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "week_type": {
+                        "type": "string",
+                        "enum": ["current", "last"],
+                        "description": "'current' = Mon to today, 'last' = previous Mon–Sun week.",
+                    },
+                    "date_from": {"type": "string", "description": "Start date YYYY-MM-DD (optional, overrides week_type)"},
+                    "date_to": {"type": "string", "description": "End date YYYY-MM-DD (optional, overrides week_type)"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "analyze_interview_notes",
             "description": (
                 "Collect interview feedback, recruiter feedback, and thread notes for pattern analysis. "
@@ -447,8 +473,29 @@ def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: 
             "- Use analyze_round_status to answer 'how many leads are in the second/third round?' type questions\n"
             "- Use analyze_lead_outcomes for outcome distribution and monthly trends\n"
             "- Use analyze_bd_performance to compare business developer effectiveness\n"
-            "- Use analyze_interview_notes to surface patterns in feedback, rejection reasons, or recruiter notes\n\n"
-            "When presenting analytics results, always structure your response as:\n"
+            "- Use analyze_interview_notes to surface patterns in feedback, rejection reasons, or recruiter notes\n"
+            "- Use get_weekly_summary when asked for a 'summary of interviews', 'weekly report', 'this week's activity', "
+            "  or 'last week's summary'. Pass week_type='current' or 'last', or explicit date_from/date_to.\n\n"
+            "## Weekly summary formatting rules\n"
+            "When you receive data from get_weekly_summary, format your reply EXACTLY as follows — "
+            "no prose preamble, just the summary block so it is easy to copy:\n\n"
+            "```\n"
+            "📊 Interview Summary — [period]\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Total leads: [N]  |  Interview rounds taken: [N]\n\n"
+            "👤 [Candidate Name] ([N] lead(s))\n"
+            "  • [Company] — [Role] ([Round]) → [Converted ✅ / Rejected ❌ / Unresponsive 🔕 / Active 🟡]\n"
+            "  • ...\n\n"
+            "(repeat per candidate)\n\n"
+            "📈 Outcome Breakdown\n"
+            "  ✅ Converted   : [N]\n"
+            "  ❌ Rejected    : [N]\n"
+            "  🔕 Unresponsive: [N]\n"
+            "  🟡 Active      : [N]\n"
+            "```\n\n"
+            "If a candidate has no interview rounds (lead-only), show the lead row with round 'Lead'.\n"
+            "Always end with the outcome breakdown block.\n\n"
+            "When presenting other analytics results, structure your response as:\n"
             "1. **Key numbers** — the direct answer to the question\n"
             "2. **Pattern** — what the data reveals (e.g. 'most losses happen at the Technical round')\n"
             "3. **Suggestion** — one or two actionable recommendations\n\n"
@@ -892,6 +939,33 @@ def _exec_tool(
             round_filter=args.get("round"),
             limit=min(int(args.get("limit", 50)), 100),
         ), None
+
+    if name == "get_weekly_summary":
+        today = date.today()
+        # Resolve date range
+        if args.get("date_from") and args.get("date_to"):
+            try:
+                df = date.fromisoformat(args["date_from"])
+                dt = date.fromisoformat(args["date_to"])
+            except ValueError as e:
+                return {"error": f"Invalid date format: {e}"}, None
+        elif args.get("week_type", "current") == "last":
+            # Previous Mon–Sun
+            days_since_monday = today.weekday()  # Mon=0
+            last_monday = today - timedelta(days=days_since_monday + 7)
+            df = last_monday
+            dt = last_monday + timedelta(days=6)
+        else:
+            # Current week: Mon to today
+            df = today - timedelta(days=today.weekday())
+            dt = today
+
+        data = analytics_helpers.get_weekly_interview_summary(session, df, dt)
+        action = ChatAction(
+            type="summary_generated",
+            description=f"Weekly summary: {df.isoformat()} → {dt.isoformat()}",
+        )
+        return data, action
 
     return {"error": f"Unknown tool: {name}"}, None
 

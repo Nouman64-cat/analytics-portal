@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles } from "lucide-react";
+import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles, BarChart3, Copy, Check } from "lucide-react";
 import { chatService } from "@/lib/services";
 import type { ChatMessage, ChatAction } from "@/lib/types";
 
 const WELCOME: ChatMessage = {
   role: "assistant",
-  content: "Hi! I'm your AI recruitment assistant. I can help you:\n\n• **Add a new company** to the database\n• **Create a lead** (open a pipeline opportunity)\n• **Schedule an interview** round\n\nJust tell me what you'd like to do in plain English, and I'll take care of it.",
+  content: "Hi! I'm your AI recruitment assistant. I can help you:\n\n• **Add a new company** to the database\n• **Create a lead** (open a pipeline opportunity)\n• **Schedule an interview** round\n• **Generate weekly summaries** of leads and interviews (super admin)\n\nJust tell me what you'd like to do in plain English, and I'll take care of it.",
 };
 
 function ActionCard({ action }: { action: ChatAction }) {
@@ -15,11 +15,19 @@ function ActionCard({ action }: { action: ChatAction }) {
     company_created: <Building2 size={13} />,
     lead_created: <Briefcase size={13} />,
     interview_scheduled: <CalendarCheck size={13} />,
+    interview_updated: <CalendarCheck size={13} />,
+    lead_updated: <Briefcase size={13} />,
+    lead_outcome_updated: <Briefcase size={13} />,
+    summary_generated: <BarChart3 size={13} />,
   };
   const colorMap: Record<string, string> = {
     company_created: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
     lead_created: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
     interview_scheduled: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+    interview_updated: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+    lead_updated: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+    lead_outcome_updated: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+    summary_generated: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20",
   };
 
   return (
@@ -27,6 +35,43 @@ function ActionCard({ action }: { action: ChatAction }) {
       {iconMap[action.type]}
       {action.description}
     </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback for older browsers
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      title={copied ? "Copied!" : "Copy message"}
+      className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-all duration-200 ${
+        copied
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+          : "bg-slate-100 dark:bg-white/[0.04] text-slate-400 dark:text-slate-500 border-slate-200 dark:border-white/[0.06] hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300"
+      }`}
+    >
+      {copied ? <Check size={10} /> : <Copy size={10} />}
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 }
 
@@ -139,11 +184,15 @@ export default function ChatPage() {
                 {renderContent(msg.content)}
               </div>
 
-              {msg.actions && msg.actions.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {msg.actions.map((a, j) => (
-                    <ActionCard key={j} action={a} />
-                  ))}
+              {/* Action cards + copy button row */}
+              {msg.role === "assistant" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {msg.actions && msg.actions.length > 0 && (
+                    msg.actions.map((a, j) => (
+                      <ActionCard key={j} action={a} />
+                    ))
+                  )}
+                  <CopyButton text={msg.content} />
                 </div>
               )}
             </div>
@@ -174,6 +223,8 @@ export default function ChatPage() {
       {messages.length === 1 && (
         <div className="flex flex-wrap gap-2 mb-3 shrink-0">
           {[
+            "Summary of interviews for the current week",
+            "Summary of interviews for last week",
             "Add a lead for Google — Senior Engineer role",
             "Schedule a phone screen with Microsoft tomorrow at 2pm",
             "Add a new company called Stripe",
