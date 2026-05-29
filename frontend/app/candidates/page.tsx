@@ -289,6 +289,10 @@ export default function CandidatesPage() {
           {filteredCandidates.map(candidate => {
             const interviewCount = interviewCounts[candidate.id] || 0;
             const leadCount = leadCounts[candidate.id] || 0;
+            const breakdown = leadStatusBreakdown[candidate.id] || {};
+            const converted = (breakdown["Converted"] || 0) + (breakdown["closed"] || 0);
+            const rejected  = (breakdown["Rejected"]  || 0) + (breakdown["rejected"] || 0) + (breakdown["dead"] || 0);
+            const dropped   = (breakdown["Dropped"]   || 0) + (breakdown["dropped"] || 0);
 
             return (
               <div
@@ -347,6 +351,27 @@ export default function CandidatesPage() {
                     )}
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">Added {formatDate(candidate.created_at)}</p>
                   </div>
+
+                  {/* Lead outcome badges */}
+                  {(converted + rejected + dropped) > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 dark:border-white/[0.04] pt-3">
+                      {converted > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          ✅ {converted} Converted
+                        </span>
+                      )}
+                      {rejected > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
+                          ❌ {rejected} Rejected
+                        </span>
+                      )}
+                      {dropped > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          🚫 {dropped} Dropped
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
