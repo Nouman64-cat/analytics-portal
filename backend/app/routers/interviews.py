@@ -275,7 +275,7 @@ def list_interviews(
         joinedload(Interview.candidate),
         joinedload(Interview.resume_profile),
         joinedload(Interview.business_developer),
-    )
+    ).where(Interview.round != "Lead")
 
     query = apply_team_member_interview_list_filter(session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
@@ -771,24 +771,95 @@ def delete_interview(
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
 
-    # Remove dependent reminder logs first to avoid FK violations.
-    reminder_logs = session.exec(
-        select(InterviewReminderLog).where(
-            InterviewReminderLog.interview_id == interview_id
-        )
+    # Check if this is the ONLY interview in this thread
+    thread_id = interview.thread_id
+    thread_interviews = session.exec(
+        select(Interview).where(Interview.thread_id == thread_id)
     ).all()
-    for row in reminder_logs:
-        session.delete(row)
 
-    role_label = interview.role
-    company_label = interview.company.name if interview.company else "Unknown company"
-    session.delete(interview)
-    record_activity(
-        session,
-        actor=current_user,
-        action="delete_interview",
-        entity_type="interview",
-        entity_id=interview_id,
-        message=f"Deleted interview '{role_label}' at '{company_label}'",
-    )
+    is_only_interview = len(thread_interviews) == 1
+
+    if is_only_interview:
+        if interview.round == "Lead":
+            # If it is already a "Lead" round placeholder, delete everything
+            reminder_logs = session.exec(
+                select(InterviewReminderLog).where(
+                    InterviewReminderLog.interview_id == interview_id
+                )
+            ).all()
+            for row in reminder_logs:
+                session.delete(row)
+
+            session.delete(interview)
+            
+            # Also clean up the LeadThread row
+            lt = session.get(LeadThread, thread_id)
+            if lt:
+                session.delete(lt)
+
+            record_activity(
+                session,
+                actor=current_user,
+                action="delete_lead",
+                entity_type="lead_thread",
+                entity_id=thread_id,
+                message=f"Deleted lead thread at {interview.company.name if interview.company else 'company'} because its only round ('Lead') was deleted",
+            )
+        else:
+            # If it's a real round (e.g. "1st"), convert it to a "Lead" round instead of deleting it to preserve the lead
+            reminder_logs = session.exec(
+                select(InterviewReminderLog).where(
+                    InterviewReminderLog.interview_id == interview_id
+                )
+            ).all()
+            for row in reminder_logs:
+                session.delete(row)
+
+            # Nullify scheduling/feedback fields to convert to placeholder
+            interview.round = "Lead"
+            interview.interview_date = None
+            interview.time_est = None
+            interview.time_pkt = None
+            interview.interviewer = None
+            interview.interview_link = None
+            interview.status = None
+            interview.feedback = None
+            interview.recruiter_feedback = None
+            interview.is_phone_call = False
+            interview.interview_doc_url = None
+            interview.parent_interview_id = None
+            interview.updated_at = datetime.utcnow()
+
+            session.add(interview)
+
+            record_activity(
+                session,
+                actor=current_user,
+                action="delete_interview",
+                entity_type="interview",
+                entity_id=interview_id,
+                message=f"Converted interview round '{interview.role}' to Lead placeholder to preserve the lead thread",
+            )
+    else:
+        # Not the only interview, delete normally
+        reminder_logs = session.exec(
+            select(InterviewReminderLog).where(
+                InterviewReminderLog.interview_id == interview_id
+            )
+        ).all()
+        for row in reminder_logs:
+            session.delete(row)
+
+        role_label = interview.role
+        company_label = interview.company.name if interview.company else "Unknown company"
+        session.delete(interview)
+        record_activity(
+            session,
+            actor=current_user,
+            action="delete_interview",
+            entity_type="interview",
+            entity_id=interview_id,
+            message=f"Deleted interview '{role_label}' at '{company_label}'",
+        )
+
     session.commit()
