@@ -31,6 +31,8 @@ from app.team_member_scope import (
 )
 from sqlmodel import func
 from sqlalchemy import false as sql_false
+from app.config import get_settings
+from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
 
 router = APIRouter(prefix="/api/v1/leads", tags=["Leads"], dependencies=[Depends(get_current_user)])
 
@@ -506,7 +508,8 @@ def create_lead(
         candidate_id=data.candidate_id,
         resume_profile_id=resume_profile_id,
         role=role,
-        round="Lead",
+        round="1st",
+        status="Upcoming",
         salary_range=sr,
         bd_id=bd_id,
         interview_date=data.arrived_on,
@@ -522,6 +525,7 @@ def create_lead(
     item = _build_lead_list_item(session, thread_id, rows, lead_map)
     if not item:
         raise HTTPException(status_code=500, detail="Failed to build lead response")
+
 
     record_activity(
         session,

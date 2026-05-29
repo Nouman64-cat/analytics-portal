@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from typing import Optional
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_
 
 from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
@@ -15,8 +15,16 @@ from app.models.company import Company
 from app.models.interview import Interview
 from app.models.lead_thread import LeadThread
 
-ROUND_ORDER = ["Lead", "Phone Screen", "Technical", "Onsite", "Final Round", "Offer"]
-ROUND_RANK = {r: i for i, r in enumerate(ROUND_ORDER)}
+ROUND_ORDER = ["Lead", "1st", "Phone Screen", "Technical", "Onsite", "Final Round", "Offer"]
+ROUND_RANK = {
+    "Lead": 0,
+    "1st": 0,
+    "Phone Screen": 1,
+    "Technical": 2,
+    "Onsite": 3,
+    "Final Round": 4,
+    "Offer": 5
+}
 _TERMINAL_OUTCOMES = {"closed", "dead", "rejected", "dropped"}
 
 
@@ -183,7 +191,7 @@ def get_lead_outcome_stats(
     bd_id: Optional[str] = None,
 ) -> dict:
     """Outcome distribution with optional date/BD filters and monthly trend."""
-    stmt = select(Interview).where(Interview.round == "Lead")
+    stmt = select(Interview).where(or_(Interview.round == "Lead", Interview.parent_interview_id == None))
 
     if bd_id:
         try:
@@ -226,7 +234,7 @@ def get_bd_performance(session: Session) -> list[dict]:
     all_bds = session.exec(select(BusinessDeveloper)).all()
     bd_names = {bd.id: bd.name for bd in all_bds}
 
-    leads = session.exec(select(Interview).where(Interview.round == "Lead")).all()
+    leads = session.exec(select(Interview).where(or_(Interview.round == "Lead", Interview.parent_interview_id == None))).all()
 
     stats: dict[uuid.UUID, dict] = {}
     for iv in leads:
@@ -303,7 +311,7 @@ def get_weekly_interview_summary(
     cand_threads: dict[uuid.UUID | None, list[uuid.UUID]] = defaultdict(list)
     for tid, ivs in thread_rounds.items():
         # Use the candidate_id from the Lead row if available, else first round
-        lead_row = next((iv for iv in ivs if iv.round == "Lead"), ivs[0])
+        lead_row = next((iv for iv in ivs if iv.parent_interview_id is None), ivs[0])
         cand_threads[lead_row.candidate_id].append(tid)
 
     # Resolve candidate names
@@ -333,12 +341,12 @@ def get_weekly_interview_summary(
             outcome_totals[outcome] += 1
             total_leads += 1
 
-            lead_iv = next((iv for iv in ivs if iv.round == "Lead"), ivs[0])
+            lead_iv = next((iv for iv in ivs if iv.parent_interview_id is None), ivs[0])
             company = session.get(Company, lead_iv.company_id)
             company_name = company.name if company else "Unknown"
 
             # Collect non-Lead rounds (actual interview rounds)
-            interview_rounds = [iv for iv in ivs if iv.round != "Lead"]
+            interview_rounds = [iv for iv in ivs if iv.parent_interview_id is not None]
             total_rounds += len(interview_rounds)
 
             if interview_rounds:
@@ -356,7 +364,7 @@ def get_weekly_interview_summary(
                 candidate_entry["interviews"].append({
                     "company": company_name,
                     "role": lead_iv.role,
-                    "round": "Lead",
+                    "round": lead_iv.round,
                     "date": str(lead_iv.interview_date) if lead_iv.interview_date else None,
                     "status": lead_iv.status,
                     "outcome": outcome,

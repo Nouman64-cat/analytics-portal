@@ -26,6 +26,7 @@ from app.models.resume_profile import ResumeProfile
 from app.models.user import User, UserRole
 from app.lead_thread_utils import ensure_lead_thread, ALLOWED_LEAD_OUTCOMES
 from app.team_member_scope import candidate_id_for_team_member
+from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
 
 router = APIRouter(prefix="/api/v1/chat", tags=["Chat"])
 
@@ -687,13 +688,16 @@ def _exec_tool(
             role=args["role"].strip(),
             salary_range=(args.get("salary_range") or "").strip() or None,
             bd_id=bd_id,
-            round="Lead",
+            round="1st",
+            status="Upcoming",
             interview_date=arrived_on,
             department_id=dept_id,
             created_by_user_id=user.id,
         )
         session.add(interview)
         session.commit()
+        session.refresh(interview)
+
 
         company = session.get(Company, company_id)
         desc = f"Lead created — {company.name} · {args['role'].strip()}"

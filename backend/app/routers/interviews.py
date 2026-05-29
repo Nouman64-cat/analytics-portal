@@ -802,6 +802,30 @@ def update_interview(
         message=f"Updated interview '{loaded.role}' at '{loaded.company.name if loaded.company else 'Unknown company'}'",
     )
     session.commit()
+
+    # Send email notification to the candidate if they have an email address
+    cand = loaded.candidate
+    if cand and cand.email:
+        _settings = get_settings()
+        try_send_interview_created_email(
+            _settings,
+            to_email=cand.email,
+            candidate_name=cand.name or "Candidate",
+            company_name=loaded.company.name if loaded.company else "",
+            role=loaded.role,
+            round_name=loaded.round,
+            interview_date=loaded.interview_date,
+            time_est=loaded.time_est,
+            time_pkt=loaded.time_pkt,
+            interviewer=loaded.interviewer,
+            interview_link=loaded.interview_link,
+            is_phone_call=loaded.is_phone_call,
+            salary_range=loaded.salary_range or None,
+            interview_doc_url=make_presigned_doc_url(_settings, loaded.interview_doc_url),
+            bd_name=loaded.business_developer.name if loaded.business_developer else None,
+            resume_profile_name=loaded.resume_profile.name if loaded.resume_profile else None,
+        )
+
     return _finalize_interview_response(session, loaded, current_user)
 
 
@@ -817,12 +841,6 @@ def delete_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
-    if interview.round == "Lead":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete the 'Lead' round placeholder. Delete the lead from the Leads page if you want to remove this opportunity entirely.",
-        )
-
     # Check if this is the ONLY interview in this thread
     thread_id = interview.thread_id
     thread_interviews = session.exec(
@@ -832,60 +850,30 @@ def delete_interview(
     is_only_interview = len(thread_interviews) == 1
 
     if is_only_interview:
-        # If it's a real round (e.g. "1st") and the only round, convert it to a "Lead" round instead of deleting it to preserve the lead
-        reminder_logs = session.exec(
-            select(InterviewReminderLog).where(
-                InterviewReminderLog.interview_id == interview_id
-            )
-        ).all()
-        for row in reminder_logs:
-            session.delete(row)
-
-        # Nullify scheduling/feedback fields to convert to placeholder
-        interview.round = "Lead"
-        interview.interview_date = None
-        interview.time_est = None
-        interview.time_pkt = None
-        interview.interviewer = None
-        interview.interview_link = None
-        interview.status = None
-        interview.feedback = None
-        interview.recruiter_feedback = None
-        interview.is_phone_call = False
-        interview.interview_doc_url = None
-        interview.parent_interview_id = None
-        interview.updated_at = datetime.utcnow()
-
-        session.add(interview)
-
-        record_activity(
-            session,
-            actor=current_user,
-            action="delete_interview",
-            entity_type="interview",
-            entity_id=interview_id,
-            message=f"Converted interview round '{interview.role}' to Lead placeholder to preserve the lead thread",
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete the only interview round in this thread. Delete the lead from the Leads page if you want to remove this opportunity entirely.",
         )
-    else:
-        # Not the only interview, delete normally
-        reminder_logs = session.exec(
-            select(InterviewReminderLog).where(
-                InterviewReminderLog.interview_id == interview_id
-            )
-        ).all()
-        for row in reminder_logs:
-            session.delete(row)
 
-        role_label = interview.role
-        company_label = interview.company.name if interview.company else "Unknown company"
-        session.delete(interview)
-        record_activity(
-            session,
-            actor=current_user,
-            action="delete_interview",
-            entity_type="interview",
-            entity_id=interview_id,
-            message=f"Deleted interview '{role_label}' at '{company_label}'",
+    # Not the only interview, delete normally
+    reminder_logs = session.exec(
+        select(InterviewReminderLog).where(
+            InterviewReminderLog.interview_id == interview_id
         )
+    ).all()
+    for row in reminder_logs:
+        session.delete(row)
+
+    role_label = interview.role
+    company_label = interview.company.name if interview.company else "Unknown company"
+    session.delete(interview)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_interview",
+        entity_type="interview",
+        entity_id=interview_id,
+        message=f"Deleted interview '{role_label}' at '{company_label}'",
+    )
 
     session.commit()
