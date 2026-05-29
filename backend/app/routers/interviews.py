@@ -7,7 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select, col, or_, func
-from sqlalchemy import false as sql_false
+from sqlalchemy import false as sql_false, nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
 from app.dept_scope import apply_dept_filter, get_user_allowed_depts
