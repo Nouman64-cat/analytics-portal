@@ -6,7 +6,7 @@ from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
-from app.dept_scope import apply_dept_filter
+from app.dept_scope import apply_dept_filter, get_user_allowed_depts
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.interview import Interview
@@ -61,9 +61,27 @@ def create_candidate(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new candidate. department_id is stamped automatically from the creator's department."""
+    """Create a new candidate. department_id is stamped automatically from the creator's department, with robust fallbacks to prevent constraint violations."""
     assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
+    
+    # Safe fallbacks if both are None
+    if not dept_id:
+        allowed = get_user_allowed_depts(current_user)
+        if allowed:
+            dept_id = allowed[0]
+            
+    if not dept_id:
+        first_dept = session.exec(select(Department).order_by(Department.created_at)).first()
+        if first_dept:
+            dept_id = first_dept.id
+            
+    if not dept_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid department_id is required. Create a department in the system first.",
+        )
+
     candidate = Candidate(name=data.name, email=data.email, is_active=data.is_active, department_id=dept_id)
     session.add(candidate)
     session.flush()
