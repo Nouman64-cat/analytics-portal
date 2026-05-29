@@ -399,9 +399,11 @@ export default function CandidatesPage() {
                         <span className="text-slate-900 dark:text-white">{interviewCount}</span>
                         <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
                         <span className="text-slate-500 dark:text-slate-400">{leadCount}</span>
+                        <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
+                        <span className={converted > 0 ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400 dark:text-slate-600"}>{converted}</span>
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                        Interviews / Leads
+                        Interviews / Leads / <span className="text-emerald-600 dark:text-emerald-500">Conv.</span>
                       </p>
                     </div>
                   </div>
@@ -427,26 +429,26 @@ export default function CandidatesPage() {
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">Added {formatDate(candidate.created_at)}</p>
                   </div>
 
-                  {/* Lead outcome badges */}
-                  {(converted + rejected + dropped) > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 dark:border-white/[0.04] pt-3">
-                      {converted > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          ✅ {converted} Converted
-                        </span>
-                      )}
-                      {rejected > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-                          ❌ {rejected} Rejected
-                        </span>
-                      )}
-                      {dropped > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                          🚫 {dropped} Dropped
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  {/* Lead outcome badges — converted always shown */}
+                  <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 dark:border-white/[0.04] pt-3">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      converted > 0
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-slate-100 dark:bg-white/[0.04] text-slate-400 dark:text-slate-500 border-slate-200 dark:border-white/[0.06]"
+                    }`}>
+                      ✅ {converted} Converted
+                    </span>
+                    {rejected > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
+                        ❌ {rejected} Rejected
+                      </span>
+                    )}
+                    {dropped > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        🚫 {dropped} Dropped
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
