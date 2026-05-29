@@ -7,6 +7,7 @@ from typing import Optional
 class CandidateCreate(BaseModel):
     name: str
     email: Optional[EmailStr] = None
+    is_active: bool = True
     department_id: Optional[uuid.UUID] = None
 
     @field_validator("email", mode="before")
@@ -20,6 +21,7 @@ class CandidateCreate(BaseModel):
 class CandidateUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    is_active: Optional[bool] = None
     department_id: Optional[uuid.UUID] = None
 
     @field_validator("email", mode="before")
@@ -34,6 +36,7 @@ class CandidateRead(BaseModel):
     id: uuid.UUID
     name: str
     email: Optional[str] = None
+    is_active: bool = True
     department_id: Optional[uuid.UUID] = None
     department_name: Optional[str] = None
     created_at: datetime

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
-import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX } from "lucide-react";
 import { candidatesService, interviewsService, leadsService, departmentsService } from "@/lib/services";
 import { formatDate, formatInterviewDateEst, getStatusStyle, getLeadOutcomeBadgeStyle } from "@/lib/utils";
 import type { Candidate, CandidateFormData, Interview, LeadListItem, Department } from "@/lib/types";
@@ -45,6 +45,7 @@ export default function CandidatesPage() {
   const [allLeads, setAllLeads] = useState<LeadListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export default function CandidatesPage() {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const router = useRouter();
   const { departmentId } = useDepartmentContext();
@@ -128,7 +130,7 @@ export default function CandidatesPage() {
       setError(null);
       const deptParam = departmentId ? { department_id: departmentId } : {};
       const [data, interviewsData, leadsPage] = await Promise.all([
-        candidatesService.list({ department_id: departmentId }),
+        candidatesService.list({ department_id: departmentId, is_active: activeTab === "active" }),
         interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
         leadsService.list({ page: 1, page_size: 5000, ...deptParam }),
       ]);
@@ -140,7 +142,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [departmentId]);
+  }, [departmentId, activeTab]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -225,6 +227,20 @@ export default function CandidatesPage() {
     }
   };
 
+  const handleToggleStatus = async (candidate: Candidate, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (togglingId) return;
+    setTogglingId(candidate.id);
+    try {
+      await candidatesService.toggleStatus(candidate.id);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
@@ -232,7 +248,7 @@ export default function CandidatesPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Candidates"
-        subtitle={`${candidates.length} team members`}
+        subtitle={`${candidates.length} ${activeTab === "active" ? "active" : "inactive"} team member${candidates.length !== 1 ? "s" : ""}`}
         action={
           !cannotCRUD && (
             <button onClick={openCreate} className={buttonPrimary}>
@@ -242,6 +258,34 @@ export default function CandidatesPage() {
           )
         }
       />
+
+      {/* Active / Inactive Tab */}
+      {!cannotCRUD && (
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.06] w-fit">
+          <button
+            onClick={() => { setActiveTab("active"); setSelectedMonth("all"); }}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              activeTab === "active"
+                ? "bg-white dark:bg-[#1a1d2b] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-white/[0.08]"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            }`}
+          >
+            <UserCheck size={14} />
+            Active
+          </button>
+          <button
+            onClick={() => { setActiveTab("inactive"); setSelectedMonth("all"); }}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              activeTab === "inactive"
+                ? "bg-white dark:bg-[#1a1d2b] text-rose-600 dark:text-rose-400 shadow-sm border border-slate-200 dark:border-white/[0.08]"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            }`}
+          >
+            <UserX size={14} />
+            Inactive
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative sm:max-w-sm">
@@ -293,17 +337,39 @@ export default function CandidatesPage() {
             const converted = (breakdown["Converted"] || 0) + (breakdown["closed"] || 0);
             const rejected  = (breakdown["Rejected"]  || 0) + (breakdown["rejected"] || 0) + (breakdown["dead"] || 0);
             const dropped   = (breakdown["Dropped"]   || 0) + (breakdown["dropped"] || 0);
+            const isInactive = !candidate.is_active;
 
             return (
               <div
                 key={candidate.id}
                 onClick={() => setSelectedCandidateId(candidate.id)}
-                className="group cursor-pointer relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:border-emerald-300/50 dark:hover:border-emerald-500/30 hover:shadow-lg hover:shadow-black/20"
+                className={`group cursor-pointer relative overflow-hidden rounded-2xl border bg-white dark:bg-[#12141c] p-5 transition-all duration-300 hover:shadow-lg hover:shadow-black/20 ${
+                  isInactive
+                    ? "border-slate-200/60 dark:border-white/[0.04] opacity-70 hover:opacity-90 hover:border-slate-300 dark:hover:border-white/[0.08]"
+                    : "border-slate-200 dark:border-white/[0.06] hover:border-emerald-300/50 dark:hover:border-emerald-500/30"
+                }`}
               >
-                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-500/10 to-teal-500/10 blur-2xl transition-all group-hover:opacity-80" />
+                <div className={`absolute -right-6 -top-6 h-24 w-24 rounded-full blur-2xl transition-all group-hover:opacity-80 ${
+                  isInactive ? "bg-slate-400/10" : "bg-gradient-to-br from-emerald-500/10 to-teal-500/10"
+                }`} />
                 <div className="relative">
                   {!cannotCRUD && (
                     <div className="flex justify-end gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 mb-2">
+                      {/* Toggle active/inactive */}
+                      <button
+                        onClick={(e) => handleToggleStatus(candidate, e)}
+                        disabled={togglingId === candidate.id}
+                        title={isInactive ? "Mark as Active" : "Mark as Inactive"}
+                        className={`rounded-lg p-1.5 transition-colors ${
+                          isInactive
+                            ? "text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-600"
+                            : "text-slate-500 dark:text-slate-500 hover:bg-amber-500/10 hover:text-amber-500"
+                        }`}
+                      >
+                        {togglingId === candidate.id
+                          ? <Loader2 size={13} className="animate-spin" />
+                          : isInactive ? <UserCheck size={13} /> : <UserX size={13} />}
+                      </button>
                       <button
                         onClick={e => { e.stopPropagation(); openEdit(candidate); }}
                         className="rounded-lg p-1.5 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
@@ -321,7 +387,11 @@ export default function CandidatesPage() {
 
                   {/* Avatar + interviews / leads big number */}
                   <div className="flex items-center justify-between">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-2xl font-bold text-emerald-300">
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
+                      isInactive
+                        ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
+                        : "bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-300"
+                    }`}>
                       {candidate.name[0]}
                     </div>
                     <div className="text-right">
@@ -340,6 +410,11 @@ export default function CandidatesPage() {
                   <div className="mt-3 border-t border-slate-100 dark:border-white/[0.04] pt-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-slate-900 dark:text-white">{candidate.name}</p>
+                      {isInactive && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200/80 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 border border-slate-300/50 dark:border-white/[0.08]">
+                          Inactive
+                        </span>
+                      )}
                       {candidate.department_name && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
                           {candidate.department_name}

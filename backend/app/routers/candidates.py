@@ -26,6 +26,7 @@ router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"], dependencie
 @router.get("/", response_model=list[CandidateRead])
 def list_candidates(
     department_id: Optional[uuid.UUID] = Query(None, description="Filter by department (cross-dept roles only)"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status. Omit for all, True for active, False for inactive."),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -36,12 +37,15 @@ def list_candidates(
         .order_by(Candidate.name)
     )
     query = apply_dept_filter(query, Candidate, current_user, department_id)
+    if is_active is not None:
+        query = query.where(Candidate.is_active == is_active)
     rows = session.exec(query).all()
     return [
         CandidateRead(
             id=c.id,
             name=c.name,
             email=c.email,
+            is_active=c.is_active,
             department_id=c.department_id,
             department_name=d.name if d else None,
             created_at=c.created_at,
@@ -60,7 +64,7 @@ def create_candidate(
     """Create a new candidate. department_id is stamped automatically from the creator's department."""
     assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
-    candidate = Candidate(name=data.name, email=data.email, department_id=dept_id)
+    candidate = Candidate(name=data.name, email=data.email, is_active=data.is_active, department_id=dept_id)
     session.add(candidate)
     session.flush()
     record_activity(
@@ -76,6 +80,7 @@ def create_candidate(
     dept = session.get(Department, candidate.department_id) if candidate.department_id else None
     return CandidateRead(
         id=candidate.id, name=candidate.name, email=candidate.email,
+        is_active=candidate.is_active,
         department_id=candidate.department_id,
         department_name=dept.name if dept else None,
         created_at=candidate.created_at, updated_at=candidate.updated_at,
@@ -148,6 +153,42 @@ def update_candidate(
     dept = session.get(Department, candidate.department_id) if candidate.department_id else None
     return CandidateRead(
         id=candidate.id, name=candidate.name, email=candidate.email,
+        is_active=candidate.is_active,
+        department_id=candidate.department_id,
+        department_name=dept.name if dept else None,
+        created_at=candidate.created_at, updated_at=candidate.updated_at,
+    )
+
+
+@router.patch("/{candidate_id}/status", response_model=CandidateRead)
+def toggle_candidate_status(
+    candidate_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle a candidate's active/inactive status."""
+    assert_write_access(current_user)
+    candidate = session.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    candidate.is_active = not candidate.is_active
+    candidate.updated_at = datetime.utcnow()
+    session.add(candidate)
+    record_activity(
+        session,
+        actor=current_user,
+        action="toggle_candidate_status",
+        entity_type="candidate",
+        entity_id=candidate.id,
+        message=f"Marked candidate '{candidate.name}' as {'active' if candidate.is_active else 'inactive'}",
+    )
+    session.commit()
+    session.refresh(candidate)
+    dept = session.get(Department, candidate.department_id) if candidate.department_id else None
+    return CandidateRead(
+        id=candidate.id, name=candidate.name, email=candidate.email,
+        is_active=candidate.is_active,
         department_id=candidate.department_id,
         department_name=dept.name if dept else None,
         created_at=candidate.created_at, updated_at=candidate.updated_at,

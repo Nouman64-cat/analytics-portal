@@ -30,6 +30,7 @@ export interface Candidate {
   name: string;
   /** Used for interview notification emails (SES). */
   email: string | null;
+  is_active: boolean;
   department_id: string | null;
   department_name: string | null;
   created_at: string;

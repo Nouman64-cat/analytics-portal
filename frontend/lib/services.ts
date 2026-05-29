@@ -205,9 +205,12 @@ export const businessDevelopersService = {
 // ─── Candidates ─────────────────────────────────────────────
 
 export const candidatesService = {
-  list: (params?: { department_id?: string | null }) => {
-    const q = params?.department_id ? `?department_id=${params.department_id}` : "";
-    return apiFetch<Candidate[]>(`/candidates/${q}`);
+  list: (params?: { department_id?: string | null; is_active?: boolean }) => {
+    const sp = new URLSearchParams();
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
+    const q = sp.toString();
+    return apiFetch<Candidate[]>(`/candidates/${q ? `?${q}` : ""}`);
   },
   get: (id: string) => apiFetch<CandidateWithInterviews>(`/candidates/${id}`),
   create: (data: CandidateFormData) =>
@@ -220,6 +223,8 @@ export const candidatesService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  toggleStatus: (id: string) =>
+    apiFetch<Candidate>(`/candidates/${id}/status`, { method: "PATCH" }),
   delete: (id: string) =>
     apiFetch<void>(`/candidates/${id}`, { method: "DELETE" }),
 };

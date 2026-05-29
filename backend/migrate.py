@@ -259,6 +259,12 @@ def migrate():
             $$;
             """,
              "Migration successful! Any FK on notification_reads.thread_id dropped."),
+
+            # ── Candidate active/inactive status ──────────────────────────────────────
+            ("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;",
+             "Migration successful! 'is_active' column added to 'candidates' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_candidates_is_active ON candidates (is_active);",
+             "Migration successful! Index on candidates.is_active ensured."),
         ]
         for sql, msg in migrations:
             try:
