@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles, X, RefreshCw } from "lucide-react";
+import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles, X, RefreshCw, BarChart2 } from "lucide-react";
 import { chatService } from "@/lib/services";
 import type { ChatMessage, ChatAction } from "@/lib/types";
 import { getUserRole } from "@/lib/auth";
@@ -13,6 +13,28 @@ const WELCOME: ChatMessage = {
   content:
     "Hi! I'm your AI recruitment assistant. I can help you:\n\n• **Add a new company** to the database\n• **Create a lead** (open a pipeline opportunity)\n• **Schedule an interview** round\n• **Update interview or lead status**\n\nJust tell me what you'd like to do in plain English, and I'll take care of it.",
 };
+
+const WELCOME_ADMIN: ChatMessage = {
+  role: "assistant",
+  content:
+    "Hi! I'm your AI recruitment analyst. As a Super Admin you have full access to:\n\n• **Pipeline insights** — funnel conversion rates, stage-by-stage breakdown\n• **Candidate analysis** — who's converting, where leads stall, what feedback says\n• **Round status** — how many leads are at each interview stage right now\n• **BD performance** — close rates and pipeline health per business developer\n• **Notes analysis** — patterns in feedback and recruiter notes\n\nAsk me anything about the pipeline and I'll give you data-backed insights with recommendations.",
+};
+
+const ADMIN_SUGGESTED_PROMPTS = [
+  "How many leads are currently in the second or third round?",
+  "Which candidate has the lowest conversion rate and why?",
+  "Show me the full pipeline funnel with conversion rates",
+  "Which BDs are closing leads vs losing them?",
+  "Analyse the feedback notes for rejection patterns",
+  "What's our overall close rate this month?",
+];
+
+const DEFAULT_SUGGESTED_PROMPTS = [
+  "Add a lead for Google — Senior Engineer role",
+  "Schedule a phone screen with Microsoft tomorrow",
+  "Add a new company called Stripe",
+  "Update interview status to Rejected for Microsoft",
+];
 
 function ActionCard({ action }: { action: ChatAction }) {
   const iconMap: Record<string, React.ReactNode> = {
@@ -62,12 +84,13 @@ function renderContent(text: string) {
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  const role = getUserRole();
+  const isAdmin = role === "superadmin";
+  const [messages, setMessages] = useState<ChatMessage[]>([isAdmin ? WELCOME_ADMIN : WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const role = getUserRole();
 
   useEffect(() => {
     if (open) {
@@ -138,7 +161,17 @@ export default function ChatWidget() {
               <Bot size={16} className="text-white hidden md:block" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-base md:text-sm font-semibold text-slate-900 dark:text-white leading-none">AI Assistant</p>
+              <div className="flex items-center gap-2">
+                <p className="text-base md:text-sm font-semibold text-slate-900 dark:text-white leading-none">
+                  {isAdmin ? "AI Analyst" : "AI Assistant"}
+                </p>
+                {isAdmin && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-semibold border border-indigo-500/20">
+                    <BarChart2 size={9} />
+                    Analytics
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-xs md:text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">GPT-4o mini</span>
@@ -204,12 +237,7 @@ export default function ChatWidget() {
           {/* Suggested prompts */}
           {messages.length === 1 && (
             <div className="px-3 pb-2 flex flex-col gap-1.5 shrink-0">
-              {[
-                "Add a lead for Google — Senior Engineer role",
-                "Schedule a phone screen with Microsoft tomorrow",
-                "Add a new company called Stripe",
-                "Update interview status to Rejected for Microsoft",
-              ].map((prompt) => (
+              {(isAdmin ? ADMIN_SUGGESTED_PROMPTS : DEFAULT_SUGGESTED_PROMPTS).map((prompt) => (
                 <button
                   key={prompt}
                   onClick={() => { setInput(prompt); inputRef.current?.focus(); }}
@@ -230,7 +258,7 @@ export default function ChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Ask me anything…"
+                placeholder={isAdmin ? "Ask for pipeline insights or manage records…" : "Ask me anything…"}
                 className="flex-1 resize-none bg-transparent text-base md:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none leading-relaxed max-h-32 md:max-h-24"
                 style={{ height: "auto" }}
                 onInput={(e) => {

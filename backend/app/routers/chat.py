@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
+from app import analytics_helpers
 from app.config import get_settings
 from app.database import get_session
 from app.deps import get_current_user
@@ -257,6 +258,115 @@ _TOOLS = [
 ]
 
 
+# ─── Analytics tools (SUPERADMIN only) ──────────────────────
+
+_ANALYTICS_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_pipeline_funnel",
+            "description": (
+                "Compute the full recruitment funnel: how many leads reached each stage "
+                "(Lead → Phone Screen → Technical → Onsite → Final Round → Offer), "
+                "conversion rate between each stage, and overall outcome breakdown. "
+                "Use this to answer questions about conversion rates, pipeline health, or stage progress."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_candidate_performance",
+            "description": (
+                "Per-candidate pipeline metrics: total leads, close rate, which rounds they fail at most, "
+                "active vs dead pipeline size. Optionally pass candidate_id to focus on one candidate."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "candidate_id": {
+                        "type": "string",
+                        "description": "UUID of the candidate (optional — omit to get all candidates)",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_round_status",
+            "description": (
+                "Show how many leads are currently active at each interview round, "
+                "including stale leads with no update in over 7 days. "
+                "Use this to answer 'how many leads are in the second round?' or 'where is the pipeline stuck?'"
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_lead_outcomes",
+            "description": (
+                "Outcome distribution (closed/dead/dropped/active/unresponsive) with monthly trend data. "
+                "Optionally filter by date range or a specific business developer."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date_from": {"type": "string", "description": "Start date YYYY-MM-DD (optional)"},
+                    "date_to": {"type": "string", "description": "End date YYYY-MM-DD (optional)"},
+                    "bd_id": {
+                        "type": "string",
+                        "description": "UUID of a specific business developer (optional)",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_bd_performance",
+            "description": (
+                "Per-business-developer metrics: total leads, close rate, dead rate, active pipeline size. "
+                "Use this to compare BD performance or identify top/bottom performers."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_interview_notes",
+            "description": (
+                "Collect interview feedback, recruiter feedback, and thread notes for pattern analysis. "
+                "Analyze the returned data to find common rejection reasons, success signals, or recurring themes. "
+                "Optionally filter by candidate, company, or round."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "candidate_id": {"type": "string", "description": "UUID of a candidate (optional)"},
+                    "company_id": {"type": "string", "description": "UUID of a company (optional)"},
+                    "round": {"type": "string", "description": "Round label filter e.g. 'Technical' (optional)"},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max records to return (default 50)",
+                        "default": 50,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+]
+
+
 # ─── Time helpers ────────────────────────────────────────────
 
 _TZ_EASTERN = ZoneInfo("America/New_York")
@@ -274,11 +384,12 @@ def _est_to_pkt(t: dt_time, ref_date: Optional[date] = None) -> dt_time:
 
 def _pipeline_snapshot(session: Session, user: User, own_candidate_id: Optional[uuid.UUID]) -> str:
     """Return a compact table of recent pipeline records to inject into the system prompt."""
+    limit = 100 if user.role == UserRole.SUPERADMIN else 30
     stmt = (
         select(Interview)
         .options(selectinload(Interview.company))
         .order_by(Interview.created_at.desc())
-        .limit(30)
+        .limit(limit)
     )
     if user.role == UserRole.TEAM_MEMBER and own_candidate_id:
         stmt = stmt.where(Interview.candidate_id == own_candidate_id)
@@ -288,7 +399,7 @@ def _pipeline_snapshot(session: Session, user: User, own_candidate_id: Optional[
         return "=== Pipeline snapshot: no records found ==="
 
     lines = [
-        "=== Pipeline snapshot (most recent 30 — use these IDs directly for updates) ===",
+        f"=== Pipeline snapshot (most recent {limit} — use these IDs directly for updates) ===",
         "interview_id | thread_id | company | role | round | status | outcome_override | date",
     ]
     for iv in rows:
@@ -327,9 +438,22 @@ def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: 
         )
     else:
         role_ctx = (
-            "You are assisting a SUPERADMIN with full access. "
-            "When no candidate is specified, ask which candidate the opportunity is for, "
-            "then use list_candidates to find their ID."
+            "You are assisting a SUPERADMIN with full access.\n\n"
+            "## Analyst capabilities (SUPERADMIN only)\n"
+            "You have access to deep analytics tools. When the admin asks for business insights, "
+            "pipeline health, or performance data, act as a senior data analyst:\n"
+            "- Use analyze_pipeline_funnel to answer questions about conversion rates and stage progress\n"
+            "- Use analyze_candidate_performance to evaluate individual or all-candidate pipeline metrics\n"
+            "- Use analyze_round_status to answer 'how many leads are in the second/third round?' type questions\n"
+            "- Use analyze_lead_outcomes for outcome distribution and monthly trends\n"
+            "- Use analyze_bd_performance to compare business developer effectiveness\n"
+            "- Use analyze_interview_notes to surface patterns in feedback, rejection reasons, or recruiter notes\n\n"
+            "When presenting analytics results, always structure your response as:\n"
+            "1. **Key numbers** — the direct answer to the question\n"
+            "2. **Pattern** — what the data reveals (e.g. 'most losses happen at the Technical round')\n"
+            "3. **Suggestion** — one or two actionable recommendations\n\n"
+            "For lead/interview operations when no candidate is specified, ask which candidate the "
+            "opportunity is for, then use list_candidates to find their ID."
         )
 
     return f"""You are an AI recruitment assistant for the AI Interviews Portal.
@@ -717,7 +841,7 @@ def _exec_tool(
     if name == "update_lead_outcome":
         outcome = args["outcome"].strip().lower()
         if outcome not in ALLOWED_LEAD_OUTCOMES:
-            return {"error": f"Invalid outcome. Allowed: {', '.join(sorted(ALLOWED_LEAD_OUTCOMES))}"}, None
+            return {"error": f"Invalid outcome. Allowed: {', '.join(sorted(ALLOWED_LEAD_OUTCOMES))}"}, None  # noqa: E501
         try:
             thread_id = uuid.UUID(args["thread_id"])
         except ValueError as e:
@@ -739,6 +863,35 @@ def _exec_tool(
             id=str(thread_id),
         )
         return {"thread_id": str(thread_id), "outcome": outcome}, action
+
+    if name == "analyze_pipeline_funnel":
+        return analytics_helpers.get_pipeline_funnel(session), None
+
+    if name == "analyze_candidate_performance":
+        return analytics_helpers.get_candidate_performance(session, args.get("candidate_id")), None
+
+    if name == "analyze_round_status":
+        return analytics_helpers.get_round_status_snapshot(session), None
+
+    if name == "analyze_lead_outcomes":
+        return analytics_helpers.get_lead_outcome_stats(
+            session,
+            date_from=args.get("date_from"),
+            date_to=args.get("date_to"),
+            bd_id=args.get("bd_id"),
+        ), None
+
+    if name == "analyze_bd_performance":
+        return analytics_helpers.get_bd_performance(session), None
+
+    if name == "analyze_interview_notes":
+        return analytics_helpers.get_interview_notes(
+            session,
+            candidate_id=args.get("candidate_id"),
+            company_id=args.get("company_id"),
+            round_filter=args.get("round"),
+            limit=min(int(args.get("limit", 50)), 100),
+        ), None
 
     return {"error": f"Unknown tool: {name}"}, None
 
@@ -773,6 +926,8 @@ def chat_message(
         messages.append({"role": m.role, "content": m.content})
     messages.append({"role": "user", "content": body.message})
 
+    tools = _TOOLS + (_ANALYTICS_TOOLS if current_user.role == UserRole.SUPERADMIN else [])
+
     actions: list[ChatAction] = []
     max_iterations = 10
 
@@ -780,7 +935,7 @@ def chat_message(
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            tools=_TOOLS,
+            tools=tools,
             tool_choice="auto",
         )
         msg = response.choices[0].message
