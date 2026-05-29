@@ -212,6 +212,7 @@ export default function LeadsPage() {
   const isTeamMember = role === "team-member";
   const isBD = role === "bd";
   const isDeptLead = role === "dept-lead";
+  const isBdTeamLead = role === "bd-team-lead";
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const [meCandidateName, setMeCandidateName] = useState<string | null>(null);
@@ -1190,7 +1191,7 @@ export default function LeadsPage() {
               </select>
             </FormField>
           )}
-          {(isTeamMember || isSuperAdmin) && (
+          {(isTeamMember || isSuperAdmin || isBdTeamLead) && (
             <div className="sm:col-span-2">
               <FormField label="Team Notes">
                 <textarea
@@ -1205,7 +1206,7 @@ export default function LeadsPage() {
               </FormField>
             </div>
           )}
-          {(isBD || isSuperAdmin || isDeptLead) && (
+          {(isBD || isSuperAdmin || isDeptLead || isBdTeamLead) && (
             <div className="sm:col-span-2">
               <FormField label="BD Notes">
                 <textarea

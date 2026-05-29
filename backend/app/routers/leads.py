@@ -439,9 +439,9 @@ def create_lead(
     lt = ensure_lead_thread(session, thread_id)
     if data.candidate_id:
         lt.entertaining_candidate_id = data.candidate_id
-    if data.notes and data.notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.DEPT_LEAD):
+    if data.notes and data.notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         lt.notes = data.notes.strip()
-    if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD):
+    if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         lt.bd_notes = data.bd_notes.strip()
     lt.updated_at = datetime.utcnow()
     session.add(lt)
