@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user, assert_write_access
-from sqlmodel import Session, select, col
-from sqlalchemy import nulls_last
+from sqlmodel import Session, select, col, or_, func
+from sqlalchemy import false as sql_false
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
+from app.dept_scope import apply_dept_filter, get_user_allowed_depts
 from app.activity_log import record_activity
 from app.models.interview import Interview
 from app.models.company import Company
@@ -25,7 +26,6 @@ from app.lead_thread_utils import (
     effective_lead_fields,
     load_lead_map,
 )
-from app.dept_scope import apply_dept_filter
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
@@ -279,7 +279,38 @@ def list_interviews(
 
     query = apply_team_member_interview_list_filter(session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
-        query = apply_dept_filter(query, Interview, current_user, department_id)
+        if current_user.role == UserRole.BD_TEAM_LEAD:
+            # Find BD record by email
+            bd = session.exec(
+                select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
+            ).first()
+            allowed = get_user_allowed_depts(current_user)
+            conds = []
+            if allowed is None:
+                # unrestricted
+                if department_id:
+                    query = query.where(Interview.department_id == department_id)
+            elif not allowed:
+                # no depts allowed explicitly, but can see their own
+                if bd:
+                    conds.append(Interview.bd_id == bd.id)
+                conds.append(Interview.created_by_user_id == current_user.id)
+                query = query.where(or_(*conds) if len(conds) > 1 else conds[0])
+            else:
+                # specific depts allowed
+                dept_cond = Interview.department_id.in_(allowed)
+                if department_id:
+                    if department_id in allowed:
+                        dept_cond = Interview.department_id == department_id
+                    else:
+                        dept_cond = sql_false()
+                conds.append(dept_cond)
+                if bd:
+                    conds.append(Interview.bd_id == bd.id)
+                conds.append(Interview.created_by_user_id == current_user.id)
+                query = query.where(or_(*conds))
+        else:
+            query = apply_dept_filter(query, Interview, current_user, department_id)
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)
@@ -545,6 +576,7 @@ def create_interview(
         else:
             payload["department_id"] = current_user.department_id
 
+    payload["created_by_user_id"] = current_user.id
     interview = Interview(**payload)
     session.add(interview)
     ensure_lead_thread(session, interview.thread_id)

@@ -23,12 +23,14 @@ from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.schemas.lead import LeadCreate, LeadListItem, LeadListPage, LeadListStats, LeadUpdate
-from app.dept_scope import apply_dept_filter
+from app.dept_scope import apply_dept_filter, get_user_allowed_depts
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
     team_member_can_access_thread,
 )
+from sqlmodel import func
+from sqlalchemy import false as sql_false
 
 router = APIRouter(prefix="/api/v1/leads", tags=["Leads"], dependencies=[Depends(get_current_user)])
 
@@ -356,7 +358,38 @@ def list_leads(
             )
         )
     else:
-        base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
+        if current_user.role == UserRole.BD_TEAM_LEAD:
+            # Find BD record by email
+            bd = session.exec(
+                select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
+            ).first()
+            allowed = get_user_allowed_depts(current_user)
+            conds = []
+            if allowed is None:
+                # unrestricted
+                if department_id:
+                    base_query = base_query.where(Interview.department_id == department_id)
+            elif not allowed:
+                # no depts allowed explicitly, but can see their own
+                if bd:
+                    conds.append(Interview.bd_id == bd.id)
+                conds.append(Interview.created_by_user_id == current_user.id)
+                base_query = base_query.where(or_(*conds) if len(conds) > 1 else conds[0])
+            else:
+                # specific depts allowed
+                dept_cond = Interview.department_id.in_(allowed)
+                if department_id:
+                    if department_id in allowed:
+                        dept_cond = Interview.department_id == department_id
+                    else:
+                        dept_cond = sql_false()
+                conds.append(dept_cond)
+                if bd:
+                    conds.append(Interview.bd_id == bd.id)
+                conds.append(Interview.created_by_user_id == current_user.id)
+                base_query = base_query.where(or_(*conds))
+        else:
+            base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
         query = apply_team_member_interview_list_filter(session, current_user, base_query)
 
     interviews = session.exec(query).all()
@@ -468,6 +501,7 @@ def create_lead(
         bd_id=bd_id,
         interview_date=data.arrived_on,
         department_id=dept_id,
+        created_by_user_id=current_user.id,
     )
     session.add(interview)
     session.commit()

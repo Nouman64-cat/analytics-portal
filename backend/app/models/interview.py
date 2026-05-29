@@ -45,6 +45,7 @@ class Interview(SQLModel, table=True):
     interview_doc_url: Optional[str] = Field(default=None, max_length=1000)
     is_phone_call: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
+    created_by_user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)

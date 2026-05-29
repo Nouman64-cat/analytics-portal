@@ -95,34 +95,35 @@ def list_users(
 
     if current_user.role == UserRole.BD_TEAM_LEAD:
         is_multi, btl_allowed = _btl_scope(current_user)
-        all_bds = session.exec(
-            select(User).where(User.role == UserRole.BD).order_by(User.created_at.desc())
+        all_users = session.exec(
+            select(User).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER])).order_by(User.created_at.desc())
         ).all()
         if btl_allowed is not None:
             allowed_set = set(btl_allowed)
 
-            def _in_scope(bd: User) -> bool:
-                if bd.department_id is not None and str(bd.department_id) in allowed_set:
+            def _in_scope(u: User) -> bool:
+                if u.created_by == current_user.id:
                     return True
-                if bd.allowed_dept_ids is not None:
+                if u.department_id is not None and str(u.department_id) in allowed_set:
+                    return True
+                if u.allowed_dept_ids is not None:
                     try:
-                        return any(d in allowed_set for d in json.loads(bd.allowed_dept_ids))
+                        return any(d in allowed_set for d in json.loads(u.allowed_dept_ids))
                     except Exception:
                         pass
                 return False
 
-            all_bds = [bd for bd in all_bds if _in_scope(bd)]
+            all_users = [u for u in all_users if _in_scope(u)]
         elif not is_multi:
-            if current_user.department_id is None:
-                return []
-            all_bds = [bd for bd in all_bds if bd.department_id == current_user.department_id]
+            dept_id = current_user.department_id
+            all_users = [u for u in all_users if (dept_id is not None and u.department_id == dept_id) or u.created_by == current_user.id]
         # is_multi and btl_allowed is None → unrestricted, keep all
         if role:
-            all_bds = [bd for bd in all_bds if bd.role == role]
+            all_users = [u for u in all_users if u.role == role]
         if department_id:
             dept_uuid = _uuid.UUID(department_id)
-            all_bds = [bd for bd in all_bds if bd.department_id == dept_uuid]
-        return all_bds
+            all_users = [u for u in all_users if u.department_id == dept_uuid]
+        return all_users
 
     query = select(User).order_by(User.created_at.desc())
     if current_user.role == UserRole.DEPT_LEAD:
@@ -272,11 +273,12 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     if current_user.role == UserRole.BD_TEAM_LEAD:
-        if user.role != UserRole.BD:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit BD accounts")
+        if user.role not in (UserRole.BD, UserRole.TEAM_MEMBER):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit BD or team member accounts")
         is_multi, btl_allowed = _btl_scope(current_user)
-        if not _bd_in_btl_scope(current_user, user, is_multi, btl_allowed):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This BD is not in your department scope")
+        in_scope = user.created_by == current_user.id or _bd_in_btl_scope(current_user, user, is_multi, btl_allowed)
+        if not in_scope:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This user is not in your department scope")
         if user_in.role and UserRole(user_in.role) in _RESTRICTED_ROLES:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign superadmin, manager, dept-lead, or bd-team-lead roles")
         if btl_allowed is not None:
@@ -346,11 +348,12 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     if current_user.role == UserRole.BD_TEAM_LEAD:
-        if user.role != UserRole.BD:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete BD accounts")
+        if user.role not in (UserRole.BD, UserRole.TEAM_MEMBER):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete BD or team member accounts")
         is_multi, btl_allowed = _btl_scope(current_user)
-        if not _bd_in_btl_scope(current_user, user, is_multi, btl_allowed):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This BD is not in your department scope")
+        in_scope = user.created_by == current_user.id or _bd_in_btl_scope(current_user, user, is_multi, btl_allowed)
+        if not in_scope:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This user is not in your department scope")
     elif current_user.role == UserRole.DEPT_LEAD:
         if user.department_id != current_user.department_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")

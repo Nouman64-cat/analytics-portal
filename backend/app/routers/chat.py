@@ -690,6 +690,7 @@ def _exec_tool(
             round="Lead",
             interview_date=arrived_on,
             department_id=dept_id,
+            created_by_user_id=user.id,
         )
         session.add(interview)
         session.commit()
@@ -761,6 +762,7 @@ def _exec_tool(
             is_phone_call=args.get("is_phone_call", False),
             interviewer=args.get("interviewer"),
             department_id=dept_id,
+            created_by_user_id=user.id,
         )
         session.add(interview)
         session.commit()
