@@ -358,36 +358,46 @@ def list_leads(
             )
         )
     else:
-        if current_user.role == UserRole.BD_TEAM_LEAD:
-            # Find BD record by email
+        if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+            # Find BD record by email, falling back to name-based match
             bd = session.exec(
                 select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
             ).first()
+            if not bd:
+                bd = session.exec(
+                    select(BusinessDeveloper).where(
+                        or_(
+                            func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
+                            func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
+                            func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
+                        )
+                    )
+                ).first()
             allowed = get_user_allowed_depts(current_user)
             conds = []
-            if allowed is None:
-                # unrestricted
-                if department_id:
-                    base_query = base_query.where(Interview.department_id == department_id)
-            elif not allowed:
-                # no depts allowed explicitly, but can see their own
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
-                conds.append(Interview.created_by_user_id == current_user.id)
-                base_query = base_query.where(or_(*conds) if len(conds) > 1 else conds[0])
+
+            # 1. Created by him
+            conds.append(Interview.created_by_user_id == current_user.id)
+
+            # 2. From his BD record
+            if bd:
+                conds.append(Interview.bd_id == bd.id)
+
+            # 3. Created by his team (users in his allowed departments)
+            if allowed is not None:
+                if allowed:
+                    team_user_ids_query = select(User.id).where(User.department_id.in_(allowed))
+                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
             else:
-                # specific depts allowed
-                dept_cond = Interview.department_id.in_(allowed)
-                if department_id:
-                    if department_id in allowed:
-                        dept_cond = Interview.department_id == department_id
-                    else:
-                        dept_cond = sql_false()
-                conds.append(dept_cond)
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
-                conds.append(Interview.created_by_user_id == current_user.id)
-                base_query = base_query.where(or_(*conds))
+                # unrestricted department-wise, but still restrict to BD/TEAM_MEMBER/BD_TEAM_LEAD/DEPT_LEAD creators
+                team_user_ids_query = select(User.id).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
+                conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+
+            # Apply department_id filter parameter if specified
+            if department_id:
+                base_query = base_query.where(Interview.department_id == department_id)
+
+            base_query = base_query.where(or_(*conds))
         else:
             base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
         query = apply_team_member_interview_list_filter(session, current_user, base_query)

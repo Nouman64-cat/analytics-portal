@@ -275,40 +275,50 @@ def list_interviews(
         joinedload(Interview.candidate),
         joinedload(Interview.resume_profile),
         joinedload(Interview.business_developer),
-    ).where(Interview.round != "Lead")
+    )
 
     query = apply_team_member_interview_list_filter(session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
-        if current_user.role == UserRole.BD_TEAM_LEAD:
-            # Find BD record by email
+        if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+            # Find BD record by email, falling back to name-based match
             bd = session.exec(
                 select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
             ).first()
+            if not bd:
+                bd = session.exec(
+                    select(BusinessDeveloper).where(
+                        or_(
+                            func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
+                            func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
+                            func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
+                        )
+                    )
+                ).first()
             allowed = get_user_allowed_depts(current_user)
             conds = []
-            if allowed is None:
-                # unrestricted
-                if department_id:
-                    query = query.where(Interview.department_id == department_id)
-            elif not allowed:
-                # no depts allowed explicitly, but can see their own
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
-                conds.append(Interview.created_by_user_id == current_user.id)
-                query = query.where(or_(*conds) if len(conds) > 1 else conds[0])
+
+            # 1. Created by him
+            conds.append(Interview.created_by_user_id == current_user.id)
+
+            # 2. From his BD record
+            if bd:
+                conds.append(Interview.bd_id == bd.id)
+
+            # 3. Created by his team (users in his allowed departments)
+            if allowed is not None:
+                if allowed:
+                    team_user_ids_query = select(User.id).where(User.department_id.in_(allowed))
+                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
             else:
-                # specific depts allowed
-                dept_cond = Interview.department_id.in_(allowed)
-                if department_id:
-                    if department_id in allowed:
-                        dept_cond = Interview.department_id == department_id
-                    else:
-                        dept_cond = sql_false()
-                conds.append(dept_cond)
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
-                conds.append(Interview.created_by_user_id == current_user.id)
-                query = query.where(or_(*conds))
+                # unrestricted department-wise, but still restrict to BD/TEAM_MEMBER/BD_TEAM_LEAD/DEPT_LEAD creators
+                team_user_ids_query = select(User.id).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
+                conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+
+            # Apply department_id filter parameter if specified
+            if department_id:
+                query = query.where(Interview.department_id == department_id)
+
+            query = query.where(or_(*conds))
         else:
             query = apply_dept_filter(query, Interview, current_user, department_id)
 
@@ -807,6 +817,11 @@ def delete_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
+    if interview.round == "Lead":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete the 'Lead' round placeholder. Delete the lead from the Leads page if you want to remove this opportunity entirely.",
+        )
 
     # Check if this is the ONLY interview in this thread
     thread_id = interview.thread_id
@@ -817,66 +832,40 @@ def delete_interview(
     is_only_interview = len(thread_interviews) == 1
 
     if is_only_interview:
-        if interview.round == "Lead":
-            # If it is already a "Lead" round placeholder, delete everything
-            reminder_logs = session.exec(
-                select(InterviewReminderLog).where(
-                    InterviewReminderLog.interview_id == interview_id
-                )
-            ).all()
-            for row in reminder_logs:
-                session.delete(row)
-
-            session.delete(interview)
-            
-            # Also clean up the LeadThread row
-            lt = session.get(LeadThread, thread_id)
-            if lt:
-                session.delete(lt)
-
-            record_activity(
-                session,
-                actor=current_user,
-                action="delete_lead",
-                entity_type="lead_thread",
-                entity_id=thread_id,
-                message=f"Deleted lead thread at {interview.company.name if interview.company else 'company'} because its only round ('Lead') was deleted",
+        # If it's a real round (e.g. "1st") and the only round, convert it to a "Lead" round instead of deleting it to preserve the lead
+        reminder_logs = session.exec(
+            select(InterviewReminderLog).where(
+                InterviewReminderLog.interview_id == interview_id
             )
-        else:
-            # If it's a real round (e.g. "1st"), convert it to a "Lead" round instead of deleting it to preserve the lead
-            reminder_logs = session.exec(
-                select(InterviewReminderLog).where(
-                    InterviewReminderLog.interview_id == interview_id
-                )
-            ).all()
-            for row in reminder_logs:
-                session.delete(row)
+        ).all()
+        for row in reminder_logs:
+            session.delete(row)
 
-            # Nullify scheduling/feedback fields to convert to placeholder
-            interview.round = "Lead"
-            interview.interview_date = None
-            interview.time_est = None
-            interview.time_pkt = None
-            interview.interviewer = None
-            interview.interview_link = None
-            interview.status = None
-            interview.feedback = None
-            interview.recruiter_feedback = None
-            interview.is_phone_call = False
-            interview.interview_doc_url = None
-            interview.parent_interview_id = None
-            interview.updated_at = datetime.utcnow()
+        # Nullify scheduling/feedback fields to convert to placeholder
+        interview.round = "Lead"
+        interview.interview_date = None
+        interview.time_est = None
+        interview.time_pkt = None
+        interview.interviewer = None
+        interview.interview_link = None
+        interview.status = None
+        interview.feedback = None
+        interview.recruiter_feedback = None
+        interview.is_phone_call = False
+        interview.interview_doc_url = None
+        interview.parent_interview_id = None
+        interview.updated_at = datetime.utcnow()
 
-            session.add(interview)
+        session.add(interview)
 
-            record_activity(
-                session,
-                actor=current_user,
-                action="delete_interview",
-                entity_type="interview",
-                entity_id=interview_id,
-                message=f"Converted interview round '{interview.role}' to Lead placeholder to preserve the lead thread",
-            )
+        record_activity(
+            session,
+            actor=current_user,
+            action="delete_interview",
+            entity_type="interview",
+            entity_id=interview_id,
+            message=f"Converted interview round '{interview.role}' to Lead placeholder to preserve the lead thread",
+        )
     else:
         # Not the only interview, delete normally
         reminder_logs = session.exec(

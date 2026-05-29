@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_
 
 from sqlalchemy import func
 
@@ -73,12 +73,22 @@ def _build_notifications(
 
     # BD users: scope to only threads where they are the primary BD.
     # Match by email: business_developers.email == current_user.email
-    if current_user.role == UserRole.BD:
+    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD):
         bd_record = session.exec(
             select(BusinessDeveloper).where(
                 func.lower(BusinessDeveloper.email) == current_user.email.lower()
             )
         ).first()
+        if not bd_record:
+            bd_record = session.exec(
+                select(BusinessDeveloper).where(
+                    or_(
+                        func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
+                        func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
+                        func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
+                    )
+                )
+            ).first()
         if not bd_record:
             return []
         qualifying = [
