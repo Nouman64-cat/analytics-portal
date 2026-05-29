@@ -127,6 +127,32 @@ def _format_time(t: Optional[time]) -> str:
     return t.strftime("%I:%M %p")
 
 
+def make_presigned_doc_url(settings: "Settings", doc_url: Optional[str], expiry: int = 604800) -> Optional[str]:
+    """Return a pre-signed GET URL (default 7 days) for a private S3 document. Falls back to the raw URL on error."""
+    if not doc_url or not doc_url.strip():
+        return None
+    try:
+        import boto3
+        from urllib.parse import urlparse
+        key = urlparse(doc_url).path.lstrip("/")
+        if not key or not settings.AWS_S3_BUCKET_NAME:
+            return doc_url
+        s3 = boto3.client(
+            "s3",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=settings.effective_aws_access_key_id,
+            aws_secret_access_key=settings.effective_aws_secret_access_key,
+        )
+        return s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.AWS_S3_BUCKET_NAME, "Key": key},
+            ExpiresIn=expiry,
+        )
+    except Exception:
+        logger.warning("Failed to generate presigned URL for %s; using raw URL", doc_url)
+        return doc_url
+
+
 def interview_notification_html(
     *,
     candidate_name: str,
@@ -139,6 +165,10 @@ def interview_notification_html(
     interviewer: Optional[str],
     interview_link: Optional[str],
     is_phone_call: bool,
+    salary_range: Optional[str] = None,
+    interview_doc_url: Optional[str] = None,
+    bd_name: Optional[str] = None,
+    resume_profile_name: Optional[str] = None,
     title: str = "Your interview details",
     eyebrow: str = "Interview Update",
     intro_text: Optional[str] = None,
@@ -155,19 +185,25 @@ def interview_notification_html(
     rows = [
         ("Company", safe(company_name or "—")),
         ("Role", safe(role)),
+    ]
+    if salary_range:
+        rows.append(("Salary Range", safe(salary_range)))
+    rows += [
         ("Round", safe(round_name)),
         ("Date", safe(_format_date(interview_date))),
         ("Time (US Eastern)", safe(_format_time(time_est))),
         ("Time (PKT)", safe(_format_time(time_pkt))),
         ("Format", "Phone call" if is_phone_call else "Video / other"),
     ]
+    if resume_profile_name:
+        rows.append(("Resume Profile", safe(resume_profile_name)))
     if interviewer:
-        rows.append(("Contact / interviewer", safe(interviewer)))
+        rows.append(("Interviewer", safe(interviewer)))
+    if bd_name:
+        rows.append(("Recruiter Contact", safe(bd_name)))
     if interview_link:
         esc_link = safe(interview_link)
-        rows.append(
-            ("Meeting link", f'<a href="{esc_link}">{esc_link}</a>'),
-        )
+        rows.append(("Meeting Link", f'<a href="{esc_link}" style="color:{brand};">{esc_link}</a>'))
 
     body_rows = "".join(
         f"<tr><td style=\"padding:10px 12px;border:1px solid {border};background:{soft_bg};width:36%;font-weight:600;color:{text_main};\">{safe(k)}</td>"
@@ -185,6 +221,18 @@ def interview_notification_html(
             f'style="display:inline-block;background:{brand};color:#ffffff;text-decoration:none;'
             f'padding:11px 16px;border-radius:10px;font-weight:600;font-size:14px;">{safe(cta_label)}</a>'
             f"</p>"
+        )
+
+    doc_section = ""
+    if interview_doc_url:
+        esc_doc = safe(interview_doc_url)
+        doc_section = (
+            f'<div style="margin:16px 0 4px;padding:14px 16px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:10px;">'
+            f'<p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#3730a3;">Interview Document</p>'
+            f'<a href="{esc_doc}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;'
+            f'padding:9px 14px;border-radius:8px;font-weight:600;font-size:13px;">&#8681; Download Document</a>'
+            f'<p style="margin:8px 0 0;font-size:11px;color:{text_muted};">This download link expires in 7 days.</p>'
+            f'</div>'
         )
 
     return f"""\
@@ -216,6 +264,7 @@ def interview_notification_html(
                 {body_rows}
               </table>
               {cta}
+              {doc_section}
               <p style="margin:14px 0 0;color:{text_muted};font-size:13px;">
                 If anything looks wrong, please reply to this email or contact your recruiter.
               </p>
@@ -329,6 +378,10 @@ def send_interview_created_email(
     interviewer: Optional[str],
     interview_link: Optional[str],
     is_phone_call: bool,
+    salary_range: Optional[str] = None,
+    interview_doc_url: Optional[str] = None,
+    bd_name: Optional[str] = None,
+    resume_profile_name: Optional[str] = None,
 ) -> None:
     """Raise on send failure; caller should catch and log."""
     html = interview_notification_html(
@@ -342,6 +395,10 @@ def send_interview_created_email(
         interviewer=interviewer,
         interview_link=interview_link,
         is_phone_call=is_phone_call,
+        salary_range=salary_range,
+        interview_doc_url=interview_doc_url,
+        bd_name=bd_name,
+        resume_profile_name=resume_profile_name,
         title="Interview Scheduled",
         eyebrow="Interview Confirmation",
         intro_text="Great news! Your interview has been scheduled. Please review and keep these details handy.",
@@ -351,13 +408,26 @@ def send_interview_created_email(
         f"Hi {candidate_name},\n\n"
         f"Company: {company_name}\n"
         f"Role: {role}\n"
+    )
+    if salary_range:
+        plain += f"Salary Range: {salary_range}\n"
+    plain += (
         f"Round: {round_name}\n"
         f"Date: {_format_date(interview_date)}\n"
         f"Time (EST): {_format_time(time_est)}\n"
         f"Time (PKT): {_format_time(time_pkt)}\n"
+        f"Format: {'Phone call' if is_phone_call else 'Video / other'}\n"
     )
+    if resume_profile_name:
+        plain += f"Resume Profile: {resume_profile_name}\n"
+    if interviewer:
+        plain += f"Interviewer: {interviewer}\n"
+    if bd_name:
+        plain += f"Recruiter Contact: {bd_name}\n"
     if interview_link:
-        plain += f"Link: {interview_link}\n"
+        plain += f"Meeting Link: {interview_link}\n"
+    if interview_doc_url:
+        plain += f"Interview Document: {interview_doc_url}\n(Link expires in 7 days)\n"
     _dispatch_email(
         settings,
         to_email=to_email,
@@ -383,6 +453,10 @@ def send_interview_reminder_email(
     interview_link: Optional[str],
     is_phone_call: bool,
     reminder_minutes: int,
+    salary_range: Optional[str] = None,
+    interview_doc_url: Optional[str] = None,
+    bd_name: Optional[str] = None,
+    resume_profile_name: Optional[str] = None,
 ) -> None:
     """Raise on send failure; caller should catch and log."""
     html = interview_notification_html(
@@ -396,6 +470,10 @@ def send_interview_reminder_email(
         interviewer=interviewer,
         interview_link=interview_link,
         is_phone_call=is_phone_call,
+        salary_range=salary_range,
+        interview_doc_url=interview_doc_url,
+        bd_name=bd_name,
+        resume_profile_name=resume_profile_name,
         title=f"Interview starts in {reminder_minutes} minutes",
         eyebrow="Interview Reminder",
         intro_text=f"This is a reminder that your interview starts in {reminder_minutes} minutes.",
@@ -406,13 +484,26 @@ def send_interview_reminder_email(
         f"Reminder: your interview starts in {reminder_minutes} minutes.\n\n"
         f"Company: {company_name}\n"
         f"Role: {role}\n"
+    )
+    if salary_range:
+        plain += f"Salary Range: {salary_range}\n"
+    plain += (
         f"Round: {round_name}\n"
         f"Date: {_format_date(interview_date)}\n"
         f"Time (EST): {_format_time(time_est)}\n"
         f"Time (PKT): {_format_time(time_pkt)}\n"
+        f"Format: {'Phone call' if is_phone_call else 'Video / other'}\n"
     )
+    if resume_profile_name:
+        plain += f"Resume Profile: {resume_profile_name}\n"
+    if interviewer:
+        plain += f"Interviewer: {interviewer}\n"
+    if bd_name:
+        plain += f"Recruiter Contact: {bd_name}\n"
     if interview_link:
-        plain += f"Link: {interview_link}\n"
+        plain += f"Meeting Link: {interview_link}\n"
+    if interview_doc_url:
+        plain += f"Interview Document: {interview_doc_url}\n(Link expires in 7 days)\n"
     _dispatch_email(
         settings,
         to_email=to_email,
@@ -437,6 +528,10 @@ def try_send_interview_created_email(
     interviewer: Optional[str],
     interview_link: Optional[str],
     is_phone_call: bool,
+    salary_range: Optional[str] = None,
+    interview_doc_url: Optional[str] = None,
+    bd_name: Optional[str] = None,
+    resume_profile_name: Optional[str] = None,
 ) -> bool:
     """Send if email provider is configured; no-op if candidate has no email. Logs errors, does not raise."""
     if not to_email or not str(to_email).strip():
@@ -459,6 +554,10 @@ def try_send_interview_created_email(
             interviewer=interviewer,
             interview_link=interview_link,
             is_phone_call=is_phone_call,
+            salary_range=salary_range,
+            interview_doc_url=interview_doc_url,
+            bd_name=bd_name,
+            resume_profile_name=resume_profile_name,
         )
         return True
     except Exception:
@@ -481,6 +580,10 @@ def try_send_interview_reminder_email(
     interview_link: Optional[str],
     is_phone_call: bool,
     reminder_minutes: int,
+    salary_range: Optional[str] = None,
+    interview_doc_url: Optional[str] = None,
+    bd_name: Optional[str] = None,
+    resume_profile_name: Optional[str] = None,
 ) -> bool:
     """Send reminder if email provider is configured; no-op if candidate has no email. Logs errors, does not raise."""
     if not to_email or not str(to_email).strip():
@@ -504,6 +607,10 @@ def try_send_interview_reminder_email(
             interview_link=interview_link,
             is_phone_call=is_phone_call,
             reminder_minutes=reminder_minutes,
+            salary_range=salary_range,
+            interview_doc_url=interview_doc_url,
+            bd_name=bd_name,
+            resume_profile_name=resume_profile_name,
         )
         return True
     except Exception:

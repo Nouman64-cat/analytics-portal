@@ -45,7 +45,7 @@ from app.status_utils import (
     computed_status_for_interview_display,
     compute_status,
 )
-from app.email_ses import try_send_interview_created_email
+from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
 
 router = APIRouter(prefix="/api/v1/interviews",
                    tags=["Interviews"], dependencies=[Depends(get_current_user)])
@@ -568,8 +568,9 @@ def create_interview(
     session.commit()
 
     cand = loaded.candidate
+    _settings = get_settings()
     try_send_interview_created_email(
-        get_settings(),
+        _settings,
         to_email=cand.email if cand else None,
         candidate_name=cand.name if cand else "Candidate",
         company_name=loaded.company.name if loaded.company else "",
@@ -581,6 +582,10 @@ def create_interview(
         interviewer=loaded.interviewer,
         interview_link=loaded.interview_link,
         is_phone_call=loaded.is_phone_call,
+        salary_range=loaded.salary_range or None,
+        interview_doc_url=make_presigned_doc_url(_settings, loaded.interview_doc_url),
+        bd_name=loaded.business_developer.name if loaded.business_developer else None,
+        resume_profile_name=loaded.resume_profile.name if loaded.resume_profile else None,
     )
 
     return _finalize_interview_response(session, loaded, current_user)

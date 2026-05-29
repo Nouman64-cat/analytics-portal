@@ -9,10 +9,12 @@ from sqlmodel import Session, select, or_, and_
 from app.activity_log import record_activity
 from app.config import Settings
 from app.database import engine
-from app.email_ses import try_send_interview_reminder_email
+from app.email_ses import try_send_interview_reminder_email, make_presigned_doc_url
+from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
+from app.models.resume_profile import ResumeProfile
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.models.lead_thread import LeadThread
 from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
@@ -104,17 +106,27 @@ def _process_due_reminders(settings: Settings) -> None:
             for iv in session.exec(select(Interview).where(Interview.thread_id.in_(all_thread_ids))).all():
                 all_thread_rows.setdefault(iv.thread_id, []).append(iv)
 
-        # Pre-load all candidates and companies referenced by these interviews
+        # Pre-load all candidates, companies, BDs, and profiles referenced by these interviews
         candidate_ids = {i.candidate_id for i in interviews if i.candidate_id}
         company_ids = {i.company_id for i in interviews if i.company_id}
+        bd_ids = {i.bd_id for i in interviews if i.bd_id}
+        profile_ids = {i.resume_profile_id for i in interviews if i.resume_profile_id}
         candidate_map: dict = {}
         company_map: dict = {}
+        bd_map: dict = {}
+        profile_map: dict = {}
         if candidate_ids:
             for c in session.exec(select(Candidate).where(Candidate.id.in_(candidate_ids))).all():
                 candidate_map[c.id] = c
         if company_ids:
             for c in session.exec(select(Company).where(Company.id.in_(company_ids))).all():
                 company_map[c.id] = c
+        if bd_ids:
+            for b in session.exec(select(BusinessDeveloper).where(BusinessDeveloper.id.in_(bd_ids))).all():
+                bd_map[b.id] = b
+        if profile_ids:
+            for p in session.exec(select(ResumeProfile).where(ResumeProfile.id.in_(profile_ids))).all():
+                profile_map[p.id] = p
 
         for interview in interviews:
             lt = lead_map.get(interview.thread_id)
@@ -154,6 +166,8 @@ def _process_due_reminders(settings: Settings) -> None:
                 if existing:
                     continue
 
+                bd = bd_map.get(interview.bd_id) if interview.bd_id else None
+                profile = profile_map.get(interview.resume_profile_id) if interview.resume_profile_id else None
                 sent = try_send_interview_reminder_email(
                     settings,
                     to_email=candidate.email,
@@ -168,6 +182,10 @@ def _process_due_reminders(settings: Settings) -> None:
                     interview_link=interview.interview_link,
                     is_phone_call=interview.is_phone_call,
                     reminder_minutes=minutes,
+                    salary_range=interview.salary_range or None,
+                    interview_doc_url=make_presigned_doc_url(settings, interview.interview_doc_url),
+                    bd_name=bd.name if bd else None,
+                    resume_profile_name=profile.name if profile else None,
                 )
                 if sent:
                     logger.info(
