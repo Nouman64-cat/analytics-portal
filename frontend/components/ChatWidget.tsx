@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Bot, User, Building2, Briefcase, CalendarCheck, Loader2, Sparkles, X, RefreshCw, BarChart2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { chatService } from "@/lib/services";
 import type { ChatMessage, ChatAction } from "@/lib/types";
 import { getUserRole } from "@/lib/auth";
@@ -67,19 +69,56 @@ function ActionCard({ action }: { action: ChatAction }) {
   );
 }
 
-function renderContent(text: string) {
-  return text.split("\n").map((line, i) => {
-    const parts = line.split(/\*\*(.*?)\*\*/g);
-    const rendered = parts.map((p, j) =>
-      j % 2 === 1 ? <strong key={j}>{p}</strong> : p
-    );
-    const isBullet = line.trimStart().startsWith("•") || line.trimStart().startsWith("-");
-    return (
-      <p key={i} className={`${isBullet ? "pl-2" : ""} ${i > 0 ? "mt-1" : ""}`}>
-        {rendered}
-      </p>
-    );
-  });
+function MarkdownContent({ text }: { text: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li>{children}</li>,
+        h1: ({ children }) => <h1 className="text-base font-bold mb-1">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-sm font-bold mb-1">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-semibold mb-1">{children}</h3>,
+        code: ({ children, className }) =>
+          className ? (
+            <pre className="bg-slate-100 dark:bg-slate-800 rounded-lg p-2 text-xs overflow-x-auto my-1">
+              <code>{children}</code>
+            </pre>
+          ) : (
+            <code className="bg-slate-100 dark:bg-slate-800 rounded px-1 py-0.5 text-xs">{children}</code>
+          ),
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="min-w-full text-xs border-collapse border border-slate-300 dark:border-slate-600 rounded-lg overflow-hidden">
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="bg-slate-100 dark:bg-slate-700/60">{children}</thead>
+        ),
+        tbody: ({ children }) => (
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">{children}</tbody>
+        ),
+        tr: ({ children }) => <tr>{children}</tr>,
+        th: ({ children }) => (
+          <th className="px-3 py-1.5 text-left font-semibold text-slate-700 dark:text-slate-200 border-r last:border-r-0 border-slate-300 dark:border-slate-600">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="px-3 py-1.5 text-slate-700 dark:text-slate-300 border-r last:border-r-0 border-slate-200 dark:border-slate-700">
+            {children}
+          </td>
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
 }
 
 export default function ChatWidget() {
@@ -203,7 +242,7 @@ export default function ChatWidget() {
                         : "bg-white dark:bg-[#12141c] border border-slate-200 dark:border-white/[0.06] text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm"
                     }`}
                   >
-                    {renderContent(msg.content)}
+                    <MarkdownContent text={msg.content} />
                   </div>
                   {msg.actions && msg.actions.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
