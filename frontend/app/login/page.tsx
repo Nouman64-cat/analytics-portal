@@ -8,21 +8,27 @@ import {
 } from "lucide-react";
 import { authService } from "@/lib/services";
 import { setToken, isAuthenticated } from "@/lib/auth";
+import { useAccentPalette, type AccentPalette } from "@/lib/useAccentPalette";
 
 /* ─── Abstract art canvas ─────────────────────────────── */
-function AbstractArt() {
+function AbstractArt({ palette }: { palette: AccentPalette }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<number>(0);
+  const animRef   = useRef<number>(0);
+  const paletteRef = useRef(palette);
+  useEffect(() => { paletteRef.current = palette; }, [palette]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const p = paletteRef.current;
     const W = canvas.width, H = canvas.height, t = Date.now() / 1000;
     ctx.clearRect(0, 0, W, H);
+
+    // Background — palette-driven
     const bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, "#0f0c29"); bg.addColorStop(0.45, "#302b63"); bg.addColorStop(1, "#24243e");
+    bg.addColorStop(0, p.bg[0]); bg.addColorStop(0.45, p.bg[1]); bg.addColorStop(1, p.bg[2]);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
     const verts = [
@@ -32,43 +38,48 @@ function AbstractArt() {
       [0.05,0.62],[0.18,0.48],[0.35,0.35],[0.2,0.25],[0.45,0.45],
     ].map(([rx,ry],i) => ({ x: rx*W + Math.sin(t*0.22+i*0.7)*18, y: ry*H + Math.cos(t*0.18+i*0.5)*14 }));
 
+    // Polygon mesh — palette face colors
     [[0,1,17],[1,2,17],[2,17,19],[2,3,4],[4,5,9],[5,6,19],[6,7,19],[7,8,9],[9,10,11],[11,12,13],[13,14,15],[15,16,17],[17,18,0]].forEach((face,fi) => {
       const pts = face.map(idx => verts[idx % verts.length]);
-      const colors = ["#4f46e5","#6366f1","#7c3aed","#4338ca","#818cf8","#5b21b6","#4f46e5","#7c3aed","#6366f1","#4338ca","#818cf8","#4f46e5","#7c3aed"];
-      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath();
+      const col = p.faceColors[fi % p.faceColors.length];
+      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); pts.slice(1).forEach(pt=>ctx.lineTo(pt.x,pt.y)); ctx.closePath();
       const a = 0.06 + Math.sin(t*0.4+fi*0.5)*0.04;
-      ctx.fillStyle = colors[fi%colors.length] + Math.round(a*255).toString(16).padStart(2,"0"); ctx.fill();
-      ctx.strokeStyle = colors[fi%colors.length]+"30"; ctx.lineWidth=0.8; ctx.stroke();
+      ctx.fillStyle = col + Math.round(a*255).toString(16).padStart(2,"0"); ctx.fill();
+      ctx.strokeStyle = col+"30"; ctx.lineWidth=0.8; ctx.stroke();
     });
 
+    // Floating orbs — palette hue
     [{bx:0.22,by:0.28,r:130},{bx:0.75,by:0.65,r:100},{bx:0.5,by:0.1,r:70},{bx:0.1,by:0.75,r:95},{bx:0.88,by:0.28,r:80}].forEach((orb,i) => {
-      const hue = 240 + Math.sin(t*0.15+i*1.1)*30;
+      const hue = p.orbHueBase + Math.sin(t*0.15+i*1.1)*30;
       const ox = orb.bx*W + Math.sin(t*0.33+i*1.3)*35, oy = orb.by*H + Math.cos(t*0.27+i*0.9)*28;
       const g = ctx.createRadialGradient(ox,oy,0,ox,oy,orb.r);
       g.addColorStop(0,`hsla(${hue},85%,65%,0.35)`); g.addColorStop(0.5,`hsla(${hue+20},80%,55%,0.12)`); g.addColorStop(1,"transparent");
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(ox,oy,orb.r,0,Math.PI*2); ctx.fill();
     });
 
+    // Wave ribbons — palette mesh hue
     ctx.save();
     for(let w=0;w<5;w++){
-      ctx.beginPath(); ctx.strokeStyle=`hsla(${238+w*16},80%,68%,${0.07+w*0.025})`; ctx.lineWidth=1.8;
+      ctx.beginPath(); ctx.strokeStyle=`hsla(${p.meshHue+w*16},80%,68%,${0.07+w*0.025})`; ctx.lineWidth=1.8;
       for(let x=0;x<=W;x+=3){ const y=H*(0.35+w*0.06)+Math.sin((x/W)*Math.PI*4+t*0.55+w*0.9)*(45+w*18)+Math.cos((x/W)*Math.PI*2.5+t*0.32+w*0.6)*(22+w*8); x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); } ctx.stroke();
     }
     ctx.restore();
 
+    // Dot grid — palette dot hue
     ctx.save();
     const cols=14,rows=18,gx=W/cols,gy=H/rows;
     for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
       const px=i*gx+gx/2,py=j*gy+gy/2,d=Math.sqrt(Math.pow((px/W-0.5)*2,2)+Math.pow((py/H-0.5)*2,2));
       const pulse=Math.sin(t*1.6-d*3.5)*0.5+0.5;
-      ctx.globalAlpha=0.07+pulse*0.28; ctx.fillStyle=`hsl(${248+((i*3+j*7)%45)},75%,72%)`;
+      ctx.globalAlpha=0.07+pulse*0.28; ctx.fillStyle=`hsl(${p.dotHueBase+((i*3+j*7)%45)},75%,72%)`;
       ctx.beginPath(); ctx.arc(px,py,1+pulse*1.8,0,Math.PI*2); ctx.fill();
     }
     ctx.restore();
 
+    // Constellation — palette star color
     ctx.save();
     const stars=verts.slice(0,12);
-    stars.forEach((s,i)=>{ stars.slice(i+1).forEach(s2=>{ const dx=s.x-s2.x,dy=s.y-s2.y,dist=Math.sqrt(dx*dx+dy*dy); if(dist<W*0.38){ ctx.globalAlpha=(1-dist/(W*0.38))*0.18; ctx.strokeStyle="#a5b4fc"; ctx.lineWidth=0.7; ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(s2.x,s2.y); ctx.stroke(); } }); ctx.globalAlpha=0.55; ctx.fillStyle="#c7d2fe"; ctx.beginPath(); ctx.arc(s.x,s.y,1.8,0,Math.PI*2); ctx.fill(); });
+    stars.forEach((s,i)=>{ stars.slice(i+1).forEach(s2=>{ const dx=s.x-s2.x,dy=s.y-s2.y,dist=Math.sqrt(dx*dx+dy*dy); if(dist<W*0.38){ ctx.globalAlpha=(1-dist/(W*0.38))*0.18; ctx.strokeStyle=p.starColor; ctx.lineWidth=0.7; ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(s2.x,s2.y); ctx.stroke(); } }); ctx.globalAlpha=0.55; ctx.fillStyle=p.starColor; ctx.beginPath(); ctx.arc(s.x,s.y,1.8,0,Math.PI*2); ctx.fill(); });
     ctx.restore();
 
     animRef.current = requestAnimationFrame(draw);
@@ -141,6 +152,7 @@ function FormInput({
 /* ─── Login Page ──────────────────────────────────────── */
 export default function LoginPage() {
   const router = useRouter();
+  const palette = useAccentPalette();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -170,7 +182,7 @@ export default function LoginPage() {
     <div className="w-full min-h-screen flex bg-slate-50 dark:bg-[#0f0c29]">
       {/* ── Left: Abstract Art Panel ── */}
       <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden flex-col">
-        <AbstractArt />
+        <AbstractArt palette={palette} />
         <div className="relative z-10 flex flex-col justify-between h-full p-10">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg">
