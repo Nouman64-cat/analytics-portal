@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from "react";
 import { ChevronDown, Plus, Loader2, Check } from "lucide-react";
 import { Company } from "@/lib/types";
 import { companiesService } from "@/lib/services";
@@ -17,7 +17,6 @@ interface Props {
 }
 
 export interface CompanyComboboxHandle {
-  /** If the user typed a new company name without clicking Create, creates it and returns its id. Returns existing id if already selected, null if input is empty. */
   createIfNeeded(): Promise<string | null>;
 }
 
@@ -34,14 +33,24 @@ const CompanyCombobox = forwardRef<CompanyComboboxHandle, Props>(function Compan
   const [query, setQuery] = useState(selected?.name ?? "");
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // Sync displayed text when selected company changes externally
   useEffect(() => {
     if (!open) setQuery(selected?.name ?? "");
   }, [value, selected?.name, open]);
 
-  // Close on outside click, restoring displayed name
+  // Reset highlight when filtered list changes
+  useEffect(() => { setActiveIndex(-1); }, [query]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (!listRef.current || activeIndex < 0) return;
+    const item = listRef.current.querySelectorAll<HTMLElement>("[data-item]")[activeIndex];
+    item?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (!containerRef.current?.contains(e.target as Node)) {
@@ -57,12 +66,13 @@ const CompanyCombobox = forwardRef<CompanyComboboxHandle, Props>(function Compan
   const filtered = trimmed
     ? companies.filter((c) => c.name.toLowerCase().includes(trimmed.toLowerCase()))
     : companies;
-  const exactMatch = companies.some(
-    (c) => c.name.toLowerCase() === trimmed.toLowerCase()
-  );
+  const exactMatch = companies.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   const showCreate = trimmed.length > 0 && !exactMatch;
 
-  const handleCreate = async (): Promise<string | null> => {
+  // Index of the "Create" row (always last when visible)
+  const createIndex = filtered.length;
+
+  const handleCreate = useCallback(async (): Promise<string | null> => {
     if (!trimmed) return null;
     setCreating(true);
     try {
@@ -78,21 +88,52 @@ const CompanyCombobox = forwardRef<CompanyComboboxHandle, Props>(function Compan
     } finally {
       setCreating(false);
     }
-  };
+  }, [trimmed, onChange, onCompanyCreated]);
 
   useImperativeHandle(ref, () => ({
     createIfNeeded: async () => {
       if (value) return value;
       const match = companies.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
-      if (match) {
-        onChange(match.id);
-        setQuery(match.name);
-        return match.id;
-      }
+      if (match) { onChange(match.id); setQuery(match.name); return match.id; }
       if (trimmed) return handleCreate();
       return null;
     },
-  }), [value, trimmed, companies]);
+  }), [value, trimmed, companies, handleCreate, onChange]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setOpen(true);
+        setActiveIndex(0);
+      }
+      return;
+    }
+    const total = filtered.length + (showCreate ? 1 : 0);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, total - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < filtered.length) {
+        onChange(filtered[activeIndex].id);
+        setQuery(filtered[activeIndex].name);
+        setOpen(false);
+      } else if (showCreate && activeIndex === createIndex) {
+        void handleCreate();
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      setQuery(selected?.name ?? "");
+    } else if (e.key === "Tab") {
+      setOpen(false);
+      setQuery(selected?.name ?? "");
+    }
+  };
 
   return (
     <div ref={containerRef} className={`relative ${className ?? ""}`}>
@@ -103,14 +144,12 @@ const CompanyCombobox = forwardRef<CompanyComboboxHandle, Props>(function Compan
           placeholder={placeholder}
           disabled={disabled || creating}
           className={`${inputClass} pr-8`}
-          onFocus={() => {
-            setQuery(selected?.name ?? "");
-            setOpen(true);
-          }}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            if (!open) setOpen(true);
-          }}
+          onFocus={() => { setQuery(selected?.name ?? ""); setOpen(true); }}
+          onChange={(e) => { setQuery(e.target.value); if (!open) setOpen(true); }}
+          onKeyDown={handleKeyDown}
+          aria-expanded={open}
+          aria-autocomplete="list"
+          role="combobox"
         />
         <ChevronDown
           size={14}
@@ -120,20 +159,22 @@ const CompanyCombobox = forwardRef<CompanyComboboxHandle, Props>(function Compan
 
       {open && (
         <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-[#1a1c28] border border-slate-200 dark:border-white/[0.08] rounded-xl shadow-xl overflow-hidden">
-          <div className="max-h-52 overflow-y-auto">
+          <div ref={listRef} className="max-h-52 overflow-y-auto">
             {filtered.length === 0 && !showCreate && (
               <p className="px-3 py-2.5 text-sm text-slate-400">No companies found</p>
             )}
-            {filtered.map((c) => (
+            {filtered.map((c, idx) => (
               <button
                 key={c.id}
                 type="button"
-                onMouseDown={() => {
-                  onChange(c.id);
-                  setQuery(c.name);
-                  setOpen(false);
-                }}
-                className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-colors"
+                data-item
+                onMouseDown={() => { onChange(c.id); setQuery(c.name); setOpen(false); }}
+                onMouseEnter={() => setActiveIndex(idx)}
+                className={`w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 transition-colors ${
+                  idx === activeIndex
+                    ? "bg-indigo-500/10 dark:bg-indigo-500/20"
+                    : "hover:bg-slate-50 dark:hover:bg-white/[0.06]"
+                }`}
               >
                 <span className="w-4 shrink-0 flex items-center justify-center">
                   {value === c.id && <Check size={13} className="text-indigo-500" />}
@@ -149,12 +190,18 @@ const CompanyCombobox = forwardRef<CompanyComboboxHandle, Props>(function Compan
           {showCreate && (
             <button
               type="button"
+              data-item
               onMouseDown={handleCreate}
+              onMouseEnter={() => setActiveIndex(createIndex)}
               disabled={creating}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/[0.08] border-t border-slate-100 dark:border-white/[0.06] transition-colors disabled:opacity-60"
+              className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 border-t border-slate-100 dark:border-white/[0.06] transition-colors disabled:opacity-60 ${
+                activeIndex === createIndex
+                  ? "bg-indigo-50 dark:bg-indigo-500/[0.12]"
+                  : "hover:bg-indigo-50 dark:hover:bg-indigo-500/[0.08]"
+              }`}
             >
               {creating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-              Create "{trimmed}"
+              Create &ldquo;{trimmed}&rdquo;
             </button>
           )}
         </div>
