@@ -340,6 +340,28 @@ export default function LeadsPage() {
     () => [...profiles].sort((a, b) => a.name.localeCompare(b.name)),
     [profiles],
   );
+
+  // Profiles that belong to the currently selected BD in the form.
+  const profilesForSelectedBd = useMemo(() => {
+    if (!form.bd_id) return [];
+    return profiles.filter((p) => p.bd_id === form.bd_id);
+  }, [profiles, form.bd_id]);
+
+  // Auto-select profile when BD changes in the form.
+  useEffect(() => {
+    if (!form.bd_id) return;
+    const bdProfiles = profiles.filter((p) => p.bd_id === form.bd_id);
+    if (bdProfiles.length === 1) {
+      setForm((f) => ({ ...f, resume_profile_id: bdProfiles[0].id }));
+    } else if (bdProfiles.length > 1) {
+      const currentIsValid = bdProfiles.some((p) => p.id === form.resume_profile_id);
+      if (!currentIsValid) {
+        setForm((f) => ({ ...f, resume_profile_id: "" }));
+      }
+    }
+    // If 0 profiles for this BD, leave current selection unchanged.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.bd_id]);
   const candidateOptions = useMemo(
     () => [...candidates].sort((a, b) => a.name.localeCompare(b.name)),
     [candidates],
@@ -1087,16 +1109,26 @@ export default function LeadsPage() {
               />
             )}
           </FormField>
-          <FormField label="Resume profile">
+          <FormField label={profilesForSelectedBd.length > 0 ? `Resume profile (${profilesForSelectedBd.length} for this BD)` : "Resume profile"}>
             <SearchableSelect
-              options={profiles.map((p) => ({ id: p.id, label: p.name }))}
+              options={(profilesForSelectedBd.length > 0 ? profilesForSelectedBd : profiles).map((p) => ({ id: p.id, label: p.name }))}
               value={form.resume_profile_id}
               onChange={(id) =>
                 setForm((f) => ({ ...f, resume_profile_id: id }))
               }
-              placeholder="Select profile…"
+              placeholder={profilesForSelectedBd.length === 1 ? profilesForSelectedBd[0].name : "Select profile…"}
               required
             />
+            {profilesForSelectedBd.length > 1 && (
+              <p className="mt-1 text-xs text-indigo-500 dark:text-indigo-400">
+                Showing {profilesForSelectedBd.length} profiles for this BD — select one.
+              </p>
+            )}
+            {form.bd_id && profilesForSelectedBd.length === 0 && (
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                No profiles assigned to this BD — showing all.
+              </p>
+            )}
           </FormField>
           <FormField label="Role / job title">
             <RoleCombobox

@@ -47,6 +47,8 @@ export interface ResumeProfile {
   is_active: boolean;
   department_id: string | null;
   department_name: string | null;
+  bd_id: string | null;
+  bd_name: string | null;
   linkedin_url: string | null;
   github_url: string | null;
   portfolio_url: string | null;
@@ -492,6 +494,7 @@ export interface ResumeProfileFormData {
   name: string;
   is_active?: boolean;
   department_id?: string | null;
+  bd_id?: string | null;
   linkedin_url?: string;
   github_url?: string;
   portfolio_url?: string;

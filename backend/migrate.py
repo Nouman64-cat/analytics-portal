@@ -289,6 +289,12 @@ def migrate():
              "Migration successful! Unique index on job_roles.name ensured."),
             ("CREATE INDEX IF NOT EXISTS ix_job_roles_name ON job_roles (name);",
              "Migration successful! Index on job_roles.name ensured."),
+
+            # ── BD → resume profile one-to-many relationship ──────────────────────────
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS bd_id UUID REFERENCES business_developers(id) ON DELETE SET NULL;",
+             "Migration successful! 'bd_id' column added to 'resume_profiles' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_resume_profiles_bd_id ON resume_profiles (bd_id);",
+             "Migration successful! Index on resume_profiles.bd_id ensured."),
         ]
         for sql, msg in migrations:
             try:

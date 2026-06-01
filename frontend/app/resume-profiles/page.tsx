@@ -13,7 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
-import { profilesService, interviewsService, departmentsService } from "@/lib/services";
+import { profilesService, interviewsService, departmentsService, businessDevelopersService } from "@/lib/services";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { formatDate } from "@/lib/utils";
 import type {
@@ -21,6 +21,7 @@ import type {
   ResumeProfileFormData,
   Interview,
   Department,
+  BusinessDeveloper,
 } from "@/lib/types";
 import {
   PageLoader,
@@ -82,6 +83,7 @@ export default function ProfilesPage() {
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const role = getUserRole();
   const cannotCRUD = role === "manager" || role === "bd-manager";
   const isSuperadmin = role === "superadmin";
@@ -91,12 +93,14 @@ export default function ProfilesPage() {
     try {
       setLoading(true);
       setError(null);
-      const [pData, iData] = await Promise.all([
+      const [pData, iData, bdsData] = await Promise.all([
         profilesService.list({ department_id: departmentId }),
         interviewsService.list(),
+        businessDevelopersService.list(),
       ]);
       setProfiles(pData);
       setInterviews(iData);
+      setBusinessDevs(bdsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -118,6 +122,7 @@ export default function ProfilesPage() {
       name: "",
       is_active: true,
       department_id: departmentId ?? null,
+      bd_id: null,
       linkedin_url: "",
       github_url: "",
       portfolio_url: "",
@@ -131,6 +136,7 @@ export default function ProfilesPage() {
       name: p.name,
       is_active: p.is_active ?? true,
       department_id: p.department_id ?? null,
+      bd_id: p.bd_id ?? null,
       linkedin_url: p.linkedin_url || "",
       github_url: p.github_url || "",
       portfolio_url: p.portfolio_url || "",
@@ -824,6 +830,25 @@ export default function ProfilesPage() {
             >
               <option value="true">Active (Seeking Deployments)</option>
               <option value="false">Closed (Retired/Hired)</option>
+            </select>
+          </FormField>
+
+          <FormField label="Assigned BD (optional)">
+            <select
+              value={formData.bd_id || ""}
+              onChange={(e) =>
+                setFormData({ ...formData, bd_id: e.target.value || null })
+              }
+              className={selectClass}
+            >
+              <option value="">— No BD assigned —</option>
+              {businessDevs
+                .filter((b) => b.is_active)
+                .map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
             </select>
           </FormField>
 

@@ -8,6 +8,7 @@ class ResumeProfileCreate(BaseModel):
     name: str
     is_active: bool = True
     department_id: Optional[uuid.UUID] = None
+    bd_id: Optional[uuid.UUID] = None
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
@@ -18,6 +19,7 @@ class ResumeProfileUpdate(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
     department_id: Optional[uuid.UUID] = None
+    bd_id: Optional[uuid.UUID] = None
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
@@ -30,6 +32,8 @@ class ResumeProfileRead(BaseModel):
     is_active: bool
     department_id: Optional[uuid.UUID] = None
     department_name: Optional[str] = None
+    bd_id: Optional[uuid.UUID] = None
+    bd_name: Optional[str] = None
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None

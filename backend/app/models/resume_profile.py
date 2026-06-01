@@ -5,6 +5,7 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.interview import Interview
+    from app.models.business_developer import BusinessDeveloper
 
 
 class ResumeProfile(SQLModel, table=True):
@@ -16,6 +17,7 @@ class ResumeProfile(SQLModel, table=True):
     name: str = Field(index=True, max_length=255)
     is_active: bool = Field(default=True)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
+    bd_id: Optional[uuid.UUID] = Field(default=None, foreign_key="business_developers.id", index=True)
     linkedin_url: Optional[str] = Field(default=None, max_length=500)
     github_url: Optional[str] = Field(default=None, max_length=500)
     portfolio_url: Optional[str] = Field(default=None, max_length=1000)
@@ -26,3 +28,4 @@ class ResumeProfile(SQLModel, table=True):
     # Relationships
     interviews: list["Interview"] = Relationship(
         back_populates="resume_profile")
+    business_developer: Optional["BusinessDeveloper"] = Relationship()

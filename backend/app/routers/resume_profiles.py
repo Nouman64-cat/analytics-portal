@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
 from app.dept_scope import apply_dept_filter, is_cross_dept, get_user_allowed_depts
+from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.resume_profile import ResumeProfile
@@ -47,13 +48,15 @@ def _get_s3_client(settings):
     )
 
 
-def _to_read(profile: ResumeProfile, dept: Optional[Department]) -> ResumeProfileRead:
+def _to_read(profile: ResumeProfile, dept: Optional[Department], bd: Optional[BusinessDeveloper] = None) -> ResumeProfileRead:
     return ResumeProfileRead(
         id=profile.id,
         name=profile.name,
         is_active=profile.is_active,
         department_id=profile.department_id,
         department_name=dept.name if dept else None,
+        bd_id=profile.bd_id,
+        bd_name=bd.name if bd else None,
         linkedin_url=profile.linkedin_url,
         github_url=profile.github_url,
         portfolio_url=profile.portfolio_url,
@@ -78,14 +81,19 @@ def _team_member_dept(session: Session, current_user: User) -> Optional[uuid.UUI
 @router.get("/", response_model=list[ResumeProfileRead])
 def list_resume_profiles(
     department_id: Optional[uuid.UUID] = Query(None, description="Filter by department"),
+    bd_id: Optional[uuid.UUID] = Query(None, description="Filter by business developer"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     query = (
-        select(ResumeProfile, Department)
+        select(ResumeProfile, Department, BusinessDeveloper)
         .join(Department, ResumeProfile.department_id == Department.id, isouter=True)
+        .join(BusinessDeveloper, ResumeProfile.bd_id == BusinessDeveloper.id, isouter=True)
         .order_by(ResumeProfile.name)
     )
+
+    if bd_id:
+        query = query.where(ResumeProfile.bd_id == bd_id)
 
     if department_id:
         query = query.where(ResumeProfile.department_id == department_id)
@@ -104,7 +112,7 @@ def list_resume_profiles(
             return []
 
     rows = session.exec(query).all()
-    return [_to_read(p, d) for p, d in rows]
+    return [_to_read(p, d, b) for p, d, b in rows]
 
 
 @router.post("/", response_model=ResumeProfileRead, status_code=status.HTTP_201_CREATED)
@@ -116,7 +124,7 @@ def create_resume_profile(
     """Create a new resume profile stamped with the creator's department."""
     assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
-    profile = ResumeProfile(name=data.name, department_id=dept_id)
+    profile = ResumeProfile(name=data.name, department_id=dept_id, bd_id=data.bd_id)
     session.add(profile)
     session.flush()
     record_activity(
@@ -130,7 +138,8 @@ def create_resume_profile(
     session.commit()
     session.refresh(profile)
     dept = session.get(Department, profile.department_id) if profile.department_id else None
-    return _to_read(profile, dept)
+    bd = session.get(BusinessDeveloper, profile.bd_id) if profile.bd_id else None
+    return _to_read(profile, dept, bd)
 
 
 @router.get("/{profile_id}", response_model=ResumeProfileRead)
@@ -140,7 +149,8 @@ def get_resume_profile(profile_id: uuid.UUID, session: Session = Depends(get_ses
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
     dept = session.get(Department, profile.department_id) if profile.department_id else None
-    return _to_read(profile, dept)
+    bd = session.get(BusinessDeveloper, profile.bd_id) if profile.bd_id else None
+    return _to_read(profile, dept, bd)
 
 
 @router.post("/{profile_id}/resume", response_model=ResumeProfileRead)
@@ -195,7 +205,8 @@ def upload_resume_pdf(
     session.commit()
     session.refresh(profile)
     dept = session.get(Department, profile.department_id) if profile.department_id else None
-    return _to_read(profile, dept)
+    bd = session.get(BusinessDeveloper, profile.bd_id) if profile.bd_id else None
+    return _to_read(profile, dept, bd)
 
 
 @router.put("/{profile_id}", response_model=ResumeProfileRead)
@@ -229,7 +240,8 @@ def update_resume_profile(
     )
     session.commit()
     dept = session.get(Department, profile.department_id) if profile.department_id else None
-    return _to_read(profile, dept)
+    bd = session.get(BusinessDeveloper, profile.bd_id) if profile.bd_id else None
+    return _to_read(profile, dept, bd)
 
 
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
