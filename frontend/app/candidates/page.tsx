@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX } from "lucide-react";
@@ -59,6 +59,7 @@ export default function CandidatesPage() {
   const [search, setSearch] = useState("");
   const router = useRouter();
   const { departmentId } = useDepartmentContext();
+  const fetchGenRef = useRef(0);
   const role = getUserRole();
   const cannotCRUD = role === "bd" || role === "manager" || role === "bd-manager";
   const isSuperadmin = role === "superadmin";
@@ -141,6 +142,7 @@ export default function CandidatesPage() {
   }, [candidates, search]);
 
   const fetchData = useCallback(async () => {
+    const gen = ++fetchGenRef.current;
     try {
       setLoading(true);
       setError(null);
@@ -150,13 +152,15 @@ export default function CandidatesPage() {
         interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
         leadsService.list({ page: 1, page_size: 5000, ...deptParam }),
       ]);
+      if (gen !== fetchGenRef.current) return;
       setCandidates(data);
       setInterviews(interviewsData);
       setAllLeads(leadsPage.items);
     } catch (err) {
+      if (gen !== fetchGenRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load candidates");
     } finally {
-      setLoading(false);
+      if (gen === fetchGenRef.current) setLoading(false);
     }
   }, [departmentId, activeTab]);
 

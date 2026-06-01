@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 
 const STORAGE_KEY = "active_dept_id";
 
@@ -15,12 +15,10 @@ const DepartmentContext = createContext<DepartmentContextValue>({
 });
 
 export function DepartmentProvider({ children }: { children: ReactNode }) {
-  const [departmentId, setDepartmentIdState] = useState<string | null>(null);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) setDepartmentIdState(stored);
-  }, []);
+  const [departmentId, setDepartmentIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(STORAGE_KEY);
+  });
 
   const setDepartmentId = (id: string | null) => {
     setDepartmentIdState(id);
