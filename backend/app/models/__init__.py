@@ -12,6 +12,7 @@ from app.models.lead_thread import LeadThread
 from app.models.busy_day import BusyDay
 from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
 from app.models.notification_read import NotificationRead
+from app.models.job_role import JobRole
 
 __all__ = [
     "Department",
@@ -27,4 +28,5 @@ __all__ = [
     "BusyDay",
     "UnresponsiveFollowUpLog",
     "NotificationRead",
+    "JobRole",
 ]

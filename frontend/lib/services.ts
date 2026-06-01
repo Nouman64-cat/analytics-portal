@@ -273,6 +273,17 @@ export const profilesService = {
     apiFetch<void>(`/resume-profiles/${id}`, { method: "DELETE" }),
 };
 
+// ─── Job Roles ──────────────────────────────────────────────
+
+export const jobRolesService = {
+  list: () => apiFetch<import("./types").JobRole[]>("/job-roles/"),
+  create: (name: string) =>
+    apiFetch<import("./types").JobRole>("/job-roles/", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+};
+
 // ─── Companies ──────────────────────────────────────────────
 
 export const companiesService = {

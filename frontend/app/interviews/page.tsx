@@ -41,6 +41,7 @@ import {
   businessDevelopersService,
   authService,
   leadsService,
+  jobRolesService,
 } from "@/lib/services";
 import {
   formatInterviewDateEst,
@@ -64,6 +65,7 @@ import type {
   BusinessDeveloper,
   InterviewFormData,
   LeadListItem,
+  JobRole,
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -83,6 +85,7 @@ import Modal, {
 } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import CompanyCombobox from "@/components/CompanyCombobox";
+import RoleCombobox from "@/components/RoleCombobox";
 import SearchableSelect from "@/components/SearchableSelect";
 import TypeableSelect from "@/components/TypeableSelect";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
@@ -99,17 +102,21 @@ function QuickCreateLead({
   companies,
   profiles,
   candidates,
+  jobRoles,
   isTeamMember,
   meCandidateId,
   onCompanyCreated,
+  onRoleCreated,
   onLeadCreated,
 }: {
   companies: Company[];
   profiles: ResumeProfile[];
   candidates: Candidate[];
+  jobRoles: JobRole[];
   isTeamMember: boolean;
   meCandidateId: string | null;
   onCompanyCreated: (c: Company) => void;
+  onRoleCreated: (r: JobRole) => void;
   onLeadCreated: (lead: LeadListItem) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -200,11 +207,12 @@ function QuickCreateLead({
             </FormField>
 
             <FormField label="Role / title">
-              <input
+              <RoleCombobox
+                roles={jobRoles}
                 value={role}
-                onChange={(e) => setRole(e.target.value)}
+                onChange={setRole}
+                onRoleCreated={onRoleCreated}
                 placeholder="e.g. Senior Engineer"
-                className={inputClass}
                 required
               />
             </FormField>
@@ -495,6 +503,7 @@ export default function InterviewsPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
+  const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -692,6 +701,7 @@ export default function InterviewsPage() {
         bdsData,
         leadsData,
         me,
+        rolesData,
       ] = await Promise.all([
         interviewsService.list(
           departmentId ? { department_id: departmentId } : undefined,
@@ -706,6 +716,7 @@ export default function InterviewsPage() {
           department_id: departmentId ?? undefined,
         }),
         authService.getMe(),
+        jobRolesService.list(),
       ]);
 
       let pipelineChains: Record<string, Interview[]> = {};
@@ -731,6 +742,7 @@ export default function InterviewsPage() {
       setBusinessDevs(bdsData);
       setLeadsList(leadsData.items);
       setMeCandidateId(me.candidate_id ?? null);
+      setJobRoles(rolesData);
 
       // Handle deep-linked interview from Dashboard
       if (typeof window !== "undefined") {
@@ -2308,11 +2320,17 @@ export default function InterviewsPage() {
                   companies={companies}
                   profiles={profiles}
                   candidates={candidates}
+                  jobRoles={jobRoles}
                   isTeamMember={isTeamMember}
                   meCandidateId={meCandidateId}
                   onCompanyCreated={(c) =>
                     setCompanies((prev) =>
                       [...prev, c].sort((a, b) => a.name.localeCompare(b.name)),
+                    )
+                  }
+                  onRoleCreated={(r) =>
+                    setJobRoles((prev) =>
+                      [...prev, r].sort((a, b) => a.name.localeCompare(b.name)),
                     )
                   }
                   onLeadCreated={(lead) => {

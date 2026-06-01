@@ -36,6 +36,7 @@ import {
   interviewsService,
   candidatesService,
   authService,
+  jobRolesService,
 } from "@/lib/services";
 import type {
   LeadListItem,
@@ -46,11 +47,13 @@ import type {
   ResumeProfile,
   BusinessDeveloper,
   Candidate,
+  JobRole,
 } from "@/lib/types";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import CompanyCombobox, {
   CompanyComboboxHandle,
 } from "@/components/CompanyCombobox";
+import RoleCombobox from "@/components/RoleCombobox";
 import SearchableSelect from "@/components/SearchableSelect";
 import {
   PageLoader,
@@ -171,6 +174,7 @@ export default function LeadsPage() {
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -243,7 +247,7 @@ export default function LeadsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [leadPage, cos, profs, bds, cands] = await Promise.all([
+      const [leadPage, cos, profs, bds, cands, roles] = await Promise.all([
         leadsService.list({
           page,
           page_size: PAGE_SIZE,
@@ -262,6 +266,7 @@ export default function LeadsPage() {
         profilesService.list({ department_id: departmentId }),
         businessDevelopersService.list(),
         candidatesService.list({ department_id: departmentId }),
+        jobRolesService.list(),
       ]);
       setLeads(leadPage.items);
       setTotal(leadPage.total);
@@ -270,6 +275,7 @@ export default function LeadsPage() {
       setProfiles(profs);
       setBusinessDevs(bds);
       setCandidates(cands);
+      setJobRoles(roles);
 
       // Deep-link: open detail modal for a specific lead via ?thread_id=
       if (!initialFetchDone.current && typeof window !== "undefined") {
@@ -1093,10 +1099,11 @@ export default function LeadsPage() {
             />
           </FormField>
           <FormField label="Role / job title">
-            <input
+            <RoleCombobox
+              roles={jobRoles}
               value={form.role}
-              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-              className={inputClass}
+              onChange={(name) => setForm((f) => ({ ...f, role: name }))}
+              onRoleCreated={(r) => setJobRoles((prev) => [...prev, r].sort((a, b) => a.name.localeCompare(b.name)))}
               placeholder="e.g. Senior Software Engineer"
               required
             />

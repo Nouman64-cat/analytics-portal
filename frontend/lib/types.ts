@@ -65,6 +65,11 @@ export interface BusinessDeveloper {
   updated_at: string;
 }
 
+export interface JobRole {
+  id: string;
+  name: string;
+}
+
 export interface Company {
   id: string;
   name: string;

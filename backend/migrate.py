@@ -275,6 +275,20 @@ def migrate():
             # ── Per-interview resume upload ────────────────────────────────────────────
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS resume_url VARCHAR(1000);",
              "Migration successful! 'resume_url' column added to 'interviews' table."),
+
+            # ── Job roles dictionary (for role autocomplete) ──────────────────────────
+            ("""
+            CREATE TABLE IF NOT EXISTS job_roles (
+                id UUID PRIMARY KEY,
+                name VARCHAR(300) NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+             "Migration successful! 'job_roles' table ensured."),
+            ("CREATE UNIQUE INDEX IF NOT EXISTS uq_job_roles_name ON job_roles (name);",
+             "Migration successful! Unique index on job_roles.name ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_job_roles_name ON job_roles (name);",
+             "Migration successful! Index on job_roles.name ensured."),
         ]
         for sql, msg in migrations:
             try:
