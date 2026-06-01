@@ -43,11 +43,53 @@ from app.routers import debug
 settings = get_settings()
 
 
+def _configure_s3_cors(settings) -> None:
+    """Apply CORS policy to the S3 bucket so browsers can PUT presigned URLs directly."""
+    if not settings.AWS_S3_BUCKET_NAME:
+        return
+    key_id = settings.effective_aws_access_key_id
+    secret = settings.effective_aws_secret_access_key
+    if not key_id or not secret:
+        return
+    try:
+        import boto3
+        s3 = boto3.client(
+            "s3",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=key_id,
+            aws_secret_access_key=secret,
+        )
+        origins = settings.cors_origins_list or ["*"]
+        s3.put_bucket_cors(
+            Bucket=settings.AWS_S3_BUCKET_NAME,
+            CORSConfiguration={
+                "CORSRules": [
+                    {
+                        "AllowedOrigins": origins,
+                        "AllowedMethods": ["PUT", "GET", "HEAD"],
+                        "AllowedHeaders": ["Content-Type", "Authorization"],
+                        "MaxAgeSeconds": 3600,
+                    }
+                ]
+            },
+        )
+        logging.getLogger(__name__).info(
+            "S3 CORS configured for bucket %s (origins: %s)",
+            settings.AWS_S3_BUCKET_NAME,
+            origins,
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Could not configure S3 CORS (uploads will fall back to backend proxy): %s", exc
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: create tables. Shutdown: cleanup."""
+    """Startup: create tables, configure S3 CORS. Shutdown: cleanup."""
     create_db_and_tables()
     migrate()
+    _configure_s3_cors(settings)
     stop_event = asyncio.Event()
     worker_task = asyncio.create_task(run_reminder_worker(stop_event, settings))
     yield

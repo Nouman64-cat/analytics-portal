@@ -570,6 +570,9 @@ export default function InterviewsPage() {
   const [interviewDocError, setInterviewDocError] = useState<string | null>(
     null,
   );
+  const [interviewResumeFile, setInterviewResumeFile] = useState<File | null>(null);
+  const [interviewResumeError, setInterviewResumeError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ doc: number; resume: number }>({ doc: 0, resume: 0 });
 
   // Company popover
   const [companyPopover, setCompanyPopover] = useState<{
@@ -782,6 +785,9 @@ export default function InterviewsPage() {
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
+    setInterviewResumeFile(null);
+    setInterviewResumeError(null);
+    setUploadProgress({ doc: 0, resume: 0 });
     setModalOpen(true);
   };
 
@@ -813,6 +819,9 @@ export default function InterviewsPage() {
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
+    setInterviewResumeFile(null);
+    setInterviewResumeError(null);
+    setUploadProgress({ doc: 0, resume: 0 });
     setDetailModal(null);
     setModalOpen(true);
   };
@@ -842,6 +851,9 @@ export default function InterviewsPage() {
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
+    setInterviewResumeFile(null);
+    setInterviewResumeError(null);
+    setUploadProgress({ doc: 0, resume: 0 });
     setModalOpen(true);
   };
 
@@ -938,28 +950,31 @@ export default function InterviewsPage() {
         savedInterview = await interviewsService.create(payload);
       }
 
-      if (interviewDocFile && savedInterview?.id) {
-        if (
-          ![
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/pdf",
-          ].includes(interviewDocFile.type)
-        ) {
-          throw new Error("Only DOC, DOCX, and PDF files are allowed.");
-        }
+      if ((interviewDocFile || interviewResumeFile) && savedInterview?.id) {
+        if (interviewDocFile && interviewDocFile.type !== "application/pdf")
+          throw new Error("Only PDF files are allowed for interview documents.");
+        if (interviewResumeFile && interviewResumeFile.type !== "application/pdf")
+          throw new Error("Only PDF files are allowed for resumes.");
 
         setUploadingInterviewId(savedInterview.id);
-        await interviewsService.uploadInterviewDoc(
-          savedInterview.id,
-          interviewDocFile,
-        );
+        await Promise.all([
+          interviewDocFile
+            ? interviewsService.uploadInterviewDoc(savedInterview.id, interviewDocFile, (pct) =>
+                setUploadProgress((p) => ({ ...p, doc: pct })))
+            : Promise.resolve(),
+          interviewResumeFile
+            ? interviewsService.uploadInterviewResume(savedInterview.id, interviewResumeFile, (pct) =>
+                setUploadProgress((p) => ({ ...p, resume: pct })))
+            : Promise.resolve(),
+        ]);
         setUploadingInterviewId(null);
       }
 
       closeInterviewModal();
       setInterviewDocFile(null);
       setInterviewDocError(null);
+      setInterviewResumeFile(null);
+      setInterviewResumeError(null);
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
@@ -1005,6 +1020,31 @@ export default function InterviewsPage() {
       alert(err instanceof Error ? err.message : "Failed to delete");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleInterviewResumeUpload = async (interviewId: string, file?: File) => {
+    if (!file) return;
+    setUploadError(null);
+    setUploadingInterviewId(interviewId);
+
+    if (file.type !== "application/pdf") {
+      setUploadError("Only PDF files are allowed for resumes.");
+      setUploadingInterviewId(null);
+      return;
+    }
+
+    try {
+      await interviewsService.uploadInterviewResume(interviewId, file);
+      const updated = await interviewsService.get(interviewId);
+      setDetailModal(updated);
+      await fetchData();
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Failed to upload resume",
+      );
+    } finally {
+      setUploadingInterviewId(null);
     }
   };
 
@@ -1224,6 +1264,8 @@ export default function InterviewsPage() {
   );
   const existingInterviewDocUrl =
     editingInterviewForDoc?.interview_doc_url ?? null;
+  const existingInterviewResumeUrl =
+    editingInterviewForDoc?.resume_url ?? null;
 
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
@@ -2553,67 +2595,103 @@ export default function InterviewsPage() {
               </p>
             </FormField>
           </div>
-          <div className="col-span-1 sm:col-span-2">
-            <FormField label="Interview Document (DOC/DOCX/PDF)">
-              {existingInterviewDocUrl && !interviewDocFile ? (
-                <div className="mb-2 rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-3 py-2 text-sm dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                  <p className="font-medium text-emerald-900 dark:text-emerald-100">
-                    Document on file
-                  </p>
-                  <a
-                    href={existingInterviewDocUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 text-emerald-800 underline decoration-emerald-600/40 underline-offset-2 hover:text-emerald-700 dark:text-emerald-200 dark:hover:text-emerald-100"
-                  >
-                    {filenameFromInterviewDocUrl(existingInterviewDocUrl)}
-                  </a>
-                  <p className="mt-1 text-xs text-emerald-800/90 dark:text-emerald-200/80">
-                    Choose a file below only if you want to replace it.
-                  </p>
-                </div>
-              ) : null}
-              {existingInterviewDocUrl && interviewDocFile ? (
-                <p className="mb-2 text-xs text-amber-800 dark:text-amber-200/90">
-                  New file below will replace the current document when you
-                  save.
-                </p>
-              ) : null}
-              <input
-                type="file"
-                accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-                onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                  const file = e.target.files?.[0] ?? null;
-                  if (file) {
-                    if (
-                      ![
-                        "application/msword",
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        "application/pdf",
-                      ].includes(file.type)
-                    ) {
-                      setInterviewDocError(
-                        "Only DOC, DOCX, and PDF files are allowed.",
-                      );
+          <div className="col-span-1">
+            <FormField label="Interview Document (PDF)">
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  id="interview-doc-file-input"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file) {
+                      if (file.type !== "application/pdf") {
+                        setInterviewDocError("Only PDF files are allowed.");
+                        setInterviewDocFile(null);
+                        return;
+                      }
+                      setInterviewDocError(null);
+                      setInterviewDocFile(file);
+                    } else {
                       setInterviewDocFile(null);
-                      return;
+                      setInterviewDocError(null);
                     }
-                    setInterviewDocError(null);
-                    setInterviewDocFile(file);
-                  } else {
-                    setInterviewDocFile(null);
-                    setInterviewDocError(null);
-                  }
-                }}
-                className={inputClass}
-              />
-              {interviewDocFile && (
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                  Selected file: {interviewDocFile.name}
-                </p>
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("interview-doc-file-input")?.click()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
+                >
+                  <Download size={14} className="rotate-180" />
+                  {interviewDocFile ? "Change file" : existingInterviewDocUrl ? "Replace document" : "Choose file"}
+                </button>
+                {interviewDocFile ? (
+                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{interviewDocFile.name}</span>
+                ) : existingInterviewDocUrl ? (
+                  <a href={existingInterviewDocUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"><Download size={13} /> Current doc</a>
+                ) : (
+                  <span className="text-sm text-slate-400 dark:text-slate-600">No file chosen</span>
+                )}
+              </div>
+              {uploadProgress.doc > 0 && uploadProgress.doc < 100 && (
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
+                  <div className="h-full rounded-full bg-indigo-500 transition-all duration-150" style={{ width: `${uploadProgress.doc}%` }} />
+                </div>
               )}
               {interviewDocError && (
-                <p className="mt-1 text-sm text-red-500">{interviewDocError}</p>
+                <p className="mt-1.5 text-xs text-red-500">{interviewDocError}</p>
+              )}
+            </FormField>
+          </div>
+          <div className="col-span-1">
+            <FormField label="Resume (PDF)">
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  id="interview-resume-file-input"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file) {
+                      if (file.type !== "application/pdf") {
+                        setInterviewResumeError("Only PDF files are allowed.");
+                        setInterviewResumeFile(null);
+                        return;
+                      }
+                      setInterviewResumeError(null);
+                      setInterviewResumeFile(file);
+                    } else {
+                      setInterviewResumeFile(null);
+                      setInterviewResumeError(null);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("interview-resume-file-input")?.click()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
+                >
+                  <Download size={14} className="rotate-180" />
+                  {interviewResumeFile ? "Change file" : existingInterviewResumeUrl ? "Replace resume" : "Choose file"}
+                </button>
+                {interviewResumeFile ? (
+                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{interviewResumeFile.name}</span>
+                ) : existingInterviewResumeUrl ? (
+                  <a href={existingInterviewResumeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"><Download size={13} /> Current resume</a>
+                ) : (
+                  <span className="text-sm text-slate-400 dark:text-slate-600">No file chosen</span>
+                )}
+              </div>
+              {uploadProgress.resume > 0 && uploadProgress.resume < 100 && (
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
+                  <div className="h-full rounded-full bg-indigo-500 transition-all duration-150" style={{ width: `${uploadProgress.resume}%` }} />
+                </div>
+              )}
+              {interviewResumeError && (
+                <p className="mt-1.5 text-xs text-red-500">{interviewResumeError}</p>
               )}
             </FormField>
           </div>
@@ -2855,22 +2933,46 @@ export default function InterviewsPage() {
                         <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">—</p>
                       )}
                     </div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Detail Document</p>
-                      {detailModal.interview_doc_url ? (
-                        <a href={detailModal.interview_doc_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"><Download size={14} /> Download Document</a>
-                      ) : (
-                        <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">Not uploaded</p>
-                      )}
-                      {!cannotCRUD && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <input id={`interview-doc-input-${detailModal.id}`} type="file" accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleInterviewDocUpload(detailModal.id, file); }} />
-                          <button type="button" onClick={() => document.getElementById(`interview-doc-input-${detailModal.id}`)?.click()} className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors" disabled={uploadingInterviewId === detailModal.id}>
-                            {uploadingInterviewId === detailModal.id ? "Uploading..." : "Upload Document"}
-                          </button>
+                  </div>
+                  <div className="col-span-1 sm:col-span-2 border-t border-slate-100 dark:border-white/[0.06] pt-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Document</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          {detailModal.interview_doc_url ? (
+                            <a href={detailModal.interview_doc_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"><Download size={13} /> Download</a>
+                          ) : (
+                            <span className="text-sm text-slate-400 dark:text-slate-600">Not uploaded</span>
+                          )}
+                          {!cannotCRUD && (
+                            <>
+                              <input id={`interview-doc-input-${detailModal.id}`} type="file" accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleInterviewDocUpload(detailModal.id, file); }} />
+                              <button type="button" onClick={() => document.getElementById(`interview-doc-input-${detailModal.id}`)?.click()} className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors" disabled={uploadingInterviewId === detailModal.id}>
+                                {uploadingInterviewId === detailModal.id ? "Uploading..." : detailModal.interview_doc_url ? "Replace" : "Upload"}
+                              </button>
+                            </>
+                          )}
                         </div>
-                      )}
-                      {uploadError && uploadingInterviewId === detailModal.id && <p className="mt-1 text-sm text-red-500">{uploadError}</p>}
+                        {uploadError && uploadingInterviewId === detailModal.id && <p className="mt-1 text-xs text-red-500">{uploadError}</p>}
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Resume (PDF)</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          {detailModal.resume_url ? (
+                            <a href={detailModal.resume_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"><Download size={13} /> Download</a>
+                          ) : (
+                            <span className="text-sm text-slate-400 dark:text-slate-600">Not uploaded</span>
+                          )}
+                          {!cannotCRUD && (
+                            <>
+                              <input id={`interview-resume-input-${detailModal.id}`} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleInterviewResumeUpload(detailModal.id, file); }} />
+                              <button type="button" onClick={() => document.getElementById(`interview-resume-input-${detailModal.id}`)?.click()} className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors" disabled={uploadingInterviewId === detailModal.id}>
+                                {uploadingInterviewId === detailModal.id ? "Uploading..." : detailModal.resume_url ? "Replace" : "Upload"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

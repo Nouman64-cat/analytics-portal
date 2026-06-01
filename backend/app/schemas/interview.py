@@ -25,6 +25,7 @@ class InterviewCreate(BaseModel):
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
     interview_doc_url: Optional[str] = None
+    resume_url: Optional[str] = None
     is_phone_call: bool = False
 
 
@@ -47,6 +48,7 @@ class InterviewUpdate(BaseModel):
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
     interview_doc_url: Optional[str] = None
+    resume_url: Optional[str] = None
     is_phone_call: Optional[bool] = None
 
 
@@ -71,6 +73,7 @@ class InterviewRead(BaseModel):
     interview_link: Optional[str] = None
     is_phone_call: bool = False
     interview_doc_url: Optional[str] = None
+    resume_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

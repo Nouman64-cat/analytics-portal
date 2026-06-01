@@ -319,27 +319,65 @@ export const interviewsService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  uploadInterviewDoc: async (id: string, file: File) => {
-    const token = getToken();
-    const formData = new FormData();
-    formData.append("file", file);
+  uploadInterviewDoc: (id: string, file: File, onProgress?: (pct: number) => void) =>
+    interviewsService._presignAndUpload(id, "document", file, onProgress),
 
-    const res = await fetch(`${API_V1}/interviews/${id}/document`, {
+  uploadInterviewResume: (id: string, file: File, onProgress?: (pct: number) => void) =>
+    interviewsService._presignAndUpload(id, "resume", file, onProgress),
+
+  _presignAndUpload: async (
+    id: string,
+    uploadType: "document" | "resume",
+    file: File,
+    onProgress?: (pct: number) => void,
+  ) => {
+    const token = getToken();
+    const jsonHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) jsonHeaders["Authorization"] = `Bearer ${token}`;
+
+    // Step 1: get presigned PUT URL
+    const presignRes = await fetch(`${API_V1}/interviews/${id}/presign-upload`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: formData,
+      headers: jsonHeaders,
+      body: JSON.stringify({ upload_type: uploadType, content_type: file.type }),
+    });
+    if (!presignRes.ok) {
+      const error = await presignRes.json().catch(() => ({ detail: presignRes.statusText }));
+      if (presignRes.status === 401) { clearToken(); window.location.href = "/login"; }
+      throw new Error(error.detail || `API Error: ${presignRes.status}`);
+    }
+    const { upload_url, s3_key } = await presignRes.json() as { upload_url: string; s3_key: string };
+
+    // Step 2: PUT directly to S3 via XHR so we get upload-progress events
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", upload_url, true);
+      xhr.setRequestHeader("Content-Type", file.type);
+      if (onProgress) {
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
+      };
+      xhr.onerror = () => reject(new Error("S3 upload network error"));
+      xhr.send(file);
     });
 
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ detail: res.statusText }));
-      if (res.status === 401) {
-        clearToken();
-        window.location.href = "/login";
-      }
-      throw new Error(error.detail || `API Error: ${res.status}`);
+    // Step 3: tell the backend to persist the URL
+    const confirmRes = await fetch(`${API_V1}/interviews/${id}/confirm-upload`, {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ upload_type: uploadType, s3_key }),
+    });
+    if (!confirmRes.ok) {
+      const error = await confirmRes.json().catch(() => ({ detail: confirmRes.statusText }));
+      if (confirmRes.status === 401) { clearToken(); window.location.href = "/login"; }
+      throw new Error(error.detail || `API Error: ${confirmRes.status}`);
     }
-
-    return res.json() as Promise<Interview>;
+    return confirmRes.json() as Promise<Interview>;
   },
   delete: (id: string) =>
     apiFetch<void>(`/interviews/${id}`, { method: "DELETE" }),

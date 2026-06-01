@@ -271,6 +271,10 @@ def migrate():
              "Migration successful! 'created_by_user_id' column added to 'interviews' table."),
             ("CREATE INDEX IF NOT EXISTS ix_interviews_created_by_user_id ON interviews (created_by_user_id);",
              "Migration successful! Index on interviews.created_by_user_id ensured."),
+
+            # ── Per-interview resume upload ────────────────────────────────────────────
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS resume_url VARCHAR(1000);",
+             "Migration successful! 'resume_url' column added to 'interviews' table."),
         ]
         for sql, msg in migrations:
             try:

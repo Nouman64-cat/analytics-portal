@@ -2,6 +2,7 @@ import uuid
 import os
 from datetime import datetime, date
 from typing import Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
@@ -51,6 +52,9 @@ router = APIRouter(prefix="/api/v1/interviews",
                    tags=["Interviews"], dependencies=[Depends(get_current_user)])
 
 
+_s3_client_cache: dict = {}
+
+
 def _get_s3_client(settings):
     try:
         import boto3
@@ -65,12 +69,15 @@ def _get_s3_client(settings):
         raise HTTPException(
             status_code=500, detail="AWS credentials are not configured")
 
-    return boto3.client(
-        "s3",
-        region_name=settings.AWS_REGION,
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-    )
+    cache_key = (aws_access_key_id, settings.AWS_REGION)
+    if cache_key not in _s3_client_cache:
+        _s3_client_cache[cache_key] = boto3.client(
+            "s3",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+    return _s3_client_cache[cache_key]
 
 
 def _reject_lead_only_interview_status(status: Optional[str]) -> None:
@@ -103,6 +110,7 @@ def _enrich_interview(interview: Interview) -> dict:
         "interviewer": interview.interviewer,
         "interview_link": interview.interview_link,
         "interview_doc_url": interview.interview_doc_url,
+        "resume_url": interview.resume_url,
         "is_phone_call": interview.is_phone_call,
         "computed_status": computed_status_for_interview_display(
             interview.status, interview.interview_date, interview.created_at
@@ -130,6 +138,7 @@ def _enrich_interview_for_reader(
     data["feedback"] = None
     data["recruiter_feedback"] = None
     data["interview_doc_url"] = None
+    data["resume_url"] = None
     data["interview_link"] = None
     data["salary_range"] = None
     return data
@@ -677,19 +686,13 @@ def upload_interview_document(
             detail=f"File is too large (limit {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB)",
         )
 
-    allowed_types = {
-        "application/msword": "doc",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-        "application/pdf": "pdf",
-    }
-    if file.content_type not in allowed_types:
+    if file.content_type != "application/pdf":
         raise HTTPException(
             status_code=400,
-            detail="Only DOC, DOCX, and PDF files are allowed",
+            detail="Only PDF files are allowed for interview documents",
         )
 
-    extension = allowed_types[file.content_type]
-    key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.{extension}"
+    key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.pdf"
     s3_client = _get_s3_client(settings)
 
     if not settings.AWS_S3_BUCKET_NAME:
@@ -702,7 +705,7 @@ def upload_interview_document(
             file.file,
             settings.AWS_S3_BUCKET_NAME,
             key,
-            ExtraArgs={"ContentType": file.content_type, "ACL": "private"},
+            ExtraArgs={"ContentType": "application/pdf", "ACL": "private"},
         )
     except (BotoCoreError, ClientError) as e:
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
@@ -715,6 +718,178 @@ def upload_interview_document(
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
 
+    return _finalize_interview_response(session, loaded, current_user)
+
+
+@router.post("/{interview_id}/resume", response_model=InterviewReadWithDetails)
+def upload_interview_resume(
+    interview_id: uuid.UUID,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a per-interview resume PDF to S3."""
+    assert_write_access(current_user)
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
+
+    try:
+        file.file.seek(0, os.SEEK_END)
+        upload_size = file.file.tell()
+        file.file.seek(0)
+    except Exception:
+        upload_size = None
+
+    if upload_size is not None and upload_size > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File is too large (limit {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB)",
+        )
+
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed for resumes")
+
+    key = f"interview_resumes/{interview_id}/resume-{uuid.uuid4()}.pdf"
+    s3_client = _get_s3_client(settings)
+
+    if not settings.AWS_S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+
+    try:
+        file.file.seek(0)
+        s3_client.upload_fileobj(
+            file.file,
+            settings.AWS_S3_BUCKET_NAME,
+            key,
+            ExtraArgs={"ContentType": "application/pdf", "ACL": "private"},
+        )
+    except (BotoCoreError, ClientError) as e:
+        raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
+
+    interview.resume_url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+    interview.updated_at = datetime.utcnow()
+    session.add(interview)
+    session.commit()
+    loaded = _get_interview_for_enrichment(session, interview_id)
+    if not loaded:
+        raise HTTPException(status_code=500, detail="Interview reload failed")
+
+    return _finalize_interview_response(session, loaded, current_user)
+
+
+# ─── Presigned URL upload (browser → S3 directly, much faster) ────────────────
+
+_PRESIGN_ALLOWED_DOC_TYPES = {
+    "application/pdf": "pdf",
+}
+_PRESIGN_ALLOWED_RESUME_TYPES = {"application/pdf": "pdf"}
+
+
+class PresignRequest(BaseModel):
+    upload_type: str  # "document" or "resume"
+    content_type: str
+
+
+class PresignResponse(BaseModel):
+    upload_url: str
+    s3_key: str
+
+
+class ConfirmUploadRequest(BaseModel):
+    upload_type: str  # "document" or "resume"
+    s3_key: str
+
+
+@router.post("/{interview_id}/presign-upload", response_model=PresignResponse)
+def presign_upload(
+    interview_id: uuid.UUID,
+    body: PresignRequest,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a presigned S3 PUT URL so the browser can upload directly to S3."""
+    assert_write_access(current_user)
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
+
+    if not settings.AWS_S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+
+    if body.upload_type == "document":
+        if body.content_type not in _PRESIGN_ALLOWED_DOC_TYPES:
+            raise HTTPException(status_code=400, detail="Only DOC, DOCX, and PDF files are allowed")
+        ext = _PRESIGN_ALLOWED_DOC_TYPES[body.content_type]
+        key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.{ext}"
+    elif body.upload_type == "resume":
+        if body.content_type not in _PRESIGN_ALLOWED_RESUME_TYPES:
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed for resumes")
+        key = f"interview_resumes/{interview_id}/resume-{uuid.uuid4()}.pdf"
+    else:
+        raise HTTPException(status_code=400, detail="upload_type must be 'document' or 'resume'")
+
+    s3_client = _get_s3_client(settings)
+    try:
+        upload_url = s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": settings.AWS_S3_BUCKET_NAME,
+                "Key": key,
+                "ContentType": body.content_type,
+            },
+            ExpiresIn=300,
+        )
+    except (BotoCoreError, ClientError) as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {e}")
+
+    return PresignResponse(upload_url=upload_url, s3_key=key)
+
+
+@router.post("/{interview_id}/confirm-upload", response_model=InterviewReadWithDetails)
+def confirm_upload(
+    interview_id: uuid.UUID,
+    body: ConfirmUploadRequest,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """After a direct S3 upload using a presigned URL, record the file URL on the interview."""
+    assert_write_access(current_user)
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
+
+    if not settings.AWS_S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+
+    # Validate the key belongs to this interview (prevent storing arbitrary keys)
+    expected_prefix_doc = f"interview_docs/{interview_id}/"
+    expected_prefix_resume = f"interview_resumes/{interview_id}/"
+    if body.upload_type == "document":
+        if not body.s3_key.startswith(expected_prefix_doc):
+            raise HTTPException(status_code=400, detail="Invalid s3_key for this interview")
+        url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{body.s3_key}"
+        interview.interview_doc_url = url
+    elif body.upload_type == "resume":
+        if not body.s3_key.startswith(expected_prefix_resume):
+            raise HTTPException(status_code=400, detail="Invalid s3_key for this interview")
+        url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{body.s3_key}"
+        interview.resume_url = url
+    else:
+        raise HTTPException(status_code=400, detail="upload_type must be 'document' or 'resume'")
+
+    interview.updated_at = datetime.utcnow()
+    session.add(interview)
+    session.commit()
+    loaded = _get_interview_for_enrichment(session, interview_id)
+    if not loaded:
+        raise HTTPException(status_code=500, detail="Interview reload failed")
     return _finalize_interview_response(session, loaded, current_user)
 
 
