@@ -124,7 +124,7 @@ export default function TypeableSelect({
                     ? "bg-indigo-500 text-white"
                     : query === option
                       ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.05]"
+                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
                 }`}
               >
                 {option}

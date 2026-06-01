@@ -336,6 +336,43 @@ export const interviewsService = {
   uploadInterviewResume: (id: string, file: File, onProgress?: (pct: number) => void) =>
     interviewsService._presignAndUpload(id, "resume", file, onProgress),
 
+  /** Upload a file via multipart POST to the backend (always works; used as fallback). */
+  _uploadViaProxy: (
+    id: string,
+    uploadType: "document" | "resume",
+    file: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<Interview> => {
+    const token = getToken();
+    const endpoint = uploadType === "document"
+      ? `/interviews/${id}/document`
+      : `/interviews/${id}/resume`;
+    return new Promise<Interview>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_V1}${endpoint}`, true);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      if (onProgress) {
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+      }
+      xhr.onload = () => {
+        if (xhr.status === 401) { clearToken(); window.location.href = "/login"; return; }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText) as Interview); }
+          catch { reject(new Error("Invalid response from server")); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).detail || `API Error: ${xhr.status}`)); }
+          catch { reject(new Error(`API Error: ${xhr.status}`)); }
+        }
+      };
+      xhr.onerror = () => reject(new Error("Upload network error"));
+      const formData = new FormData();
+      formData.append("file", file);
+      xhr.send(formData);
+    });
+  },
+
   _presignAndUpload: async (
     id: string,
     uploadType: "document" | "resume",
@@ -359,8 +396,9 @@ export const interviewsService = {
     }
     const { upload_url, s3_key } = await presignRes.json() as { upload_url: string; s3_key: string };
 
-    // Step 2: PUT directly to S3 via XHR so we get upload-progress events
-    await new Promise<void>((resolve, reject) => {
+    // Step 2: PUT directly to S3 via XHR for progress events.
+    // If S3 CORS blocks the request, fall back to the backend-proxy upload.
+    const s3Ok = await new Promise<boolean>((resolve) => {
       const xhr = new XMLHttpRequest();
       xhr.open("PUT", upload_url, true);
       xhr.setRequestHeader("Content-Type", file.type);
@@ -369,13 +407,16 @@ export const interviewsService = {
           if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
         });
       }
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
-      };
-      xhr.onerror = () => reject(new Error("S3 upload network error"));
+      xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+      xhr.onerror = () => resolve(false); // CORS/network failure → signal fallback
       xhr.send(file);
     });
+
+    if (!s3Ok) {
+      // Direct S3 upload blocked (CORS not configured on bucket). Route through backend instead.
+      if (onProgress) onProgress(0); // reset bar so proxy progress starts clean
+      return interviewsService._uploadViaProxy(id, uploadType, file, onProgress);
+    }
 
     // Step 3: tell the backend to persist the URL
     const confirmRes = await fetch(`${API_V1}/interviews/${id}/confirm-upload`, {
