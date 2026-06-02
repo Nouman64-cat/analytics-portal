@@ -307,45 +307,49 @@ def list_interviews(
         session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
         if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
-            scope = get_bd_entity_scope(current_user, session)
-            conds = [Interview.created_by_user_id == current_user.id]
-
-            if scope is None:
-                # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
-                bd = session.exec(
-                    select(BusinessDeveloper).where(func.lower(
-                        BusinessDeveloper.email) == current_user.email.lower())
-                ).first()
-                if not bd:
-                    bd = session.exec(
-                        select(BusinessDeveloper).where(
-                            or_(
-                                func.lower(
-                                    BusinessDeveloper.name) == current_user.full_name.lower(),
-                                func.lower(current_user.full_name).contains(
-                                    func.lower(BusinessDeveloper.name)),
-                                func.lower(BusinessDeveloper.name).contains(
-                                    func.lower(current_user.full_name))
-                            )
-                        )
-                    ).first()
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
+            # BD users with an explicit department selected see all interviews in that department
+            # (covers the calendar view where department context is always passed).
+            if department_id and current_user.role == UserRole.BD:
+                query = apply_dept_filter(query, Interview, current_user, department_id)
             else:
-                # Scoped: only interviews attributed to this user's BD scope
-                conds.append(Interview.bd_id.in_(scope))
-                if current_user.role == UserRole.BD_TEAM_LEAD:
-                    # Also include interviews created by direct team members
-                    team_user_ids_query = select(User.id).where(
-                        User.team_lead_user_id == current_user.id)
-                    conds.append(Interview.created_by_user_id.in_(
-                        team_user_ids_query))
+                scope = get_bd_entity_scope(current_user, session)
+                conds = [Interview.created_by_user_id == current_user.id]
 
-            # Apply department_id filter parameter if specified
-            if department_id:
-                query = query.where(Interview.department_id == department_id)
+                if scope is None:
+                    # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
+                    bd = session.exec(
+                        select(BusinessDeveloper).where(func.lower(
+                            BusinessDeveloper.email) == current_user.email.lower())
+                    ).first()
+                    if not bd:
+                        bd = session.exec(
+                            select(BusinessDeveloper).where(
+                                or_(
+                                    func.lower(
+                                        BusinessDeveloper.name) == current_user.full_name.lower(),
+                                    func.lower(current_user.full_name).contains(
+                                        func.lower(BusinessDeveloper.name)),
+                                    func.lower(BusinessDeveloper.name).contains(
+                                        func.lower(current_user.full_name))
+                                )
+                            )
+                        ).first()
+                    if bd:
+                        conds.append(Interview.bd_id == bd.id)
+                else:
+                    # Scoped: only interviews attributed to this user's BD scope
+                    conds.append(Interview.bd_id.in_(scope))
+                    if current_user.role == UserRole.BD_TEAM_LEAD:
+                        # Also include interviews created by direct team members
+                        team_user_ids_query = select(User.id).where(
+                            User.team_lead_user_id == current_user.id)
+                        conds.append(Interview.created_by_user_id.in_(
+                            team_user_ids_query))
 
-            query = query.where(or_(*conds))
+                if department_id:
+                    query = query.where(Interview.department_id == department_id)
+
+                query = query.where(or_(*conds))
         else:
             query = apply_dept_filter(
                 query, Interview, current_user, department_id)
