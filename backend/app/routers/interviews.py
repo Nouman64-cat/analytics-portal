@@ -34,6 +34,7 @@ from app.team_member_scope import (
     team_member_can_read_interview,
     team_member_must_own_interview,
 )
+from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -78,6 +79,17 @@ def _get_s3_client(settings):
             aws_secret_access_key=aws_secret_access_key,
         )
     return _s3_client_cache[cache_key]
+
+
+def _thread_primary_bd_id(session: Session, thread_id: uuid.UUID) -> Optional[uuid.UUID]:
+    """Return the bd_id from the earliest interview in this thread that has one set."""
+    rows = session.exec(
+        select(Interview).where(Interview.thread_id == thread_id).order_by(Interview.interview_date, Interview.created_at)
+    ).all()
+    for r in rows:
+        if r.bd_id:
+            return r.bd_id
+    return None
 
 
 def _reject_lead_only_interview_status(status: Optional[str]) -> None:
@@ -289,39 +301,41 @@ def list_interviews(
     query = apply_team_member_interview_list_filter(session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
         if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
-            # Find BD record by email, falling back to name-based match
-            bd = session.exec(
-                select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
-            ).first()
-            if not bd:
+            scope = get_bd_entity_scope(current_user, session)
+            conds = [Interview.created_by_user_id == current_user.id]
+
+            if scope is None:
+                # Backward compat: bd_entity_id not linked — use old email/name match + dept-wide filter
                 bd = session.exec(
-                    select(BusinessDeveloper).where(
-                        or_(
-                            func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
-                            func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
-                            func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
-                        )
-                    )
+                    select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
                 ).first()
-            allowed = get_user_allowed_depts(current_user)
-            conds = []
-
-            # 1. Created by him
-            conds.append(Interview.created_by_user_id == current_user.id)
-
-            # 2. From his BD record
-            if bd:
-                conds.append(Interview.bd_id == bd.id)
-
-            # 3. Created by his team (users in his allowed departments)
-            if allowed is not None:
-                if allowed:
-                    team_user_ids_query = select(User.id).where(User.department_id.in_(allowed))
+                if not bd:
+                    bd = session.exec(
+                        select(BusinessDeveloper).where(
+                            or_(
+                                func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
+                                func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
+                                func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
+                            )
+                        )
+                    ).first()
+                if bd:
+                    conds.append(Interview.bd_id == bd.id)
+                allowed = get_user_allowed_depts(current_user)
+                if allowed is not None:
+                    if allowed:
+                        team_user_ids_query = select(User.id).where(User.department_id.in_(allowed))
+                        conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                else:
+                    team_user_ids_query = select(User.id).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
                     conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
             else:
-                # unrestricted department-wise, but still restrict to BD/TEAM_MEMBER/BD_TEAM_LEAD/DEPT_LEAD creators
-                team_user_ids_query = select(User.id).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
-                conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                # Scoped: only interviews attributed to this user's BD scope
+                conds.append(Interview.bd_id.in_(scope))
+                if current_user.role == UserRole.BD_TEAM_LEAD:
+                    # Also include interviews created by direct team members
+                    team_user_ids_query = select(User.id).where(User.team_lead_user_id == current_user.id)
+                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
 
             # Apply department_id filter parameter if specified
             if department_id:
@@ -906,6 +920,7 @@ def update_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
+    assert_bd_lead_write_access(current_user, _thread_primary_bd_id(session, interview.thread_id), session)
 
     update_data = data.model_dump(exclude_unset=True)
     if "status" in update_data:
@@ -1016,6 +1031,7 @@ def delete_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
+    assert_bd_lead_write_access(current_user, _thread_primary_bd_id(session, interview.thread_id), session)
     # Check if this is the ONLY interview in this thread
     thread_id = interview.thread_id
     thread_interviews = session.exec(

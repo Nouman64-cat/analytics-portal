@@ -295,6 +295,16 @@ def migrate():
              "Migration successful! 'bd_id' column added to 'resume_profiles' table."),
             ("CREATE INDEX IF NOT EXISTS ix_resume_profiles_bd_id ON resume_profiles (bd_id);",
              "Migration successful! Index on resume_profiles.bd_id ensured."),
+
+            # ── BD team hierarchy: explicit User → BD entity and team lead links ──────
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS bd_entity_id UUID REFERENCES business_developers(id) ON DELETE SET NULL;",
+             "Migration successful! 'bd_entity_id' column added to 'users' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_users_bd_entity_id ON users (bd_entity_id);",
+             "Migration successful! Index on users.bd_entity_id ensured."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS team_lead_user_id UUID REFERENCES users(id) ON DELETE SET NULL;",
+             "Migration successful! 'team_lead_user_id' column added to 'users' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_users_team_lead_user_id ON users (team_lead_user_id);",
+             "Migration successful! Index on users.team_lead_user_id ensured."),
         ]
         for sql, msg in migrations:
             try:

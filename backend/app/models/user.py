@@ -79,6 +79,8 @@ class User(SQLModel, table=True):
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     allowed_dept_ids: Optional[str] = Field(default=None)  # JSON list of UUID strings; [] = all; null = role default
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)
+    bd_entity_id: Optional[uuid.UUID] = Field(default=None, foreign_key="business_developers.id", index=True)
+    team_lead_user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)
     reset_token: Optional[str] = Field(default=None)
     reset_token_expires_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)

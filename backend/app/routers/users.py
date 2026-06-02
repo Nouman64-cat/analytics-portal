@@ -233,6 +233,17 @@ def create_user(
         else None
     )
 
+    # Validate bd_entity_id and team_lead_user_id if provided
+    if user_in.bd_entity_id is not None:
+        from app.models.business_developer import BusinessDeveloper
+        if not session.get(BusinessDeveloper, user_in.bd_entity_id):
+            raise HTTPException(status_code=404, detail="Business developer entity not found")
+
+    if user_in.team_lead_user_id is not None:
+        lead_user = session.get(User, user_in.team_lead_user_id)
+        if not lead_user or lead_user.role != UserRole.BD_TEAM_LEAD:
+            raise HTTPException(status_code=400, detail="team_lead_user_id must reference a user with the bd-team-lead role")
+
     user = User(
         email=user_in.email,
         full_name=user_in.full_name,
@@ -242,6 +253,8 @@ def create_user(
         department_id=dept_id,
         allowed_dept_ids=allowed_dept_ids_json,
         created_by=current_user.id,
+        bd_entity_id=user_in.bd_entity_id,
+        team_lead_user_id=user_in.team_lead_user_id,
     )
     session.add(user)
     session.commit()
@@ -307,6 +320,17 @@ def update_user(
             )
 
     update_data = user_in.model_dump(exclude_unset=True)
+
+    # Validate bd_entity_id / team_lead_user_id if being updated
+    if "bd_entity_id" in update_data and update_data["bd_entity_id"] is not None:
+        from app.models.business_developer import BusinessDeveloper
+        if not session.get(BusinessDeveloper, update_data["bd_entity_id"]):
+            raise HTTPException(status_code=404, detail="Business developer entity not found")
+    if "team_lead_user_id" in update_data and update_data["team_lead_user_id"] is not None:
+        lead_user = session.get(User, update_data["team_lead_user_id"])
+        if not lead_user or lead_user.role != UserRole.BD_TEAM_LEAD:
+            raise HTTPException(status_code=400, detail="team_lead_user_id must reference a user with the bd-team-lead role")
+
     if "allowed_dept_ids" in update_data:
         v = update_data.pop("allowed_dept_ids")
         user.allowed_dept_ids = json.dumps(v) if v is not None else None

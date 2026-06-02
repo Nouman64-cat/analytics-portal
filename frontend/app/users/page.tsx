@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Loader2, Search, Pencil, Trash2, Shield } from "lucide-react";
-import { usersService, departmentsService, candidatesService, authService } from "@/lib/services";
+import { usersService, departmentsService, candidatesService, authService, businessDevelopersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
-import type { User, UserFormData, Department } from "@/lib/types";
+import type { User, UserFormData, Department, BusinessDeveloper } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
@@ -53,6 +53,7 @@ export default function UsersPage() {
   const [deleteModal, setDeleteModal] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const [alsoCandidate, setAlsoCandidate] = useState(false);
 
   const role = getUserRole();
@@ -131,6 +132,7 @@ export default function UsersPage() {
     if (hasAccess) {
       fetchData();
       departmentsService.list().then(setDepartments).catch(() => {});
+      businessDevelopersService.list().then(setBusinessDevs).catch(() => {});
       if (isBdTeamLead) {
         authService.getMe().then(setCurrentUserProfile).catch(() => {});
       }
@@ -142,7 +144,7 @@ export default function UsersPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ full_name: "", email: "", role: "team-member", department_id: null, allowed_dept_ids: null });
+    setFormData({ full_name: "", email: "", role: "team-member", department_id: null, allowed_dept_ids: null, bd_entity_id: null, team_lead_user_id: null });
     setAlsoCandidate(false);
     setModalOpen(true);
   };
@@ -155,6 +157,8 @@ export default function UsersPage() {
       role: user.role,
       department_id: user.department_id ?? null,
       allowed_dept_ids: user.allowed_dept_ids ?? null,
+      bd_entity_id: user.bd_entity_id ?? null,
+      team_lead_user_id: user.team_lead_user_id ?? null,
     });
     setModalOpen(true);
   };
@@ -399,7 +403,7 @@ export default function UsersPage() {
           <FormField label="Role">
             <select
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: null, allowed_dept_ids: null })}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: null, allowed_dept_ids: null, bd_entity_id: null, team_lead_user_id: null })}
               className={inputClass}
             >
               <option value="team-member">Team Member</option>
@@ -514,6 +518,43 @@ export default function UsersPage() {
                 })}
               </div>
             </div>
+          )}
+
+          {/* BD entity + team lead assignment — only for superadmin, only for bd/bd-team-lead roles */}
+          {isSuperadmin && (formData.role === "bd" || formData.role === "bd-team-lead") && (
+            <FormField label="Linked BD Entity (optional)">
+              <select
+                value={formData.bd_entity_id || ""}
+                onChange={(e) => setFormData({ ...formData, bd_entity_id: e.target.value || null })}
+                className={inputClass}
+              >
+                <option value="">— Not linked —</option>
+                {businessDevs.filter((b) => b.is_active).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Connects this user account to a BusinessDeveloper record. Required for scoped lead ownership.
+              </p>
+            </FormField>
+          )}
+
+          {isSuperadmin && formData.role === "bd" && (
+            <FormField label="Reports to (BD Team Lead, optional)">
+              <select
+                value={formData.team_lead_user_id || ""}
+                onChange={(e) => setFormData({ ...formData, team_lead_user_id: e.target.value || null })}
+                className={inputClass}
+              >
+                <option value="">— No team lead —</option>
+                {users.filter((u) => u.role === "bd-team-lead").map((u) => (
+                  <option key={u.id} value={u.id}>{u.full_name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Assigns this BD to a team. The team lead will be able to manage this BD&apos;s leads.
+              </p>
+            </FormField>
           )}
 
           {editingId ? (

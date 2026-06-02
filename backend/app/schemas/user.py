@@ -15,6 +15,8 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     department_id: Optional[UUID] = None
     allowed_dept_ids: Optional[list[str]] = None
+    bd_entity_id: Optional[UUID] = None
+    team_lead_user_id: Optional[UUID] = None
 
 
 class UserUpdate(BaseModel):
@@ -23,12 +25,16 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     department_id: Optional[UUID] = None
     allowed_dept_ids: Optional[list[str]] = None
+    bd_entity_id: Optional[UUID] = None
+    team_lead_user_id: Optional[UUID] = None
 
 
 class UserRead(UserBase):
     id: UUID
     department_id: Optional[UUID] = None
     allowed_dept_ids: Optional[list[str]] = None
+    bd_entity_id: Optional[UUID] = None
+    team_lead_user_id: Optional[UUID] = None
     must_change_password: bool
     alarm_enabled: bool
     accent_color: Optional[str] = None

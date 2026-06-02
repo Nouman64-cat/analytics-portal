@@ -388,6 +388,10 @@ export interface User {
   department_id: string | null;
   /** null = role default; [] = all depts; [uuid,...] = specific depts. BD / BD Team Lead only. */
   allowed_dept_ids: string[] | null;
+  /** Links this bd/bd-team-lead user to their BusinessDeveloper entity. */
+  bd_entity_id: string | null;
+  /** For bd users: the user ID of their managing bd-team-lead. */
+  team_lead_user_id: string | null;
   must_change_password: boolean;
   alarm_enabled: boolean;
   accent_color: string | null;
@@ -404,6 +408,10 @@ export interface UserFormData {
   department_id: string | null;
   /** null = role default; [] = all depts; [uuid,...] = specific depts. */
   allowed_dept_ids: string[] | null;
+  /** BD entity this user is linked to (for bd / bd-team-lead roles). */
+  bd_entity_id?: string | null;
+  /** BD Team Lead user who manages this BD user. */
+  team_lead_user_id?: string | null;
 }
 
 // ─── Form Payloads ──────────────────────────────────────────
