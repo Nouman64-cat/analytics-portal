@@ -23,7 +23,7 @@ from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.schemas.lead import LeadCreate, LeadListItem, LeadListPage, LeadListStats, LeadUpdate
-from app.dept_scope import apply_dept_filter, get_user_allowed_depts
+from app.dept_scope import apply_dept_filter
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
@@ -368,7 +368,7 @@ def list_leads(
             conds = [Interview.created_by_user_id == current_user.id]
 
             if scope is None:
-                # Backward compat: bd_entity_id not linked — use old email/name match + dept-wide filter
+                # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
                 bd = session.exec(
                     select(BusinessDeveloper).where(func.lower(
                         BusinessDeveloper.email) == current_user.email.lower())
@@ -388,18 +388,6 @@ def list_leads(
                     ).first()
                 if bd:
                     conds.append(Interview.bd_id == bd.id)
-                allowed = get_user_allowed_depts(current_user)
-                if allowed is not None:
-                    if allowed:
-                        team_user_ids_query = select(User.id).where(
-                            User.department_id.in_(allowed))
-                        conds.append(Interview.created_by_user_id.in_(
-                            team_user_ids_query))
-                else:
-                    team_user_ids_query = select(User.id).where(User.role.in_(
-                        [UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
-                    conds.append(Interview.created_by_user_id.in_(
-                        team_user_ids_query))
             else:
                 # Scoped: only leads attributed to this user's BD scope
                 conds.append(Interview.bd_id.in_(scope))

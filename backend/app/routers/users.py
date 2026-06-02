@@ -244,6 +244,14 @@ def create_user(
         if not lead_user or lead_user.role != UserRole.BD_TEAM_LEAD:
             raise HTTPException(status_code=400, detail="team_lead_user_id must reference a user with the bd-team-lead role")
 
+    # When a BD Team Lead creates a BD user without specifying a team lead, auto-assign themselves.
+    if (
+        UserRole(user_in.role) == UserRole.BD
+        and current_user.role == UserRole.BD_TEAM_LEAD
+        and user_in.team_lead_user_id is None
+    ):
+        user_in.team_lead_user_id = current_user.id
+
     user = User(
         email=user_in.email,
         full_name=user_in.full_name,

@@ -11,7 +11,7 @@ from sqlmodel import Session, select, col, or_, func
 from sqlalchemy import false as sql_false, nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
-from app.dept_scope import apply_dept_filter, get_user_allowed_depts
+from app.dept_scope import apply_dept_filter
 from app.activity_log import record_activity
 from app.models.interview import Interview
 from app.models.company import Company
@@ -311,7 +311,7 @@ def list_interviews(
             conds = [Interview.created_by_user_id == current_user.id]
 
             if scope is None:
-                # Backward compat: bd_entity_id not linked — use old email/name match + dept-wide filter
+                # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
                 bd = session.exec(
                     select(BusinessDeveloper).where(func.lower(
                         BusinessDeveloper.email) == current_user.email.lower())
@@ -331,18 +331,6 @@ def list_interviews(
                     ).first()
                 if bd:
                     conds.append(Interview.bd_id == bd.id)
-                allowed = get_user_allowed_depts(current_user)
-                if allowed is not None:
-                    if allowed:
-                        team_user_ids_query = select(User.id).where(
-                            User.department_id.in_(allowed))
-                        conds.append(Interview.created_by_user_id.in_(
-                            team_user_ids_query))
-                else:
-                    team_user_ids_query = select(User.id).where(User.role.in_(
-                        [UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
-                    conds.append(Interview.created_by_user_id.in_(
-                        team_user_ids_query))
             else:
                 # Scoped: only interviews attributed to this user's BD scope
                 conds.append(Interview.bd_id.in_(scope))

@@ -520,8 +520,8 @@ export default function UsersPage() {
             </div>
           )}
 
-          {/* BD entity + team lead assignment — only for superadmin, only for bd/bd-team-lead roles */}
-          {isSuperadmin && (formData.role === "bd" || formData.role === "bd-team-lead") && (
+          {/* BD entity assignment — superadmin for all BD roles; BD team lead for BD users they create */}
+          {(isSuperadmin || (isBdTeamLead && formData.role === "bd")) && (formData.role === "bd" || formData.role === "bd-team-lead") && (
             <FormField label="Linked BD Entity (optional)">
               <select
                 value={formData.bd_entity_id || ""}
