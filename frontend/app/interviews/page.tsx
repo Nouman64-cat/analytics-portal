@@ -579,9 +579,16 @@ export default function InterviewsPage() {
   const [interviewDocError, setInterviewDocError] = useState<string | null>(
     null,
   );
-  const [interviewResumeFile, setInterviewResumeFile] = useState<File | null>(null);
-  const [interviewResumeError, setInterviewResumeError] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{ doc: number; resume: number }>({ doc: 0, resume: 0 });
+  const [interviewResumeFile, setInterviewResumeFile] = useState<File | null>(
+    null,
+  );
+  const [interviewResumeError, setInterviewResumeError] = useState<
+    string | null
+  >(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    doc: number;
+    resume: number;
+  }>({ doc: 0, resume: 0 });
 
   // Company popover
   const [companyPopover, setCompanyPopover] = useState<{
@@ -964,19 +971,30 @@ export default function InterviewsPage() {
 
       if ((interviewDocFile || interviewResumeFile) && savedInterview?.id) {
         if (interviewDocFile && interviewDocFile.type !== "application/pdf")
-          throw new Error("Only PDF files are allowed for interview documents.");
-        if (interviewResumeFile && interviewResumeFile.type !== "application/pdf")
+          throw new Error(
+            "Only PDF files are allowed for interview documents.",
+          );
+        if (
+          interviewResumeFile &&
+          interviewResumeFile.type !== "application/pdf"
+        )
           throw new Error("Only PDF files are allowed for resumes.");
 
         setUploadingInterviewId(savedInterview.id);
         await Promise.all([
           interviewDocFile
-            ? interviewsService.uploadInterviewDoc(savedInterview.id, interviewDocFile, (pct) =>
-                setUploadProgress((p) => ({ ...p, doc: pct })))
+            ? interviewsService.uploadInterviewDoc(
+                savedInterview.id,
+                interviewDocFile,
+                (pct) => setUploadProgress((p) => ({ ...p, doc: pct })),
+              )
             : Promise.resolve(),
           interviewResumeFile
-            ? interviewsService.uploadInterviewResume(savedInterview.id, interviewResumeFile, (pct) =>
-                setUploadProgress((p) => ({ ...p, resume: pct })))
+            ? interviewsService.uploadInterviewResume(
+                savedInterview.id,
+                interviewResumeFile,
+                (pct) => setUploadProgress((p) => ({ ...p, resume: pct })),
+              )
             : Promise.resolve(),
         ]);
         setUploadingInterviewId(null);
@@ -1035,7 +1053,10 @@ export default function InterviewsPage() {
     }
   };
 
-  const handleInterviewResumeUpload = async (interviewId: string, file?: File) => {
+  const handleInterviewResumeUpload = async (
+    interviewId: string,
+    file?: File,
+  ) => {
     if (!file) return;
     setUploadError(null);
     setUploadingInterviewId(interviewId);
@@ -1276,8 +1297,7 @@ export default function InterviewsPage() {
   );
   const existingInterviewDocUrl =
     editingInterviewForDoc?.interview_doc_url ?? null;
-  const existingInterviewResumeUrl =
-    editingInterviewForDoc?.resume_url ?? null;
+  const existingInterviewResumeUrl = editingInterviewForDoc?.resume_url ?? null;
 
   const filtered = interviews.filter((i) => {
     const q = search.toLowerCase();
@@ -1285,7 +1305,7 @@ export default function InterviewsPage() {
       !q ||
       i.company_name?.toLowerCase().includes(q) ||
       i.candidate_name?.toLowerCase().includes(q) ||
-      i.role.toLowerCase().includes(q) ||
+      i.role?.toLowerCase().includes(q) ||
       i.status?.toLowerCase().includes(q) ||
       i.resume_profile_name?.toLowerCase().includes(q) ||
       i.feedback?.toLowerCase().includes(q) ||
@@ -1542,7 +1562,7 @@ export default function InterviewsPage() {
                 />
                 <input
                   type="text"
-                  placeholder="Search interviews..."
+                  placeholder="Search interviews by company, role, candidate, status…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className={`${inputClass} pl-10 text-sm py-1.5`}
@@ -2639,27 +2659,49 @@ export default function InterviewsPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => document.getElementById("interview-doc-file-input")?.click()}
+                  onClick={() =>
+                    document.getElementById("interview-doc-file-input")?.click()
+                  }
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
                 >
                   <Download size={14} className="rotate-180" />
-                  {interviewDocFile ? "Change file" : existingInterviewDocUrl ? "Replace document" : "Choose file"}
+                  {interviewDocFile
+                    ? "Change file"
+                    : existingInterviewDocUrl
+                      ? "Replace document"
+                      : "Choose file"}
                 </button>
                 {interviewDocFile ? (
-                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{interviewDocFile.name}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">
+                    {interviewDocFile.name}
+                  </span>
                 ) : existingInterviewDocUrl ? (
-                  <a href={existingInterviewDocUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"><Download size={13} /> Current doc</a>
+                  <a
+                    href={existingInterviewDocUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
+                  >
+                    <Download size={13} /> Current doc
+                  </a>
                 ) : (
-                  <span className="text-sm text-slate-400 dark:text-slate-600">No file chosen</span>
+                  <span className="text-sm text-slate-400 dark:text-slate-600">
+                    No file chosen
+                  </span>
                 )}
               </div>
               {uploadProgress.doc > 0 && uploadProgress.doc < 100 && (
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
-                  <div className="h-full rounded-full bg-indigo-500 transition-all duration-150" style={{ width: `${uploadProgress.doc}%` }} />
+                  <div
+                    className="h-full rounded-full bg-indigo-500 transition-all duration-150"
+                    style={{ width: `${uploadProgress.doc}%` }}
+                  />
                 </div>
               )}
               {interviewDocError && (
-                <p className="mt-1.5 text-xs text-red-500">{interviewDocError}</p>
+                <p className="mt-1.5 text-xs text-red-500">
+                  {interviewDocError}
+                </p>
               )}
             </FormField>
           </div>
@@ -2689,27 +2731,51 @@ export default function InterviewsPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => document.getElementById("interview-resume-file-input")?.click()}
+                  onClick={() =>
+                    document
+                      .getElementById("interview-resume-file-input")
+                      ?.click()
+                  }
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
                 >
                   <Download size={14} className="rotate-180" />
-                  {interviewResumeFile ? "Change file" : existingInterviewResumeUrl ? "Replace resume" : "Choose file"}
+                  {interviewResumeFile
+                    ? "Change file"
+                    : existingInterviewResumeUrl
+                      ? "Replace resume"
+                      : "Choose file"}
                 </button>
                 {interviewResumeFile ? (
-                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{interviewResumeFile.name}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">
+                    {interviewResumeFile.name}
+                  </span>
                 ) : existingInterviewResumeUrl ? (
-                  <a href={existingInterviewResumeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"><Download size={13} /> Current resume</a>
+                  <a
+                    href={existingInterviewResumeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"
+                  >
+                    <Download size={13} /> Current resume
+                  </a>
                 ) : (
-                  <span className="text-sm text-slate-400 dark:text-slate-600">No file chosen</span>
+                  <span className="text-sm text-slate-400 dark:text-slate-600">
+                    No file chosen
+                  </span>
                 )}
               </div>
               {uploadProgress.resume > 0 && uploadProgress.resume < 100 && (
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
-                  <div className="h-full rounded-full bg-indigo-500 transition-all duration-150" style={{ width: `${uploadProgress.resume}%` }} />
+                  <div
+                    className="h-full rounded-full bg-indigo-500 transition-all duration-150"
+                    style={{ width: `${uploadProgress.resume}%` }}
+                  />
                 </div>
               )}
               {interviewResumeError && (
-                <p className="mt-1.5 text-xs text-red-500">{interviewResumeError}</p>
+                <p className="mt-1.5 text-xs text-red-500">
+                  {interviewResumeError}
+                </p>
               )}
             </FormField>
           </div>
@@ -2786,7 +2852,10 @@ export default function InterviewsPage() {
       {/* Detail Modal */}
       <Modal
         open={!!detailModal}
-        onClose={() => { setDetailModal(null); setLinkCopied(false); }}
+        onClose={() => {
+          setDetailModal(null);
+          setLinkCopied(false);
+        }}
         title="Interview Details"
         size="lg"
       >
@@ -2833,159 +2902,379 @@ export default function InterviewsPage() {
                 <span className="text-xs font-semibold uppercase tracking-wider text-indigo-800 dark:text-indigo-200/90">
                   {detailModal.thread_id ? "Opportunity" : "Lead Details"}
                 </span>
-                <ChevronDown size={14} className={`text-indigo-500 transition-transform ${leadOpen ? "" : "-rotate-90"}`} />
+                <ChevronDown
+                  size={14}
+                  className={`text-indigo-500 transition-transform ${leadOpen ? "" : "-rotate-90"}`}
+                />
               </button>
               {leadOpen && (
-                    <div className="px-4 pb-4 space-y-4">
-                      {detailModal.thread_id && (
-                        <LeadThreadPanel
-                          embedded
-                          threadId={detailModal.thread_id}
-                          interview={detailModal}
-                          fetchData={fetchData}
-                          readOnly={true}
-                          onUpdateDetail={(patch) =>
-                            setDetailModal((prev) =>
-                              prev ? { ...prev, ...patch } : null,
-                            )
-                          }
-                        />
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/70 dark:border-indigo-500/25">
-                        <div>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Company</p>
-                          <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{detailModal.company_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Role</p>
-                          <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.role}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Candidate</p>
-                          <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.candidate_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Profile</p>
-                          <div className="mt-1 flex items-center gap-2">
-                            <p className="text-sm text-slate-900 dark:text-white">{detailModal.resume_profile_name}</p>
-                            {(() => {
-                              const profile = profiles.find((p) => p.id === detailModal.resume_profile_id);
-                              if (!profile) return null;
-                              return (
-                                <div className="flex gap-2">
-                                  {profile.linkedin_url && <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 transition-colors"><FaLinkedin size={14} /></a>}
-                                  {profile.github_url && <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-300 transition-colors"><FaGithub size={14} /></a>}
-                                  {profile.portfolio_url && <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors" title="Portfolio"><Target size={14} /></a>}
-                                  {profile.resume_url && <a href={profile.resume_url} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors" title="Resume (PDF)"><Eye size={14} /></a>}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                        {detailModal.salary_range && (
-                          <div>
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Salary Range</p>
-                            <p className="mt-1 text-sm text-emerald-400">{detailModal.salary_range}</p>
-                          </div>
-                        )}
-                        {detailModal.bd_name && (
-                          <div>
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Business Developer</p>
-                            <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.bd_name}</p>
-                          </div>
-                        )}
+                <div className="px-4 pb-4 space-y-4">
+                  {detailModal.thread_id && (
+                    <LeadThreadPanel
+                      embedded
+                      threadId={detailModal.thread_id}
+                      interview={detailModal}
+                      fetchData={fetchData}
+                      readOnly={true}
+                      onUpdateDetail={(patch) =>
+                        setDetailModal((prev) =>
+                          prev ? { ...prev, ...patch } : null,
+                        )
+                      }
+                    />
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/70 dark:border-indigo-500/25">
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Company
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                        {detailModal.company_name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Role
+                      </p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                        {detailModal.role}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Candidate
+                      </p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                        {detailModal.candidate_name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Profile
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {detailModal.resume_profile_name}
+                        </p>
+                        {(() => {
+                          const profile = profiles.find(
+                            (p) => p.id === detailModal.resume_profile_id,
+                          );
+                          if (!profile) return null;
+                          return (
+                            <div className="flex gap-2">
+                              {profile.linkedin_url && (
+                                <a
+                                  href={profile.linkedin_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 hover:text-blue-400 transition-colors"
+                                >
+                                  <FaLinkedin size={14} />
+                                </a>
+                              )}
+                              {profile.github_url && (
+                                <a
+                                  href={profile.github_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-slate-400 hover:text-slate-300 transition-colors"
+                                >
+                                  <FaGithub size={14} />
+                                </a>
+                              )}
+                              {profile.portfolio_url && (
+                                <a
+                                  href={profile.portfolio_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-fuchsia-500 hover:text-fuchsia-400 transition-colors"
+                                  title="Portfolio"
+                                >
+                                  <Target size={14} />
+                                </a>
+                              )}
+                              {profile.resume_url && (
+                                <a
+                                  href={profile.resume_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                                  title="Resume (PDF)"
+                                >
+                                  <Eye size={14} />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
-                  )}
+                    {detailModal.salary_range && (
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                          Salary Range
+                        </p>
+                        <p className="mt-1 text-sm text-emerald-400">
+                          {detailModal.salary_range}
+                        </p>
+                      </div>
+                    )}
+                    {detailModal.bd_name && (
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                          Business Developer
+                        </p>
+                        <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                          {detailModal.bd_name}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
+            </div>
 
             <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
               <button
                 onClick={() => setIvOpen((v) => !v)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">This interview</span>
-                <ChevronDown size={14} className={`text-slate-500 transition-transform dark:text-slate-400 ${ivOpen ? "" : "-rotate-90"}`} />
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  This interview
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`text-slate-500 transition-transform dark:text-slate-400 ${ivOpen ? "" : "-rotate-90"}`}
+                />
               </button>
               {ivOpen && (
                 <div className="px-4 pb-4 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Round</p>
-                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.round}</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Round
+                      </p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                        {detailModal.round}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Date</p>
-                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatInterviewDateEst(detailModal.interview_date, detailModal.time_est)}</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Date
+                      </p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                        {formatInterviewDateEst(
+                          detailModal.interview_date,
+                          detailModal.time_est,
+                        )}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (EST)</p>
-                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_est)}</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Time (EST)
+                      </p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                        {formatTime(detailModal.time_est)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Time (PKT)</p>
-                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatTime(detailModal.time_pkt)}</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Time (PKT)
+                      </p>
+                      <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                        {formatTime(detailModal.time_pkt)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Status</p>
-                      <div className="mt-1"><StatusBadge status={detailModal.computed_status} /></div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Status
+                      </p>
+                      <div className="mt-1">
+                        <StatusBadge status={detailModal.computed_status} />
+                      </div>
                     </div>
                     {detailModal.interviewer && (
                       <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interviewer</p>
-                        <p className="mt-1 text-sm text-slate-900 dark:text-white">{detailModal.interviewer}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                          Interviewer
+                        </p>
+                        <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                          {detailModal.interviewer}
+                        </p>
                       </div>
                     )}
                     <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Medium</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                        Interview Medium
+                      </p>
                       {detailModal.is_phone_call ? (
-                        <p className="mt-1 text-sm text-slate-900 dark:text-white">Phone Call</p>
+                        <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                          Phone Call
+                        </p>
                       ) : detailModal.interview_link ? (
                         <div className="mt-1 flex items-start gap-2">
-                          <a href={detailModal.interview_link} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-500 hover:text-indigo-400 break-all flex-1 min-w-0">{detailModal.interview_link}</a>
-                          <button onClick={() => { navigator.clipboard.writeText(detailModal.interview_link!); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors" title="Copy link">
-                            {linkCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                          <a
+                            href={detailModal.interview_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-indigo-500 hover:text-indigo-400 break-all flex-1 min-w-0"
+                          >
+                            {detailModal.interview_link}
+                          </a>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(
+                                detailModal.interview_link!,
+                              );
+                              setLinkCopied(true);
+                              setTimeout(() => setLinkCopied(false), 2000);
+                            }}
+                            className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+                            title="Copy link"
+                          >
+                            {linkCopied ? (
+                              <CheckCircle2
+                                size={14}
+                                className="text-emerald-500"
+                              />
+                            ) : (
+                              <Copy size={14} />
+                            )}
                           </button>
                         </div>
                       ) : (
-                        <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">—</p>
+                        <p className="mt-1 text-sm text-slate-400 dark:text-slate-600">
+                          —
+                        </p>
                       )}
                     </div>
                   </div>
                   <div className="col-span-1 sm:col-span-2 border-t border-slate-100 dark:border-white/[0.06] pt-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Interview Document</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                          Interview Document
+                        </p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           {detailModal.interview_doc_url ? (
-                            <a href={detailModal.interview_doc_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"><Download size={13} /> Download</a>
+                            <a
+                              href={detailModal.interview_doc_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
+                            >
+                              <Download size={13} /> Download
+                            </a>
                           ) : (
-                            <span className="text-sm text-slate-400 dark:text-slate-600">Not uploaded</span>
+                            <span className="text-sm text-slate-400 dark:text-slate-600">
+                              Not uploaded
+                            </span>
                           )}
                           {!cannotCRUD && (
                             <>
-                              <input id={`interview-doc-input-${detailModal.id}`} type="file" accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleInterviewDocUpload(detailModal.id, file); }} />
-                              <button type="button" onClick={() => document.getElementById(`interview-doc-input-${detailModal.id}`)?.click()} className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors" disabled={uploadingInterviewId === detailModal.id}>
-                                {uploadingInterviewId === detailModal.id ? "Uploading..." : detailModal.interview_doc_url ? "Replace" : "Upload"}
+                              <input
+                                id={`interview-doc-input-${detailModal.id}`}
+                                type="file"
+                                accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                                className="hidden"
+                                onChange={(
+                                  e: ChangeEvent<HTMLInputElement>,
+                                ) => {
+                                  const file = e.target.files?.[0];
+                                  if (file)
+                                    handleInterviewDocUpload(
+                                      detailModal.id,
+                                      file,
+                                    );
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  document
+                                    .getElementById(
+                                      `interview-doc-input-${detailModal.id}`,
+                                    )
+                                    ?.click()
+                                }
+                                className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
+                                disabled={
+                                  uploadingInterviewId === detailModal.id
+                                }
+                              >
+                                {uploadingInterviewId === detailModal.id
+                                  ? "Uploading..."
+                                  : detailModal.interview_doc_url
+                                    ? "Replace"
+                                    : "Upload"}
                               </button>
                             </>
                           )}
                         </div>
-                        {uploadError && uploadingInterviewId === detailModal.id && <p className="mt-1 text-xs text-red-500">{uploadError}</p>}
+                        {uploadError &&
+                          uploadingInterviewId === detailModal.id && (
+                            <p className="mt-1 text-xs text-red-500">
+                              {uploadError}
+                            </p>
+                          )}
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">Resume (PDF)</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                          Resume (PDF)
+                        </p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           {detailModal.resume_url ? (
-                            <a href={detailModal.resume_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"><Download size={13} /> Download</a>
+                            <a
+                              href={detailModal.resume_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"
+                            >
+                              <Download size={13} /> Download
+                            </a>
                           ) : (
-                            <span className="text-sm text-slate-400 dark:text-slate-600">Not uploaded</span>
+                            <span className="text-sm text-slate-400 dark:text-slate-600">
+                              Not uploaded
+                            </span>
                           )}
                           {!cannotCRUD && (
                             <>
-                              <input id={`interview-resume-input-${detailModal.id}`} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleInterviewResumeUpload(detailModal.id, file); }} />
-                              <button type="button" onClick={() => document.getElementById(`interview-resume-input-${detailModal.id}`)?.click()} className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors" disabled={uploadingInterviewId === detailModal.id}>
-                                {uploadingInterviewId === detailModal.id ? "Uploading..." : detailModal.resume_url ? "Replace" : "Upload"}
+                              <input
+                                id={`interview-resume-input-${detailModal.id}`}
+                                type="file"
+                                accept=".pdf,application/pdf"
+                                className="hidden"
+                                onChange={(
+                                  e: ChangeEvent<HTMLInputElement>,
+                                ) => {
+                                  const file = e.target.files?.[0];
+                                  if (file)
+                                    handleInterviewResumeUpload(
+                                      detailModal.id,
+                                      file,
+                                    );
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  document
+                                    .getElementById(
+                                      `interview-resume-input-${detailModal.id}`,
+                                    )
+                                    ?.click()
+                                }
+                                className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
+                                disabled={
+                                  uploadingInterviewId === detailModal.id
+                                }
+                              >
+                                {uploadingInterviewId === detailModal.id
+                                  ? "Uploading..."
+                                  : detailModal.resume_url
+                                    ? "Replace"
+                                    : "Upload"}
                               </button>
                             </>
                           )}

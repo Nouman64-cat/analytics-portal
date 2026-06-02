@@ -84,7 +84,8 @@ def _get_s3_client(settings):
 def _thread_primary_bd_id(session: Session, thread_id: uuid.UUID) -> Optional[uuid.UUID]:
     """Return the bd_id from the earliest interview in this thread that has one set."""
     rows = session.exec(
-        select(Interview).where(Interview.thread_id == thread_id).order_by(Interview.interview_date, Interview.created_at)
+        select(Interview).where(Interview.thread_id == thread_id).order_by(
+            Interview.interview_date, Interview.created_at)
     ).all()
     for r in rows:
         if r.bd_id:
@@ -281,6 +282,10 @@ def list_interviews(
         None, description="Filter by resume profile"),
     status_filter: Optional[str] = Query(
         None, alias="status", description="Filter by status (partial match)"),
+    search: Optional[str] = Query(
+        None,
+        description="Search interviews by company, role, candidate, profile, status, or notes",
+    ),
     date_from: Optional[date] = Query(
         None, description="Filter interviews from this date"),
     date_to: Optional[date] = Query(
@@ -298,7 +303,8 @@ def list_interviews(
         joinedload(Interview.business_developer),
     )
 
-    query = apply_team_member_interview_list_filter(session, current_user, query)
+    query = apply_team_member_interview_list_filter(
+        session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
         if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
             scope = get_bd_entity_scope(current_user, session)
@@ -307,15 +313,19 @@ def list_interviews(
             if scope is None:
                 # Backward compat: bd_entity_id not linked — use old email/name match + dept-wide filter
                 bd = session.exec(
-                    select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
+                    select(BusinessDeveloper).where(func.lower(
+                        BusinessDeveloper.email) == current_user.email.lower())
                 ).first()
                 if not bd:
                     bd = session.exec(
                         select(BusinessDeveloper).where(
                             or_(
-                                func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
-                                func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
-                                func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
+                                func.lower(
+                                    BusinessDeveloper.name) == current_user.full_name.lower(),
+                                func.lower(current_user.full_name).contains(
+                                    func.lower(BusinessDeveloper.name)),
+                                func.lower(BusinessDeveloper.name).contains(
+                                    func.lower(current_user.full_name))
                             )
                         )
                     ).first()
@@ -324,18 +334,24 @@ def list_interviews(
                 allowed = get_user_allowed_depts(current_user)
                 if allowed is not None:
                     if allowed:
-                        team_user_ids_query = select(User.id).where(User.department_id.in_(allowed))
-                        conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                        team_user_ids_query = select(User.id).where(
+                            User.department_id.in_(allowed))
+                        conds.append(Interview.created_by_user_id.in_(
+                            team_user_ids_query))
                 else:
-                    team_user_ids_query = select(User.id).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
-                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                    team_user_ids_query = select(User.id).where(User.role.in_(
+                        [UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
+                    conds.append(Interview.created_by_user_id.in_(
+                        team_user_ids_query))
             else:
                 # Scoped: only interviews attributed to this user's BD scope
                 conds.append(Interview.bd_id.in_(scope))
                 if current_user.role == UserRole.BD_TEAM_LEAD:
                     # Also include interviews created by direct team members
-                    team_user_ids_query = select(User.id).where(User.team_lead_user_id == current_user.id)
-                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                    team_user_ids_query = select(User.id).where(
+                        User.team_lead_user_id == current_user.id)
+                    conds.append(Interview.created_by_user_id.in_(
+                        team_user_ids_query))
 
             # Apply department_id filter parameter if specified
             if department_id:
@@ -343,7 +359,8 @@ def list_interviews(
 
             query = query.where(or_(*conds))
         else:
-            query = apply_dept_filter(query, Interview, current_user, department_id)
+            query = apply_dept_filter(
+                query, Interview, current_user, department_id)
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)
@@ -353,6 +370,23 @@ def list_interviews(
         query = query.where(Interview.resume_profile_id == resume_profile_id)
     if status_filter:
         query = query.where(col(Interview.status).icontains(status_filter))
+    if search:
+        search_q = search.lower()
+        query = query.join(Interview.company, isouter=True)
+        query = query.join(Interview.candidate, isouter=True)
+        query = query.join(Interview.resume_profile, isouter=True)
+        query = query.where(
+            or_(
+                func.lower(Interview.role).contains(search_q),
+                func.lower(Interview.status).contains(search_q),
+                func.lower(Interview.interviewer).contains(search_q),
+                func.lower(Interview.feedback).contains(search_q),
+                func.lower(Interview.recruiter_feedback).contains(search_q),
+                func.lower(Company.name).contains(search_q),
+                func.lower(Candidate.name).contains(search_q),
+                func.lower(ResumeProfile.name).contains(search_q),
+            )
+        )
     if date_from:
         query = query.where(Interview.interview_date >= date_from)
     if date_to:
@@ -445,7 +479,8 @@ def patch_lead_thread_status(
                 row.unresponsive_since = None
 
     if data.notes is not None:
-        row.notes = (data.notes.strip() if data.notes.strip() else None) or None
+        row.notes = (data.notes.strip()
+                     if data.notes.strip() else None) or None
 
     if data.closed_at is not None:
         row.closed_at = data.closed_at
@@ -648,7 +683,8 @@ def create_interview(
         interview_link=loaded.interview_link,
         is_phone_call=loaded.is_phone_call,
         salary_range=loaded.salary_range or None,
-        interview_doc_url=make_presigned_doc_url(_settings, loaded.interview_doc_url),
+        interview_doc_url=make_presigned_doc_url(
+            _settings, loaded.interview_doc_url),
         bd_name=loaded.business_developer.name if loaded.business_developer else None,
         resume_profile_name=loaded.resume_profile.name if loaded.resume_profile else None,
     )
@@ -764,13 +800,15 @@ def upload_interview_resume(
         )
 
     if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed for resumes")
+        raise HTTPException(
+            status_code=400, detail="Only PDF files are allowed for resumes")
 
     key = f"interview_resumes/{interview_id}/resume-{uuid.uuid4()}.pdf"
     s3_client = _get_s3_client(settings)
 
     if not settings.AWS_S3_BUCKET_NAME:
-        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+        raise HTTPException(
+            status_code=500, detail="AWS S3 bucket not configured")
 
     try:
         file.file.seek(0)
@@ -833,19 +871,23 @@ def presign_upload(
     team_member_must_own_interview(session, current_user, interview)
 
     if not settings.AWS_S3_BUCKET_NAME:
-        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+        raise HTTPException(
+            status_code=500, detail="AWS S3 bucket not configured")
 
     if body.upload_type == "document":
         if body.content_type not in _PRESIGN_ALLOWED_DOC_TYPES:
-            raise HTTPException(status_code=400, detail="Only DOC, DOCX, and PDF files are allowed")
+            raise HTTPException(
+                status_code=400, detail="Only DOC, DOCX, and PDF files are allowed")
         ext = _PRESIGN_ALLOWED_DOC_TYPES[body.content_type]
         key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.{ext}"
     elif body.upload_type == "resume":
         if body.content_type not in _PRESIGN_ALLOWED_RESUME_TYPES:
-            raise HTTPException(status_code=400, detail="Only PDF files are allowed for resumes")
+            raise HTTPException(
+                status_code=400, detail="Only PDF files are allowed for resumes")
         key = f"interview_resumes/{interview_id}/resume-{uuid.uuid4()}.pdf"
     else:
-        raise HTTPException(status_code=400, detail="upload_type must be 'document' or 'resume'")
+        raise HTTPException(
+            status_code=400, detail="upload_type must be 'document' or 'resume'")
 
     s3_client = _get_s3_client(settings)
     try:
@@ -859,7 +901,8 @@ def presign_upload(
             ExpiresIn=300,
         )
     except (BotoCoreError, ClientError) as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate presigned URL: {e}")
 
     return PresignResponse(upload_url=upload_url, s3_key=key)
 
@@ -880,23 +923,27 @@ def confirm_upload(
     team_member_must_own_interview(session, current_user, interview)
 
     if not settings.AWS_S3_BUCKET_NAME:
-        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+        raise HTTPException(
+            status_code=500, detail="AWS S3 bucket not configured")
 
     # Validate the key belongs to this interview (prevent storing arbitrary keys)
     expected_prefix_doc = f"interview_docs/{interview_id}/"
     expected_prefix_resume = f"interview_resumes/{interview_id}/"
     if body.upload_type == "document":
         if not body.s3_key.startswith(expected_prefix_doc):
-            raise HTTPException(status_code=400, detail="Invalid s3_key for this interview")
+            raise HTTPException(
+                status_code=400, detail="Invalid s3_key for this interview")
         url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{body.s3_key}"
         interview.interview_doc_url = url
     elif body.upload_type == "resume":
         if not body.s3_key.startswith(expected_prefix_resume):
-            raise HTTPException(status_code=400, detail="Invalid s3_key for this interview")
+            raise HTTPException(
+                status_code=400, detail="Invalid s3_key for this interview")
         url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{body.s3_key}"
         interview.resume_url = url
     else:
-        raise HTTPException(status_code=400, detail="upload_type must be 'document' or 'resume'")
+        raise HTTPException(
+            status_code=400, detail="upload_type must be 'document' or 'resume'")
 
     interview.updated_at = datetime.utcnow()
     session.add(interview)
@@ -920,7 +967,8 @@ def update_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
-    assert_bd_lead_write_access(current_user, _thread_primary_bd_id(session, interview.thread_id), session)
+    assert_bd_lead_write_access(current_user, _thread_primary_bd_id(
+        session, interview.thread_id), session)
 
     update_data = data.model_dump(exclude_unset=True)
     if "status" in update_data:
@@ -949,7 +997,8 @@ def update_interview(
         else:
             par = session.get(Interview, new_parent)
             if not par:
-                raise HTTPException(status_code=404, detail="Parent interview not found")
+                raise HTTPException(
+                    status_code=404, detail="Parent interview not found")
             if par.company_id != tgt_company:
                 raise HTTPException(
                     status_code=400,
@@ -1011,7 +1060,8 @@ def update_interview(
             interview_link=loaded.interview_link,
             is_phone_call=loaded.is_phone_call,
             salary_range=loaded.salary_range or None,
-            interview_doc_url=make_presigned_doc_url(_settings, loaded.interview_doc_url),
+            interview_doc_url=make_presigned_doc_url(
+                _settings, loaded.interview_doc_url),
             bd_name=loaded.business_developer.name if loaded.business_developer else None,
             resume_profile_name=loaded.resume_profile.name if loaded.resume_profile else None,
         )
@@ -1031,7 +1081,8 @@ def delete_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
-    assert_bd_lead_write_access(current_user, _thread_primary_bd_id(session, interview.thread_id), session)
+    assert_bd_lead_write_access(current_user, _thread_primary_bd_id(
+        session, interview.thread_id), session)
     # Check if this is the ONLY interview in this thread
     thread_id = interview.thread_id
     thread_interviews = session.exec(

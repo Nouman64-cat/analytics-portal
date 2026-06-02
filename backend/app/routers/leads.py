@@ -35,7 +35,8 @@ from sqlalchemy import false as sql_false
 from app.config import get_settings
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
 
-router = APIRouter(prefix="/api/v1/leads", tags=["Leads"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/v1/leads",
+                   tags=["Leads"], dependencies=[Depends(get_current_user)])
 
 
 def _require_lead_write_role(current_user: User) -> None:
@@ -136,10 +137,6 @@ def _build_lead_list_item(
     )
 
 
-
-
-
-
 def _lead_bucket(outcome: str) -> str:
     o = (outcome or "").lower()
     if o in ("active", "in_pipeline"):
@@ -171,6 +168,7 @@ def _filter_merged_leads(
                 q in (l.company_name or "").lower()
                 or q in (l.candidate_name or "").lower()
                 or q in (l.primary_bd_name or "").lower()
+                or q in (l.primary_role or "").lower()
                 or q in l.lead_status_label.lower()
             )
         ]
@@ -192,9 +190,11 @@ def _filter_merged_leads(
     elif lead_source == "derived":
         rows = [l for l in rows if l.lead_source == "derived"]
     if date_from is not None:
-        rows = [l for l in rows if l.first_interview_date is not None and l.first_interview_date >= date_from]
+        rows = [
+            l for l in rows if l.first_interview_date is not None and l.first_interview_date >= date_from]
     if date_to is not None:
-        rows = [l for l in rows if l.first_interview_date is not None and l.first_interview_date <= date_to]
+        rows = [
+            l for l in rows if l.first_interview_date is not None and l.first_interview_date <= date_to]
     return rows
 
 
@@ -214,7 +214,8 @@ def _sort_merged_leads(
             reverse=True,
         )
     elif sort == "last_activity_asc":
-        rows.sort(key=lambda x: (x.last_interview_date or date.max, x.thread_id))
+        rows.sort(key=lambda x: (
+            x.last_interview_date or date.max, x.thread_id))
     elif sort == "company_asc":
         rows.sort(
             key=lambda x: ((x.company_name or "").lower(), str(x.thread_id)),
@@ -241,7 +242,7 @@ def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
         o = (l.lead_outcome or "").lower()
         if o == "active":
             active += 1
-        
+
         if l.is_converted:
             converted += 1
 
@@ -292,7 +293,8 @@ def list_leads(
     resume_profile_id: Annotated[Optional[uuid.UUID], Query()] = None,
     candidate_id: Annotated[Optional[uuid.UUID], Query()] = None,
     outcome: Annotated[Optional[str], Query()] = None,
-    lead_source: Annotated[Literal["all", "explicit", "derived"], Query()] = "all",
+    lead_source: Annotated[Literal["all",
+                                   "explicit", "derived"], Query()] = "all",
     department_id: Annotated[Optional[uuid.UUID], Query()] = None,
     date_from: Annotated[Optional[date], Query()] = None,
     date_to: Annotated[Optional[date], Query()] = None,
@@ -368,15 +370,19 @@ def list_leads(
             if scope is None:
                 # Backward compat: bd_entity_id not linked — use old email/name match + dept-wide filter
                 bd = session.exec(
-                    select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == current_user.email.lower())
+                    select(BusinessDeveloper).where(func.lower(
+                        BusinessDeveloper.email) == current_user.email.lower())
                 ).first()
                 if not bd:
                     bd = session.exec(
                         select(BusinessDeveloper).where(
                             or_(
-                                func.lower(BusinessDeveloper.name) == current_user.full_name.lower(),
-                                func.lower(current_user.full_name).contains(func.lower(BusinessDeveloper.name)),
-                                func.lower(BusinessDeveloper.name).contains(func.lower(current_user.full_name))
+                                func.lower(
+                                    BusinessDeveloper.name) == current_user.full_name.lower(),
+                                func.lower(current_user.full_name).contains(
+                                    func.lower(BusinessDeveloper.name)),
+                                func.lower(BusinessDeveloper.name).contains(
+                                    func.lower(current_user.full_name))
                             )
                         )
                     ).first()
@@ -385,27 +391,36 @@ def list_leads(
                 allowed = get_user_allowed_depts(current_user)
                 if allowed is not None:
                     if allowed:
-                        team_user_ids_query = select(User.id).where(User.department_id.in_(allowed))
-                        conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                        team_user_ids_query = select(User.id).where(
+                            User.department_id.in_(allowed))
+                        conds.append(Interview.created_by_user_id.in_(
+                            team_user_ids_query))
                 else:
-                    team_user_ids_query = select(User.id).where(User.role.in_([UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
-                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                    team_user_ids_query = select(User.id).where(User.role.in_(
+                        [UserRole.BD, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD, UserRole.DEPT_LEAD]))
+                    conds.append(Interview.created_by_user_id.in_(
+                        team_user_ids_query))
             else:
                 # Scoped: only leads attributed to this user's BD scope
                 conds.append(Interview.bd_id.in_(scope))
                 if current_user.role == UserRole.BD_TEAM_LEAD:
                     # Also include leads created by direct team members
-                    team_user_ids_query = select(User.id).where(User.team_lead_user_id == current_user.id)
-                    conds.append(Interview.created_by_user_id.in_(team_user_ids_query))
+                    team_user_ids_query = select(User.id).where(
+                        User.team_lead_user_id == current_user.id)
+                    conds.append(Interview.created_by_user_id.in_(
+                        team_user_ids_query))
 
             # Apply department_id filter parameter if specified
             if department_id:
-                base_query = base_query.where(Interview.department_id == department_id)
+                base_query = base_query.where(
+                    Interview.department_id == department_id)
 
             base_query = base_query.where(or_(*conds))
         else:
-            base_query = apply_dept_filter(base_query, Interview, current_user, department_id)
-        query = apply_team_member_interview_list_filter(session, current_user, base_query)
+            base_query = apply_dept_filter(
+                base_query, Interview, current_user, department_id)
+        query = apply_team_member_interview_list_filter(
+            session, current_user, base_query)
 
     interviews = session.exec(query).all()
 
@@ -443,7 +458,7 @@ def list_leads(
     stats = _compute_lead_stats(filtered)
     total = len(filtered)
     start = (page - 1) * page_size
-    page_items = filtered[start : start + page_size]
+    page_items = filtered[start: start + page_size]
 
     return LeadListPage(
         items=page_items,
@@ -474,11 +489,11 @@ def create_lead(
     if not session.get(Company, company_id):
         raise HTTPException(status_code=404, detail="Company not found")
 
-
     if not session.get(ResumeProfile, resume_profile_id):
         raise HTTPException(status_code=404, detail="Resume profile not found")
     if bd_id and not session.get(BusinessDeveloper, bd_id):
-        raise HTTPException(status_code=404, detail="Business developer not found")
+        raise HTTPException(
+            status_code=404, detail="Business developer not found")
 
     if data.candidate_id and not session.get(Candidate, data.candidate_id):
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -527,8 +542,8 @@ def create_lead(
     lead_map = load_lead_map(session, {thread_id})
     item = _build_lead_list_item(session, thread_id, rows, lead_map)
     if not item:
-        raise HTTPException(status_code=500, detail="Failed to build lead response")
-
+        raise HTTPException(
+            status_code=500, detail="Failed to build lead response")
 
     record_activity(
         session,
@@ -558,7 +573,8 @@ def _require_lead_read(
 
 def _delete_interviews_in_thread(session: Session, thread_id: uuid.UUID) -> None:
     rows = list(
-        session.exec(select(Interview).where(Interview.thread_id == thread_id)).all()
+        session.exec(select(Interview).where(
+            Interview.thread_id == thread_id)).all()
     )
     ids = {r.id for r in rows}
     while rows:
@@ -569,7 +585,8 @@ def _delete_interviews_in_thread(session: Session, thread_id: uuid.UUID) -> None
         }
         leaves = [r for r in rows if r.id not in referenced]
         if not leaves:
-            raise RuntimeError("Interview chain has a cycle; cannot delete thread")
+            raise RuntimeError(
+                "Interview chain has a cycle; cannot delete thread")
         for r in leaves:
             for log in session.exec(
                 select(InterviewReminderLog).where(
@@ -634,17 +651,20 @@ def update_lead(
         rid = patch["resume_profile_id"]
         if rid is not None:
             if not session.get(ResumeProfile, rid):
-                raise HTTPException(status_code=404, detail="Resume profile not found")
+                raise HTTPException(
+                    status_code=404, detail="Resume profile not found")
             first.resume_profile_id = rid
     if "role" in patch and patch["role"]:
         first.role = patch["role"].strip()
     if "salary_range" in patch:
         sr = patch["salary_range"]
-        first.salary_range = (sr.strip() if isinstance(sr, str) else None) or None
+        first.salary_range = (
+            sr.strip() if isinstance(sr, str) else None) or None
     if "bd_id" in patch:
         bd = patch["bd_id"]
         if bd is not None and not session.get(BusinessDeveloper, bd):
-            raise HTTPException(status_code=404, detail="Business developer not found")
+            raise HTTPException(
+                status_code=404, detail="Business developer not found")
         first.bd_id = bd
     first.updated_at = datetime.utcnow()
     session.add(first)
@@ -654,7 +674,8 @@ def update_lead(
     lead_map = load_lead_map(session, {thread_id})
     item = _build_lead_list_item(session, thread_id, rows, lead_map)
     if not item:
-        raise HTTPException(status_code=500, detail="Failed to build lead response")
+        raise HTTPException(
+            status_code=500, detail="Failed to build lead response")
     record_activity(
         session,
         actor=current_user,

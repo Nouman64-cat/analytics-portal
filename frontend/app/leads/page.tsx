@@ -134,7 +134,7 @@ const LeadsSearchField = memo(function LeadsSearchField({
         type="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search company, candidate, BD, status…"
+        placeholder="Search company, candidate, role, BD, status…"
         className="w-full rounded-lg border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.04] py-1.5 pl-8 pr-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400"
         autoComplete="off"
       />
@@ -354,13 +354,15 @@ export default function LeadsPage() {
     if (bdProfiles.length === 1) {
       setForm((f) => ({ ...f, resume_profile_id: bdProfiles[0].id }));
     } else if (bdProfiles.length > 1) {
-      const currentIsValid = bdProfiles.some((p) => p.id === form.resume_profile_id);
+      const currentIsValid = bdProfiles.some(
+        (p) => p.id === form.resume_profile_id,
+      );
       if (!currentIsValid) {
         setForm((f) => ({ ...f, resume_profile_id: "" }));
       }
     }
     // If 0 profiles for this BD, leave current selection unchanged.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.bd_id]);
   const candidateOptions = useMemo(
     () => [...candidates].sort((a, b) => a.name.localeCompare(b.name)),
@@ -866,6 +868,9 @@ export default function LeadsPage() {
                   <th className="py-2.5 pr-3 font-medium">Company</th>
                   <th className="py-2.5 pr-3 font-medium">Status</th>
                   <th className="py-2.5 pr-3 font-medium">Entertains</th>
+                  <th className="hidden md:table-cell py-2.5 pr-3 font-medium">
+                    Role
+                  </th>
                   <th className="hidden xl:table-cell py-2.5 pr-3 font-medium">
                     BD
                   </th>
@@ -934,6 +939,9 @@ export default function LeadsPage() {
                     </td>
                     <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.candidate_name ?? "—"}
+                    </td>
+                    <td className="hidden md:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
+                      {l.primary_role ?? "—"}
                     </td>
                     <td className="hidden xl:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.primary_bd_name ?? "—"}
@@ -1109,19 +1117,33 @@ export default function LeadsPage() {
               />
             )}
           </FormField>
-          <FormField label={profilesForSelectedBd.length > 0 ? `Resume profile (${profilesForSelectedBd.length} for this BD)` : "Resume profile"}>
+          <FormField
+            label={
+              profilesForSelectedBd.length > 0
+                ? `Resume profile (${profilesForSelectedBd.length} for this BD)`
+                : "Resume profile"
+            }
+          >
             <SearchableSelect
-              options={(profilesForSelectedBd.length > 0 ? profilesForSelectedBd : profiles).map((p) => ({ id: p.id, label: p.name }))}
+              options={(profilesForSelectedBd.length > 0
+                ? profilesForSelectedBd
+                : profiles
+              ).map((p) => ({ id: p.id, label: p.name }))}
               value={form.resume_profile_id}
               onChange={(id) =>
                 setForm((f) => ({ ...f, resume_profile_id: id }))
               }
-              placeholder={profilesForSelectedBd.length === 1 ? profilesForSelectedBd[0].name : "Select profile…"}
+              placeholder={
+                profilesForSelectedBd.length === 1
+                  ? profilesForSelectedBd[0].name
+                  : "Select profile…"
+              }
               required
             />
             {profilesForSelectedBd.length > 1 && (
               <p className="mt-1 text-xs text-indigo-500 dark:text-indigo-400">
-                Showing {profilesForSelectedBd.length} profiles for this BD — select one.
+                Showing {profilesForSelectedBd.length} profiles for this BD —
+                select one.
               </p>
             )}
             {form.bd_id && profilesForSelectedBd.length === 0 && (
@@ -1135,7 +1157,11 @@ export default function LeadsPage() {
               roles={jobRoles}
               value={form.role}
               onChange={(name) => setForm((f) => ({ ...f, role: name }))}
-              onRoleCreated={(r) => setJobRoles((prev) => [...prev, r].sort((a, b) => a.name.localeCompare(b.name)))}
+              onRoleCreated={(r) =>
+                setJobRoles((prev) =>
+                  [...prev, r].sort((a, b) => a.name.localeCompare(b.name)),
+                )
+              }
               placeholder="e.g. Senior Software Engineer"
               required
             />
