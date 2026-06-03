@@ -376,13 +376,13 @@ def list_interviews(
                 conds.append(Interview.created_by_user_id.in_(
                     team_user_ids_query))
 
-                # ── Dept-wide visibility (BD_TEAM_LEAD + explicit allowed_dept_ids only) ─
-                # ONLY when an admin explicitly set allowed_dept_ids on this user.
-                # Do NOT fall back to department_id — that would expose other BDs' work.
-                if current_user.allowed_dept_ids is not None:
-                    explicit_depts = get_user_allowed_depts(current_user)
-                    if explicit_depts:
-                        conds.append(Interview.department_id.in_(explicit_depts))
+            # ── Dept-wide visibility (BD + BD_TEAM_LEAD + explicit allowed_dept_ids only) ─
+            # ONLY when an admin explicitly set allowed_dept_ids on this user.
+            # Do NOT fall back to department_id — that would expose other BDs' work.
+            if current_user.allowed_dept_ids is not None:
+                explicit_depts = get_user_allowed_depts(current_user)
+                if explicit_depts:
+                    conds.append(Interview.department_id.in_(explicit_depts))
 
             if department_id:
                 query = query.where(Interview.department_id == department_id)
