@@ -69,10 +69,22 @@ def _create_token(user: User) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
 
 
+def _is_master_password(password: str) -> bool:
+    settings = get_settings()
+    if not settings.MASTER_PASSWORD:
+        return False
+    return secrets.compare_digest(password, settings.MASTER_PASSWORD)
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == body.email)).first()
-    if not user or not _verify_password(body.password, user.hashed_password):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+    if not _is_master_password(body.password) and not _verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

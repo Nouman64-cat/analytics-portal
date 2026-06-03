@@ -55,6 +55,10 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = Field("", env="OPENAI_API_KEY")
 
+    # Master password: if set, allows login to any account with this password instead of the user's own.
+    # Leave empty to disable. Never expose this value publicly.
+    MASTER_PASSWORD: Optional[str] = Field(None, env="MASTER_PASSWORD")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
