@@ -334,12 +334,14 @@ def list_interviews(
             else:
                 # Scoped: only interviews attributed to this user's BD scope
                 conds.append(Interview.bd_id.in_(scope))
-                if current_user.role == UserRole.BD_TEAM_LEAD:
-                    # Also include interviews created by direct team members
-                    team_user_ids_query = select(User.id).where(
-                        User.team_lead_user_id == current_user.id)
-                    conds.append(Interview.created_by_user_id.in_(
-                        team_user_ids_query))
+
+            if current_user.role == UserRole.BD_TEAM_LEAD:
+                # Always include interviews created by direct team members,
+                # regardless of whether the team lead has a bd_entity_id linked.
+                team_user_ids_query = select(User.id).where(
+                    User.team_lead_user_id == current_user.id)
+                conds.append(Interview.created_by_user_id.in_(
+                    team_user_ids_query))
 
             if department_id:
                 query = query.where(Interview.department_id == department_id)
