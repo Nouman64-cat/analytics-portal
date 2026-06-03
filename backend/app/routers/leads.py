@@ -29,7 +29,7 @@ from app.team_member_scope import (
     candidate_id_for_team_member,
     team_member_can_access_thread,
 )
-from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access
+from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select
 from sqlmodel import func
 from sqlalchemy import false as sql_false
 from app.config import get_settings
@@ -372,10 +372,9 @@ def list_leads(
                 # who also links to that same entity (prevents cross-member leakage).
                 conds: list = [Interview.created_by_user_id == current_user.id]
                 if scope:  # bd_entity_id is linked
-                    other_bd_user_ids = select(User.id).where(
-                        User.bd_entity_id.in_(scope),
-                        User.id != current_user.id,
-                    )
+                    # Every OTHER BD-type user (keyed on role, not on the bd_entity_id
+                    # column, so siblings resolved via fallback are caught).
+                    other_bd_user_ids = other_bd_user_ids_select(current_user)
                     conds.append(
                         and_(
                             Interview.bd_id.in_(scope),

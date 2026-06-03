@@ -34,7 +34,7 @@ from app.team_member_scope import (
     team_member_can_read_interview,
     team_member_must_own_interview,
 )
-from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access
+from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -329,12 +329,11 @@ def list_interviews(
                 # bd_id to this BD's entity — that row should still be visible to the BD.
                 conds: list = [Interview.created_by_user_id == current_user.id]
                 if scope:  # bd_entity_id is linked
-                    # Subquery: other users who also link to the same BD entity(ies)
-                    other_bd_user_ids = select(User.id).where(
-                        User.bd_entity_id.in_(scope),
-                        User.id != current_user.id,
-                    )
-                    # Include bd_id matches only if NOT created by another linked BD user
+                    # Subquery: every OTHER BD-type user (keyed on role, not on the
+                    # bd_entity_id column, so siblings resolved via fallback are caught).
+                    other_bd_user_ids = other_bd_user_ids_select(current_user)
+                    # Include bd_id matches only if NOT created by another BD user
+                    # (i.e. only rows an admin attributed to this BD's entity).
                     conds.append(
                         and_(
                             Interview.bd_id.in_(scope),
@@ -441,12 +440,8 @@ def list_interviews(
             # Pre-fetch other BD user IDs sharing the same entity(ies) for regular BDs
             other_bd_user_ids_set = set()
             if current_user.role == UserRole.BD and owned_scope:
-                from sqlmodel import select as _select
                 other_ids = session.exec(
-                    _select(User.id).where(
-                        User.bd_entity_id.in_(owned_scope),
-                        User.id != current_user.id
-                    )
+                    other_bd_user_ids_select(current_user)
                 ).all()
                 other_bd_user_ids_set = set(other_ids)
 
@@ -795,10 +790,7 @@ def get_interview(
             if owned_scope and interview.bd_id and interview.bd_id in owned_scope:
                 if current_user.role == UserRole.BD:
                     other_ids = session.exec(
-                        select(User.id).where(
-                            User.bd_entity_id.in_(owned_scope),
-                            User.id != current_user.id
-                        )
+                        other_bd_user_ids_select(current_user)
                     ).all()
                     if interview.created_by_user_id not in set(other_ids):
                         is_own = True

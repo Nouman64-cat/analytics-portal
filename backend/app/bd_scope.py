@@ -63,6 +63,21 @@ def get_bd_entity_scope(user: User, session: Session) -> Optional[list[uuid.UUID
     return None  # other roles: no BD-based restriction
 
 
+def other_bd_user_ids_select(user: User):
+    """Select the IDs of every OTHER BD-type user (BD or BD_TEAM_LEAD), excluding `user`.
+
+    Used to exclude rows created by sibling BDs from the "attributed to my BD entity"
+    visibility path. Keying on role (not on the bd_entity_id column) is deliberate:
+    a BD's entity is often resolved via the email/name fallback in get_bd_entity_scope
+    when bd_entity_id is not physically set. An exclusion keyed on User.bd_entity_id
+    would then miss those siblings and leak their leads/interviews to each other.
+    """
+    return select(User.id).where(
+        User.role.in_([UserRole.BD, UserRole.BD_TEAM_LEAD]),
+        User.id != user.id,
+    )
+
+
 def assert_bd_lead_write_access(
     user: User,
     lead_primary_bd_id: Optional[uuid.UUID],
