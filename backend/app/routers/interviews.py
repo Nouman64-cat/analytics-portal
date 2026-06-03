@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user, assert_write_access
-from sqlmodel import Session, select, col, or_, func
+from sqlmodel import Session, select, col, or_, and_, func
 from sqlalchemy import false as sql_false, nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
@@ -320,49 +320,69 @@ def list_interviews(
     if current_user.role != UserRole.TEAM_MEMBER:
         if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
             scope = get_bd_entity_scope(current_user, session)
-            conds = [Interview.created_by_user_id == current_user.id]
 
-            if scope is None:
-                # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
-                bd = session.exec(
-                    select(BusinessDeveloper).where(func.lower(
-                        BusinessDeveloper.email) == current_user.email.lower())
-                ).first()
-                if not bd:
-                    bd = session.exec(
-                        select(BusinessDeveloper).where(
-                            or_(
-                                func.lower(
-                                    BusinessDeveloper.name) == current_user.full_name.lower(),
-                                func.lower(current_user.full_name).contains(
-                                    func.lower(BusinessDeveloper.name)),
-                                func.lower(BusinessDeveloper.name).contains(
-                                    func.lower(current_user.full_name))
-                            )
+            if current_user.role == UserRole.BD:
+                # Regular BD: only see interviews they personally created, OR interviews
+                # attributed to their BD entity that were NOT created by another BD user
+                # who also links to that same entity (prevents cross-member leakage).
+                # This handles the case where a superadmin creates an interview and sets
+                # bd_id to this BD's entity — that row should still be visible to the BD.
+                conds: list = [Interview.created_by_user_id == current_user.id]
+                if scope:  # bd_entity_id is linked
+                    # Subquery: other users who also link to the same BD entity(ies)
+                    other_bd_user_ids = select(User.id).where(
+                        User.bd_entity_id.in_(scope),
+                        User.id != current_user.id,
+                    )
+                    # Include bd_id matches only if NOT created by another linked BD user
+                    conds.append(
+                        and_(
+                            Interview.bd_id.in_(scope),
+                            Interview.created_by_user_id.not_in(other_bd_user_ids),
                         )
-                    ).first()
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
-            else:
-                # Scoped: only interviews attributed to this user's BD scope
-                conds.append(Interview.bd_id.in_(scope))
+                    )
 
-            if current_user.role == UserRole.BD_TEAM_LEAD:
-                # Always include interviews created by direct team members,
-                # regardless of whether the team lead has a bd_entity_id linked.
+            else:  # BD_TEAM_LEAD
+                conds = [Interview.created_by_user_id == current_user.id]
+
+                if scope is None:
+                    # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
+                    bd = session.exec(
+                        select(BusinessDeveloper).where(func.lower(
+                            BusinessDeveloper.email) == current_user.email.lower())
+                    ).first()
+                    if not bd:
+                        bd = session.exec(
+                            select(BusinessDeveloper).where(
+                                or_(
+                                    func.lower(
+                                        BusinessDeveloper.name) == current_user.full_name.lower(),
+                                    func.lower(current_user.full_name).contains(
+                                        func.lower(BusinessDeveloper.name)),
+                                    func.lower(BusinessDeveloper.name).contains(
+                                        func.lower(current_user.full_name))
+                                )
+                            )
+                        ).first()
+                    if bd:
+                        conds.append(Interview.bd_id == bd.id)
+                else:
+                    # BD_TEAM_LEAD scope = own entity + all team member entities
+                    conds.append(Interview.bd_id.in_(scope))
+
+                # Always include interviews created by direct team members.
                 team_user_ids_query = select(User.id).where(
                     User.team_lead_user_id == current_user.id)
                 conds.append(Interview.created_by_user_id.in_(
                     team_user_ids_query))
 
-            # ── Dept-wide visibility ─────────────────────────────────────────
-            # ONLY when an admin has explicitly set allowed_dept_ids on this user
-            # (user.allowed_dept_ids is not None). Do NOT fall back to department_id
-            # — that would let every BD with a dept see all teammates' interviews.
-            if current_user.allowed_dept_ids is not None:
-                explicit_depts = get_user_allowed_depts(current_user)
-                if explicit_depts:  # non-empty parsed list
-                    conds.append(Interview.department_id.in_(explicit_depts))
+                # ── Dept-wide visibility (BD_TEAM_LEAD + explicit allowed_dept_ids only) ─
+                # ONLY when an admin explicitly set allowed_dept_ids on this user.
+                # Do NOT fall back to department_id — that would expose other BDs' work.
+                if current_user.allowed_dept_ids is not None:
+                    explicit_depts = get_user_allowed_depts(current_user)
+                    if explicit_depts:
+                        conds.append(Interview.department_id.in_(explicit_depts))
 
             if department_id:
                 query = query.where(Interview.department_id == department_id)

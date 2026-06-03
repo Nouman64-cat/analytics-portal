@@ -8,7 +8,7 @@ from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import joinedload
-from sqlmodel import Session, or_, select
+from sqlmodel import Session, or_, and_, select
 
 from app.activity_log import record_activity
 from app.database import get_session
@@ -365,34 +365,52 @@ def list_leads(
     else:
         if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
             scope = get_bd_entity_scope(current_user, session)
-            conds = [Interview.created_by_user_id == current_user.id]
 
-            if scope is None:
-                # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
-                bd = session.exec(
-                    select(BusinessDeveloper).where(func.lower(
-                        BusinessDeveloper.email) == current_user.email.lower())
-                ).first()
-                if not bd:
-                    bd = session.exec(
-                        select(BusinessDeveloper).where(
-                            or_(
-                                func.lower(
-                                    BusinessDeveloper.name) == current_user.full_name.lower(),
-                                func.lower(current_user.full_name).contains(
-                                    func.lower(BusinessDeveloper.name)),
-                                func.lower(BusinessDeveloper.name).contains(
-                                    func.lower(current_user.full_name))
-                            )
+            if current_user.role == UserRole.BD:
+                # Regular BD: only see leads they personally created, OR leads
+                # attributed to their BD entity that were NOT created by another BD user
+                # who also links to that same entity (prevents cross-member leakage).
+                conds: list = [Interview.created_by_user_id == current_user.id]
+                if scope:  # bd_entity_id is linked
+                    other_bd_user_ids = select(User.id).where(
+                        User.bd_entity_id.in_(scope),
+                        User.id != current_user.id,
+                    )
+                    conds.append(
+                        and_(
+                            Interview.bd_id.in_(scope),
+                            Interview.created_by_user_id.not_in(other_bd_user_ids),
                         )
-                    ).first()
-                if bd:
-                    conds.append(Interview.bd_id == bd.id)
-            else:
-                # Scoped: only leads attributed to this user's BD scope
-                conds.append(Interview.bd_id.in_(scope))
+                    )
 
-            if current_user.role == UserRole.BD_TEAM_LEAD:
+            else:  # BD_TEAM_LEAD
+                conds = [Interview.created_by_user_id == current_user.id]
+
+                if scope is None:
+                    # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
+                    bd = session.exec(
+                        select(BusinessDeveloper).where(func.lower(
+                            BusinessDeveloper.email) == current_user.email.lower())
+                    ).first()
+                    if not bd:
+                        bd = session.exec(
+                            select(BusinessDeveloper).where(
+                                or_(
+                                    func.lower(
+                                        BusinessDeveloper.name) == current_user.full_name.lower(),
+                                    func.lower(current_user.full_name).contains(
+                                        func.lower(BusinessDeveloper.name)),
+                                    func.lower(BusinessDeveloper.name).contains(
+                                        func.lower(current_user.full_name))
+                                )
+                            )
+                        ).first()
+                    if bd:
+                        conds.append(Interview.bd_id == bd.id)
+                else:
+                    # Scoped: only leads attributed to this user's BD scope
+                    conds.append(Interview.bd_id.in_(scope))
+
                 # Always include leads created by direct team members,
                 # regardless of whether the team lead has a bd_entity_id linked.
                 team_user_ids_query = select(User.id).where(
