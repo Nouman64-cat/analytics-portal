@@ -163,8 +163,9 @@ export interface LeadCreate {
   is_converted_override?: boolean | null;
 }
 
-/** PATCH /api/v1/leads/{thread_id} — company cannot be changed. */
+/** PATCH /api/v1/leads/{thread_id} */
 export interface LeadUpdate {
+  company_id?: string;
   resume_profile_id?: string;
   role?: string;
   salary_range?: string | null;

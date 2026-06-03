@@ -28,8 +28,9 @@ class LeadCreate(BaseModel):
 
 
 class LeadUpdate(BaseModel):
-    """Patch lead thread + earliest interview row (opportunity defaults). Company is fixed."""
+    """Patch lead thread + earliest interview row (opportunity defaults)."""
 
+    company_id: Optional[uuid.UUID] = None
     resume_profile_id: Optional[uuid.UUID] = None
     role: Optional[str] = Field(None, min_length=1, max_length=500)
     salary_range: Optional[str] = Field(None, max_length=255)

@@ -548,13 +548,19 @@ export default function LeadsPage() {
     }
 
     if (!editingThreadId) return;
-    if (!form.resume_profile_id || !form.role.trim()) {
-      alert("Resume profile and role are required.");
+    // Auto-create company if user typed a new name without clicking Create in dropdown
+    let editCompanyId = form.company_id;
+    if (!editCompanyId && comboboxRef.current) {
+      editCompanyId = (await comboboxRef.current.createIfNeeded()) ?? "";
+    }
+    if (!editCompanyId || !form.resume_profile_id || !form.role.trim()) {
+      alert("Company, resume profile, and role are required.");
       return;
     }
     setSubmitting(true);
     try {
       await leadsService.update(editingThreadId, {
+        company_id: editCompanyId,
         resume_profile_id: form.resume_profile_id,
         role: form.role.trim(),
         salary_range: form.salary_range?.trim() || null,
@@ -1093,29 +1099,26 @@ export default function LeadsPage() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
           <FormField label="Company">
-            {modalMode === "create" ? (
-              <CompanyCombobox
-                ref={comboboxRef}
-                companies={companies}
-                value={form.company_id}
-                onChange={(id) => setForm((f) => ({ ...f, company_id: id }))}
-                onCompanyCreated={(c) =>
-                  setCompanies((prev) =>
-                    [...prev, c].sort((a, b) => a.name.localeCompare(b.name)),
-                  )
-                }
-              />
-            ) : (
-              <input
-                value={
-                  companies.find((c) => c.id === form.company_id)?.name ?? "—"
-                }
-                className={`${inputClass} opacity-80 cursor-not-allowed`}
-                readOnly
-                disabled
-                aria-readonly
-              />
-            )}
+            <CompanyCombobox
+              ref={comboboxRef}
+              companies={companies}
+              value={form.company_id}
+              onChange={(id) => setForm((f) => ({ ...f, company_id: id }))}
+              onCompanyCreated={(c) =>
+                setCompanies((prev) =>
+                  [...prev, c].sort((a, b) => a.name.localeCompare(b.name)),
+                )
+              }
+            />
+          </FormField>
+          <FormField label="Business developer (optional)">
+            <SearchableSelect
+              options={businessDevs.map((b) => ({ id: b.id, label: b.name }))}
+              value={form.bd_id || ""}
+              onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
+              placeholder="Select BD…"
+              optional
+            />
           </FormField>
           <FormField
             label={
@@ -1185,15 +1188,6 @@ export default function LeadsPage() {
               }
               className={inputClass}
               placeholder="e.g. $150k – $180k"
-            />
-          </FormField>
-          <FormField label="Business developer (optional)">
-            <SearchableSelect
-              options={businessDevs.map((b) => ({ id: b.id, label: b.name }))}
-              value={form.bd_id || ""}
-              onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
-              placeholder="Select BD…"
-              optional
             />
           </FormField>
           <FormField label="Entertains By (Candidate)">

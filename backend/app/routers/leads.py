@@ -634,6 +634,15 @@ def update_lead(
     lt.updated_at = datetime.utcnow()
     session.add(lt)
 
+    if "company_id" in patch:
+        cid = patch["company_id"]
+        if cid is not None:
+            if not session.get(Company, cid):
+                raise HTTPException(status_code=404, detail="Company not found")
+            for row in rows:
+                row.company_id = cid
+                row.updated_at = datetime.utcnow()
+                session.add(row)
     if "arrived_on" in patch:
         first.interview_date = patch["arrived_on"]
     if "resume_profile_id" in patch:
