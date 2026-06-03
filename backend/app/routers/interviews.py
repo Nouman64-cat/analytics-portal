@@ -356,13 +356,13 @@ def list_interviews(
                     team_user_ids_query))
 
             # ── Dept-wide visibility ─────────────────────────────────────────
-            # When a BD has explicit allowed_dept_ids, also surface all other
-            # interviews in those departments so they see the full daily schedule.
-            # These rows are flagged bd_dept_only=True (scrubbed sensitive fields,
-            # no edit/delete, no detail modal).
-            allowed_depts = get_user_allowed_depts(current_user)
-            if allowed_depts:  # non-None, non-empty list → explicit dept assignment
-                conds.append(Interview.department_id.in_(allowed_depts))
+            # ONLY when an admin has explicitly set allowed_dept_ids on this user
+            # (user.allowed_dept_ids is not None). Do NOT fall back to department_id
+            # — that would let every BD with a dept see all teammates' interviews.
+            if current_user.allowed_dept_ids is not None:
+                explicit_depts = get_user_allowed_depts(current_user)
+                if explicit_depts:  # non-empty parsed list
+                    conds.append(Interview.department_id.in_(explicit_depts))
 
             if department_id:
                 query = query.where(Interview.department_id == department_id)
@@ -410,24 +410,21 @@ def list_interviews(
     interviews = session.exec(query).all()
 
     # Build the BD's own interview ID set so we can mark dept-only rows.
+    # ONLY active when allowed_dept_ids is explicitly set by an admin.
     bd_owned_ids: Optional[set] = None
-    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD):
+    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD) and current_user.allowed_dept_ids is not None:
         owned_scope = get_bd_entity_scope(current_user, session)
-        allowed_depts = get_user_allowed_depts(current_user)
-        if allowed_depts:  # dept-wide view is active → determine which rows are "own"
+        explicit_depts = get_user_allowed_depts(current_user)
+        if explicit_depts:  # explicit non-empty dept list → dept-wide view active
             owned_ids: set[uuid.UUID] = set()
             for iv in interviews:
-                # Own = attributed to this BD's entity, or created by this user,
-                # or (for team leads) created by a direct team member.
+                # Own = attributed to this BD's entity, or created by this user.
                 is_own = iv.created_by_user_id == current_user.id
                 if owned_scope and iv.bd_id and iv.bd_id in owned_scope:
                     is_own = True
-                if current_user.role == UserRole.BD_TEAM_LEAD:
-                    # Team lead also owns their members' interviews (already queried above).
-                    pass  # evaluated per-row below via id membership
                 if is_own:
                     owned_ids.add(iv.id)
-            # Second pass: team lead team members' created interviews
+            # Second pass: team lead team members' created interviews are also "owned"
             if current_user.role == UserRole.BD_TEAM_LEAD:
                 from sqlmodel import select as _select
                 member_ids = session.exec(
@@ -746,11 +743,12 @@ def get_interview(
     if not team_member_can_read_interview(session, current_user, interview):
         raise HTTPException(status_code=404, detail="Interview not found")
 
-    # BD dept-only guard: BD/BD_TEAM_LEAD users who can see the interview via
-    # their dept association but don't own it must not access full details.
-    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD):
-        allowed_depts = get_user_allowed_depts(current_user)
-        if allowed_depts:  # dept-wide view is active for this user
+    # BD dept-only guard: only applies when allowed_dept_ids was explicitly set by
+    # an admin. A BD with just a department_id (no explicit allowed_dept_ids) should
+    # NOT be blocked from opening any interview they already appear to own.
+    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD) and current_user.allowed_dept_ids is not None:
+        explicit_depts = get_user_allowed_depts(current_user)
+        if explicit_depts:  # dept-wide view is active for this user
             owned_scope = get_bd_entity_scope(current_user, session)
             is_own = interview.created_by_user_id == current_user.id
             if owned_scope and interview.bd_id and interview.bd_id in owned_scope:
