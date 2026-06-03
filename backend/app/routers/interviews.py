@@ -375,14 +375,11 @@ def list_interviews(
                 conds.append(Interview.created_by_user_id.in_(
                     team_user_ids_query))
 
-            # ── Dept-wide visibility (BD + BD_TEAM_LEAD + explicit allowed_dept_ids only) ─
-            # ONLY when an admin explicitly set allowed_dept_ids on this user.
-            # Do NOT fall back to department_id — that would expose other BDs' work.
-            if current_user.allowed_dept_ids is not None:
-                explicit_depts = get_user_allowed_depts(current_user)
-                if explicit_depts:
-                    conds.append(Interview.department_id.in_(explicit_depts))
-
+            # NOTE: BD / BD_TEAM_LEAD visibility is strictly ownership/hierarchy based.
+            # We intentionally do NOT OR-in department-wide rows here: a regular BD must
+            # see only what they created (plus admin-attributed entity rows), and a team
+            # lead only their own + direct team members'. Pulling in the whole department
+            # leaked sibling BDs' leads/interviews to each other.
             if department_id:
                 query = query.where(Interview.department_id == department_id)
 
