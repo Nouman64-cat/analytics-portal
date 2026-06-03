@@ -108,7 +108,7 @@ export default function Sidebar({
       "/backup",
       "/departments",
     ],
-    bd: ["/activities", "/users", "/backup", "/departments", "/stats"],
+    bd: ["/activities", "/users", "/backup", "/departments", "/stats", "/business-developers"],
     "team-member": [
       "/candidates",
       "/business-developers",
