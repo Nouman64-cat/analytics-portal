@@ -17,22 +17,48 @@ def get_bd_entity_scope(user: User, session: Session) -> Optional[list[uuid.UUID
     None  → no BD-based restriction (other roles, or BD without bd_entity_id → backward compat).
     list  → only leads/interviews attributed to these BD entity IDs are accessible.
     """
+    from sqlalchemy import func, or_
+    from app.models.business_developer import BusinessDeveloper
+
+    def _fallback_bd_id() -> Optional[uuid.UUID]:
+        bd = session.exec(
+            select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == user.email.lower())
+        ).first()
+        if not bd:
+            bd = session.exec(
+                select(BusinessDeveloper).where(
+                    or_(
+                        func.lower(BusinessDeveloper.name) == user.full_name.lower(),
+                        func.lower(user.full_name).contains(func.lower(BusinessDeveloper.name)),
+                        func.lower(BusinessDeveloper.name).contains(func.lower(user.full_name))
+                    )
+                )
+            ).first()
+        return bd.id if bd else None
+
     if user.role == UserRole.BD:
         if not user.bd_entity_id:
-            return None  # not yet linked — backward compat, no restriction
+            fb = _fallback_bd_id()
+            return [fb] if fb else None
         return [user.bd_entity_id]
 
     if user.role == UserRole.BD_TEAM_LEAD:
-        if not user.bd_entity_id:
-            return None  # not yet linked — backward compat
+        base_id = user.bd_entity_id or _fallback_bd_id()
+        scope = [base_id] if base_id else []
+        
         members = session.exec(
             select(User).where(User.team_lead_user_id == user.id)
         ).all()
-        scope = [user.bd_entity_id]
         for m in members:
-            if m.bd_entity_id and m.bd_entity_id not in scope:
-                scope.append(m.bd_entity_id)
-        return scope
+            # For members, try their direct link or fallback
+            m_id = m.bd_entity_id
+            if not m_id:
+                mbd = session.exec(select(BusinessDeveloper).where(func.lower(BusinessDeveloper.email) == m.email.lower())).first()
+                if mbd: m_id = mbd.id
+            if m_id and m_id not in scope:
+                scope.append(m_id)
+                
+        return scope if scope else None
 
     return None  # other roles: no BD-based restriction
 

@@ -437,11 +437,32 @@ def list_interviews(
         explicit_depts = get_user_allowed_depts(current_user)
         if explicit_depts:  # explicit non-empty dept list → dept-wide view active
             owned_ids: set[uuid.UUID] = set()
+            
+            # Pre-fetch other BD user IDs sharing the same entity(ies) for regular BDs
+            other_bd_user_ids_set = set()
+            if current_user.role == UserRole.BD and owned_scope:
+                from sqlmodel import select as _select
+                other_ids = session.exec(
+                    _select(User.id).where(
+                        User.bd_entity_id.in_(owned_scope),
+                        User.id != current_user.id
+                    )
+                ).all()
+                other_bd_user_ids_set = set(other_ids)
+
             for iv in interviews:
-                # Own = attributed to this BD's entity, or created by this user.
+                # Own = created by this user.
                 is_own = iv.created_by_user_id == current_user.id
+                
+                # Or attributed to this BD's entity, BUT (for regular BDs) NOT created 
+                # by another BD user who shares the exact same entity.
                 if owned_scope and iv.bd_id and iv.bd_id in owned_scope:
-                    is_own = True
+                    if current_user.role == UserRole.BD:
+                        if iv.created_by_user_id not in other_bd_user_ids_set:
+                            is_own = True
+                    else:
+                        is_own = True
+                
                 if is_own:
                     owned_ids.add(iv.id)
             # Second pass: team lead team members' created interviews are also "owned"
@@ -772,13 +793,25 @@ def get_interview(
             owned_scope = get_bd_entity_scope(current_user, session)
             is_own = interview.created_by_user_id == current_user.id
             if owned_scope and interview.bd_id and interview.bd_id in owned_scope:
-                is_own = True
+                if current_user.role == UserRole.BD:
+                    other_ids = session.exec(
+                        select(User.id).where(
+                            User.bd_entity_id.in_(owned_scope),
+                            User.id != current_user.id
+                        )
+                    ).all()
+                    if interview.created_by_user_id not in set(other_ids):
+                        is_own = True
+                else:
+                    is_own = True
+            
             if current_user.role == UserRole.BD_TEAM_LEAD and not is_own:
                 member_ids = session.exec(
                     select(User.id).where(User.team_lead_user_id == current_user.id)
                 ).all()
                 if interview.created_by_user_id in set(member_ids):
                     is_own = True
+            
             if not is_own:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
