@@ -11,7 +11,7 @@ from sqlmodel import Session, select, col, or_, func
 from sqlalchemy import false as sql_false, nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
-from app.dept_scope import apply_dept_filter
+from app.dept_scope import apply_dept_filter, get_user_allowed_depts
 from app.activity_log import record_activity
 from app.models.interview import Interview
 from app.models.company import Company
@@ -101,7 +101,7 @@ def _reject_lead_only_interview_status(status: Optional[str]) -> None:
         )
 
 
-def _enrich_interview(interview: Interview) -> dict:
+def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
     """Add human-readable names from relationships."""
     data = {
         "id": interview.id,
@@ -134,15 +134,27 @@ def _enrich_interview(interview: Interview) -> dict:
         "candidate_name": interview.candidate.name if interview.candidate else None,
         "resume_profile_name": interview.resume_profile.name if interview.resume_profile else None,
         "bd_name": interview.business_developer.name if interview.business_developer else None,
+        "bd_dept_only": bd_dept_only,
     }
     return data
 
 
 def _enrich_interview_for_reader(
-    session: Session, interview: Interview, current_user: User
+    session: Session, interview: Interview, current_user: User, bd_dept_only: bool = False
 ) -> dict:
-    """Full fields for the interview's candidate owner; pipeline-only summary for other team members."""
-    data = _enrich_interview(interview)
+    """Full fields for the interview's candidate owner; pipeline-only summary for other team members.
+    When bd_dept_only=True the row is visible but sensitive fields are scrubbed.
+    """
+    data = _enrich_interview(interview, bd_dept_only=bd_dept_only)
+    if bd_dept_only:
+        # BD can see the row exists but not sensitive details
+        data["feedback"] = None
+        data["recruiter_feedback"] = None
+        data["interview_doc_url"] = None
+        data["resume_url"] = None
+        data["interview_link"] = None
+        data["salary_range"] = None
+        return data
     if current_user.role != UserRole.TEAM_MEMBER:
         return data
     cid = candidate_id_for_team_member(session, current_user)
@@ -206,12 +218,12 @@ def _merge_lead_fields(
 
 
 def _finalize_interview_response(
-    session: Session, interview: Interview, current_user: User
+    session: Session, interview: Interview, current_user: User, bd_dept_only: bool = False
 ) -> dict:
     tids = {interview.thread_id} if interview.thread_id else set()
     pipe_map = _pipeline_step_total_map(session, tids)
     lead_map = load_lead_map(session, tids)
-    data = _enrich_interview_for_reader(session, interview, current_user)
+    data = _enrich_interview_for_reader(session, interview, current_user, bd_dept_only=bd_dept_only)
     data = _attach_pipeline_meta(data, interview.id, pipe_map)
     return _merge_lead_fields(session, data, interview.thread_id, lead_map)
 
@@ -343,6 +355,15 @@ def list_interviews(
                 conds.append(Interview.created_by_user_id.in_(
                     team_user_ids_query))
 
+            # ── Dept-wide visibility ─────────────────────────────────────────
+            # When a BD has explicit allowed_dept_ids, also surface all other
+            # interviews in those departments so they see the full daily schedule.
+            # These rows are flagged bd_dept_only=True (scrubbed sensitive fields,
+            # no edit/delete, no detail modal).
+            allowed_depts = get_user_allowed_depts(current_user)
+            if allowed_depts:  # non-None, non-empty list → explicit dept assignment
+                conds.append(Interview.department_id.in_(allowed_depts))
+
             if department_id:
                 query = query.where(Interview.department_id == department_id)
 
@@ -388,12 +409,43 @@ def list_interviews(
     )
     interviews = session.exec(query).all()
 
+    # Build the BD's own interview ID set so we can mark dept-only rows.
+    bd_owned_ids: Optional[set] = None
+    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD):
+        owned_scope = get_bd_entity_scope(current_user, session)
+        allowed_depts = get_user_allowed_depts(current_user)
+        if allowed_depts:  # dept-wide view is active → determine which rows are "own"
+            owned_ids: set[uuid.UUID] = set()
+            for iv in interviews:
+                # Own = attributed to this BD's entity, or created by this user,
+                # or (for team leads) created by a direct team member.
+                is_own = iv.created_by_user_id == current_user.id
+                if owned_scope and iv.bd_id and iv.bd_id in owned_scope:
+                    is_own = True
+                if current_user.role == UserRole.BD_TEAM_LEAD:
+                    # Team lead also owns their members' interviews (already queried above).
+                    pass  # evaluated per-row below via id membership
+                if is_own:
+                    owned_ids.add(iv.id)
+            # Second pass: team lead team members' created interviews
+            if current_user.role == UserRole.BD_TEAM_LEAD:
+                from sqlmodel import select as _select
+                member_ids = session.exec(
+                    _select(User.id).where(User.team_lead_user_id == current_user.id)
+                ).all()
+                member_id_set = set(member_ids)
+                for iv in interviews:
+                    if iv.created_by_user_id in member_id_set:
+                        owned_ids.add(iv.id)
+            bd_owned_ids = owned_ids
+
     thread_ids = {i.thread_id for i in interviews if i.thread_id}
     pipe_map = _pipeline_step_total_map(session, thread_ids)
     lead_map = load_lead_map(session, thread_ids)
     out = []
     for i in interviews:
-        data = _enrich_interview_for_reader(session, i, current_user)
+        is_dept_only = bd_owned_ids is not None and i.id not in bd_owned_ids
+        data = _enrich_interview_for_reader(session, i, current_user, bd_dept_only=is_dept_only)
         data = _attach_pipeline_meta(data, i.id, pipe_map)
         out.append(_merge_lead_fields(session, data, i.thread_id, lead_map))
     return out
@@ -693,6 +745,28 @@ def get_interview(
         raise HTTPException(status_code=404, detail="Interview not found")
     if not team_member_can_read_interview(session, current_user, interview):
         raise HTTPException(status_code=404, detail="Interview not found")
+
+    # BD dept-only guard: BD/BD_TEAM_LEAD users who can see the interview via
+    # their dept association but don't own it must not access full details.
+    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD):
+        allowed_depts = get_user_allowed_depts(current_user)
+        if allowed_depts:  # dept-wide view is active for this user
+            owned_scope = get_bd_entity_scope(current_user, session)
+            is_own = interview.created_by_user_id == current_user.id
+            if owned_scope and interview.bd_id and interview.bd_id in owned_scope:
+                is_own = True
+            if current_user.role == UserRole.BD_TEAM_LEAD and not is_own:
+                member_ids = session.exec(
+                    select(User.id).where(User.team_lead_user_id == current_user.id)
+                ).all()
+                if interview.created_by_user_id in set(member_ids):
+                    is_own = True
+            if not is_own:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only view full details of interviews attributed to your BD.",
+                )
+
     return _finalize_interview_response(session, interview, current_user)
 
 

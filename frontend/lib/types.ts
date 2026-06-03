@@ -128,6 +128,12 @@ export interface Interview {
   lead_source?: string | null;
   lead_notes?: string | null;
   lead_closed_at?: string | null;
+  /**
+   * True when a BD user can see this interview via their department association
+   * but it is NOT attributed to their own BD entity. Full detail/edit/delete is
+   * restricted — only the summary row is visible.
+   */
+  bd_dept_only?: boolean;
 }
 
 /** GET/PATCH /interviews/thread/:id/lead */

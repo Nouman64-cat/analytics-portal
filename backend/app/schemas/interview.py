@@ -96,3 +96,6 @@ class InterviewReadWithDetails(InterviewRead):
     lead_source: Optional[str] = None
     lead_notes: Optional[str] = None
     lead_closed_at: Optional[datetime] = None
+    # True when a BD user can see this interview (via dept association) but it isn't their own BD's lead.
+    # Full detail access (edit, delete, open modal) is restricted for these rows.
+    bd_dept_only: bool = False

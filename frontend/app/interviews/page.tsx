@@ -1837,6 +1837,7 @@ export default function InterviewsPage() {
                       minsLeft !== null && minsLeft >= 0 && minsLeft <= 15;
                     const isWarning =
                       minsLeft !== null && minsLeft > 15 && minsLeft <= 60;
+                    const isDeptOnly = interview.bd_dept_only === true;
                     const rowSep = isImminent
                       ? "border-b border-red-300 dark:border-red-500/30"
                       : isWarning
@@ -1850,11 +1851,14 @@ export default function InterviewsPage() {
                       ? "iv-row-imminent border-l-4 border-l-red-500"
                       : isWarning
                         ? "iv-row-warning border-l-4 border-l-amber-500"
-                        : isUpcoming
-                          ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
-                          : isClosed
-                            ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
-                            : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
+                        : isDeptOnly
+                          ? "bg-violet-50/40 dark:bg-violet-500/[0.06] hover:bg-violet-100/50 dark:hover:bg-violet-500/[0.10] border-l-4 border-l-violet-400/70 dark:border-l-violet-500/50 opacity-80"
+                          : isUpcoming
+                            ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
+                            : isClosed
+                              ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
+                              : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
+
                     return (
                       <tr
                         key={interview.id}
@@ -2085,45 +2089,61 @@ export default function InterviewsPage() {
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => setDetailModal(interview)}
-                              className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                              title="View details"
-                            >
-                              <Eye size={14} />
-                            </button>
-                            {!cannotCRUD && (
+                            {isDeptOnly ? (
+                              /* BD dept-only: show a locked badge instead of action buttons */
+                              <span
+                                title="You can see this interview exists in your department, but full details are restricted to its owning BD."
+                                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-200/60 dark:border-violet-500/25 cursor-default select-none"
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+                                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                Dept view
+                              </span>
+                            ) : (
                               <>
-                                {!isRejectedInterview(interview) &&
-                                  canAddPipelineRound && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        openCreateNextRound(interview)
-                                      }
-                                      className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
-                                      title="Add next round (same pipeline)"
-                                    >
-                                      <ArrowRight size={14} aria-hidden />
-                                      <span className="sr-only">
-                                        Add next round
-                                      </span>
-                                    </button>
-                                  )}
                                 <button
-                                  onClick={() => openEditModal(interview)}
+                                  onClick={() => setDetailModal(interview)}
                                   className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                                  title="Edit"
+                                  title="View details"
                                 >
-                                  <Pencil size={14} />
+                                  <Eye size={14} />
                                 </button>
-                                <button
-                                  onClick={() => setDeleteModal(interview)}
-                                  className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                {!cannotCRUD && (
+                                  <>
+                                    {!isRejectedInterview(interview) &&
+                                      canAddPipelineRound && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            openCreateNextRound(interview)
+                                          }
+                                          className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                                          title="Add next round (same pipeline)"
+                                        >
+                                          <ArrowRight size={14} aria-hidden />
+                                          <span className="sr-only">
+                                            Add next round
+                                          </span>
+                                        </button>
+                                      )}
+                                    <button
+                                      onClick={() => openEditModal(interview)}
+                                      className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
+                                      title="Edit"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteModal(interview)}
+                                      className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
                           </div>
