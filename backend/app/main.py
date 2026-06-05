@@ -19,7 +19,7 @@ from app.reminder_worker import run_reminder_worker
 from migrate import migrate
 
 # Import all models so SQLModel registers them
-from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay, UnresponsiveFollowUpLog, NotificationRead, JobRole  # noqa: F401
+from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay, UnresponsiveFollowUpLog, NotificationRead, JobRole, BroadcastModal  # noqa: F401
 
 from app.routers import (
     candidates,
@@ -40,6 +40,7 @@ from app.routers import (
 from app.routers import departments
 from app.routers import debug
 from app.routers import job_roles
+from app.routers import broadcast_modals
 
 settings = get_settings()
 
@@ -158,6 +159,7 @@ app.include_router(chat.router)
 app.include_router(notifications.router)
 app.include_router(debug.router)
 app.include_router(job_roles.router)
+app.include_router(broadcast_modals.router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])

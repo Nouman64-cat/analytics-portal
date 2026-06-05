@@ -32,6 +32,9 @@ import type {
   DatabaseBackupListResponse,
   BusyDay,
   BusyDayCreate,
+  BroadcastModal,
+  BroadcastModalCreate,
+  BroadcastModalUpdate,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -547,4 +550,29 @@ export const notificationsService = {
     apiFetch<void>(`/notifications/unresponsive-leads/${threadId}/read`, { method: "POST" }),
   markAllRead: () =>
     apiFetch<void>("/notifications/unresponsive-leads/mark-all-read", { method: "POST" }),
+};
+
+// ─── Broadcast Modals ─────────────────────────────────────────
+
+export const broadcastModalService = {
+  getActive: () =>
+    apiFetch<BroadcastModal | null>("/broadcast-modals/active"),
+  list: () =>
+    apiFetch<BroadcastModal[]>("/broadcast-modals"),
+  create: (data: BroadcastModalCreate) =>
+    apiFetch<BroadcastModal>("/broadcast-modals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: BroadcastModalUpdate) =>
+    apiFetch<BroadcastModal>(`/broadcast-modals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  publish: (id: string) =>
+    apiFetch<BroadcastModal>(`/broadcast-modals/${id}/publish`, { method: "POST" }),
+  unpublish: (id: string) =>
+    apiFetch<BroadcastModal>(`/broadcast-modals/${id}/unpublish`, { method: "POST" }),
+  delete: (id: string) =>
+    apiFetch<void>(`/broadcast-modals/${id}`, { method: "DELETE" }),
 };

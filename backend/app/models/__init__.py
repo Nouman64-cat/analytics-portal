@@ -13,6 +13,7 @@ from app.models.busy_day import BusyDay
 from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
 from app.models.notification_read import NotificationRead
 from app.models.job_role import JobRole
+from app.models.broadcast_modal import BroadcastModal
 
 __all__ = [
     "Department",
@@ -29,4 +30,5 @@ __all__ = [
     "UnresponsiveFollowUpLog",
     "NotificationRead",
     "JobRole",
+    "BroadcastModal",
 ]

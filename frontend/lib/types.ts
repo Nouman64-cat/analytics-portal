@@ -1,3 +1,44 @@
+// ─── Broadcast Modals ────────────────────────────────────────
+
+export type BroadcastTheme = "indigo" | "emerald" | "rose" | "amber" | "sky" | "violet";
+export type BroadcastTitleSize = "sm" | "md" | "lg" | "xl";
+
+export interface BroadcastModal {
+  id: string;
+  title: string;
+  body: string;
+  is_published: boolean;
+  theme: BroadcastTheme;
+  title_size: BroadcastTitleSize;
+  image_url: string | null;
+  badge_label: string;
+  close_button_label: string;
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+}
+
+export interface BroadcastModalCreate {
+  title: string;
+  body: string;
+  theme: BroadcastTheme;
+  title_size: BroadcastTitleSize;
+  image_url: string | null;
+  badge_label: string;
+  close_button_label: string;
+}
+
+export interface BroadcastModalUpdate {
+  title?: string;
+  body?: string;
+  theme?: BroadcastTheme;
+  title_size?: BroadcastTitleSize;
+  image_url?: string | null;
+  badge_label?: string;
+  close_button_label?: string;
+}
+
 // ─── Notifications ───────────────────────────────────────────
 
 export interface UnresponsiveLeadNotification {

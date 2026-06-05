@@ -17,6 +17,7 @@ export const NAV_ITEMS = [
   { label: "Departments", href: "/departments", icon: "Layers" },
   { label: "User Management", href: "/users", icon: "UserCog" },
   { label: "Database backup", href: "/backup", icon: "Database" },
+  { label: "Announcements", href: "/announcements", icon: "Megaphone" },
   { label: "Profile", href: "/profile", icon: "User" },
   { label: "Settings", href: "/settings", icon: "Settings2" },
 ] as const;

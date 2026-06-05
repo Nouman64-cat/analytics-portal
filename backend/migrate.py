@@ -311,6 +311,37 @@ def migrate():
              "Migration successful! 'is_active' column added to 'users' table."),
             ("CREATE INDEX IF NOT EXISTS ix_users_is_active ON users (is_active);",
              "Migration successful! Index on users.is_active ensured."),
+
+            # ── Broadcast modals (superadmin announcements) ────────────────────────────
+            ("""
+            CREATE TABLE IF NOT EXISTS broadcast_modals (
+                id UUID PRIMARY KEY,
+                title VARCHAR(300) NOT NULL,
+                body TEXT NOT NULL DEFAULT '',
+                is_published BOOLEAN NOT NULL DEFAULT FALSE,
+                created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                published_at TIMESTAMP
+            );
+            """,
+             "Migration successful! 'broadcast_modals' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_broadcast_modals_is_published ON broadcast_modals (is_published);",
+             "Migration successful! Index on broadcast_modals.is_published ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_broadcast_modals_created_at ON broadcast_modals (created_at);",
+             "Migration successful! Index on broadcast_modals.created_at ensured."),
+
+            # ── Broadcast modal customisation columns ─────────────────────────────────
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS theme VARCHAR(50) NOT NULL DEFAULT 'indigo';",
+             "Migration successful! 'theme' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS title_size VARCHAR(10) NOT NULL DEFAULT 'md';",
+             "Migration successful! 'title_size' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS image_url VARCHAR(1000);",
+             "Migration successful! 'image_url' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS badge_label VARCHAR(100) NOT NULL DEFAULT 'Announcement';",
+             "Migration successful! 'badge_label' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS close_button_label VARCHAR(100) NOT NULL DEFAULT 'Got it';",
+             "Migration successful! 'close_button_label' column added to 'broadcast_modals' table."),
         ]
         for sql, msg in migrations:
             try:

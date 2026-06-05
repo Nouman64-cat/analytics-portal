@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
 import ChatWidget from "@/components/ChatWidget";
+import BroadcastModalViewer from "@/components/BroadcastModalViewer";
 import {
   isAuthenticated,
   mustChangePassword,
@@ -121,6 +122,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <InterviewAlertMonitor />
       <ChatWidget />
+      <BroadcastModalViewer />
     </DepartmentProvider>
   );
 }

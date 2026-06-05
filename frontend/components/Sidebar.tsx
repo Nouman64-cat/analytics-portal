@@ -21,6 +21,7 @@ import {
   Layers,
   BarChart2,
   ChevronDown,
+  Megaphone,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole } from "@/lib/auth";
@@ -55,6 +56,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Settings2,
   Layers,
   BarChart2,
+  Megaphone,
 };
 
 export default function Sidebar({
@@ -108,8 +110,9 @@ export default function Sidebar({
       "/users",
       "/backup",
       "/departments",
+      "/announcements",
     ],
-    bd: ["/activities", "/users", "/backup", "/departments", "/stats", "/business-developers"],
+    bd: ["/activities", "/users", "/backup", "/departments", "/stats", "/business-developers", "/announcements"],
     "team-member": [
       "/candidates",
       "/business-developers",
@@ -117,15 +120,17 @@ export default function Sidebar({
       "/backup",
       "/departments",
       "/stats",
+      "/announcements",
     ],
     "dept-lead": [
       "/business-developers",
       "/activities",
       "/backup",
       "/departments",
+      "/announcements",
     ],
-    "bd-team-lead": ["/activities", "/backup", "/departments"],
-    "bd-manager": ["/activities", "/users", "/backup"],
+    "bd-team-lead": ["/activities", "/backup", "/departments", "/announcements"],
+    "bd-manager": ["/activities", "/users", "/backup", "/announcements"],
   };
   const hiddenHrefs = useMemo(() => {
     if (!role) return [];
