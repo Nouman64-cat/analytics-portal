@@ -16,7 +16,7 @@ def is_cross_dept(user: User) -> bool:
     return user.role in CROSS_DEPT_ROLES
 
 
-def get_user_allowed_depts(user: User) -> Optional[list[uuid.UUID]]:
+def get_user_allowed_depts(user: User, session=None) -> Optional[list[uuid.UUID]]:
     """
     Resolve which departments this user may access.
 
@@ -24,13 +24,19 @@ def get_user_allowed_depts(user: User) -> Optional[list[uuid.UUID]]:
     Returns list  → restrict to those UUIDs (empty list = no access at all).
 
     Priority:
-    1. user.allowed_dept_ids JSON column (explicit assignment for BD / BD_TEAM_LEAD).
-    2. Cross-dept role (superadmin / manager) → None (all).
-    3. BD with no allowed_dept_ids:
+    1. BD linked to superadmin (requires session) → None (all).
+    2. user.allowed_dept_ids JSON column (explicit assignment for BD / BD_TEAM_LEAD).
+    3. Cross-dept role (superadmin / manager) → None (all).
+    4. BD with no allowed_dept_ids:
        - has department_id → restricted to that dept
        - no department_id  → cross-dept (backwards-compat default)
-    4. Other scoped roles → [department_id] or [] if unassigned.
+    5. Other scoped roles → [department_id] or [] if unassigned.
     """
+    if user.role == UserRole.BD and session is not None:
+        from app.bd_scope import is_superadmin_linked_bd
+        if is_superadmin_linked_bd(user, session):
+            return None
+
     if user.allowed_dept_ids is not None:
         try:
             ids: list = json.loads(user.allowed_dept_ids)
@@ -54,15 +60,16 @@ def get_user_allowed_depts(user: User) -> Optional[list[uuid.UUID]]:
     return []  # no dept assigned → no access
 
 
-def apply_dept_filter(query, model, user: User, dept_id: Optional[uuid.UUID] = None):
+def apply_dept_filter(query, model, user: User, dept_id: Optional[uuid.UUID] = None, session=None):
     """
     Apply department scoping to a SQLModel select() query.
 
     Respects user.allowed_dept_ids first, then falls back to role defaults.
     Cross-dept roles (superadmin / manager / bd) without an explicit allowed_dept_ids
     see all rows. BD / BD_TEAM_LEAD with an explicit list are restricted to those depts.
+    Pass session to enable superadmin-linked BD cross-dept access.
     """
-    allowed = get_user_allowed_depts(user)
+    allowed = get_user_allowed_depts(user, session)
 
     if allowed is None:
         # All departments

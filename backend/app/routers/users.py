@@ -241,8 +241,8 @@ def create_user(
 
     if user_in.team_lead_user_id is not None:
         lead_user = session.get(User, user_in.team_lead_user_id)
-        if not lead_user or lead_user.role != UserRole.BD_TEAM_LEAD:
-            raise HTTPException(status_code=400, detail="team_lead_user_id must reference a user with the bd-team-lead role")
+        if not lead_user or lead_user.role not in (UserRole.BD_TEAM_LEAD, UserRole.SUPERADMIN):
+            raise HTTPException(status_code=400, detail="team_lead_user_id must reference a BD Team Lead or Superadmin user")
 
     # When a BD Team Lead creates a BD user without specifying a team lead, auto-assign themselves.
     if (
@@ -336,8 +336,8 @@ def update_user(
             raise HTTPException(status_code=404, detail="Business developer entity not found")
     if "team_lead_user_id" in update_data and update_data["team_lead_user_id"] is not None:
         lead_user = session.get(User, update_data["team_lead_user_id"])
-        if not lead_user or lead_user.role != UserRole.BD_TEAM_LEAD:
-            raise HTTPException(status_code=400, detail="team_lead_user_id must reference a user with the bd-team-lead role")
+        if not lead_user or lead_user.role not in (UserRole.BD_TEAM_LEAD, UserRole.SUPERADMIN):
+            raise HTTPException(status_code=400, detail="team_lead_user_id must reference a BD Team Lead or Superadmin user")
 
     if "allowed_dept_ids" in update_data:
         v = update_data.pop("allowed_dept_ids")

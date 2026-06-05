@@ -34,7 +34,7 @@ from app.team_member_scope import (
     team_member_can_read_interview,
     team_member_must_own_interview,
 )
-from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select
+from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select, is_superadmin_linked_bd
 from app.schemas.interview import (
     InterviewCreate,
     InterviewRead,
@@ -318,7 +318,10 @@ def list_interviews(
     query = apply_team_member_interview_list_filter(
         session, current_user, query)
     if current_user.role != UserRole.TEAM_MEMBER:
-        if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+        if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
+            # Superadmin-linked BD: full cross-dept read access, no entity scope restriction
+            query = apply_dept_filter(query, Interview, current_user, department_id, session)
+        elif current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
             scope = get_bd_entity_scope(current_user, session)
 
             if current_user.role == UserRole.BD:
@@ -779,7 +782,12 @@ def get_interview(
     # BD dept-only guard: only applies when allowed_dept_ids was explicitly set by
     # an admin. A BD with just a department_id (no explicit allowed_dept_ids) should
     # NOT be blocked from opening any interview they already appear to own.
-    if current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD) and current_user.allowed_dept_ids is not None:
+    # Superadmin-linked BDs bypass this guard — they have full cross-dept read access.
+    if (
+        current_user.role in (UserRole.BD, UserRole.BD_TEAM_LEAD)
+        and current_user.allowed_dept_ids is not None
+        and not (current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session))
+    ):
         explicit_depts = get_user_allowed_depts(current_user)
         if explicit_depts:  # dept-wide view is active for this user
             owned_scope = get_bd_entity_scope(current_user, session)

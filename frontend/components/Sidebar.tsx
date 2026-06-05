@@ -84,6 +84,7 @@ export default function Sidebar({
   const departments = useMemo((): Department[] => {
     if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return [];
     if (CROSS_DEPT_ROLES.has(role)) return allDepartments;
+    if (role === "bd" && userProfile?.linked_to_superadmin) return allDepartments;
     const allowed = userProfile?.allowed_dept_ids;
     if (allowed === undefined) return [];
     if (allowed === null) return role === "bd" || role === "bd-manager" ? allDepartments : [];
@@ -126,9 +127,14 @@ export default function Sidebar({
     "bd-team-lead": ["/activities", "/backup", "/departments"],
     "bd-manager": ["/activities", "/users", "/backup"],
   };
-  const hiddenHrefs = role ? HIDDEN_BY_ROLE[role] || [] : [];
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) => !hiddenHrefs.includes(item.href),
+  const hiddenHrefs = useMemo(() => {
+    if (!role) return [];
+    if (role === "bd" && userProfile?.linked_to_superadmin) return ["/backup", "/users"];
+    return HIDDEN_BY_ROLE[role] || [];
+  }, [role, userProfile]);
+  const visibleNavItems = useMemo(
+    () => NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href)),
+    [hiddenHrefs],
   );
 
   return (

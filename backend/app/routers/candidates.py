@@ -36,7 +36,7 @@ def list_candidates(
         .join(Department, Candidate.department_id == Department.id, isouter=True)
         .order_by(Candidate.name)
     )
-    query = apply_dept_filter(query, Candidate, current_user, department_id)
+    query = apply_dept_filter(query, Candidate, current_user, department_id, session)
     if is_active is not None:
         query = query.where(Candidate.is_active == is_active)
     rows = session.exec(query).all()

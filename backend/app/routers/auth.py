@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.deps import get_current_user
 from app.schemas.user import UserRead, UserMeRead, UserSettingsUpdate
 from app.team_member_scope import candidate_id_for_team_member
+from app.bd_scope import is_superadmin_linked_bd
 from app.email_ses import try_send_password_reset_email
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
@@ -211,4 +212,5 @@ def get_me(
     cid = None
     if current_user.role == UserRole.TEAM_MEMBER:
         cid = candidate_id_for_team_member(session, current_user)
-    return UserMeRead(**base.model_dump(), candidate_id=cid)
+    sa_linked = is_superadmin_linked_bd(current_user, session)
+    return UserMeRead(**base.model_dump(), candidate_id=cid, linked_to_superadmin=sa_linked)

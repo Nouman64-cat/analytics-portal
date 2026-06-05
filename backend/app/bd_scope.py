@@ -78,6 +78,16 @@ def other_bd_user_ids_select(user: User):
     )
 
 
+def is_superadmin_linked_bd(user: User, session: Session) -> bool:
+    """Return True if user is a BD whose team lead is a SUPERADMIN."""
+    if user.role != UserRole.BD:
+        return False
+    if not user.team_lead_user_id:
+        return False
+    lead = session.get(User, user.team_lead_user_id)
+    return lead is not None and lead.role == UserRole.SUPERADMIN
+
+
 def assert_bd_lead_write_access(
     user: User,
     lead_primary_bd_id: Optional[uuid.UUID],

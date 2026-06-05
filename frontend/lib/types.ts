@@ -406,6 +406,8 @@ export interface User {
   updated_at: string;
   /** Present for team-member role when a Candidate row matches this user's email. */
   candidate_id?: string | null;
+  /** True when this BD user's team_lead is a superadmin — grants cross-dept read access. */
+  linked_to_superadmin?: boolean;
 }
 
 export interface UserFormData {

@@ -547,12 +547,12 @@ export default function UsersPage() {
                 className={inputClass}
               >
                 <option value="">— No team lead —</option>
-                {users.filter((u) => u.role === "bd-team-lead").map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name}</option>
+                {users.filter((u) => u.role === "bd-team-lead" || u.role === "superadmin").map((u) => (
+                  <option key={u.id} value={u.id}>{u.full_name} ({u.role === "superadmin" ? "Superadmin" : "BD Team Lead"})</option>
                 ))}
               </select>
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                Assigns this BD to a team. The team lead will be able to manage this BD&apos;s leads.
+                Assigns this BD to a team lead. Linking to a Superadmin grants the BD cross-department read access.
               </p>
             </FormField>
           )}

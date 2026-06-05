@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { leadsService, candidatesService } from "@/lib/services";
+import { leadsService, candidatesService, authService } from "@/lib/services";
 import type { LeadListItem, Candidate } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
@@ -235,8 +235,18 @@ export default function StatsPage() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [linkedToSuperadmin, setLinkedToSuperadmin] = useState<boolean | null>(role === "bd" ? null : false);
 
-  const isAllowed = role === "superadmin" || role === "manager" || role === "dept-lead" || role === "bd-manager";
+  useEffect(() => {
+    if (role === "bd") {
+      authService.getMe()
+        .then((u) => setLinkedToSuperadmin(u.linked_to_superadmin === true))
+        .catch(() => setLinkedToSuperadmin(false));
+    }
+  }, [role]);
+
+  // null means still checking profile for BD users — treat as pending (show loader)
+  const isAllowed = role === "superadmin" || role === "manager" || role === "dept-lead" || role === "bd-manager" || (role === "bd" && linkedToSuperadmin === true);
 
   const fetchData = useCallback(async () => {
     try {
@@ -290,6 +300,10 @@ export default function StatsPage() {
   const deptStats = useMemo(() => computeStats(filteredLeads), [filteredLeads]);
   const openDept = (key: string, label: string) =>
     openModal(`Department — ${label}`, filterLeads(filteredLeads, key));
+
+  if (role === "bd" && linkedToSuperadmin === null) {
+    return <PageLoader />;
+  }
 
   if (!isAllowed) {
     return (

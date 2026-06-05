@@ -28,9 +28,9 @@ def _bd_dept_ids(bd: BusinessDeveloper) -> list[str]:
         return []
 
 
-def _allowed_dept_strs(user: User) -> list[str] | None:
+def _allowed_dept_strs(user: User, session=None) -> list[str] | None:
     """Return lead's allowed dept IDs as strings, or None for unrestricted."""
-    allowed = get_user_allowed_depts(user)
+    allowed = get_user_allowed_depts(user, session)
     if allowed is None:
         return None
     return [str(d) for d in allowed]
@@ -45,7 +45,7 @@ def list_business_developers(
     all_bds = session.exec(select(BusinessDeveloper).order_by(BusinessDeveloper.name)).all()
 
     if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
-        allowed = _allowed_dept_strs(current_user)
+        allowed = _allowed_dept_strs(current_user, session)
         if allowed is not None:
             def visible(bd: BusinessDeveloper) -> bool:
                 bd_depts = _bd_dept_ids(bd)

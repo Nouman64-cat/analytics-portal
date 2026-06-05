@@ -66,3 +66,4 @@ class UserMeRead(UserRead):
     """GET /auth/me — includes linked candidate id for team-member accounts (email match)."""
 
     candidate_id: Optional[UUID] = None
+    linked_to_superadmin: bool = False

@@ -3,6 +3,7 @@ from sqlmodel import Session, select, func
 
 from app.database import get_session
 from app.deps import get_current_user
+from app.bd_scope import is_superadmin_linked_bd
 from app.models.activity_log import ActivityLog
 from app.models.user import User, UserRole
 from app.schemas.activity import ActivityLogPage
@@ -23,10 +24,11 @@ def list_activities(
 ):
     """Read-only paginated activity feed (latest first)."""
     if current_user.role in {UserRole.MANAGER, UserRole.BD, UserRole.BD_TEAM_LEAD, UserRole.BD_MANAGER}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to activities",
-        )
+        if not (current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to activities",
+            )
 
     total = session.exec(select(func.count(ActivityLog.id))).one()
     items = session.exec(

@@ -29,7 +29,7 @@ from app.team_member_scope import (
     candidate_id_for_team_member,
     team_member_can_access_thread,
 )
-from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select
+from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select, is_superadmin_linked_bd
 from sqlmodel import func
 from sqlalchemy import false as sql_false
 from app.config import get_settings
@@ -363,7 +363,10 @@ def list_leads(
             )
         )
     else:
-        if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+        if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
+            # Superadmin-linked BD: full cross-dept read access, no entity scope restriction
+            base_query = apply_dept_filter(base_query, Interview, current_user, department_id, session)
+        elif current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
             scope = get_bd_entity_scope(current_user, session)
 
             if current_user.role == UserRole.BD:
