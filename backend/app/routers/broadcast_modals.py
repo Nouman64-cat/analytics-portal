@@ -28,7 +28,14 @@ class BroadcastModalRead(BaseModel):
     is_published: bool
     theme: str
     title_size: str
+    modal_size: str
+    icon: str
+    text_align: str
+    show_glow: bool
+    animation: str
     image_url: Optional[str]
+    image_fit: str
+    effect: str
     badge_label: str
     close_button_label: str
     created_by_id: Optional[uuid.UUID]
@@ -45,7 +52,14 @@ class BroadcastModalCreate(BaseModel):
     body: str = ""
     theme: str = "indigo"
     title_size: str = "md"
+    modal_size: str = "md"
+    icon: str = "Megaphone"
+    text_align: str = "left"
+    show_glow: bool = False
+    animation: str = "zoom"
     image_url: Optional[str] = None
+    image_fit: str = "contain"
+    effect: str = "none"
     badge_label: str = "Announcement"
     close_button_label: str = "Got it"
 
@@ -55,7 +69,14 @@ class BroadcastModalUpdate(BaseModel):
     body: Optional[str] = None
     theme: Optional[str] = None
     title_size: Optional[str] = None
+    modal_size: Optional[str] = None
+    icon: Optional[str] = None
+    text_align: Optional[str] = None
+    show_glow: Optional[bool] = None
+    animation: Optional[str] = None
     image_url: Optional[str] = None
+    image_fit: Optional[str] = None
+    effect: Optional[str] = None
     badge_label: Optional[str] = None
     close_button_label: Optional[str] = None
 
@@ -68,7 +89,14 @@ def _to_read(m: BroadcastModal) -> BroadcastModalRead:
         is_published=m.is_published,
         theme=m.theme,
         title_size=m.title_size,
+        modal_size=m.modal_size,
+        icon=m.icon,
+        text_align=m.text_align,
+        show_glow=m.show_glow,
+        animation=m.animation,
         image_url=m.image_url,
+        image_fit=m.image_fit,
+        effect=m.effect,
         badge_label=m.badge_label,
         close_button_label=m.close_button_label,
         created_by_id=m.created_by_id,
@@ -118,7 +146,14 @@ def create_modal(
         body=payload.body,
         theme=payload.theme,
         title_size=payload.title_size,
+        modal_size=payload.modal_size,
+        icon=payload.icon,
+        text_align=payload.text_align,
+        show_glow=payload.show_glow,
+        animation=payload.animation,
         image_url=payload.image_url,
+        image_fit=payload.image_fit,
+        effect=payload.effect,
         badge_label=payload.badge_label,
         close_button_label=payload.close_button_label,
         created_by_id=current_user.id,
@@ -148,8 +183,22 @@ def update_modal(
         modal.theme = payload.theme
     if payload.title_size is not None:
         modal.title_size = payload.title_size
+    if payload.modal_size is not None:
+        modal.modal_size = payload.modal_size
+    if payload.icon is not None:
+        modal.icon = payload.icon
+    if payload.text_align is not None:
+        modal.text_align = payload.text_align
+    if payload.show_glow is not None:
+        modal.show_glow = payload.show_glow
+    if payload.animation is not None:
+        modal.animation = payload.animation
     if payload.image_url is not None:
         modal.image_url = payload.image_url
+    if payload.image_fit is not None:
+        modal.image_fit = payload.image_fit
+    if payload.effect is not None:
+        modal.effect = payload.effect
     if payload.badge_label is not None:
         modal.badge_label = payload.badge_label
     if payload.close_button_label is not None:

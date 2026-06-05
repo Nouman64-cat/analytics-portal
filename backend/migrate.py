@@ -343,11 +343,29 @@ def migrate():
             ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS close_button_label VARCHAR(100) NOT NULL DEFAULT 'Got it';",
              "Migration successful! 'close_button_label' column added to 'broadcast_modals' table."),
 
+            # ── Broadcast modal extra design fields ───────────────────────────────────
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS modal_size VARCHAR(10) NOT NULL DEFAULT 'md';",
+             "Migration successful! 'modal_size' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS icon VARCHAR(50) NOT NULL DEFAULT 'Megaphone';",
+             "Migration successful! 'icon' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS text_align VARCHAR(10) NOT NULL DEFAULT 'left';",
+             "Migration successful! 'text_align' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS show_glow BOOLEAN NOT NULL DEFAULT FALSE;",
+             "Migration successful! 'show_glow' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS animation VARCHAR(20) NOT NULL DEFAULT 'zoom';",
+             "Migration successful! 'animation' column added to 'broadcast_modals' table."),
+
             # ── Broadcast access permission for non-superadmin users ───────────────────
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS can_broadcast BOOLEAN NOT NULL DEFAULT FALSE;",
              "Migration successful! 'can_broadcast' column added to 'users' table."),
             ("CREATE INDEX IF NOT EXISTS ix_users_can_broadcast ON users (can_broadcast);",
              "Migration successful! Index on users.can_broadcast ensured."),
+
+            # ── Broadcast modal image fit + celebration effect ─────────────────────────
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS image_fit VARCHAR(10) NOT NULL DEFAULT 'contain';",
+             "Migration successful! 'image_fit' column added to 'broadcast_modals' table."),
+            ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS effect VARCHAR(20) NOT NULL DEFAULT 'none';",
+             "Migration successful! 'effect' column added to 'broadcast_modals' table."),
         ]
         for sql, msg in migrations:
             try:

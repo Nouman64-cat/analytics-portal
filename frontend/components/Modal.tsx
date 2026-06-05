@@ -47,7 +47,7 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
 
       {/* Panel */}
       <div
-        className={`relative flex max-h-[min(92dvh,calc(100vh-1.5rem))] w-full flex-col ${SIZE_MAP[size]} overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl shadow-black/50 animate-in zoom-in-95 duration-200`}
+        className={`relative flex max-h-[min(92dvh,calc(100vh-1.5rem))] w-full flex-col ${SIZE_MAP[size]} overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl shadow-black/50 entrance-zoom`}
       >
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-200 dark:border-white/[0.06] px-4 py-3 sm:px-6 sm:py-4">

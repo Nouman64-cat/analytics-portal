@@ -2,6 +2,11 @@
 
 export type BroadcastTheme = "indigo" | "emerald" | "rose" | "amber" | "sky" | "violet";
 export type BroadcastTitleSize = "sm" | "md" | "lg" | "xl";
+export type BroadcastModalSize = "sm" | "md" | "lg";
+export type BroadcastTextAlign = "left" | "center";
+export type BroadcastAnimation = "zoom" | "slide" | "fade";
+export type BroadcastImageFit = "contain" | "cover";
+export type BroadcastEffect = "none" | "confetti" | "fireworks" | "snow" | "stars";
 
 export interface BroadcastModal {
   id: string;
@@ -10,7 +15,14 @@ export interface BroadcastModal {
   is_published: boolean;
   theme: BroadcastTheme;
   title_size: BroadcastTitleSize;
+  modal_size: BroadcastModalSize;
+  icon: string;
+  text_align: BroadcastTextAlign;
+  show_glow: boolean;
+  animation: BroadcastAnimation;
   image_url: string | null;
+  image_fit: BroadcastImageFit;
+  effect: BroadcastEffect;
   badge_label: string;
   close_button_label: string;
   created_by_id: string | null;
@@ -24,7 +36,14 @@ export interface BroadcastModalCreate {
   body: string;
   theme: BroadcastTheme;
   title_size: BroadcastTitleSize;
+  modal_size: BroadcastModalSize;
+  icon: string;
+  text_align: BroadcastTextAlign;
+  show_glow: boolean;
+  animation: BroadcastAnimation;
   image_url: string | null;
+  image_fit: BroadcastImageFit;
+  effect: BroadcastEffect;
   badge_label: string;
   close_button_label: string;
 }
@@ -34,7 +53,14 @@ export interface BroadcastModalUpdate {
   body?: string;
   theme?: BroadcastTheme;
   title_size?: BroadcastTitleSize;
+  modal_size?: BroadcastModalSize;
+  icon?: string;
+  text_align?: BroadcastTextAlign;
+  show_glow?: boolean;
+  animation?: BroadcastAnimation;
   image_url?: string | null;
+  image_fit?: BroadcastImageFit;
+  effect?: BroadcastEffect;
   badge_label?: string;
   close_button_label?: string;
 }
