@@ -477,6 +477,8 @@ export const usersService = {
     }),
   delete: (id: string) =>
     apiFetch<void>(`/users/${id}`, { method: "DELETE" }),
+  toggleActive: (id: string) =>
+    apiFetch<User>(`/users/${id}/toggle-active`, { method: "PATCH" }),
 };
 
 // ─── Database backup (Superadmin only) ───────────────────────

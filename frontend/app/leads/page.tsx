@@ -708,7 +708,6 @@ export default function LeadsPage() {
           const lSel =
             "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";
           const extraCount = [
-            profileFilter !== "all",
             sortFilter !== "last_activity_desc",
             !!dateFrom,
             !!dateTo,
@@ -769,6 +768,21 @@ export default function LeadsPage() {
                     </option>
                   ))}
                 </select>
+                <select
+                  value={profileFilter}
+                  onChange={(e) => {
+                    setProfileFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className={lSel}
+                >
+                  <option value="all">All profiles</option>
+                  {profileOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   onClick={() => setShowExtraFilters((v) => !v)}
@@ -804,21 +818,6 @@ export default function LeadsPage() {
               {/* Expandable extra filters */}
               {showExtraFilters && (
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.05] animate-fade-in overflow-x-auto pb-0.5">
-                  <select
-                    value={profileFilter}
-                    onChange={(e) => {
-                      setProfileFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    className={lSel}
-                  >
-                    <option value="all">All profiles</option>
-                    {profileOptions.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
                   <select
                     value={sortFilter}
                     onChange={(e) => {

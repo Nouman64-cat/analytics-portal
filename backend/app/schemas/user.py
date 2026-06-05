@@ -27,6 +27,7 @@ class UserUpdate(BaseModel):
     allowed_dept_ids: Optional[list[str]] = None
     bd_entity_id: Optional[UUID] = None
     team_lead_user_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
 
 
 class UserRead(UserBase):
@@ -35,6 +36,7 @@ class UserRead(UserBase):
     allowed_dept_ids: Optional[list[str]] = None
     bd_entity_id: Optional[UUID] = None
     team_lead_user_id: Optional[UUID] = None
+    is_active: bool = True
     must_change_password: bool
     alarm_enabled: bool
     accent_color: Optional[str] = None

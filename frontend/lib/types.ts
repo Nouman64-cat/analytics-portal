@@ -399,6 +399,7 @@ export interface User {
   bd_entity_id: string | null;
   /** For bd users: the user ID of their managing bd-team-lead. */
   team_lead_user_id: string | null;
+  is_active: boolean;
   must_change_password: boolean;
   alarm_enabled: boolean;
   accent_color: string | null;

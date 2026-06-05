@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, Pencil, Trash2, Shield } from "lucide-react";
+import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power } from "lucide-react";
 import { usersService, departmentsService, candidatesService, authService, businessDevelopersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department, BusinessDeveloper } from "@/lib/types";
@@ -211,6 +211,19 @@ export default function UsersPage() {
     }
   };
 
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const handleToggleActive = async (user: User) => {
+    setTogglingId(user.id);
+    try {
+      await usersService.toggleActive(user.id);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update user status");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   if (!hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -339,17 +352,36 @@ export default function UsersPage() {
                       {formatDate(user.created_at)}
                     </td>
                     <td className="px-5 py-4">
-                      {user.must_change_password ? (
+                      {user.is_active === false ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/10 text-red-400 text-[10px] font-medium border border-red-500/20 whitespace-nowrap">
+                          <Power size={10} />
+                          Inactive
+                        </span>
+                      ) : user.must_change_password ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-medium border border-amber-500/20 whitespace-nowrap">
                           <Shield size={10} />
                           Pending
                         </span>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-500 text-[13px]">Active</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-medium border border-emerald-500/20 whitespace-nowrap">
+                          Active
+                        </span>
                       )}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleToggleActive(user)}
+                          disabled={togglingId === user.id}
+                          className={`rounded-lg p-1.5 transition-colors ${
+                            user.is_active === false
+                              ? "text-emerald-500 hover:bg-emerald-500/10"
+                              : "text-slate-400 hover:bg-amber-500/10 hover:text-amber-500"
+                          }`}
+                          title={user.is_active === false ? "Activate user" : "Deactivate user"}
+                        >
+                          {togglingId === user.id ? <Loader2 size={13} className="animate-spin" /> : <Power size={13} />}
+                        </button>
                         <button
                           onClick={() => openEdit(user)}
                           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"

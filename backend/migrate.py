@@ -305,6 +305,12 @@ def migrate():
              "Migration successful! 'team_lead_user_id' column added to 'users' table."),
             ("CREATE INDEX IF NOT EXISTS ix_users_team_lead_user_id ON users (team_lead_user_id);",
              "Migration successful! Index on users.team_lead_user_id ensured."),
+
+            # ── User active/inactive status ───────────────────────────────────────────
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;",
+             "Migration successful! 'is_active' column added to 'users' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_users_is_active ON users (is_active);",
+             "Migration successful! Index on users.is_active ensured."),
         ]
         for sql, msg in migrations:
             try:

@@ -73,6 +73,7 @@ class User(SQLModel, table=True):
         default=UserRole.TEAM_MEMBER,
         sa_column=Column(UserRoleColumn(), nullable=False),
     )
+    is_active: bool = Field(default=True)
     must_change_password: bool = Field(default=True)
     alarm_enabled: bool = Field(default=False)
     accent_color: Optional[str] = Field(default=None, max_length=20)

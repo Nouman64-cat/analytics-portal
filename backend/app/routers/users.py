@@ -395,3 +395,43 @@ def delete_user(
     session.delete(user)
     session.commit()
     return None
+
+
+@router.patch("/{user_id}/toggle-active", response_model=UserRead)
+def toggle_user_active(
+    user_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    _require_user_manage(current_user)
+
+    import uuid
+    uid = uuid.UUID(user_id)
+
+    if uid == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot deactivate your own account",
+        )
+
+    user = session.get(User, uid)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if current_user.role == UserRole.BD_TEAM_LEAD:
+        if user.role not in (UserRole.BD, UserRole.TEAM_MEMBER):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only manage BD or team member accounts")
+        is_multi, btl_allowed = _btl_scope(current_user)
+        if not (user.created_by == current_user.id or _bd_in_btl_scope(current_user, user, is_multi, btl_allowed)):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This user is not in your scope")
+    elif current_user.role == UserRole.DEPT_LEAD:
+        if user.department_id != current_user.department_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in your department")
+
+    from datetime import datetime
+    user.is_active = not user.is_active
+    user.updated_at = datetime.utcnow()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user

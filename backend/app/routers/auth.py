@@ -90,6 +90,11 @@ def login(body: LoginRequest, session: Session = Depends(get_session)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been deactivated. Please contact an administrator.",
+        )
     return TokenResponse(
         access_token=_create_token(user),
         must_change_password=user.must_change_password,
