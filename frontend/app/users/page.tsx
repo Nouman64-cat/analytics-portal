@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power } from "lucide-react";
+import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone } from "lucide-react";
 import { usersService, departmentsService, candidatesService, authService, businessDevelopersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department, BusinessDeveloper } from "@/lib/types";
@@ -159,6 +159,7 @@ export default function UsersPage() {
       allowed_dept_ids: user.allowed_dept_ids ?? null,
       bd_entity_id: user.bd_entity_id ?? null,
       team_lead_user_id: user.team_lead_user_id ?? null,
+      can_broadcast: user.can_broadcast ?? false,
     });
     setModalOpen(true);
   };
@@ -322,9 +323,17 @@ export default function UsersPage() {
                       {user.email}
                     </td>
                     <td className="px-5 py-4">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${roleBadgeClass(user.role)}`}>
-                        {user.role}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${roleBadgeClass(user.role)}`}>
+                          {user.role}
+                        </span>
+                        {user.can_broadcast && user.role !== "superadmin" && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                            <Megaphone size={9} />
+                            Broadcast
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       {(() => {
@@ -587,6 +596,30 @@ export default function UsersPage() {
                 Assigns this BD to a team lead. Linking to a Superadmin grants the BD cross-department read access.
               </p>
             </FormField>
+          )}
+
+          {/* Broadcast access toggle — superadmin only, edit only */}
+          {isSuperadmin && editingId && (
+            <button
+              type="button"
+              onClick={() => setFormData((f) => ({ ...f, can_broadcast: !f.can_broadcast }))}
+              className="flex w-full items-center justify-between rounded-xl border border-slate-200 dark:border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.03]"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${formData.can_broadcast ? "bg-indigo-500/10 text-indigo-500" : "bg-slate-100 dark:bg-white/[0.05] text-slate-400"}`}>
+                  <Megaphone size={15} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Broadcast access</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Allow this user to create and publish announcements
+                  </p>
+                </div>
+              </div>
+              <div className={`relative ml-4 h-6 w-11 shrink-0 rounded-full transition-colors ${formData.can_broadcast ? "bg-indigo-500" : "bg-slate-200 dark:bg-white/10"}`}>
+                <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${formData.can_broadcast ? "translate-x-5" : "translate-x-0"}`} />
+              </div>
+            </button>
           )}
 
           {editingId ? (

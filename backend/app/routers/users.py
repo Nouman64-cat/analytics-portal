@@ -329,6 +329,10 @@ def update_user(
 
     update_data = user_in.model_dump(exclude_unset=True)
 
+    # Only superadmin may grant/revoke broadcast access
+    if "can_broadcast" in update_data and current_user.role != UserRole.SUPERADMIN:
+        update_data.pop("can_broadcast")
+
     # Validate bd_entity_id / team_lead_user_id if being updated
     if "bd_entity_id" in update_data and update_data["bd_entity_id"] is not None:
         from app.models.business_developer import BusinessDeveloper

@@ -65,6 +65,7 @@ def _create_token(user: User) -> str:
         "email": user.email,
         "role": user.role,
         "department_id": str(user.department_id) if user.department_id else None,
+        "can_broadcast": bool(user.can_broadcast),
         "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")

@@ -342,6 +342,12 @@ def migrate():
              "Migration successful! 'badge_label' column added to 'broadcast_modals' table."),
             ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS close_button_label VARCHAR(100) NOT NULL DEFAULT 'Got it';",
              "Migration successful! 'close_button_label' column added to 'broadcast_modals' table."),
+
+            # ── Broadcast access permission for non-superadmin users ───────────────────
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS can_broadcast BOOLEAN NOT NULL DEFAULT FALSE;",
+             "Migration successful! 'can_broadcast' column added to 'users' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_users_can_broadcast ON users (can_broadcast);",
+             "Migration successful! Index on users.can_broadcast ensured."),
         ]
         for sql, msg in migrations:
             try:

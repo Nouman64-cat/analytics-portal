@@ -441,6 +441,7 @@ export interface User {
   /** For bd users: the user ID of their managing bd-team-lead. */
   team_lead_user_id: string | null;
   is_active: boolean;
+  can_broadcast: boolean;
   must_change_password: boolean;
   alarm_enabled: boolean;
   accent_color: string | null;
@@ -463,6 +464,7 @@ export interface UserFormData {
   bd_entity_id?: string | null;
   /** BD Team Lead user who manages this BD user. */
   team_lead_user_id?: string | null;
+  can_broadcast?: boolean;
 }
 
 // ─── Form Payloads ──────────────────────────────────────────

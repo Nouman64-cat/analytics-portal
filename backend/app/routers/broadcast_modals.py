@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.deps import get_current_user, require_superadmin
+from app.deps import get_current_user, require_broadcast_access
 from app.models.broadcast_modal import BroadcastModal
 from app.models.user import User, UserRole
 
@@ -97,7 +97,7 @@ def get_active_modal(
 @router.get("", response_model=list[BroadcastModalRead])
 def list_modals(
     session: Session = Depends(get_session),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_broadcast_access),
 ) -> list[BroadcastModalRead]:
     """List all broadcast modals (superadmin only)."""
     modals = session.exec(
@@ -110,7 +110,7 @@ def list_modals(
 def create_modal(
     payload: BroadcastModalCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_broadcast_access),
 ) -> BroadcastModalRead:
     """Create a new broadcast modal (superadmin only)."""
     modal = BroadcastModal(
@@ -134,7 +134,7 @@ def update_modal(
     modal_id: uuid.UUID,
     payload: BroadcastModalUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_broadcast_access),
 ) -> BroadcastModalRead:
     """Update title/body of a modal (superadmin only)."""
     modal = session.get(BroadcastModal, modal_id)
@@ -165,7 +165,7 @@ def update_modal(
 def publish_modal(
     modal_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_broadcast_access),
 ) -> BroadcastModalRead:
     """Publish a modal, unpublishing any currently active one (superadmin only)."""
     modal = session.get(BroadcastModal, modal_id)
@@ -197,7 +197,7 @@ def publish_modal(
 def unpublish_modal(
     modal_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_broadcast_access),
 ) -> BroadcastModalRead:
     """Unpublish/deactivate a modal (superadmin only)."""
     modal = session.get(BroadcastModal, modal_id)
@@ -215,7 +215,7 @@ def unpublish_modal(
 def delete_modal(
     modal_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(require_superadmin),
+    current_user: User = Depends(require_broadcast_access),
 ) -> None:
     """Delete a broadcast modal (superadmin only)."""
     modal = session.get(BroadcastModal, modal_id)

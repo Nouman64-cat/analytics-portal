@@ -24,7 +24,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
-import { clearToken, getUserRole } from "@/lib/auth";
+import { clearToken, getUserRole, getCanBroadcast } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
@@ -73,6 +73,7 @@ export default function Sidebar({
   };
 
   const role = getUserRole();
+  const canBroadcast = getCanBroadcast();
   const { departmentId, setDepartmentId } = useDepartmentContext();
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [userProfile, setUserProfile] = useState<UserType | null>(null);
@@ -134,9 +135,19 @@ export default function Sidebar({
   };
   const hiddenHrefs = useMemo(() => {
     if (!role) return [];
-    if (role === "bd" && userProfile?.linked_to_superadmin) return ["/backup", "/users"];
-    return HIDDEN_BY_ROLE[role] || [];
-  }, [role, userProfile]);
+    let hidden: string[];
+    if (role === "bd" && userProfile?.linked_to_superadmin) {
+      hidden = ["/backup", "/users"];
+    } else {
+      hidden = [...(HIDDEN_BY_ROLE[role] || [])];
+    }
+    // Users granted broadcast access can always see /announcements
+    if (canBroadcast) {
+      const idx = hidden.indexOf("/announcements");
+      if (idx !== -1) hidden.splice(idx, 1);
+    }
+    return hidden;
+  }, [role, userProfile, canBroadcast]);
   const visibleNavItems = useMemo(
     () => NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href)),
     [hiddenHrefs],

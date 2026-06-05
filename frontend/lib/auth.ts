@@ -62,6 +62,17 @@ export function isReadOnlyRole(): boolean {
   return getUserRole() === "bd-manager";
 }
 
+export function getCanBroadcast(): boolean {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.can_broadcast === true;
+  } catch {
+    return false;
+  }
+}
+
 export function getUserDeptId(): string | null {
   const token = getToken();
   if (!token) return null;

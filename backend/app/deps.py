@@ -45,6 +45,18 @@ def require_superadmin(
     return current_user
 
 
+def require_broadcast_access(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Allow superadmins and users explicitly granted broadcast permission."""
+    if current_user.role == UserRole.SUPERADMIN or current_user.can_broadcast:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Broadcast access required",
+    )
+
+
 def assert_write_access(user: User) -> None:
     """Raise 403 for roles that have read-only access (e.g. BD Manager)."""
     if user.role == UserRole.BD_MANAGER:
