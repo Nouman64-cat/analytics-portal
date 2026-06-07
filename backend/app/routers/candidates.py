@@ -5,9 +5,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
+from sqlalchemy import or_, cast, String
+from sqlalchemy import false as sql_false
 from app.database import get_session
 from app.activity_log import record_activity
-from app.dept_scope import apply_dept_filter, get_user_allowed_depts
+from app.dept_scope import get_user_allowed_depts
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.interview import Interview
@@ -71,13 +73,59 @@ def list_candidates(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List candidates. Team members see their own department only; cross-dept roles see all (or filtered by ?department_id=)."""
+    """List candidates. Team members see their own department only; cross-dept roles see all (or filtered by ?department_id=).
+    
+    Multi-department aware: when a department_id filter is applied, candidates whose
+    department_ids JSON list contains that department are also included (not just the
+    primary department_id FK column).
+    """
+
+    # Base query — no department_id filter yet (we handle it ourselves below)
     query = (
         select(Candidate, Department)
         .join(Department, Candidate.department_id == Department.id, isouter=True)
         .order_by(Candidate.name)
     )
-    query = apply_dept_filter(query, Candidate, current_user, department_id, session)
+
+    allowed = get_user_allowed_depts(current_user, session)
+
+    if allowed is None:
+        # Cross-dept user: apply explicit dept_id filter if provided (multi-dept aware)
+        if department_id:
+            dept_str = str(department_id)
+            query = query.where(
+                or_(
+                    Candidate.department_id == department_id,
+                    cast(Candidate.department_ids, String).contains(dept_str),
+                )
+            )
+        # else: no filter — see all
+    elif not allowed:
+        # No access at all
+        query = query.where(sql_false())
+    else:
+        # Scoped user: restricted to their allowed depts (multi-dept aware)
+        if department_id:
+            if department_id in allowed:
+                dept_str = str(department_id)
+                query = query.where(
+                    or_(
+                        Candidate.department_id == department_id,
+                        cast(Candidate.department_ids, String).contains(dept_str),
+                    )
+                )
+            else:
+                query = query.where(sql_false())
+        else:
+            # Show all candidates that belong to ANY of the user's allowed depts
+            # Multi-dept aware: OR across all allowed dept IDs
+            dept_filters = [Candidate.department_id == d for d in allowed]
+            dept_json_filters = [
+                cast(Candidate.department_ids, String).contains(str(d))
+                for d in allowed
+            ]
+            query = query.where(or_(*dept_filters, *dept_json_filters))
+
     if is_active is not None:
         query = query.where(Candidate.is_active == is_active)
     rows = session.exec(query).all()
