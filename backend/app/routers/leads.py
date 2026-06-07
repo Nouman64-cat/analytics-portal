@@ -364,8 +364,25 @@ def list_leads(
         )
     else:
         if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
-            # Superadmin-linked BD: full cross-dept read access, no entity scope restriction
-            base_query = apply_dept_filter(base_query, Interview, current_user, department_id, session)
+            # Superadmin-linked BD: full cross-dept read access, no entity scope restriction.
+            # Multi-dept aware: match Interview.department_id OR candidate's dept_ids JSON.
+            if department_id:
+                from sqlalchemy import cast as sa_cast, String as sa_String
+                dept_str = str(department_id)
+                base_query = base_query.where(
+                    or_(
+                        Interview.department_id == department_id,
+                        and_(
+                            Interview.candidate_id.isnot(None),
+                            Interview.candidate_id.in_(
+                                select(Candidate.id).where(
+                                    sa_cast(Candidate.department_ids, sa_String).contains(dept_str)
+                                )
+                            ),
+                        ),
+                    )
+                )
+            # else: no dept filter — see all
         elif current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
             scope = get_bd_entity_scope(current_user, session)
 
@@ -435,6 +452,67 @@ def list_leads(
         else:
             base_query = apply_dept_filter(
                 base_query, Interview, current_user, department_id)
+            # Also include interviews whose candidate is in the requested dept
+            # (multi-dept candidate support).
+            if department_id:
+                from sqlalchemy import cast as sa_cast, String as sa_String
+                dept_str = str(department_id)
+                # apply_dept_filter already applied a WHERE; we need to broaden it
+                # by re-applying an OR with the JSON check.
+                # Since SQLAlchemy doesn't let us easily modify an existing WHERE,
+                # we rebuild the filter for this path:
+                from app.dept_scope import get_user_allowed_depts
+                from sqlalchemy import false as _sql_false
+                allowed2 = get_user_allowed_depts(current_user)
+                if allowed2 is None:
+                    # Cross-dept user — OR with candidate dept_ids check
+                    base_query = (
+                        select(Interview)
+                        .options(
+                            joinedload(Interview.company),
+                            joinedload(Interview.candidate),
+                            joinedload(Interview.resume_profile),
+                            joinedload(Interview.business_developer),
+                        )
+                        .order_by(Interview.interview_date.desc())
+                        .where(
+                            or_(
+                                Interview.department_id == department_id,
+                                and_(
+                                    Interview.candidate_id.isnot(None),
+                                    Interview.candidate_id.in_(
+                                        select(Candidate.id).where(
+                                            sa_cast(Candidate.department_ids, sa_String).contains(dept_str)
+                                        )
+                                    ),
+                                ),
+                            )
+                        )
+                    )
+                elif allowed2 and department_id in allowed2:
+                    base_query = (
+                        select(Interview)
+                        .options(
+                            joinedload(Interview.company),
+                            joinedload(Interview.candidate),
+                            joinedload(Interview.resume_profile),
+                            joinedload(Interview.business_developer),
+                        )
+                        .order_by(Interview.interview_date.desc())
+                        .where(
+                            or_(
+                                Interview.department_id == department_id,
+                                and_(
+                                    Interview.candidate_id.isnot(None),
+                                    Interview.candidate_id.in_(
+                                        select(Candidate.id).where(
+                                            sa_cast(Candidate.department_ids, sa_String).contains(dept_str)
+                                        )
+                                    ),
+                                ),
+                            )
+                        )
+                    )
         query = apply_team_member_interview_list_filter(
             session, current_user, base_query)
 
@@ -525,9 +603,13 @@ def create_lead(
     lt.updated_at = datetime.utcnow()
     session.add(lt)
 
-    # Derive department from the candidate record, falling back to the creator's dept
+    # Derive department: prefer the active department from the request context
+    # (so multi-dept candidates get stamped to the dept the user was browsing),
+    # then fall back to candidate's primary department_id, then the creator's dept.
     dept_id = current_user.department_id
-    if data.candidate_id:
+    if data.active_department_id:
+        dept_id = data.active_department_id
+    elif data.candidate_id:
         cand = session.get(Candidate, data.candidate_id)
         if cand and cand.department_id:
             dept_id = cand.department_id

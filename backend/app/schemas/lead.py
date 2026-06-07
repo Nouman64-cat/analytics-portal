@@ -24,6 +24,12 @@ class LeadCreate(BaseModel):
     notes: Optional[str] = Field(default=None, description="Team member notes (stored on the lead thread)")
     bd_notes: Optional[str] = Field(default=None, description="BD/superadmin notes (stored on the lead thread)")
     arrived_on: Optional[date] = Field(default=None, description="When the lead was received (sets interview_date on initial round)")
+    active_department_id: Optional[uuid.UUID] = Field(
+        default=None,
+        description="The department context that was active when the lead was created. "
+                    "When provided, this takes priority over the candidate's primary department_id "
+                    "so that multi-dept candidates are stamped to the correct department.",
+    )
 
 
 

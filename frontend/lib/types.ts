@@ -238,6 +238,8 @@ export interface LeadCreate {
   bd_notes?: string | null;
   arrived_on?: string | null;
   is_converted_override?: boolean | null;
+  /** Active department context when creating — ensures multi-dept candidates are stamped to the right dept. */
+  active_department_id?: string | null;
 }
 
 /** PATCH /api/v1/leads/{thread_id} */

@@ -125,6 +125,7 @@ function QuickCreateLead({
   const [role, setRole] = useState("");
   const [candidateId, setCandidateId] = useState("");
   const [saving, setSaving] = useState(false);
+  const { departmentId } = useDepartmentContext();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,6 +144,7 @@ function QuickCreateLead({
         resume_profile_id: profileId,
         role: role.trim(),
         candidate_id: effectiveCandidateId,
+        active_department_id: departmentId || null,
       });
       onLeadCreated(lead);
       setExpanded(false);

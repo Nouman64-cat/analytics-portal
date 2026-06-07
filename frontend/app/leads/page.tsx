@@ -535,6 +535,8 @@ export default function LeadsPage() {
           notes: form.notes?.trim() || null,
           bd_notes: form.bd_notes?.trim() || null,
           arrived_on: form.arrived_on || null,
+          // Pass the active dept context so multi-dept candidates get stamped correctly
+          active_department_id: departmentId || null,
         };
         await leadsService.create(payload);
         resetLeadFormModal();
