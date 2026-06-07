@@ -185,7 +185,7 @@ export default function UsersPage() {
           await candidatesService.create({
             name: formData.full_name,
             email: formData.email,
-            department_id: formData.department_id,
+            department_ids: formData.department_id ? [formData.department_id] : null,
           });
         }
       }

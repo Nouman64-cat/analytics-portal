@@ -1,4 +1,5 @@
 import uuid
+import json
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,6 +24,46 @@ from app.status_utils import computed_status_for_interview_display
 router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"], dependencies=[Depends(get_current_user)])
 
 
+# ─── Helpers ─────────────────────────────────────────────────
+
+def _serialize_dept_ids(dept_ids: Optional[list[uuid.UUID]]) -> Optional[str]:
+    """Serialize a list of department UUIDs to a JSON string."""
+    if not dept_ids:
+        return None
+    return json.dumps([str(d) for d in dept_ids])
+
+
+def _build_candidate_read(candidate: Candidate, session: Session) -> CandidateRead:
+    """Build a CandidateRead response with multi-department data."""
+    dept_id_list = candidate.get_department_ids_list()
+
+    if dept_id_list:
+        depts = session.exec(
+            select(Department).where(Department.id.in_([uuid.UUID(d) for d in dept_id_list]))
+        ).all()
+        dept_map = {str(d.id): d.name for d in depts}
+        dept_names = [dept_map.get(d_id, d_id) for d_id in dept_id_list]
+        primary_dept = depts[0] if depts else None
+    else:
+        dept_names = []
+        primary_dept = session.get(Department, candidate.department_id) if candidate.department_id else None
+
+    return CandidateRead(
+        id=candidate.id,
+        name=candidate.name,
+        email=candidate.email,
+        is_active=candidate.is_active,
+        department_id=candidate.department_id,
+        department_name=primary_dept.name if primary_dept else None,
+        department_ids=dept_id_list if dept_id_list else None,
+        department_names=dept_names if dept_names else None,
+        created_at=candidate.created_at,
+        updated_at=candidate.updated_at,
+    )
+
+
+# ─── Routes ──────────────────────────────────────────────────
+
 @router.get("/", response_model=list[CandidateRead])
 def list_candidates(
     department_id: Optional[uuid.UUID] = Query(None, description="Filter by department (cross-dept roles only)"),
@@ -40,19 +81,34 @@ def list_candidates(
     if is_active is not None:
         query = query.where(Candidate.is_active == is_active)
     rows = session.exec(query).all()
-    return [
-        CandidateRead(
+
+    result = []
+    for c, _ in rows:
+        dept_id_list = c.get_department_ids_list()
+        if dept_id_list:
+            depts = session.exec(
+                select(Department).where(Department.id.in_([uuid.UUID(d) for d in dept_id_list]))
+            ).all()
+            dept_map = {str(d.id): d.name for d in depts}
+            dept_names = [dept_map.get(d_id, d_id) for d_id in dept_id_list]
+            primary_dept_name = dept_names[0] if dept_names else None
+        else:
+            dept_names = []
+            primary_dept_name = None
+
+        result.append(CandidateRead(
             id=c.id,
             name=c.name,
             email=c.email,
             is_active=c.is_active,
             department_id=c.department_id,
-            department_name=d.name if d else None,
+            department_name=primary_dept_name,
+            department_ids=dept_id_list if dept_id_list else None,
+            department_names=dept_names if dept_names else None,
             created_at=c.created_at,
             updated_at=c.updated_at,
-        )
-        for c, d in rows
-    ]
+        ))
+    return result
 
 
 @router.post("/", response_model=CandidateRead, status_code=status.HTTP_201_CREATED)
@@ -61,28 +117,46 @@ def create_candidate(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new candidate. department_id is stamped automatically from the creator's department, with robust fallbacks to prevent constraint violations."""
+    """Create a new candidate. department_ids takes priority; department_id is automatically set to the first entry."""
     assert_write_access(current_user)
-    dept_id = data.department_id or current_user.department_id
-    
-    # Safe fallbacks if both are None
-    if not dept_id:
+
+    # Resolve department list from input
+    dept_ids: list[uuid.UUID] = []
+    if data.department_ids:
+        dept_ids = data.department_ids
+    elif data.department_id:
+        dept_ids = [data.department_id]
+
+    # Auto-stamp from user's department if none provided
+    if not dept_ids and current_user.department_id:
+        dept_ids = [current_user.department_id]
+
+    # Fallback: first allowed dept
+    if not dept_ids:
         allowed = get_user_allowed_depts(current_user)
         if allowed:
-            dept_id = allowed[0]
-            
-    if not dept_id:
+            dept_ids = [allowed[0]]
+
+    # Last-resort fallback: first dept in DB
+    if not dept_ids:
         first_dept = session.exec(select(Department).order_by(Department.created_at)).first()
         if first_dept:
-            dept_id = first_dept.id
-            
-    if not dept_id:
+            dept_ids = [first_dept.id]
+
+    if not dept_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A valid department_id is required. Create a department in the system first.",
         )
 
-    candidate = Candidate(name=data.name, email=data.email, is_active=data.is_active, department_id=dept_id)
+    primary_dept_id = dept_ids[0]
+    candidate = Candidate(
+        name=data.name,
+        email=data.email,
+        is_active=data.is_active,
+        department_id=primary_dept_id,
+        department_ids=_serialize_dept_ids(dept_ids),
+    )
     session.add(candidate)
     session.flush()
     record_activity(
@@ -95,14 +169,7 @@ def create_candidate(
     )
     session.commit()
     session.refresh(candidate)
-    dept = session.get(Department, candidate.department_id) if candidate.department_id else None
-    return CandidateRead(
-        id=candidate.id, name=candidate.name, email=candidate.email,
-        is_active=candidate.is_active,
-        department_id=candidate.department_id,
-        department_name=dept.name if dept else None,
-        created_at=candidate.created_at, updated_at=candidate.updated_at,
-    )
+    return _build_candidate_read(candidate, session)
 
 
 @router.get("/{candidate_id}", response_model=CandidateReadWithInterviews)
@@ -128,12 +195,9 @@ def get_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_sessio
             "company_name": interview.company.name if interview.company else None,
         })
 
+    base = _build_candidate_read(candidate, session)
     return CandidateReadWithInterviews(
-        id=candidate.id,
-        name=candidate.name,
-        email=candidate.email,
-        created_at=candidate.created_at,
-        updated_at=candidate.updated_at,
+        **base.model_dump(),
         interviews=interview_summaries,
     )
 
@@ -152,6 +216,25 @@ def update_candidate(
         raise HTTPException(status_code=404, detail="Candidate not found")
 
     update_data = data.model_dump(exclude_unset=True)
+
+    # Handle department_ids specially
+    if "department_ids" in update_data:
+        raw_dept_ids = update_data.pop("department_ids")
+        if raw_dept_ids:
+            dept_ids = [uuid.UUID(str(d)) for d in raw_dept_ids]
+            candidate.department_ids = _serialize_dept_ids(dept_ids)
+            candidate.department_id = dept_ids[0]
+        else:
+            candidate.department_ids = None
+            # Keep existing department_id if no new list provided
+        if "department_id" in update_data:
+            update_data.pop("department_id")  # don't double-write
+    elif "department_id" in update_data:
+        # Single dept update — also update the department_ids list
+        new_dept_id = update_data["department_id"]
+        if new_dept_id:
+            candidate.department_ids = _serialize_dept_ids([uuid.UUID(str(new_dept_id))])
+
     for key, value in update_data.items():
         setattr(candidate, key, value)
     candidate.updated_at = datetime.utcnow()
@@ -168,14 +251,7 @@ def update_candidate(
         message=f"Updated candidate '{candidate.name}'",
     )
     session.commit()
-    dept = session.get(Department, candidate.department_id) if candidate.department_id else None
-    return CandidateRead(
-        id=candidate.id, name=candidate.name, email=candidate.email,
-        is_active=candidate.is_active,
-        department_id=candidate.department_id,
-        department_name=dept.name if dept else None,
-        created_at=candidate.created_at, updated_at=candidate.updated_at,
-    )
+    return _build_candidate_read(candidate, session)
 
 
 @router.patch("/{candidate_id}/status", response_model=CandidateRead)
@@ -203,14 +279,7 @@ def toggle_candidate_status(
     )
     session.commit()
     session.refresh(candidate)
-    dept = session.get(Department, candidate.department_id) if candidate.department_id else None
-    return CandidateRead(
-        id=candidate.id, name=candidate.name, email=candidate.email,
-        is_active=candidate.is_active,
-        department_id=candidate.department_id,
-        department_name=dept.name if dept else None,
-        created_at=candidate.created_at, updated_at=candidate.updated_at,
-    )
+    return _build_candidate_read(candidate, session)
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)

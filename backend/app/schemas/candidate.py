@@ -9,6 +9,7 @@ class CandidateCreate(BaseModel):
     email: Optional[EmailStr] = None
     is_active: bool = True
     department_id: Optional[uuid.UUID] = None
+    department_ids: Optional[list[uuid.UUID]] = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -23,6 +24,7 @@ class CandidateUpdate(BaseModel):
     email: Optional[EmailStr] = None
     is_active: Optional[bool] = None
     department_id: Optional[uuid.UUID] = None
+    department_ids: Optional[list[uuid.UUID]] = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -39,6 +41,9 @@ class CandidateRead(BaseModel):
     is_active: bool = True
     department_id: Optional[uuid.UUID] = None
     department_name: Optional[str] = None
+    # Multi-department support
+    department_ids: Optional[list[str]] = None
+    department_names: Optional[list[str]] = None
     created_at: datetime
     updated_at: datetime
 

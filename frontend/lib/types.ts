@@ -100,6 +100,10 @@ export interface Candidate {
   is_active: boolean;
   department_id: string | null;
   department_name: string | null;
+  /** Multi-department support: list of department UUIDs. */
+  department_ids: string[] | null;
+  /** Human-readable names matching department_ids order. */
+  department_names: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -546,7 +550,8 @@ export interface BusinessDeveloperFormData {
 export interface CandidateFormData {
   name: string;
   email?: string | null;
-  department_id?: string | null;
+  /** Multi-department: list of department UUIDs. Replaces single department_id. */
+  department_ids?: string[] | null;
 }
 
 export interface CompanyFormData {

@@ -366,6 +366,17 @@ def migrate():
              "Migration successful! 'image_fit' column added to 'broadcast_modals' table."),
             ("ALTER TABLE broadcast_modals ADD COLUMN IF NOT EXISTS effect VARCHAR(20) NOT NULL DEFAULT 'none';",
              "Migration successful! 'effect' column added to 'broadcast_modals' table."),
+
+            # ── Candidate multi-department support ────────────────────────────────────
+            ("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS department_ids TEXT;",
+             "Migration successful! 'department_ids' column added to 'candidates' table."),
+            # Backfill existing candidates: seed department_ids from the current single department_id
+            ("""
+            UPDATE candidates
+            SET department_ids = '["' || department_id::text || '"]'
+            WHERE department_ids IS NULL AND department_id IS NOT NULL;
+            """,
+             "Migration successful! Backfilled candidates.department_ids from existing department_id."),
         ]
         for sql, msg in migrations:
             try:

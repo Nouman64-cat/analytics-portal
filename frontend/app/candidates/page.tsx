@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
-import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX, X, Building2 } from "lucide-react";
 import { candidatesService, interviewsService, leadsService, departmentsService } from "@/lib/services";
 import { formatDate, formatInterviewDateEst, getStatusStyle, getLeadOutcomeBadgeStyle } from "@/lib/utils";
 import type { Candidate, CandidateFormData, Interview, LeadListItem, Department } from "@/lib/types";
@@ -39,6 +39,134 @@ function labelToOutcomeKey(label: string): string {
   return label.toLowerCase().replace(/\s+/g, "_");
 }
 
+// ─── Department Badge Picker ──────────────────────────────────────────────────
+
+const DEPT_BADGE_COLORS = [
+  { bg: "bg-indigo-500/15 hover:bg-indigo-500/25", text: "text-indigo-600 dark:text-indigo-400", border: "border-indigo-500/30", selectedBg: "bg-indigo-500", selectedText: "text-white" },
+  { bg: "bg-emerald-500/15 hover:bg-emerald-500/25", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/30", selectedBg: "bg-emerald-500", selectedText: "text-white" },
+  { bg: "bg-violet-500/15 hover:bg-violet-500/25", text: "text-violet-600 dark:text-violet-400", border: "border-violet-500/30", selectedBg: "bg-violet-500", selectedText: "text-white" },
+  { bg: "bg-amber-500/15 hover:bg-amber-500/25", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/30", selectedBg: "bg-amber-500", selectedText: "text-white" },
+  { bg: "bg-sky-500/15 hover:bg-sky-500/25", text: "text-sky-600 dark:text-sky-400", border: "border-sky-500/30", selectedBg: "bg-sky-500", selectedText: "text-white" },
+  { bg: "bg-rose-500/15 hover:bg-rose-500/25", text: "text-rose-600 dark:text-rose-400", border: "border-rose-500/30", selectedBg: "bg-rose-500", selectedText: "text-white" },
+  { bg: "bg-teal-500/15 hover:bg-teal-500/25", text: "text-teal-600 dark:text-teal-400", border: "border-teal-500/30", selectedBg: "bg-teal-500", selectedText: "text-white" },
+  { bg: "bg-orange-500/15 hover:bg-orange-500/25", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30", selectedBg: "bg-orange-500", selectedText: "text-white" },
+];
+
+function getDeptColor(index: number) {
+  return DEPT_BADGE_COLORS[index % DEPT_BADGE_COLORS.length];
+}
+
+interface DeptBadgePickerProps {
+  departments: Department[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}
+
+function DeptBadgePicker({ departments, selected, onChange }: DeptBadgePickerProps) {
+  const active = departments.filter(d => d.is_active);
+
+  const toggle = (id: string) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter(s => s !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  };
+
+  if (active.length === 0) {
+    return (
+      <p className="text-sm text-slate-400 dark:text-slate-500 py-2">No departments available.</p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Selected count indicator */}
+      {selected.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            {selected.length} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 transition-colors"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* Badge grid */}
+      <div className="flex flex-wrap gap-2">
+        {active.map((dept, idx) => {
+          const color = getDeptColor(idx);
+          const isSelected = selected.includes(dept.id);
+
+          return (
+            <button
+              key={dept.id}
+              type="button"
+              onClick={() => toggle(dept.id)}
+              className={`
+                inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border
+                transition-all duration-150 cursor-pointer select-none
+                ${isSelected
+                  ? `${color.selectedBg} ${color.selectedText} border-transparent shadow-sm`
+                  : `${color.bg} ${color.text} ${color.border}`
+                }
+              `}
+            >
+              <Building2 size={10} className="shrink-0" />
+              {dept.name}
+              {isSelected && (
+                <X size={10} className="shrink-0 ml-0.5 opacity-80" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {selected.length === 0 && (
+        <p className="text-[11px] text-slate-400 dark:text-slate-500">
+          Click departments above to assign this candidate.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Candidate Department Badges (card display) ───────────────────────────────
+
+function CandidateDeptBadges({ names, max = 2 }: { names: string[] | null | undefined; max?: number }) {
+  if (!names || names.length === 0) return null;
+  const visible = names.slice(0, max);
+  const overflow = names.length - max;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-0.5">
+      {visible.map((name, idx) => {
+        const color = getDeptColor(idx);
+        return (
+          <span
+            key={name}
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${color.bg} ${color.text} ${color.border}`}
+          >
+            {name}
+          </span>
+        );
+      })}
+      {overflow > 0 && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/[0.08]">
+          +{overflow} more
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -50,7 +178,7 @@ export default function CandidatesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<CandidateFormData>({ name: "", email: "", department_id: null });
+  const [formData, setFormData] = useState<CandidateFormData>({ name: "", email: "", department_ids: [] });
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
@@ -119,7 +247,6 @@ export default function CandidatesPage() {
     return counts;
   }, [leadStatusBreakdown]);
 
-  // Converted count per candidate — uses is_converted flag, not the status label
   const convertedLeadCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     const activeThreadIds = selectedMonth === "all"
@@ -172,7 +299,7 @@ export default function CandidatesPage() {
     }
   }, [isSuperadmin]);
 
-  // Kanban modal data — derived from already-loaded state, no extra API call
+  // Kanban modal data
   const selectedCandidate = useMemo(
     () => candidates.find(c => c.id === selectedCandidateId) ?? null,
     [selectedCandidateId, candidates],
@@ -214,14 +341,35 @@ export default function CandidatesPage() {
     ).map(([label]) => ({ label, items: groups[label] || [] }));
   }, [candidateLeads]);
 
-  const openCreate = () => { setEditingId(null); setFormData({ name: "", email: "", department_id: departmentId ?? null }); setModalOpen(true); };
-  const openEdit = (c: Candidate) => { setEditingId(c.id); setFormData({ name: c.name, email: c.email ?? "", department_id: c.department_id ?? null }); setModalOpen(true); };
+  const openCreate = () => {
+    setEditingId(null);
+    // Pre-select current dept scope when available
+    const preSelected = departmentId ? [departmentId] : [];
+    setFormData({ name: "", email: "", department_ids: preSelected });
+    setModalOpen(true);
+  };
+
+  const openEdit = (c: Candidate) => {
+    setEditingId(c.id);
+    // Use multi-dept list if available, fall back to legacy single dept
+    const ids = c.department_ids && c.department_ids.length > 0
+      ? c.department_ids
+      : (c.department_id ? [c.department_id] : []);
+    setFormData({ name: c.name, email: c.email ?? "", department_ids: ids });
+    setModalOpen(true);
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const payload = { name: formData.name, email: formData.email?.trim() || null, department_id: formData.department_id || null };
+      const payload = {
+        name: formData.name,
+        email: formData.email?.trim() || null,
+        department_ids: formData.department_ids && formData.department_ids.length > 0
+          ? formData.department_ids
+          : null,
+      };
       if (editingId) await candidatesService.update(editingId, payload);
       else await candidatesService.create(payload);
       setModalOpen(false);
@@ -359,6 +507,11 @@ export default function CandidatesPage() {
             const dropped   = (breakdown["Dropped"]   || 0) + (breakdown["dropped"] || 0);
             const isInactive = !candidate.is_active;
 
+            // Department display: prefer multi-dept names, fall back to legacy
+            const deptNames = candidate.department_names && candidate.department_names.length > 0
+              ? candidate.department_names
+              : (candidate.department_name ? [candidate.department_name] : []);
+
             return (
               <div
                 key={candidate.id}
@@ -375,7 +528,6 @@ export default function CandidatesPage() {
                 <div className="relative">
                   {!cannotCRUD && (
                     <div className="flex justify-end gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 mb-2">
-                      {/* Toggle active/inactive */}
                       <button
                         onClick={(e) => handleToggleStatus(candidate, e)}
                         disabled={togglingId === candidate.id}
@@ -405,7 +557,7 @@ export default function CandidatesPage() {
                     </div>
                   )}
 
-                  {/* Avatar + interviews / leads big number */}
+                  {/* Avatar + interview/lead count */}
                   <div className="flex items-center justify-between">
                     <div className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
                       isInactive
@@ -435,19 +587,16 @@ export default function CandidatesPage() {
                           Inactive
                         </span>
                       )}
-                      {candidate.department_name && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-                          {candidate.department_name}
-                        </span>
-                      )}
                     </div>
+                    {/* Multi-department badges */}
+                    <CandidateDeptBadges names={deptNames} max={2} />
                     {candidate.email && (
                       <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{candidate.email}</p>
                     )}
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">Added {formatDate(candidate.created_at)}</p>
                   </div>
 
-                  {/* Lead outcome badges — converted always shown */}
+                  {/* Lead outcome badges */}
                   <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 dark:border-white/[0.04] pt-3">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                       converted > 0
@@ -496,17 +645,14 @@ export default function CandidatesPage() {
           />
         </FormField>
         {isSuperadmin && (
-          <FormField label="Department">
-            <select
-              value={formData.department_id ?? ""}
-              onChange={e => setFormData({ ...formData, department_id: e.target.value || null })}
-              className={inputClass}
-            >
-              <option value="">— Select department —</option>
-              {departments.filter(d => d.is_active).map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+          <FormField label="Departments">
+            <div className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.02] p-3">
+              <DeptBadgePicker
+                departments={departments}
+                selected={formData.department_ids ?? []}
+                onChange={ids => setFormData({ ...formData, department_ids: ids })}
+              />
+            </div>
           </FormField>
         )}
         <div className="mt-6 flex justify-end gap-3">
