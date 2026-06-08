@@ -201,9 +201,9 @@ def create_user(
     ):
         user_in.allowed_dept_ids = btl_allowed_ids
 
-    # Convenience: mirror first allowed dept as department_id
+    # Convenience: mirror first allowed dept as department_id for BD or TEAM_MEMBER
     if (
-        UserRole(user_in.role) == UserRole.BD
+        UserRole(user_in.role) in (UserRole.BD, UserRole.TEAM_MEMBER)
         and dept_id is None
         and user_in.allowed_dept_ids is not None
         and len(user_in.allowed_dept_ids) >= 1
@@ -346,8 +346,8 @@ def update_user(
     if "allowed_dept_ids" in update_data:
         v = update_data.pop("allowed_dept_ids")
         user.allowed_dept_ids = json.dumps(v) if v is not None else None
-        # Sync department_id from first allowed dept for BD users without one
-        if user.role == UserRole.BD and user.department_id is None and v:
+        # Sync department_id from first allowed dept for BD or TEAM_MEMBER
+        if user.role in (UserRole.BD, UserRole.TEAM_MEMBER) and v:
             import uuid as _sync_uuid
             try:
                 user.department_id = _sync_uuid.UUID(v[0])

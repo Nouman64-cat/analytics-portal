@@ -38,7 +38,7 @@ interface SidebarProps {
 }
 
 const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
-const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead", "bd-manager"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead"]);
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
@@ -88,7 +88,23 @@ export default function Sidebar({
     if (!role || !MULTI_DEPT_CAPABLE_ROLES.has(role)) return [];
     if (CROSS_DEPT_ROLES.has(role)) return allDepartments;
     if (role === "bd" && userProfile?.linked_to_superadmin) return allDepartments;
+
     const allowed = userProfile?.allowed_dept_ids;
+
+    // BD manager: full cross-dept access
+    if (role === "bd-manager") {
+      if (allowed === null || allowed === undefined) return allDepartments;
+      if (allowed.length === 0) return allDepartments;
+      return allDepartments.filter((d) => allowed.includes(d.id));
+    }
+
+    // team-member and dept-lead: show switcher only if allowed_dept_ids has 2+ depts
+    if (role === "team-member" || role === "dept-lead") {
+      if (!allowed || allowed.length === 0) return [];
+      return allDepartments.filter((d) => allowed.includes(d.id));
+    }
+
+    // BD / BD_TEAM_LEAD
     if (allowed === undefined) return [];
     if (allowed === null) return role === "bd" || role === "bd-manager" ? allDepartments : [];
     if (allowed.length === 0) return allDepartments;

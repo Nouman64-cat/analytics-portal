@@ -182,10 +182,17 @@ export default function UsersPage() {
       } else {
         await usersService.create(formData);
         if (alsoCandidate) {
+          // Derive department list from allowed_dept_ids (multi-dept team member) or department_id
+          const candidateDeptIds =
+            formData.allowed_dept_ids && formData.allowed_dept_ids.length > 0
+              ? formData.allowed_dept_ids
+              : formData.department_id
+              ? [formData.department_id]
+              : null;
           await candidatesService.create({
             name: formData.full_name,
             email: formData.email,
-            department_ids: formData.department_id ? [formData.department_id] : null,
+            department_ids: candidateDeptIds,
           });
         }
       }
@@ -473,7 +480,8 @@ export default function UsersPage() {
             </button>
           )}
 
-          {isSuperadmin && (formData.role === "team-member" || formData.role === "dept-lead") && (
+          {/* Dept-lead: single-select (owns exactly one dept) */}
+          {isSuperadmin && formData.role === "dept-lead" && (
             <div className="flex flex-wrap gap-2">
               {departments.filter((d) => d.is_active).map((d) => {
                 const selected = formData.department_id === d.id;
@@ -492,6 +500,44 @@ export default function UsersPage() {
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {/* Team member: multi-select via allowed_dept_ids */}
+          {isSuperadmin && formData.role === "team-member" && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Select one or more departments — the member can switch between them.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {departments.filter((d) => d.is_active).map((d) => {
+                  const selected =
+                    Array.isArray(formData.allowed_dept_ids) && formData.allowed_dept_ids.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => {
+                        const current = Array.isArray(formData.allowed_dept_ids) ? formData.allowed_dept_ids : [];
+                        const next = selected ? current.filter((id) => id !== d.id) : [...current, d.id];
+                        setFormData({
+                          ...formData,
+                          allowed_dept_ids: next.length ? next : null,
+                          // Always keep department_id in sync with first selection
+                          department_id: next.length ? next[0] : null,
+                        });
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                        selected
+                          ? "bg-indigo-500 text-white border-indigo-500"
+                          : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-indigo-400 hover:text-indigo-400"
+                      }`}
+                    >
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
