@@ -90,8 +90,10 @@ export default function UsersPage() {
   }, [isSuperadmin, isDeptLead, isBdTeamLead, myDeptId, myAllowedDepts, departments]);
 
   const userDeptIds = useCallback((u: User): string[] => {
-    if (u.department_id) return [u.department_id];
+    // Prefer allowed_dept_ids — it carries the full multi-dept list.
+    // department_id is just a synced copy of the first entry and would hide the rest.
     if (Array.isArray(u.allowed_dept_ids) && u.allowed_dept_ids.length > 0) return u.allowed_dept_ids;
+    if (u.department_id) return [u.department_id];
     return [];
   }, []);
 
