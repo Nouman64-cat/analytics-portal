@@ -317,7 +317,10 @@ def list_interviews(
 
     query = apply_team_member_interview_list_filter(
         session, current_user, query)
-    if current_user.role != UserRole.TEAM_MEMBER:
+    # For multi-dept team members: respect the department_id filter even on their own interviews
+    if current_user.role == UserRole.TEAM_MEMBER and department_id:
+        query = query.where(Interview.department_id == department_id)
+    elif current_user.role != UserRole.TEAM_MEMBER:
         if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
             # Superadmin-linked BD: full cross-dept read access, no entity scope restriction
             query = apply_dept_filter(query, Interview, current_user, department_id, session)

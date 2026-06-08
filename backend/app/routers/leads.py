@@ -362,6 +362,9 @@ def list_leads(
                 Interview.thread_id.in_(threads_via_lt),
             )
         )
+        # For multi-dept team members: respect the selected department filter
+        if department_id:
+            query = query.where(Interview.department_id == department_id)
     else:
         if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
             # Superadmin-linked BD: full cross-dept read access, no entity scope restriction.
