@@ -167,6 +167,9 @@ export const leadsService = {
     if (params?.department_id) sp.set("department_id", params.department_id);
     if (params?.date_from) sp.set("date_from", params.date_from);
     if (params?.date_to) sp.set("date_to", params.date_to);
+    if (params?.is_converted !== undefined && params?.is_converted !== null) {
+      sp.set("is_converted", String(params.is_converted));
+    }
     const q = sp.toString();
     return apiFetch<LeadListPage>(`/leads/${q ? `?${q}` : ""}`);
   },

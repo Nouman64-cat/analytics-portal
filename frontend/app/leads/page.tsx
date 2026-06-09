@@ -188,6 +188,7 @@ export default function LeadsPage() {
   const [profileFilter, setProfileFilter] = useState<string>("all");
   const [candidateFilter, setCandidateFilter] = useState<string>("all");
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
+  const [convertedFilter, setConvertedFilter] = useState<string>("all");
   const [sortFilter, setSortFilter] =
     useState<LeadListSort>("last_activity_desc");
   const [dateFrom, setDateFrom] = useState("");
@@ -258,6 +259,7 @@ export default function LeadsPage() {
             profileFilter !== "all" ? profileFilter : undefined,
           candidate_id: candidateFilter !== "all" ? candidateFilter : undefined,
           outcome: outcomeFilter !== "all" ? outcomeFilter : undefined,
+          is_converted: convertedFilter === "all" ? undefined : convertedFilter === "true",
           sort: sortFilter,
           department_id: departmentId ?? undefined,
           date_from: dateFrom || undefined,
@@ -303,6 +305,7 @@ export default function LeadsPage() {
     profileFilter,
     candidateFilter,
     outcomeFilter,
+    convertedFilter,
     sortFilter,
     departmentId,
     dateFrom,
@@ -389,6 +392,7 @@ export default function LeadsPage() {
       profileFilter === "all" &&
       candidateFilter === "all" &&
       outcomeFilter === "all" &&
+      convertedFilter === "all" &&
       sortFilter === "last_activity_desc" &&
       !dateFrom &&
       !dateTo,
@@ -398,6 +402,7 @@ export default function LeadsPage() {
       profileFilter,
       candidateFilter,
       outcomeFilter,
+      convertedFilter,
       sortFilter,
       dateFrom,
       dateTo,
@@ -437,6 +442,7 @@ export default function LeadsPage() {
     setProfileFilter("all");
     setCandidateFilter("all");
     setOutcomeFilter("all");
+    setConvertedFilter("all");
     setSortFilter("last_activity_desc");
     setDateFrom("");
     setDateTo("");
@@ -758,6 +764,18 @@ export default function LeadsPage() {
                       {o.label}
                     </option>
                   ))}
+                </select>
+                <select
+                  value={convertedFilter}
+                  onChange={(e) => {
+                    setConvertedFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className={lSel}
+                >
+                  <option value="all">Any conversion</option>
+                  <option value="true">Converted</option>
+                  <option value="false">Not Converted</option>
                 </select>
                 <select
                   value={candidateFilter}

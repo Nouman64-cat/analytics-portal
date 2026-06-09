@@ -336,6 +336,7 @@ export interface LeadListParams {
   date_from?: string;
   /** ISO date string YYYY-MM-DD — filters on first_interview_date <= date_to */
   date_to?: string;
+  is_converted?: boolean | null;
 }
 
 export interface InterviewSummary {

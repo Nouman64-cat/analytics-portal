@@ -157,6 +157,7 @@ def _filter_merged_leads(
     lead_source: Literal["all", "explicit", "derived"],
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    is_converted: Optional[bool] = None,
 ) -> list[LeadListItem]:
     rows = list(items)
     if search and search.strip():
@@ -195,6 +196,8 @@ def _filter_merged_leads(
     if date_to is not None:
         rows = [
             l for l in rows if l.first_interview_date is not None and l.first_interview_date <= date_to]
+    if is_converted is not None:
+        rows = [l for l in rows if l.is_converted == is_converted]
     return rows
 
 
@@ -298,6 +301,7 @@ def list_leads(
     department_id: Annotated[Optional[uuid.UUID], Query()] = None,
     date_from: Annotated[Optional[date], Query()] = None,
     date_to: Annotated[Optional[date], Query()] = None,
+    is_converted: Annotated[Optional[bool], Query()] = None,
     sort: Annotated[
         Literal[
             "last_activity_desc",
@@ -473,6 +477,7 @@ def list_leads(
         lead_source,
         date_from,
         date_to,
+        is_converted,
     )
     filtered = _sort_merged_leads(filtered, sort)
     stats = _compute_lead_stats(filtered)
