@@ -27,6 +27,7 @@ import {
   Check,
   SlidersHorizontal,
   ChevronDown,
+  ShieldCheck,
 } from "lucide-react";
 import {
   leadsService,
@@ -666,6 +667,12 @@ export default function LeadsPage() {
           value={total}
           icon={List}
           gradient={LEAD_STAT_CARD_GRADIENT.total}
+        />
+        <StatsCard
+          title="Legit Leads"
+          value={Math.max(0, displayStats.total_leads - displayStats.dropped)}
+          icon={ShieldCheck}
+          gradient={LEAD_STAT_CARD_GRADIENT.legit}
         />
         <StatsCard
           title="Leads Converted"

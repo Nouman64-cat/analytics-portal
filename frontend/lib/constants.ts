@@ -76,6 +76,8 @@ export const LEAD_STAT_CARD_GRADIENT = {
   /** Success */
   closed: "bg-gradient-to-br from-emerald-500 to-green-600",
   dead: "bg-gradient-to-br from-stone-500 to-neutral-700",
+  /** Legit Leads = total − dropped (qualified pipeline). */
+  legit: "bg-gradient-to-br from-teal-500 to-cyan-600",
 } as const;
 
 /** Interviews page stat cards — Upcoming = blue/cyan; Converted = violet (not sky/blue). */
