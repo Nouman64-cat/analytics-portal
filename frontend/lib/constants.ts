@@ -83,6 +83,7 @@ export const LEAD_STAT_CARD_GRADIENT = {
 /** Interviews page stat cards — Upcoming = blue/cyan; Converted = violet (not sky/blue). */
 export const INTERVIEW_STATS_GRADIENT = {
   total: LEAD_STAT_CARD_GRADIENT.total,
+  legit: LEAD_STAT_CARD_GRADIENT.legit,
   /** Scheduled / live — cool blue (avoid overlapping converted’s purple). */
   upcoming: "bg-gradient-to-br from-blue-600 to-cyan-500",
   unresponsed: LEAD_STAT_CARD_GRADIENT.dropped,

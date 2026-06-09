@@ -31,6 +31,7 @@ import {
   SlidersHorizontal,
   ExternalLink,
   Copy,
+  ShieldCheck,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -1421,7 +1422,11 @@ export default function InterviewsPage() {
     Dead: 0,
   };
 
+  let legitInterviewsCount = 0;
+
   filtered.forEach((i) => {
+    if (i.lead_outcome !== "dropped") legitInterviewsCount++;
+    
     const label = i.computed_status.toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
     else if (label === "unresponsed") statusCounts.Unresponsed++;
@@ -1490,12 +1495,18 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      <StatsGrid cols={3}>
+      <StatsGrid cols={4}>
         <StatsCard
           title="Total interviews"
           value={filtered.length}
           icon={List}
           gradient={INTERVIEW_STATS_GRADIENT.total}
+        />
+        <StatsCard
+          title="Legit Interviews"
+          value={legitInterviewsCount}
+          icon={ShieldCheck}
+          gradient={INTERVIEW_STATS_GRADIENT.legit}
         />
         <StatsCard
           title="Upcoming"
