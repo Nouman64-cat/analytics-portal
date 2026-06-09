@@ -353,18 +353,30 @@ export default function LeadsPage() {
     if (!form.bd_id) return;
     const bdProfiles = profiles.filter((p) => p.bd_id === form.bd_id);
     if (bdProfiles.length === 1) {
-      setForm((f) => ({ ...f, resume_profile_id: bdProfiles[0].id }));
+      if (form.resume_profile_id !== bdProfiles[0].id) {
+        setForm((f) => ({ ...f, resume_profile_id: bdProfiles[0].id }));
+      }
     } else if (bdProfiles.length > 1) {
       const currentIsValid = bdProfiles.some(
         (p) => p.id === form.resume_profile_id,
       );
-      if (!currentIsValid) {
+      if (!currentIsValid && form.resume_profile_id !== "") {
         setForm((f) => ({ ...f, resume_profile_id: "" }));
       }
     }
     // If 0 profiles for this BD, leave current selection unchanged.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.bd_id]);
+
+  // Auto-select BD when profile changes in the form.
+  useEffect(() => {
+    if (!form.resume_profile_id) return;
+    const selectedProfile = profiles.find((p) => p.id === form.resume_profile_id);
+    if (selectedProfile?.bd_id && selectedProfile.bd_id !== form.bd_id) {
+      setForm((f) => ({ ...f, bd_id: selectedProfile.bd_id! }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.resume_profile_id]);
   const candidateOptions = useMemo(
     () => [...candidates].sort((a, b) => a.name.localeCompare(b.name)),
     [candidates],
