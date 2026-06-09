@@ -675,16 +675,16 @@ export default function LeadsPage() {
 
       <StatsGrid cols={4}>
         <StatsCard
-          title="Total leads"
-          value={total}
-          icon={List}
-          gradient={LEAD_STAT_CARD_GRADIENT.total}
-        />
-        <StatsCard
           title="Legit Leads"
           value={Math.max(0, displayStats.total_leads - displayStats.dropped)}
           icon={ShieldCheck}
           gradient={LEAD_STAT_CARD_GRADIENT.legit}
+        />
+        <StatsCard
+          title="Total leads"
+          value={total}
+          icon={List}
+          gradient={LEAD_STAT_CARD_GRADIENT.total}
         />
         <StatsCard
           title="Leads Converted"
