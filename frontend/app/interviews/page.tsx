@@ -1749,11 +1749,11 @@ export default function InterviewsPage() {
                     from={filters.date_from}
                     to={filters.date_to}
                     onFromChange={(v) =>
-                      setFilters({ ...filters, date_from: v })
+                      setFilters((prev) => ({ ...prev, date_from: v }))
                     }
-                    onToChange={(v) => setFilters({ ...filters, date_to: v })}
+                    onToChange={(v) => setFilters((prev) => ({ ...prev, date_to: v }))}
                     onClear={() =>
-                      setFilters({ ...filters, date_from: "", date_to: "" })
+                      setFilters((prev) => ({ ...prev, date_from: "", date_to: "" }))
                     }
                   />
                 </div>
@@ -2041,24 +2041,64 @@ export default function InterviewsPage() {
                             );
                           })()}
                         </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                          {isUpcoming ? (
-                            <span className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                              </span>
-                              {formatInterviewDateEst(
-                                interview.interview_date,
-                                interview.time_est,
-                              )}
-                            </span>
-                          ) : (
-                            formatInterviewDateEst(
+                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {(() => {
+                            const dateStr = formatInterviewDateEst(
                               interview.interview_date,
                               interview.time_est,
-                            )
-                          )}
+                              true,
+                            );
+                            const parts = dateStr.split(", ");
+                            const hasDay =
+                              parts.length > 1 && parts[0].length === 3;
+                            const day = hasDay ? parts[0] : "";
+                            const rest = hasDay
+                              ? parts.slice(1).join(", ")
+                              : dateStr;
+
+                            let badgeColor = "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400";
+                            if (hasDay) {
+                              switch (day.toLowerCase()) {
+                                case "mon": badgeColor = "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"; break;
+                                case "tue": badgeColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"; break;
+                                case "wed": badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"; break;
+                                case "thu": badgeColor = "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"; break;
+                                case "fri": badgeColor = "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"; break;
+                                case "sat": badgeColor = "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"; break;
+                                case "sun": badgeColor = "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"; break;
+                              }
+                            }
+
+                            const badge = hasDay ? (
+                              <span
+                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                  !isUpcoming ? "opacity-70" : ""
+                                } ${badgeColor}`}
+                              >
+                                {day}
+                              </span>
+                            ) : null;
+
+                            if (isUpcoming) {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                                  <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                                  </span>
+                                  {badge}
+                                  <span>{rest}</span>
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <span className="inline-flex items-center gap-1.5">
+                                {badge}
+                                <span>{rest}</span>
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
                           <div className="flex flex-col gap-1">

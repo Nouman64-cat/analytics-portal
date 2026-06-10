@@ -39,20 +39,22 @@ function parseTimePartsForEst(
 export function formatInterviewDateEst(
   interviewDate: string | null | undefined,
   timeEst?: string | null,
+  includeDay: boolean = false,
 ): string {
   if (!interviewDate) return "—";
   const ymd = interviewDate.split("T")[0]!;
+  const fmt = includeDay ? "EEE, MMM d, yyyy" : "MMM d, yyyy";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
     const d = new Date(interviewDate);
     if (Number.isNaN(d.getTime())) return "—";
-    return formatInTimeZone(d, INTERVIEW_SCHEDULE_TZ, "MMM d, yyyy");
+    return formatInTimeZone(d, INTERVIEW_SCHEDULE_TZ, fmt);
   }
   const { h, m, s } = parseTimePartsForEst(timeEst ?? null);
   const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   const zonedLocalStr = `${ymd} ${timeStr}`;
   const utcInstant = fromZonedTime(zonedLocalStr, INTERVIEW_SCHEDULE_TZ);
   if (Number.isNaN(utcInstant.getTime())) return "—";
-  return formatInTimeZone(utcInstant, INTERVIEW_SCHEDULE_TZ, "MMM d, yyyy");
+  return formatInTimeZone(utcInstant, INTERVIEW_SCHEDULE_TZ, fmt);
 }
 
 /**
