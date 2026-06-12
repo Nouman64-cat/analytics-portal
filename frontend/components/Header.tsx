@@ -10,6 +10,7 @@ import Link from "next/link";
 import { getUserRole } from "@/lib/auth";
 import NotificationBell from "@/components/NotificationBell";
 import VoiceMicWidget from "@/components/VoiceMicWidget";
+import { useVoiceCommand } from "react-voice-action-router";
 
 interface HeaderProps {
   onMobileMenuOpen: () => void;
@@ -115,6 +116,27 @@ export default function Header({
   const pathname = usePathname();
   const role = getUserRole();
   const showNotifications = role ? NOTIFICATION_ROLES.has(role) : false;
+
+  useVoiceCommand({
+    id: "dark_mode",
+    phrase: "switch to dark mode",
+    description: "Switches the application appearance theme to dark mode",
+    action: () => setTheme("dark"),
+  });
+
+  useVoiceCommand({
+    id: "light_mode",
+    phrase: "switch to light mode",
+    description: "Switches the application appearance theme to light mode",
+    action: () => setTheme("light"),
+  });
+
+  useVoiceCommand({
+    id: "toggle_theme",
+    phrase: "switch theme",
+    description: "Toggles the application theme. If it is currently light, changes it to dark. If it is currently dark, changes it to light.",
+    action: () => setTheme(theme === "dark" ? "light" : "dark"),
+  });
 
   const fetchUser = useCallback(async () => {
     try {
