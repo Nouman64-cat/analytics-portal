@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { getUserRole } from "@/lib/auth";
 import NotificationBell from "@/components/NotificationBell";
+import VoiceMicWidget from "@/components/VoiceMicWidget";
 
 interface HeaderProps {
   onMobileMenuOpen: () => void;
@@ -193,6 +194,7 @@ export default function Header({
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           )}
+          <VoiceMicWidget />
           <div className="flex h-10 items-center gap-1 border-l border-slate-200 dark:border-white/[0.06] pl-2 md:pl-4">
             {showNotifications && <NotificationBell />}
             <Link

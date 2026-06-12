@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
+import { useVoiceContext } from "react-voice-action-router";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -117,6 +118,31 @@ export default function Sidebar({
     if (!departments.some((d) => d.id === departmentId)) setDepartmentId(departments[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departments]);
+
+  const voiceCtx = useVoiceContext();
+
+  // Register dynamic voice commands for department switching
+  useEffect(() => {
+    if (!voiceCtx || departments.length <= 1) return;
+
+    const ids: string[] = [];
+
+    departments.forEach((dept) => {
+      const id = `switch_dept_${dept.id}`;
+      ids.push(id);
+      voiceCtx.register({
+        id,
+        phrase: `switch to ${dept.name}`,
+        description: `Switches the current active department context to ${dept.name}`,
+        action: () => setDepartmentId(dept.id),
+      });
+    });
+
+    return () => {
+      ids.forEach((id) => voiceCtx.unregister(id));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments, setDepartmentId]);
 
   const showSwitcher = departments.length > 1;
   const HIDDEN_BY_ROLE: Record<string, string[]> = {

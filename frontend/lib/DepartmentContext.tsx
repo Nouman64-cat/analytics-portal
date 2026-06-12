@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react";
 
 const STORAGE_KEY = "active_dept_id";
 
@@ -20,17 +20,19 @@ export function DepartmentProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem(STORAGE_KEY);
   });
 
-  const setDepartmentId = (id: string | null) => {
+  const setDepartmentId = useCallback((id: string | null) => {
     setDepartmentIdState(id);
     if (id) {
       localStorage.setItem(STORAGE_KEY, id);
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
-  };
+  }, []);
+
+  const value = useMemo(() => ({ departmentId, setDepartmentId }), [departmentId, setDepartmentId]);
 
   return (
-    <DepartmentContext.Provider value={{ departmentId, setDepartmentId }}>
+    <DepartmentContext.Provider value={value}>
       {children}
     </DepartmentContext.Provider>
   );

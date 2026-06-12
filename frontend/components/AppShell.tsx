@@ -8,8 +8,7 @@ import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
 import ChatWidget from "@/components/ChatWidget";
 import BroadcastModalViewer from "@/components/BroadcastModalViewer";
-import VoiceMicWidget from "@/components/VoiceMicWidget";
-import { useVoiceCommand } from "react-voice-action-router";
+import { useVoiceCommand, useVoiceContext } from "react-voice-action-router";
 import {
   isAuthenticated,
   mustChangePassword,
@@ -33,6 +32,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { stopListening } = useVoiceContext();
+
+  useVoiceCommand({
+    id: "stop_listening",
+    description: "Stops listening to the microphone, turns off voice control",
+    phrase: "bye bye",
+    action: () => stopListening()
+  });
 
   useVoiceCommand({
     id: "open_sidebar",
@@ -138,7 +145,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <InterviewAlertMonitor />
       <ChatWidget />
-      <VoiceMicWidget />
       <BroadcastModalViewer />
     </DepartmentProvider>
   );
