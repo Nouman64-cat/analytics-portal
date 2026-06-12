@@ -177,7 +177,7 @@ export default function ChatWidget() {
     }
   };
 
-  if (!role || !ALLOWED_ROLES.includes(role)) return null;
+  if (!isAdmin) return null;
 
   return (
     <>

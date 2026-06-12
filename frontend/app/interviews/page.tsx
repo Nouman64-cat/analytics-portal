@@ -35,6 +35,7 @@ import {
   MapPin,
   Wind,
   Thermometer,
+  Map as MapIcon,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -106,6 +107,7 @@ import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 function WeatherCard({ location }: { location: string }) {
   const { loading, error, weather, description } = useProfileWeather(location);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   if (loading) {
     return (
@@ -129,40 +131,71 @@ function WeatherCard({ location }: { location: string }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200/70 dark:border-rose-500/20 bg-gradient-to-r from-rose-50/60 to-orange-50/40 dark:from-rose-500/[0.06] dark:to-orange-500/[0.04] px-4 py-3">
-      {/* Location + local time */}
-      <div className="flex items-center gap-2 min-w-0">
-        <MapPin size={13} className="text-rose-500 dark:text-rose-400 shrink-0" />
-        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
-          {weather.cityName}{weather.country ? `, ${weather.country}` : ""}
-        </span>
-        <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-          🕐 {weather.localTime} · {weather.localDate}
-        </span>
-      </div>
+    <div className="flex flex-col gap-3 rounded-xl border border-rose-200/70 dark:border-rose-500/20 bg-gradient-to-r from-rose-50/60 to-orange-50/40 dark:from-rose-500/[0.06] dark:to-orange-500/[0.04] p-4 relative">
+      <div className="flex flex-wrap md:flex-nowrap items-center gap-4 min-w-0">
+        
+        {/* Left side: Location and weather */}
+        <div className="flex flex-col gap-2.5 min-w-0 flex-1">
+          {/* Location + local time */}
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <MapPin size={13} className="text-rose-500 dark:text-rose-400 shrink-0" />
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+              {weather.cityName}{weather.country ? `, ${weather.country}` : ""}
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              🕐 {weather.localTime} · {weather.localDate}
+            </span>
+          </div>
 
-      <div className="flex items-center gap-4 ml-auto flex-wrap">
-        {/* Temperature */}
-        <div className="flex items-center gap-1.5">
-          <Thermometer size={13} className="text-amber-500 shrink-0" />
-          <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-            {weather.temp}°C / {Math.round((weather.temp * 9) / 5 + 32)}°F
-          </span>
+          {/* Weather Details */}
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Temperature */}
+            <div className="flex items-center gap-1.5">
+              <Thermometer size={13} className="text-amber-500 shrink-0" />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                {weather.temp}°C / {Math.round((weather.temp * 9) / 5 + 32)}°F
+              </span>
+            </div>
+
+            {/* Condition */}
+            <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+              {description}
+            </span>
+
+            {/* Wind */}
+            <div className="flex items-center gap-1.5">
+              <Wind size={13} className="text-sky-500 shrink-0" />
+              <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                {weather.windspeed} km/h
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Condition */}
-        <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-          {description}
-        </span>
-
-        {/* Wind */}
-        <div className="flex items-center gap-1.5">
-          <Wind size={13} className="text-sky-500 shrink-0" />
-          <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            {weather.windspeed} km/h
-          </span>
-        </div>
+        {/* Right side: Map Button */}
+        <button 
+          type="button"
+          onClick={() => setMapExpanded(!mapExpanded)}
+          className="inline-flex items-center justify-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-white/60 dark:bg-black/20 text-rose-600 dark:text-rose-400 hover:bg-white dark:hover:bg-black/40 transition-colors shrink-0 w-full md:w-auto"
+        >
+          <MapIcon size={14} />
+          {mapExpanded ? "Hide Map" : "Show Map"}
+        </button>
       </div>
+
+      {/* Embedded Map */}
+      {mapExpanded && (
+        <div className="mt-1 w-full rounded-lg overflow-hidden border border-rose-200 dark:border-rose-500/20 shadow-inner h-48 md:h-64 transition-all">
+          <iframe
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            scrolling="no"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${weather.longitude - 0.05},${weather.latitude - 0.05},${weather.longitude + 0.05},${weather.latitude + 0.05}&layer=mapnik&marker=${weather.latitude},${weather.longitude}`}
+            className="w-full h-full"
+          />
+        </div>
+      )}
     </div>
   );
 }

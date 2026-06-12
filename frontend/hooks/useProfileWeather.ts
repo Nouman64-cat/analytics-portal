@@ -11,6 +11,8 @@ export interface WeatherData {
   timezone: string;    // IANA tz
   cityName: string;
   country: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface WeatherState {
@@ -118,6 +120,8 @@ export function useProfileWeather(location: string | null | undefined): WeatherS
           timezone,
           cityName,
           country: country ?? "",
+          latitude,
+          longitude,
         };
 
         cache.set(key, data);
