@@ -382,6 +382,7 @@ export interface DayInterviews {
 
 export interface DashboardStats {
   total_interviews: number;
+  legit_interviews: number;
   total_companies: number;
   total_candidates: number;
   total_jobs_closed: number;
@@ -392,6 +393,7 @@ export interface DashboardStats {
   leads_by_status?: Record<string, number>;
   /** Distinct pipeline threads in scope. */
   total_leads?: number;
+  legit_leads?: number;
   interviews_by_status: Record<string, number>;
   interviews_by_company: Record<string, number>;
   interviews_by_candidate: Record<string, number>;

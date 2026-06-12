@@ -149,6 +149,9 @@ def get_dashboard_stats(
     leads_converted = 0
     success_leads = 0          # is_converted OR closed
     failure_leads = 0          # rejected OR dead AND NOT is_converted (pure failures)
+    
+    dropped_interviews = 0
+    dropped_leads = 0
 
     for _thread_id, rows in by_thread.items():
         latest = max(
@@ -162,6 +165,10 @@ def get_dashboard_stats(
 
         lo = (eff.get("lead_outcome") or "").lower()
         is_conv = eff.get("is_converted", False)
+
+        if lo == "dropped":
+            dropped_leads += 1
+            dropped_interviews += len(rows)
 
         if is_conv:
             leads_converted += 1
@@ -330,6 +337,7 @@ def get_dashboard_stats(
 
     return {
         "total_interviews": total_interviews,
+        "legit_interviews": total_interviews - dropped_interviews,
         "total_companies": total_companies,
         "total_candidates": total_candidates,
         "total_jobs_closed": total_jobs_closed,
@@ -340,6 +348,7 @@ def get_dashboard_stats(
         "leads_frequency_monthly": leads_frequency_monthly,
         "leads_by_status": leads_by_status,
         "total_leads": total_leads,
+        "legit_leads": total_leads - dropped_leads,
         "candidate_metrics": candidate_metrics,
         "recent_interviews": recent,
         "conversion_rate_percent": conversion_rate_percent,

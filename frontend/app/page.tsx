@@ -9,6 +9,7 @@ import {
   Eye,
   Target,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
 import {
@@ -33,7 +34,7 @@ function mergeResumeProfileLinks(
     resume_url: p?.resume_url ?? interview.resume_url ?? null,
   };
 }
-import StatsCard, { StatsGrid } from "@/components/StatsCard";
+
 import { ChartCard, BarChartWidget, PieChartWidget, MultiLineChartWidget } from "@/components/Charts";
 import StatusBadge from "@/components/StatusBadge";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
@@ -287,43 +288,36 @@ export default function DashboardPage() {
         subtitle="Overview of your interview pipeline"
       />
 
-      {/* Stats Cards — backend scopes stats for team members to their interviews only */}
-      <StatsGrid cols={isTeamMember ? (typeof stats.total_leads === "number" ? 4 : 3) : typeof stats.total_leads === "number" ? 5 : 4}>
-        <StatsCard
-          title="Total Interviews"
-          value={stats.total_interviews}
-          icon={CalendarCheck}
-          gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
-        />
-        {typeof stats.total_leads === "number" && (
-          <StatsCard
-            title="Total leads (threads)"
-            value={stats.total_leads}
-            icon={Target}
-            gradient="bg-gradient-to-br from-violet-500 to-fuchsia-600"
-          />
-        )}
-        {!isTeamMember && (
-          <StatsCard
-            title="Candidates"
-            value={stats.total_candidates}
-            icon={Users}
-            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
-          />
-        )}
-        <StatsCard
-          title="Jobs Closed"
-          value={stats.total_jobs_closed}
-          icon={CheckCircle2}
-          gradient="bg-gradient-to-br from-emerald-500 to-green-600"
-        />
-        <StatsCard
-          title={isTeamMember ? "Your conversion rate" : "Conversion Rate"}
-          value={`${globalConversionRate}%`}
-          icon={TrendingUp}
-          gradient="bg-gradient-to-br from-amber-500 to-orange-600"
-        />
-      </StatsGrid>
+      {/* Stats Cards */}
+      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2 w-full">
+        {[
+          { title: "Legit Interviews", value: stats.legit_interviews, icon: ShieldCheck, color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-500/10 dark:bg-cyan-500/20" },
+          { title: "Total Interviews", value: stats.total_interviews, icon: CalendarCheck, color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+          ...(typeof stats.total_leads === "number" && typeof stats.legit_leads === "number" ? [
+            { title: "Legit Leads", value: stats.legit_leads, icon: ShieldCheck, color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
+            { title: "Total Leads", value: stats.total_leads, icon: Target, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" }
+          ] : []),
+          ...(!isTeamMember ? [
+            { title: "Candidates", value: stats.total_candidates, icon: Users, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" }
+          ] : []),
+          { title: "Jobs Closed", value: stats.total_jobs_closed, icon: CheckCircle2, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+          { title: "Conv. Rate", value: `${globalConversionRate}%`, icon: TrendingUp, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" }
+        ].map((s, i) => (
+          <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+              <s.icon size={16} strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className={`text-[10px] font-bold uppercase tracking-wider leading-none mb-1.5 opacity-80 ${s.color}`}>
+                {s.title}
+              </p>
+              <p className="text-lg font-bold leading-none text-slate-900 dark:text-white">
+                {s.value}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Lead frequency + Interview Activity — hidden for team members (org-wide metrics) */}
       {!isTeamMember && (
