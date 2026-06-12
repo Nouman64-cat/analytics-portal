@@ -124,6 +124,7 @@ export interface ResumeProfile {
   github_url: string | null;
   portfolio_url: string | null;
   resume_url: string | null;
+  location: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -593,6 +594,7 @@ export interface ResumeProfileFormData {
   linkedin_url?: string;
   github_url?: string;
   portfolio_url?: string;
+  location?: string;
 }
 
 interface LeadOutcomePeriods {

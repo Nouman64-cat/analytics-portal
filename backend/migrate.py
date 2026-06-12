@@ -377,6 +377,9 @@ def migrate():
             WHERE department_ids IS NULL AND department_id IS NOT NULL;
             """,
              "Migration successful! Backfilled candidates.department_ids from existing department_id."),
+            # ── Resume profile location field ─────────────────────────────────────────
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS location VARCHAR(255);",
+             "Migration successful! 'location' column added to 'resume_profiles' table."),
         ]
         for sql, msg in migrations:
             try:

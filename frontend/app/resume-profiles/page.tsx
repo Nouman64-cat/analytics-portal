@@ -11,6 +11,7 @@ import {
   Loader2,
   Eye,
   Search,
+  MapPin,
 } from "lucide-react";
 import { FaLinkedin, FaGithub } from "react-icons/fa";
 import { profilesService, interviewsService, departmentsService, businessDevelopersService } from "@/lib/services";
@@ -36,6 +37,7 @@ import Modal, {
   buttonPrimary,
   buttonSecondary,
 } from "@/components/Modal";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
@@ -126,6 +128,7 @@ export default function ProfilesPage() {
       linkedin_url: "",
       github_url: "",
       portfolio_url: "",
+      location: "",
     });
     setModalOpen(true);
   };
@@ -140,6 +143,7 @@ export default function ProfilesPage() {
       linkedin_url: p.linkedin_url || "",
       github_url: p.github_url || "",
       portfolio_url: p.portfolio_url || "",
+      location: p.location || "",
     });
     setModalOpen(true);
   };
@@ -495,6 +499,7 @@ export default function ProfilesPage() {
                 <tr className="border-b border-slate-200 dark:border-white/[0.06]">
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Name</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Department</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Location</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Interviews</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Links</th>
@@ -524,6 +529,16 @@ export default function ProfilesPage() {
                         {profile.department_name ? (
                           <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
                             {profile.department_name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        {profile.location ? (
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 dark:text-slate-300 max-w-[180px] truncate" title={profile.location}>
+                            <MapPin size={11} className="text-rose-400 shrink-0" />
+                            {profile.location}
                           </span>
                         ) : (
                           <span className="text-slate-400 dark:text-slate-500">—</span>
@@ -918,6 +933,15 @@ export default function ProfilesPage() {
               }
               placeholder="https://portfolio.example.com/..."
               className={inputClass}
+            />
+          </FormField>
+
+          <FormField label="Location (City, Country)">
+            <LocationAutocomplete
+              value={formData.location || ""}
+              onChange={(v) => setFormData({ ...formData, location: v })}
+              className={inputClass}
+              placeholder="e.g., Karachi, Pakistan"
             />
           </FormField>
         </div>

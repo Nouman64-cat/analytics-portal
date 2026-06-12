@@ -32,6 +32,9 @@ import {
   ExternalLink,
   Copy,
   ShieldCheck,
+  MapPin,
+  Wind,
+  Thermometer,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -96,6 +99,72 @@ import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import Link from "next/link";
+import { useProfileWeather } from "@/hooks/useProfileWeather";
+
+// ─── Weather Card (shown in Interview Details modal) ────────
+
+function WeatherCard({ location }: { location: string }) {
+  const { loading, error, weather, description } = useProfileWeather(location);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] px-4 py-3 animate-pulse">
+        <MapPin size={14} className="text-rose-400 shrink-0" />
+        <span className="text-xs text-slate-500 dark:text-slate-400">{location} — loading weather…</span>
+      </div>
+    );
+  }
+
+  if (error || !weather) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] px-4 py-3">
+        <MapPin size={14} className="text-rose-400 shrink-0" />
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {location}
+          {error ? ` — ${error}` : ""}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200/70 dark:border-rose-500/20 bg-gradient-to-r from-rose-50/60 to-orange-50/40 dark:from-rose-500/[0.06] dark:to-orange-500/[0.04] px-4 py-3">
+      {/* Location + local time */}
+      <div className="flex items-center gap-2 min-w-0">
+        <MapPin size={13} className="text-rose-500 dark:text-rose-400 shrink-0" />
+        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+          {weather.cityName}{weather.country ? `, ${weather.country}` : ""}
+        </span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+          🕐 {weather.localTime} · {weather.localDate}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-4 ml-auto flex-wrap">
+        {/* Temperature */}
+        <div className="flex items-center gap-1.5">
+          <Thermometer size={13} className="text-amber-500 shrink-0" />
+          <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+            {weather.temp}°C
+          </span>
+        </div>
+
+        {/* Condition */}
+        <span className="text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          {description}
+        </span>
+
+        {/* Wind */}
+        <div className="flex items-center gap-1.5">
+          <Wind size={13} className="text-sky-500 shrink-0" />
+          <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            {weather.windspeed} km/h
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Quick-create lead (used inside the interview form) ─────
 
@@ -3045,6 +3114,18 @@ export default function InterviewsPage() {
                         })()}
                       </div>
                     </div>
+                    {/* Location + Weather */}
+                    {(() => {
+                      const profile = profiles.find(
+                        (p) => p.id === detailModal.resume_profile_id,
+                      );
+                      if (!profile?.location) return null;
+                      return (
+                        <div className="col-span-1 sm:col-span-2">
+                          <WeatherCard location={profile.location} />
+                        </div>
+                      );
+                    })()}
                     {detailModal.salary_range && (
                       <div>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">

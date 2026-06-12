@@ -61,6 +61,7 @@ def _to_read(profile: ResumeProfile, dept: Optional[Department], bd: Optional[Bu
         github_url=profile.github_url,
         portfolio_url=profile.portfolio_url,
         resume_url=profile.resume_url,
+        location=profile.location,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )

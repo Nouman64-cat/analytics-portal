@@ -13,6 +13,7 @@ class ResumeProfileCreate(BaseModel):
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
+    location: Optional[str] = None
 
 
 class ResumeProfileUpdate(BaseModel):
@@ -24,6 +25,7 @@ class ResumeProfileUpdate(BaseModel):
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
+    location: Optional[str] = None
 
 
 class ResumeProfileRead(BaseModel):
@@ -38,6 +40,7 @@ class ResumeProfileRead(BaseModel):
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
+    location: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
