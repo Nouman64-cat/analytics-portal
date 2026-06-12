@@ -422,14 +422,17 @@ def get_interviews_by_day(
 def get_lead_outcomes_by_candidate(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    department_id: Optional[uuid.UUID] = Query(default=None),
 ):
     """Superadmin only: dropped / converted / rejected lead counts per candidate per week and month."""
     if current_user.role != UserRole.SUPERADMIN:
         raise HTTPException(status_code=403, detail="Superadmin only")
 
-    all_ivs = session.exec(
-        select(Interview).where(Interview.thread_id.is_not(None))
-    ).all()
+    stmt = select(Interview).where(Interview.thread_id.is_not(None))
+    if department_id:
+        stmt = stmt.where(Interview.department_id == department_id)
+
+    all_ivs = session.exec(stmt).all()
 
     thread_ivs: dict[uuid.UUID, list[Interview]] = defaultdict(list)
     for iv in all_ivs:

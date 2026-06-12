@@ -144,8 +144,10 @@ export const dashboardService = {
     const qs = departmentId ? `?department_id=${departmentId}` : "";
     return apiFetch<{ days: DayInterviews[] }>(`/dashboard/interviews-by-day${qs}`);
   },
-  getLeadOutcomesByCandidate: () =>
-    apiFetch<LeadOutcomesByCandidateData>("/dashboard/lead-outcomes-by-candidate"),
+  getLeadOutcomesByCandidate: (departmentId?: string | null) => {
+    const qs = departmentId ? `?department_id=${departmentId}` : "";
+    return apiFetch<LeadOutcomesByCandidateData>(`/dashboard/lead-outcomes-by-candidate${qs}`);
+  },
 };
 
 export const leadsService = {

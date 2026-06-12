@@ -152,7 +152,7 @@ export default function DashboardPage() {
         authService.getMe().catch(() => null),
         dashboardService.getInterviewsByDay(departmentId).catch(() => ({ days: [] })),
         role === "superadmin"
-          ? dashboardService.getLeadOutcomesByCandidate().catch(() => null)
+          ? dashboardService.getLeadOutcomesByCandidate(departmentId).catch(() => null)
           : Promise.resolve(null),
       ]);
       setStats(data);
