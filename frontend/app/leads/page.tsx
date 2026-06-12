@@ -80,6 +80,7 @@ import {
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
+import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
 const SORT_OPTIONS: { value: LeadListSort; label: string }[] = [
   { value: "last_activity_desc", label: "Activity · newest" },
@@ -299,7 +300,7 @@ export default function LeadsPage() {
       initialFetchDone.current = true;
     }
   }, [
-    page,
+    departmentId,
     debouncedSearch,
     bdFilter,
     profileFilter,
@@ -307,14 +308,88 @@ export default function LeadsPage() {
     outcomeFilter,
     convertedFilter,
     sortFilter,
-    departmentId,
     dateFrom,
     dateTo,
+    page,
   ]);
+
+  const voiceCtx = useVoiceContext();
+
+  useVoiceCommand({
+    id: "ai_filter_leads",
+    phrase: "filter leads",
+    description: "Applies multiple filters at once using AI parameter extraction. Use when the user says 'filter leads by [candidate/bd/status/profile]'",
+    action: async () => {
+      const transcript = voiceCtx.lastTranscript;
+      if (!transcript) return;
+      
+      setLoading(true);
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+        if (!apiKey) return;
+
+        const candidatesList = candidates.map((c) => ({ id: c.id, name: c.name }));
+        const bdList = businessDevs.map((b) => ({ id: b.id, name: b.name }));
+        const profileList = profiles.map((p) => ({ id: p.id, name: p.name }));
+        const outcomeList = LEAD_OUTCOME_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+
+        const systemPrompt = `You are a filter extractor for the Leads page.
+Extract the user's intent into a JSON object matching this schema:
+{
+  "outcomeFilter": string | "all",
+  "bdFilter": string | "all",
+  "candidateFilter": string | "all",
+  "profileFilter": string | "all"
+}
+
+Available Data:
+Outcomes: ${JSON.stringify(outcomeList)}
+Candidates: ${JSON.stringify(candidatesList)}
+Business Developers: ${JSON.stringify(bdList)}
+Profiles: ${JSON.stringify(profileList)}
+
+Match names fuzzily. For example, if the user says "John", find the candidate or BD named "John Smith" and use their ID.
+If the user mentions a status like "active" or "pending", map it to the exact outcome value.
+Return "all" for fields the user didn't mention.`;
+
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: transcript }
+            ]
+          })
+        });
+
+        const data = await response.json();
+        if (data.choices?.[0]?.message?.content) {
+          const parsed = JSON.parse(data.choices[0].message.content);
+          if (parsed.outcomeFilter) setOutcomeFilter(parsed.outcomeFilter);
+          if (parsed.bdFilter) setBdFilter(parsed.bdFilter);
+          if (parsed.candidateFilter) setCandidateFilter(parsed.candidateFilter);
+          if (parsed.profileFilter) setProfileFilter(parsed.profileFilter);
+          setPage(1);
+        }
+      } catch (err) {
+        console.error("AI filter failed", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  });
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+
 
   // Resolve the team member's own candidate once on mount
   useEffect(() => {
