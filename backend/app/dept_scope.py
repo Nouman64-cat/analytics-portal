@@ -9,7 +9,7 @@ from sqlalchemy import false as sql_false
 
 from app.models.user import User, UserRole
 
-CROSS_DEPT_ROLES = frozenset({UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.BD_MANAGER})
+CROSS_DEPT_ROLES = frozenset({UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.BD_MANAGER, UserRole.GUEST})
 
 
 def is_cross_dept(user: User) -> bool:

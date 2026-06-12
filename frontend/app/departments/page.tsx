@@ -22,7 +22,7 @@ export default function DepartmentsPage() {
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
-  const canView = isSuperadmin || role === "bd-manager";
+  const canView = isSuperadmin || role === "bd-manager" || role === "guest";
 
   const filteredDepartments = useMemo(() => {
     if (!search.trim()) return departments;

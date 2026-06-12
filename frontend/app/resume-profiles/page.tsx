@@ -87,7 +87,7 @@ export default function ProfilesPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const role = getUserRole();
-  const cannotCRUD = role === "manager" || role === "bd-manager";
+  const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest";
   const isSuperadmin = role === "superadmin";
   const { departmentId } = useDepartmentContext();
 

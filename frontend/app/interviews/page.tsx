@@ -833,7 +833,7 @@ export default function InterviewsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const { departmentId } = useDepartmentContext();
-  const cannotCRUD = role === "manager" || role === "bd-manager";
+  const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest";
   const isTeamMember = role === "team-member";
   const canEditLeadThreadPanel =
     role === "superadmin" ||

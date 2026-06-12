@@ -37,8 +37,8 @@ interface SidebarProps {
   onMobileClose: () => void;
 }
 
-const CROSS_DEPT_ROLES = new Set(["superadmin", "manager"]);
-const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead"]);
+const CROSS_DEPT_ROLES = new Set(["superadmin", "manager", "guest"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "guest", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead"]);
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,

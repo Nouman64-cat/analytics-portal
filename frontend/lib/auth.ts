@@ -59,7 +59,8 @@ export function getUserId(): string | null {
 }
 
 export function isReadOnlyRole(): boolean {
-  return getUserRole() === "bd-manager";
+  const role = getUserRole();
+  return role === "bd-manager" || role === "guest";
 }
 
 export function getCanBroadcast(): boolean {

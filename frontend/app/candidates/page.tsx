@@ -189,7 +189,7 @@ export default function CandidatesPage() {
   const { departmentId } = useDepartmentContext();
   const fetchGenRef = useRef(0);
   const role = getUserRole();
-  const cannotCRUD = role === "bd" || role === "manager" || role === "bd-manager";
+  const cannotCRUD = role === "bd" || role === "manager" || role === "bd-manager" || role === "guest";
   const isSuperadmin = role === "superadmin";
 
   const availableMonths = useMemo(() => {
