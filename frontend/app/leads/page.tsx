@@ -642,11 +642,6 @@ export default function LeadsPage() {
     <div className="space-y-6 animate-fade-in pb-10">
       <PageHeader
         title="Leads"
-        subtitle={
-          canMutateLeads
-            ? "Create multiple leads per company for different candidates or profiles. Each row represents a distinct pipeline thread."
-            : "View opportunities by company. Creating and editing leads is limited to superadmin and team members."
-        }
         action={
           canMutateLeads ? (
             <button
@@ -661,68 +656,32 @@ export default function LeadsPage() {
         }
       />
 
-      <p className="text-sm text-slate-600 dark:text-slate-400">
-        All counts below match your current filters and search.
-        {canMutateLeads ? (
-          <>
-            {" "}
-            If you set a lead to{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-300">
-              Unresponsive
-            </span>{" "}
-            explicitly, it is automatically marked{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-300">
-              Dead
-            </span>{" "}
-            after 30 days (background job).
-          </>
-        ) : null}
-      </p>
 
-      <StatsGrid cols={4}>
-        <StatsCard
-          title="Legit Leads"
-          value={Math.max(0, displayStats.total_leads - displayStats.dropped)}
-          icon={ShieldCheck}
-          gradient={LEAD_STAT_CARD_GRADIENT.legit}
-        />
-        <StatsCard
-          title="Total leads"
-          value={total}
-          icon={List}
-          gradient={LEAD_STAT_CARD_GRADIENT.total}
-        />
-        <StatsCard
-          title="Leads Converted"
-          value={displayStats.converted}
-          icon={Activity}
-          gradient={LEAD_STAT_CARD_GRADIENT.converted}
-        />
-        <StatsCard
-          title="Rejected"
-          value={displayStats.rejected}
-          icon={Ban}
-          gradient={LEAD_STAT_CARD_GRADIENT.rejected}
-        />
-        <StatsCard
-          title="Dropped"
-          value={displayStats.dropped}
-          icon={CircleSlash}
-          gradient={LEAD_STAT_CARD_GRADIENT.dropped}
-        />
-        <StatsCard
-          title="Closed"
-          value={displayStats.closed}
-          icon={Lock}
-          gradient={LEAD_STAT_CARD_GRADIENT.closed}
-        />
-        <StatsCard
-          title="Dead"
-          value={displayStats.dead}
-          icon={Skull}
-          gradient={LEAD_STAT_CARD_GRADIENT.dead}
-        />
-      </StatsGrid>
+      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2 w-full">
+        {[
+          { title: "Legit Leads", value: Math.max(0, displayStats.total_leads - displayStats.dropped), icon: ShieldCheck, color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
+          { title: "Total", value: total, icon: List, color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+          { title: "Converted", value: displayStats.converted, icon: Activity, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+          { title: "Rejected", value: displayStats.rejected, icon: Ban, color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
+          { title: "Dropped", value: displayStats.dropped, icon: CircleSlash, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+          { title: "Closed", value: displayStats.closed, icon: Lock, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+          { title: "Dead", value: displayStats.dead, icon: Skull, color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
+        ].map((s, i) => (
+          <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+              <s.icon size={16} strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className={`text-[10px] font-bold uppercase tracking-wider leading-none mb-1.5 opacity-80 ${s.color}`}>
+                {s.title}
+              </p>
+              <p className="text-lg font-bold leading-none text-slate-900 dark:text-white">
+                {s.value}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
       {displayStats.other > 0 && (
         <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
           {displayStats.other} lead{displayStats.other === 1 ? "" : "s"} in

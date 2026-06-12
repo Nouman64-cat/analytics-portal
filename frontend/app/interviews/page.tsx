@@ -1457,7 +1457,6 @@ export default function InterviewsPage() {
       `}</style>
       <PageHeader
         title="Interviews"
-        subtitle="Interview rounds, pipeline steps, and schedules"
         action={
           <div className="flex gap-2">
             <button onClick={handleExport} className={buttonSecondary}>
@@ -1495,50 +1494,31 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      <StatsGrid cols={4}>
-        <StatsCard
-          title="Legit Interviews"
-          value={legitInterviewsCount}
-          icon={ShieldCheck}
-          gradient={INTERVIEW_STATS_GRADIENT.legit}
-        />
-        <StatsCard
-          title="Total interviews"
-          value={filtered.length}
-          icon={List}
-          gradient={INTERVIEW_STATS_GRADIENT.total}
-        />
-        <StatsCard
-          title="Upcoming"
-          value={statusCounts.Upcoming}
-          icon={CalendarCheck}
-          gradient={INTERVIEW_STATS_GRADIENT.upcoming}
-        />
-        <StatsCard
-          title="Unresponsed"
-          value={statusCounts.Unresponsed}
-          icon={Clock}
-          gradient={INTERVIEW_STATS_GRADIENT.unresponsed}
-        />
-        <StatsCard
-          title="Dead"
-          value={statusCounts.Dead}
-          icon={Ban}
-          gradient={INTERVIEW_STATS_GRADIENT.dead}
-        />
-        <StatsCard
-          title="Rejected"
-          value={statusCounts.Rejected}
-          icon={Ban}
-          gradient={INTERVIEW_STATS_GRADIENT.rejected}
-        />
-        <StatsCard
-          title="Converted"
-          value={statusCounts.Converted}
-          icon={CheckCircle2}
-          gradient={INTERVIEW_STATS_GRADIENT.converted}
-        />
-      </StatsGrid>
+      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2 w-full">
+        {[
+          { title: "Legit", value: legitInterviewsCount, icon: ShieldCheck, color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
+          { title: "Total", value: filtered.length, icon: List, color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+          { title: "Upcoming", value: statusCounts.Upcoming, icon: CalendarCheck, color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 dark:bg-blue-500/20" },
+          { title: "Unresponsed", value: statusCounts.Unresponsed, icon: Clock, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+          { title: "Dead", value: statusCounts.Dead, icon: Ban, color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
+          { title: "Rejected", value: statusCounts.Rejected, icon: Ban, color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
+          { title: "Converted", value: statusCounts.Converted, icon: CheckCircle2, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+        ].map((s, i) => (
+          <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+              <s.icon size={16} strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className={`text-[10px] font-bold uppercase tracking-wider leading-none mb-1.5 opacity-80 ${s.color}`}>
+                {s.title}
+              </p>
+              <p className="text-lg font-bold leading-none text-slate-900 dark:text-white">
+                {s.value}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Filters Row */}
       {(() => {
@@ -1767,23 +1747,6 @@ export default function InterviewsPage() {
       {filtered.length === 0 ? (
         <EmptyState message="No interviews found" />
       ) : (
-        <div className="space-y-2">
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed px-0.5">
-            <span className="font-medium text-slate-600 dark:text-slate-300">
-              Date (EST)
-            </span>{" "}
-            is the calendar day in US Eastern for this interview, using the
-            interview date and EST time (stable regardless of your
-            computer&apos;s timezone).{" "}
-            <span className="font-medium text-slate-600 dark:text-slate-300">
-              EST
-            </span>{" "}
-            and{" "}
-            <span className="font-medium text-slate-600 dark:text-slate-300">
-              PKT
-            </span>{" "}
-            columns show the same moment as clock times in each region.
-          </p>
           <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
             <div className="overflow-x-auto">
               <table className="w-full min-w-full table-auto">
@@ -2291,7 +2254,6 @@ export default function InterviewsPage() {
               </div>
             )}
           </div>
-        </div>
       )}
 
       {/* Create/Edit Modal */}
