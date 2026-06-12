@@ -72,16 +72,30 @@ export function useProfileWeather(location: string | null | undefined): WeatherS
 
     (async () => {
       try {
-        // 1. Geocode (extract just the city part before the first comma for the search)
-        const cityNameSearch = location.split(",")[0].trim();
+        // 1. Geocode (extract city name and use region hints if available)
+        const parts = location.split(",").map((p) => p.trim());
+        const cityNameSearch = parts[0];
+        
         const geoRes = await fetch(
-          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityNameSearch)}&count=1&language=en&format=json`,
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityNameSearch)}&count=10&language=en&format=json`,
           { signal: ctrl.signal },
         );
         if (!geoRes.ok) throw new Error("Geocoding failed");
         const geoJson = await geoRes.json();
-        const geo = geoJson.results?.[0];
-        if (!geo) throw new Error(`Location "${location}" not found`);
+        const results = geoJson.results || [];
+        if (results.length === 0) throw new Error(`Location "${location}" not found`);
+
+        let geo = results[0];
+        if (parts.length > 1) {
+          const regionHint = parts[1].toLowerCase();
+          const betterMatch = results.find(
+            (r: any) =>
+              (r.admin1 && r.admin1.toLowerCase().includes(regionHint)) ||
+              (r.country && r.country.toLowerCase().includes(regionHint)) ||
+              (r.admin2 && r.admin2.toLowerCase().includes(regionHint))
+          );
+          if (betterMatch) geo = betterMatch;
+        }
 
         const { latitude, longitude, timezone, name: cityName, country } = geo;
 
