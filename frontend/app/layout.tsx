@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import VoiceAppProvider from "@/components/VoiceAppProvider";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -28,7 +29,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex bg-slate-50 dark:bg-[#0a0b10] text-slate-900 dark:text-indigo-50 transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AppShell>{children}</AppShell>
+          <VoiceAppProvider>
+            <AppShell>{children}</AppShell>
+          </VoiceAppProvider>
         </ThemeProvider>
       </body>
     </html>

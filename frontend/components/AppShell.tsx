@@ -8,6 +8,8 @@ import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
 import ChatWidget from "@/components/ChatWidget";
 import BroadcastModalViewer from "@/components/BroadcastModalViewer";
+import VoiceMicWidget from "@/components/VoiceMicWidget";
+import { useVoiceCommand } from "react-voice-action-router";
 import {
   isAuthenticated,
   mustChangePassword,
@@ -31,6 +33,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  useVoiceCommand({
+    id: "open_sidebar",
+    description: "Expands or opens the main navigation sidebar",
+    phrase: "open sidebar",
+    action: () => setCollapsed(false)
+  });
+
+  useVoiceCommand({
+    id: "close_sidebar",
+    description: "Collapses or closes the main navigation sidebar",
+    phrase: "close sidebar",
+    action: () => setCollapsed(true)
+  });
 
   useEffect(() => {
     setMobileOpen(false);
@@ -122,6 +138,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <InterviewAlertMonitor />
       <ChatWidget />
+      <VoiceMicWidget />
       <BroadcastModalViewer />
     </DepartmentProvider>
   );
