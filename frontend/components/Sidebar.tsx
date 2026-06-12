@@ -29,7 +29,7 @@ import { useRouter } from "next/navigation";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
-import { useVoiceContext } from "react-voice-action-router";
+import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -68,10 +68,20 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const voiceCtx = useVoiceContext();
+
   const handleLogout = () => {
+    voiceCtx?.stopListening?.();
     clearToken();
     router.replace("/login");
   };
+
+  useVoiceCommand({
+    id: "logout",
+    description: "Logs out the user from the application",
+    phrase: "log out",
+    action: handleLogout,
+  });
 
   const role = getUserRole();
   const canBroadcast = getCanBroadcast();
@@ -119,7 +129,7 @@ export default function Sidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departments]);
 
-  const voiceCtx = useVoiceContext();
+
 
   // Register dynamic voice commands for department switching
   useEffect(() => {
@@ -194,6 +204,30 @@ export default function Sidebar({
     () => NAV_ITEMS.filter((item) => !hiddenHrefs.includes(item.href)),
     [hiddenHrefs],
   );
+
+  // Register dynamic voice commands for page navigation
+  useEffect(() => {
+    if (!voiceCtx || visibleNavItems.length === 0) return;
+
+    const ids: string[] = [];
+
+    visibleNavItems.forEach((item) => {
+      const navId = `nav_to_${item.href.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      ids.push(navId);
+      
+      voiceCtx.register({
+        id: navId,
+        phrase: `go to ${item.label.toLowerCase()}`,
+        description: `Navigates to the ${item.label} page. Use this for navigating, switching pages, or visiting the ${item.label} section.`,
+        action: () => router.push(item.href),
+      });
+    });
+
+    return () => {
+      ids.forEach((id) => voiceCtx.unregister(id));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleNavItems, router]);
 
   return (
     <>
