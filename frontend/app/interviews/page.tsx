@@ -145,7 +145,7 @@ function WeatherCard({ location }: { location: string }) {
         <div className="flex items-center gap-1.5">
           <Thermometer size={13} className="text-amber-500 shrink-0" />
           <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-            {weather.temp}°C
+            {weather.temp}°C / {Math.round((weather.temp * 9) / 5 + 32)}°F
           </span>
         </div>
 
