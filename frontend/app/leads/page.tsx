@@ -944,36 +944,39 @@ export default function LeadsPage() {
                     </td>
                     <td className="py-2.5 pr-3 align-top">
                       {canEditLeadStatus ? (
-                        <select
-                          value={
-                            l.lead_source === "explicit" && l.lead_outcome
-                              ? l.lead_outcome
-                              : ""
-                          }
-                          disabled={savingLeadThreadId === l.thread_id}
-                          onChange={(e) => void handleLeadStatusChange(l, e)}
-                          className={`w-full max-w-[min(100%,260px)] rounded-lg border px-2 py-1.5 text-xs appearance-none ${getLeadOutcomeSelectShellClass(l.lead_outcome)}`}
-                          aria-label="Lead status"
-                        >
-                          <option value="">
-                            {l.lead_source === "explicit" && l.lead_outcome
-                              ? "Use status from interviews"
-                              : l.lead_status_label || "—"}
-                          </option>
-                          {LEAD_OUTCOME_OPTIONS.filter(
-                            (o) =>
-                              !(
-                                l.lead_source === "derived" &&
-                                (l.lead_outcome || "").toLowerCase() ===
-                                  "active" &&
-                                o.value === "active"
-                              ),
-                          ).map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
+                        <div className="relative inline-block w-full max-w-[min(100%,260px)]">
+                          <select
+                            value={
+                              l.lead_source === "explicit" && l.lead_outcome
+                                ? l.lead_outcome
+                                : ""
+                            }
+                            disabled={savingLeadThreadId === l.thread_id}
+                            onChange={(e) => void handleLeadStatusChange(l, e)}
+                            className={`w-full rounded-lg border pl-2 pr-7 py-1.5 text-xs appearance-none cursor-pointer ${getLeadOutcomeSelectShellClass(l.lead_outcome)}`}
+                            aria-label="Lead status"
+                          >
+                            <option value="">
+                              {l.lead_source === "explicit" && l.lead_outcome
+                                ? "Use status from interviews"
+                                : l.lead_status_label || "—"}
                             </option>
-                          ))}
-                        </select>
+                            {LEAD_OUTCOME_OPTIONS.filter(
+                              (o) =>
+                                !(
+                                  l.lead_source === "derived" &&
+                                  (l.lead_outcome || "").toLowerCase() ===
+                                    "active" &&
+                                  o.value === "active"
+                                ),
+                            ).map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none opacity-60" />
+                        </div>
                       ) : (
                         <LeadOutcomeBadge
                           outcome={l.lead_outcome || ""}
