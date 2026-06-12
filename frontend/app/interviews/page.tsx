@@ -100,6 +100,7 @@ import { FaGithub } from "react-icons/fa";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import Link from "next/link";
 import { useProfileWeather } from "@/hooks/useProfileWeather";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 // ─── Weather Card (shown in Interview Details modal) ────────
 
@@ -161,6 +162,61 @@ function WeatherCard({ location }: { location: string }) {
             {weather.windspeed} km/h
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inline Location Editor (for missing location in modal) ──
+
+function InlineLocationEditor({
+  profileId,
+  onLocationUpdated,
+}: {
+  profileId: string;
+  onLocationUpdated: (loc: string) => void;
+}) {
+  const [loc, setLoc] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!loc.trim()) return;
+    setSaving(true);
+    try {
+      await profilesService.update(profileId, { location: loc });
+      onLocationUpdated(loc);
+    } catch (err) {
+      alert("Failed to save location");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5 rounded-xl border border-dashed border-slate-300 dark:border-white/[0.12] bg-slate-50/50 dark:bg-white/[0.02] px-4 py-3.5">
+      <div className="flex items-center gap-2">
+        <MapPin size={13} className="text-slate-400 shrink-0" />
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          Add Location to view local weather & time
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <LocationAutocomplete
+            value={loc}
+            onChange={setLoc}
+            className={`${inputClass} text-sm`}
+            placeholder="e.g., Karachi, Pakistan"
+          />
+        </div>
+        <button
+          type="button"
+          disabled={saving || !loc.trim()}
+          onClick={handleSave}
+          className={`${buttonPrimary} px-3 py-1.5 min-w-[70px] justify-center`}
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+        </button>
       </div>
     </div>
   );
@@ -3119,7 +3175,21 @@ export default function InterviewsPage() {
                       const profile = profiles.find(
                         (p) => p.id === detailModal.resume_profile_id,
                       );
-                      if (!profile?.location) return null;
+                      if (!profile) return null;
+                      if (!profile.location) {
+                        return (
+                          <div className="col-span-1 sm:col-span-2">
+                            <InlineLocationEditor
+                              profileId={profile.id}
+                              onLocationUpdated={(newLoc) => {
+                                setProfiles(profiles.map(p => 
+                                  p.id === profile.id ? { ...p, location: newLoc } : p
+                                ));
+                              }}
+                            />
+                          </div>
+                        );
+                      }
                       return (
                         <div className="col-span-1 sm:col-span-2">
                           <WeatherCard location={profile.location} />
