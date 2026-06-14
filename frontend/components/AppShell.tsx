@@ -108,7 +108,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     authService
       .getMe()
       .then((user) => {
-        hydrateSettingsCache(user.alarm_enabled);
+        hydrateSettingsCache(user.alarm_enabled, user.glassmorphism_enabled);
       })
       .catch(() => {});
 

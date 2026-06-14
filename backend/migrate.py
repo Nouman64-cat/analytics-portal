@@ -380,6 +380,10 @@ def migrate():
             # ── Resume profile location field ─────────────────────────────────────────
             ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS location VARCHAR(255);",
              "Migration successful! 'location' column added to 'resume_profiles' table."),
+
+            # ── Per-user glassmorphism UI preference ──────────────────────────────────
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS glassmorphism_enabled BOOLEAN NOT NULL DEFAULT FALSE;",
+             "Migration successful! 'glassmorphism_enabled' column added to 'users' table."),
         ]
         for sql, msg in migrations:
             try:

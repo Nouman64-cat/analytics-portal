@@ -360,7 +360,7 @@ export default function DashboardPage() {
               <HeatmapCalendar days={dailyInterviews} />
             </ChartCard>
           ) : (
-            <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full flex items-center justify-center">
+            <div className="rounded-2xl border border-white/50 dark:border-white/[0.10] bg-white/35 dark:bg-white/[0.07] backdrop-blur-3xl p-5 h-full flex items-center justify-center">
               <p className="text-sm text-slate-500 dark:text-slate-400">No interview data yet</p>
             </div>
           )}
@@ -381,7 +381,7 @@ export default function DashboardPage() {
         >
           <PieChartWidget data={statusData} height={360} colorMapping={STATUS_HEX_COLORS} />
         </ChartCard>
-        <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
+        <div className="rounded-2xl border border-white/50 dark:border-white/[0.10] bg-white/35 dark:bg-white/[0.07] backdrop-blur-3xl p-5 h-full">
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
             Recent Interviews
           </h3>
@@ -490,7 +490,7 @@ export default function DashboardPage() {
               <BarChartWidget data={candidateData} color="#a78bfa" height={360} />
             </ChartCard>
 
-            <div className="rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 h-full">
+            <div className="rounded-2xl border border-white/50 dark:border-white/[0.10] bg-white/35 dark:bg-white/[0.07] backdrop-blur-3xl p-5 h-full">
               <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
                 Candidate Conversion
               </h3>

@@ -732,7 +732,7 @@ Return "all" for fields the user didn't mention.`;
       />
 
 
-      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2 w-full">
+      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2 w-full">
         {[
           { title: "Legit Leads", value: Math.max(0, displayStats.total_leads - displayStats.dropped), icon: ShieldCheck, color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
           { title: "Total", value: total, icon: List, color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
@@ -764,7 +764,7 @@ Return "all" for fields the user didn't mention.`;
         </p>
       )}
 
-      <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-3 sm:p-4">
+      <div className="rounded-xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-3 sm:p-4">
         {(() => {
           const lSel =
             "w-auto shrink-0 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 appearance-none cursor-pointer min-h-[2.25rem]";

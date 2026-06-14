@@ -256,24 +256,50 @@
 .stagger-children > *:nth-child(5) { animation-delay: 240ms; }
 .stagger-children > *:nth-child(6) { animation-delay: 300ms; }
 
+
 /* ─── Select styling ────────────────────────────────────── */
 select option {
   background-color: #1a1d2e;
   color: #e2e8f0;
 }
 
-/* ─── Glassmorphism ambient background ──────────────────── */
-/* Subtle color orbs that show through frosted glass panels  */
-body {
-  background-image:
-    radial-gradient(ellipse 80% 55% at 18% 45%, rgba(99, 102, 241, 0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 55% 40% at 82% 18%, rgba(168, 85, 247, 0.05) 0%, transparent 55%),
-    radial-gradient(ellipse 45% 50% at 55% 88%, rgba(56, 189, 248, 0.04) 0%, transparent 55%);
+/* ─── Glassmorphism mode ─────────────────────────────────── */
+/* Applied when data-glass="true" is set on <html>.
+   Elements opt in by adding the glass-card class.
+
+   The body's opaque background normally hides the colorful orbs in
+   layout.tsx. Making it transparent in glass mode reveals those orbs,
+   giving backdrop-filter something vivid to blur through. */
+
+/* Hide orbs when glass is off; reveal them (and the body) when on */
+.glass-orbs {
+  display: none;
+}
+html[data-glass="true"] .glass-orbs {
+  display: block;
+}
+html[data-glass="true"] body {
+  background-color: transparent !important;
 }
 
-:where(.dark) body {
-  background-image:
-    radial-gradient(ellipse 80% 55% at 18% 45%, rgba(99, 102, 241, 0.16) 0%, transparent 60%),
-    radial-gradient(ellipse 55% 40% at 82% 18%, rgba(168, 85, 247, 0.11) 0%, transparent 55%),
-    radial-gradient(ellipse 45% 50% at 55% 88%, rgba(56, 189, 248, 0.07) 0%, transparent 55%);
+/* Shared blur applied to all glass-card elements */
+html[data-glass="true"] .glass-card {
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
 }
+
+/* Dark mode: dark frosted panel over colorful orbs */
+html.dark[data-glass="true"] .glass-card {
+  background-color: rgba(10, 8, 20, 0.32) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Light mode: white frosted panel */
+html:not(.dark)[data-glass="true"] .glass-card {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  border-color: rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+

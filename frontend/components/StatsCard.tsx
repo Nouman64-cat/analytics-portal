@@ -24,7 +24,7 @@ export default function StatsCard({
   return (
     <Tag
       onClick={onClick}
-      className={`group relative min-w-0 w-full overflow-hidden rounded-[26px] border border-slate-200/80 dark:border-slate-700/80 bg-white/95 dark:bg-slate-950/95 p-4 text-left transition-shadow duration-200 ${onClick ? "cursor-pointer hover:shadow-sm" : "shadow-sm"}`}
+      className={`group relative min-w-0 w-full overflow-hidden rounded-[26px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.12] backdrop-blur-3xl p-4 text-left transition-all duration-200 shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.3)] ${onClick ? "cursor-pointer hover:bg-white/75 dark:hover:bg-white/[0.07]" : ""}`}
     >
       <div className="relative pr-12">
         <div

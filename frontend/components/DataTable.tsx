@@ -21,7 +21,7 @@ export default function DataTable<T extends { id: string }>({
   onRowClick,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+    <div className="overflow-hidden rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.10] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>

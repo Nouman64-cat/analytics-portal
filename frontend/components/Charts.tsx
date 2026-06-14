@@ -17,6 +17,18 @@ import {
 } from "recharts";
 import { CHART_COLORS } from "@/lib/constants";
 
+// Stable object references — inline literals cause infinite update loops with Recharts Tooltip
+const TOOLTIP_STYLE = {
+  backgroundColor: "#1a1d2e",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "12px",
+  color: "#fff",
+  fontSize: "12px",
+  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+} as const;
+
+const BAR_CURSOR_STYLE = { fill: "rgba(255,255,255,0.03)" } as const;
+
 const CANDIDATE_PALETTE = [
   "#f59e0b", // amber
   "#ef4444", // red
@@ -42,7 +54,7 @@ interface ChartCardProps {
 
 export function ChartCard({ title, subtitle, children, className, headerAction }: ChartCardProps) {
   return (
-    <div className={`rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] p-5 ${className ?? ""}`}>
+    <div className={`rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.10] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-5 ${className ?? ""}`}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
@@ -86,17 +98,7 @@ export function BarChartWidget({ data, color = "#6366f1", height = 300 }: BarCha
           tickLine={false}
           allowDecimals={false}
         />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#1a1d2e",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "12px",
-            color: "#fff",
-            fontSize: "12px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          }}
-          cursor={{ fill: "rgba(255,255,255,0.03)" }}
-        />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={BAR_CURSOR_STYLE} />
         <Bar dataKey="value" fill={color} radius={[6, 6, 0, 0]} maxBarSize={40} />
       </BarChart>
     </ResponsiveContainer>
@@ -132,16 +134,7 @@ export function PieChartWidget({ data, height = 300, colorMapping }: PieChartWid
             return <Cell key={index} fill={sliceColor} />;
           })}
         </Pie>
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#1a1d2e",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "12px",
-            color: "#fff",
-            fontSize: "12px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          }}
-        />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Legend
           verticalAlign="bottom"
           height={36}
@@ -172,15 +165,6 @@ export function MultiLineChartWidget({
   height = 320,
   tickFormatter,
 }: MultiLineChartWidgetProps) {
-  const tooltipStyle = {
-    backgroundColor: "#1a1d2e",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "12px",
-    color: "#fff",
-    fontSize: "12px",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  };
-
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 5, right: 16, left: -10, bottom: 5 }}>
@@ -202,7 +186,7 @@ export function MultiLineChartWidget({
           tickLine={false}
           allowDecimals={false}
         />
-        <Tooltip contentStyle={tooltipStyle} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Legend
           verticalAlign="top"
           height={36}

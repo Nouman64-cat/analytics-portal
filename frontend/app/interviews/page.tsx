@@ -1655,7 +1655,7 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2 w-full">
+      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2 w-full">
         {[
           { title: "Legit", value: legitInterviewsCount, icon: ShieldCheck, color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
           { title: "Total", value: filtered.length, icon: List, color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
@@ -1908,7 +1908,7 @@ export default function InterviewsPage() {
       {filtered.length === 0 ? (
         <EmptyState message="No interviews found" />
       ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+          <div className="overflow-hidden rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
             <div className="overflow-x-auto">
               <table className="w-full min-w-full table-auto">
                 <thead>
@@ -2333,7 +2333,7 @@ export default function InterviewsPage() {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] px-4 py-3 sm:px-6">
+              <div className="flex items-center justify-between border-t border-white/60 dark:border-white/[0.07] bg-white/60 dark:bg-white/[0.04] px-4 py-3 sm:px-6">
                 <div className="flex flex-1 justify-between sm:hidden">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -3311,7 +3311,7 @@ export default function InterviewsPage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c]">
+            <div className="rounded-xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.05] backdrop-blur-3xl">
               <button
                 onClick={() => setIvOpen((v) => !v)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left"
