@@ -27,7 +27,7 @@ export default function RootLayout({
       className={`${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex bg-slate-50 dark:bg-[#0a0b10] text-slate-900 dark:text-indigo-50 transition-colors duration-300">
+      <body className="min-h-full flex bg-[#f1f3ff] dark:bg-[#070810] text-slate-900 dark:text-indigo-50 transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <VoiceAppProvider>
             <AppShell>{children}</AppShell>

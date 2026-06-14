@@ -11,11 +11,11 @@ interface ModalProps {
   size?: "sm" | "md" | "lg" | "xl";
 }
 
-const SIZE_MAP = {
-  sm: "max-w-md",
-  md: "max-w-lg",
-  lg: "max-w-2xl",
-  xl: "max-w-4xl",
+const WIDTH_MAP = {
+  sm: "sm:w-[440px]",
+  md: "sm:w-[560px]",
+  lg: "sm:w-[720px]",
+  xl: "sm:w-[900px]",
 };
 
 export default function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
@@ -32,38 +32,45 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-50"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
-      {/* Panel */}
+      {/* Drawer panel — slides in from the right, full height */}
       <div
-        className={`relative flex max-h-[min(92dvh,calc(100vh-1.5rem))] w-full flex-col ${SIZE_MAP[size]} overflow-hidden rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl shadow-black/50 entrance-zoom`}
+        className={`absolute right-0 top-0 h-full w-full ${WIDTH_MAP[size]} flex flex-col rounded-l-[2.5rem] bg-white/[0.94] dark:bg-[#14161f]/[0.96] backdrop-blur-2xl backdrop-saturate-150 border-l border-white/40 dark:border-white/[0.08] shadow-[-8px_0_40px_rgba(0,0,0,0.12)] dark:shadow-[-8px_0_40px_rgba(0,0,0,0.5)] entrance-slide-right`}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-200 dark:border-white/[0.06] px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/70 dark:border-white/[0.07] px-5 py-4 sm:px-6">
           <h2 className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 dark:text-white sm:text-base">
-            <span className="line-clamp-3">{title}</span>
+            <span className="line-clamp-2">{title}</span>
           </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        {/* Body — scrollable */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
           {children}
         </div>
       </div>

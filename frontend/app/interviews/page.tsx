@@ -36,6 +36,7 @@ import {
   Wind,
   Thermometer,
   Map as MapIcon,
+  Upload,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -750,6 +751,8 @@ export default function InterviewsPage() {
     doc: number;
     resume: number;
   }>({ doc: 0, resume: 0 });
+  const [docDragOver, setDocDragOver] = useState(false);
+  const [resumeDragOver, setResumeDragOver] = useState(false);
 
   // Company popover
   const [companyPopover, setCompanyPopover] = useState<{
@@ -2828,59 +2831,87 @@ export default function InterviewsPage() {
           </div>
           <div className="col-span-1">
             <FormField label="Interview Document (PDF)">
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  id="interview-doc-file-input"
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                    const file = e.target.files?.[0] ?? null;
-                    if (file) {
-                      if (file.type !== "application/pdf") {
-                        setInterviewDocError("Only PDF files are allowed.");
-                        setInterviewDocFile(null);
-                        return;
-                      }
-                      setInterviewDocError(null);
-                      setInterviewDocFile(file);
-                    } else {
+              <input
+                id="interview-doc-file-input"
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file) {
+                    if (file.type !== "application/pdf") {
+                      setInterviewDocError("Only PDF files are allowed.");
                       setInterviewDocFile(null);
-                      setInterviewDocError(null);
+                      return;
                     }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    document.getElementById("interview-doc-file-input")?.click()
+                    setInterviewDocError(null);
+                    setInterviewDocFile(file);
+                  } else {
+                    setInterviewDocFile(null);
+                    setInterviewDocError(null);
                   }
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
-                >
-                  <Download size={14} className="rotate-180" />
-                  {interviewDocFile
-                    ? "Change file"
-                    : existingInterviewDocUrl
-                      ? "Replace document"
-                      : "Choose file"}
-                </button>
+                }}
+              />
+              <div
+                className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 text-center cursor-pointer transition-all duration-200 select-none
+                  ${docDragOver
+                    ? "border-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/15 scale-[1.01]"
+                    : interviewDocFile
+                      ? "border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/[0.06]"
+                      : "border-slate-200 dark:border-white/[0.10] bg-white/50 dark:bg-white/[0.02] hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:bg-indigo-50/40 dark:hover:bg-indigo-500/[0.04]"
+                  }`}
+                onClick={() => document.getElementById("interview-doc-file-input")?.click()}
+                onDragOver={(e: React.DragEvent) => { e.preventDefault(); setDocDragOver(true); }}
+                onDragEnter={(e: React.DragEvent) => { e.preventDefault(); setDocDragOver(true); }}
+                onDragLeave={() => setDocDragOver(false)}
+                onDrop={(e: React.DragEvent) => {
+                  e.preventDefault();
+                  setDocDragOver(false);
+                  const file = e.dataTransfer.files?.[0] ?? null;
+                  if (!file) return;
+                  if (file.type !== "application/pdf") {
+                    setInterviewDocError("Only PDF files are allowed.");
+                    return;
+                  }
+                  setInterviewDocError(null);
+                  setInterviewDocFile(file);
+                }}
+              >
+                <Upload
+                  size={22}
+                  className={`transition-colors ${docDragOver ? "text-indigo-500" : interviewDocFile ? "text-indigo-400" : "text-slate-400 dark:text-slate-500"}`}
+                />
                 {interviewDocFile ? (
-                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">
-                    {interviewDocFile.name}
-                  </span>
-                ) : existingInterviewDocUrl ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate max-w-[220px]">
+                      {interviewDocFile.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setInterviewDocFile(null); setInterviewDocError(null); }}
+                      className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      {docDragOver ? "Drop to upload" : "Drag & drop PDF here"}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">or click to browse</p>
+                  </div>
+                )}
+                {!interviewDocFile && existingInterviewDocUrl && (
                   <a
                     href={existingInterviewDocUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 rounded-lg px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
                   >
-                    <Download size={13} /> Current doc
+                    <Download size={11} /> Current doc
                   </a>
-                ) : (
-                  <span className="text-sm text-slate-400 dark:text-slate-600">
-                    No file chosen
-                  </span>
                 )}
               </div>
               {uploadProgress.doc > 0 && uploadProgress.doc < 100 && (
@@ -2900,61 +2931,87 @@ export default function InterviewsPage() {
           </div>
           <div className="col-span-1">
             <FormField label="Resume (PDF)">
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  id="interview-resume-file-input"
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                    const file = e.target.files?.[0] ?? null;
-                    if (file) {
-                      if (file.type !== "application/pdf") {
-                        setInterviewResumeError("Only PDF files are allowed.");
-                        setInterviewResumeFile(null);
-                        return;
-                      }
-                      setInterviewResumeError(null);
-                      setInterviewResumeFile(file);
-                    } else {
+              <input
+                id="interview-resume-file-input"
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file) {
+                    if (file.type !== "application/pdf") {
+                      setInterviewResumeError("Only PDF files are allowed.");
                       setInterviewResumeFile(null);
-                      setInterviewResumeError(null);
+                      return;
                     }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    document
-                      .getElementById("interview-resume-file-input")
-                      ?.click()
+                    setInterviewResumeError(null);
+                    setInterviewResumeFile(file);
+                  } else {
+                    setInterviewResumeFile(null);
+                    setInterviewResumeError(null);
                   }
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
-                >
-                  <Download size={14} className="rotate-180" />
-                  {interviewResumeFile
-                    ? "Change file"
-                    : existingInterviewResumeUrl
-                      ? "Replace resume"
-                      : "Choose file"}
-                </button>
+                }}
+              />
+              <div
+                className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 text-center cursor-pointer transition-all duration-200 select-none
+                  ${resumeDragOver
+                    ? "border-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/15 scale-[1.01]"
+                    : interviewResumeFile
+                      ? "border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/[0.06]"
+                      : "border-slate-200 dark:border-white/[0.10] bg-white/50 dark:bg-white/[0.02] hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:bg-indigo-50/40 dark:hover:bg-indigo-500/[0.04]"
+                  }`}
+                onClick={() => document.getElementById("interview-resume-file-input")?.click()}
+                onDragOver={(e: React.DragEvent) => { e.preventDefault(); setResumeDragOver(true); }}
+                onDragEnter={(e: React.DragEvent) => { e.preventDefault(); setResumeDragOver(true); }}
+                onDragLeave={() => setResumeDragOver(false)}
+                onDrop={(e: React.DragEvent) => {
+                  e.preventDefault();
+                  setResumeDragOver(false);
+                  const file = e.dataTransfer.files?.[0] ?? null;
+                  if (!file) return;
+                  if (file.type !== "application/pdf") {
+                    setInterviewResumeError("Only PDF files are allowed.");
+                    return;
+                  }
+                  setInterviewResumeError(null);
+                  setInterviewResumeFile(file);
+                }}
+              >
+                <Upload
+                  size={22}
+                  className={`transition-colors ${resumeDragOver ? "text-indigo-500" : interviewResumeFile ? "text-indigo-400" : "text-slate-400 dark:text-slate-500"}`}
+                />
                 {interviewResumeFile ? (
-                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">
-                    {interviewResumeFile.name}
-                  </span>
-                ) : existingInterviewResumeUrl ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate max-w-[220px]">
+                      {interviewResumeFile.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setInterviewResumeFile(null); setInterviewResumeError(null); }}
+                      className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      {resumeDragOver ? "Drop to upload" : "Drag & drop PDF here"}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">or click to browse</p>
+                  </div>
+                )}
+                {!interviewResumeFile && existingInterviewResumeUrl && (
                   <a
                     href={existingInterviewResumeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2.5 py-1 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
                   >
-                    <Download size={13} /> Current resume
+                    <Download size={11} /> Current resume
                   </a>
-                ) : (
-                  <span className="text-sm text-slate-400 dark:text-slate-600">
-                    No file chosen
-                  </span>
                 )}
               </div>
               {uploadProgress.resume > 0 && uploadProgress.resume < 100 && (

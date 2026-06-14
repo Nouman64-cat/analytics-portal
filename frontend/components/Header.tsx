@@ -178,7 +178,7 @@ export default function Header({
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 h-16 bg-white/80 dark:bg-[#0c0e14]/80 backdrop-blur-md border-b border-slate-200 dark:border-white/[0.06] transition-all duration-300 left-0 ${collapsed ? "md:left-16" : "md:left-[13.75rem]"}`}
+      className={`fixed top-0 right-0 z-30 h-16 bg-white/[0.78] dark:bg-[#0c0e14]/[0.80] backdrop-blur-2xl backdrop-saturate-150 border-b border-white/50 dark:border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 left-0 ${collapsed ? "md:left-16" : "md:left-[13.75rem]"}`}
     >
       <div className="flex h-full items-center justify-between px-4 md:px-8 gap-4">
         {/* Left: desktop collapse toggle + mobile menu + clocks */}
@@ -217,7 +217,7 @@ export default function Header({
             </button>
           )}
           <VoiceMicWidget />
-          <div className="flex h-10 items-center gap-1 border-l border-slate-200 dark:border-white/[0.06] pl-2 md:pl-4">
+          <div className="flex h-10 items-center gap-1 border-l border-white/50 dark:border-white/[0.07] pl-2 md:pl-4">
             {showNotifications && <NotificationBell />}
             <Link
               href="/profile"

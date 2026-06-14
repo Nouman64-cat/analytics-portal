@@ -239,13 +239,13 @@ export default function Sidebar({
         />
       )}
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen border-r border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-[#0c0e14] flex flex-col transition-all duration-300
+        className={`fixed left-0 top-0 z-40 h-screen border-r border-white/40 dark:border-white/[0.07] bg-white/[0.78] dark:bg-[#0c0e14]/[0.82] backdrop-blur-2xl backdrop-saturate-150 flex flex-col transition-all duration-300 shadow-[1px_0_20px_rgba(0,0,0,0.04)] dark:shadow-[1px_0_20px_rgba(0,0,0,0.25)]
         ${collapsed ? "w-16" : "w-[220px]"}
         ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0`}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center gap-3 border-b border-slate-200 dark:border-white/[0.06] px-5">
+        <div className="flex h-16 items-center gap-3 border-b border-white/50 dark:border-white/[0.07] px-5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white shadow-md">
             NE
           </div>
@@ -258,7 +258,7 @@ export default function Sidebar({
 
         {/* Department switcher */}
         {showSwitcher && (
-          <div className="px-3 py-2 border-b border-slate-200 dark:border-white/[0.06]">
+          <div className="px-3 py-2 border-b border-white/50 dark:border-white/[0.07]">
             {collapsed ? (
               <div
                 className="flex justify-center py-1"
@@ -325,7 +325,7 @@ export default function Sidebar({
         </nav>
 
         {/* Footer Actions */}
-        <div className="mt-auto border-t border-slate-200 dark:border-white/[0.06] p-3 space-y-1">
+        <div className="mt-auto border-t border-white/50 dark:border-white/[0.07] p-3 space-y-1">
           {/* Logout */}
           <button
             onClick={handleLogout}
