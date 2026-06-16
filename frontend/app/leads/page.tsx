@@ -958,7 +958,7 @@ Return "all" for fields the user didn't mention.`;
                   <th className="hidden md:table-cell py-2.5 pr-3 font-medium">
                     Rounds
                   </th>
-                  <th className="py-2.5 pr-3 font-medium">Last activity</th>
+                  <th className="py-2.5 pr-3 font-medium">Arrived</th>
                   <th className="hidden sm:table-cell py-2.5 text-center font-medium">
                     Interviews
                   </th>
@@ -1062,8 +1062,8 @@ Return "all" for fields the user didn't mention.`;
                       {l.interview_count}
                     </td>
                     <td className="py-2.5 pr-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                      {l.last_interview_date
-                        ? formatDate(l.last_interview_date)
+                      {l.lead_arrival_date
+                        ? formatDate(l.lead_arrival_date)
                         : "—"}
                     </td>
                     <td className="hidden sm:table-cell py-2.5 align-middle text-center">

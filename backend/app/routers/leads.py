@@ -202,10 +202,10 @@ def _filter_merged_leads(
         rows = [l for l in rows if l.lead_source == "derived"]
     if date_from is not None:
         rows = [
-            l for l in rows if l.first_interview_date is not None and l.first_interview_date >= date_from]
+            l for l in rows if l.lead_arrival_date is not None and l.lead_arrival_date >= date_from]
     if date_to is not None:
         rows = [
-            l for l in rows if l.first_interview_date is not None and l.first_interview_date <= date_to]
+            l for l in rows if l.lead_arrival_date is not None and l.lead_arrival_date <= date_to]
     if is_converted is not None:
         rows = [l for l in rows if l.is_converted == is_converted]
     return rows
@@ -223,12 +223,12 @@ def _sort_merged_leads(
     rows = list(items)
     if sort == "last_activity_desc":
         rows.sort(
-            key=lambda x: (x.last_interview_date or date.min, x.thread_id),
+            key=lambda x: (x.lead_arrival_date or date.min, x.thread_id),
             reverse=True,
         )
     elif sort == "last_activity_asc":
         rows.sort(key=lambda x: (
-            x.last_interview_date or date.max, x.thread_id))
+            x.lead_arrival_date or date.max, x.thread_id))
     elif sort == "company_asc":
         rows.sort(
             key=lambda x: ((x.company_name or "").lower(), str(x.thread_id)),
@@ -472,7 +472,7 @@ def list_leads(
             out.append(item)
 
     out.sort(
-        key=lambda x: (x.last_interview_date or date.min, x.thread_id),
+        key=lambda x: (x.lead_arrival_date or date.min, x.thread_id),
         reverse=True,
     )
 
