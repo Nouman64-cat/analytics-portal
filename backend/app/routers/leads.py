@@ -104,7 +104,16 @@ def _build_lead_list_item(
     cand_id, cand_name = _list_candidate_display(session, lt, rows)
     eff = effective_lead_fields(session, thread_id, lt, rows=rows)
 
-    dates = [x.interview_date for x in ordered if x.interview_date]
+    # Lead arrival date: comes ONLY from the root lead row (parent_interview_id is None).
+    # This is set when the lead is created and updated only via arrived_on, never by interview rounds.
+    root_row = next((x for x in ordered if x.parent_interview_id is None), ordered[0])
+    lead_arrival_date = root_row.interview_date
+
+    # first/last interview dates: derived from child interview rounds only (parent_interview_id is not None).
+    # Falls back to all rows when no child rounds exist yet (lead-only thread).
+    child_rows = [x for x in ordered if x.parent_interview_id is not None]
+    date_source = child_rows if child_rows else ordered
+    dates = [x.interview_date for x in date_source if x.interview_date]
     first_d = min(dates) if dates else None
     last_d = max(dates) if dates else None
 
@@ -120,6 +129,7 @@ def _build_lead_list_item(
         primary_bd_id=pbd_id,
         primary_bd_name=pbd_name,
         interview_count=len(rows),
+        lead_arrival_date=lead_arrival_date,
         first_interview_date=first_d,
         last_interview_date=last_d,
         first_interview_id=first.id,

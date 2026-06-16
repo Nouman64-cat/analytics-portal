@@ -584,7 +584,7 @@ Return "all" for fields the user didn't mention.`;
       candidate_id: lead.candidate_id ?? "",
       notes: lead.lead_notes ?? "",
       bd_notes: lead.bd_notes ?? "",
-      arrived_on: lead.first_interview_date || "",
+      arrived_on: lead.lead_arrival_date || "",
       is_converted_override: lead.is_converted_override ?? null,
     });
     setModalOpen(true);
@@ -1463,7 +1463,17 @@ Return "all" for fields the user didn't mention.`;
                   {detailLead.interview_count}
                 </dd>
               </div>
-              <div className="sm:col-span-2">
+              <div>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                  Lead arrived
+                </dt>
+                <dd className="mt-0.5 text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                  {detailLead.lead_arrival_date
+                    ? formatDate(detailLead.lead_arrival_date)
+                    : "—"}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   Last activity
                 </dt>

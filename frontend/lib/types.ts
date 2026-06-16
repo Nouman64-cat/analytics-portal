@@ -269,6 +269,8 @@ export interface LeadListItem {
   primary_bd_id: string | null;
   primary_bd_name: string | null;
   interview_count: number;
+  /** When the lead arrived — date on the root lead row only, never updated by interview rounds. */
+  lead_arrival_date: string | null;
   first_interview_date: string | null;
   last_interview_date: string | null;
   first_interview_id: string | null;

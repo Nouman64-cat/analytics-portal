@@ -71,6 +71,10 @@ class LeadListItem(BaseModel):
     )
     primary_bd_name: Optional[str] = None
     interview_count: int = 0
+    lead_arrival_date: Optional[date] = Field(
+        default=None,
+        description="When the lead arrived — stored on the root lead row (parent_interview_id is null). Independent of interview round dates.",
+    )
     first_interview_date: Optional[date] = None
     last_interview_date: Optional[date] = None
     first_interview_id: Optional[uuid.UUID] = Field(
