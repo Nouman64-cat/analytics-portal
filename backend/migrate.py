@@ -404,6 +404,35 @@ def migrate():
               AND sub.interview_date IS NOT NULL;
             """,
              "Migration successful! Backfilled lead_threads.arrived_on from root interview rows."),
+
+            # ── Ensure every interview thread has a lead_threads row ──────────────────
+            # Threads created before ensure_lead_thread was universal may lack a row;
+            # without it the arrived_on backfill below silently skips them.
+            ("""
+            INSERT INTO lead_threads (thread_id, created_at, updated_at)
+            SELECT DISTINCT i.thread_id, NOW(), NOW()
+            FROM interviews i
+            WHERE NOT EXISTS (
+                SELECT 1 FROM lead_threads lt WHERE lt.thread_id = i.thread_id
+            )
+            ON CONFLICT (thread_id) DO NOTHING;
+            """,
+             "Migration successful! Created lead_threads rows for orphan interview threads."),
+            # Re-run arrived_on backfill to cover the newly created lead_threads rows above.
+            ("""
+            UPDATE lead_threads lt
+            SET arrived_on = sub.interview_date
+            FROM (
+                SELECT DISTINCT ON (thread_id) thread_id, interview_date
+                FROM interviews
+                WHERE parent_interview_id IS NULL
+                ORDER BY thread_id, created_at ASC
+            ) sub
+            WHERE lt.thread_id = sub.thread_id
+              AND lt.arrived_on IS NULL
+              AND sub.interview_date IS NOT NULL;
+            """,
+             "Migration successful! Backfilled arrived_on for newly created lead_threads rows."),
         ]
         for sql, msg in migrations:
             try:

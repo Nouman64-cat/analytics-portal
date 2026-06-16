@@ -724,7 +724,13 @@ def create_interview(
     payload["created_by_user_id"] = current_user.id
     interview = Interview(**payload)
     session.add(interview)
-    ensure_lead_thread(session, interview.thread_id)
+    lt = ensure_lead_thread(session, interview.thread_id)
+    # Root interviews created from the interviews page need arrived_on stamped so that
+    # future edits to interview_date don't change the lead arrival date on the Leads page.
+    if interview.parent_interview_id is None and lt.arrived_on is None and interview.interview_date:
+        lt.arrived_on = interview.interview_date
+        lt.updated_at = datetime.utcnow()
+        session.add(lt)
     if parent_for_followup:
         parent_for_followup.status = "Converted"
         parent_for_followup.updated_at = datetime.utcnow()
