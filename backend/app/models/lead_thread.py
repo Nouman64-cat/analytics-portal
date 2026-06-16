@@ -1,7 +1,7 @@
 """One row per pipeline thread (BD lead / opportunity), keyed by Interview.thread_id."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
@@ -23,6 +23,8 @@ class LeadThread(SQLModel, table=True):
     notes: Optional[str] = Field(default=None)
     bd_notes: Optional[str] = Field(default=None)
     closed_at: Optional[datetime] = Field(default=None)
+    #: When the lead was received — independent of any interview round's date.
+    arrived_on: Optional[date] = Field(default=None)
     #: Set when `outcome_override` becomes `unresponsive`; used to auto-mark dead after 30 days.
     unresponsive_since: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)

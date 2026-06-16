@@ -384,6 +384,26 @@ def migrate():
             # ── Per-user glassmorphism UI preference ──────────────────────────────────
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS glassmorphism_enabled BOOLEAN NOT NULL DEFAULT FALSE;",
              "Migration successful! 'glassmorphism_enabled' column added to 'users' table."),
+
+            # ── Lead arrival date (independent of interview dates) ────────────────────
+            ("ALTER TABLE lead_threads ADD COLUMN IF NOT EXISTS arrived_on DATE;",
+             "Migration successful! 'arrived_on' column added to 'lead_threads' table."),
+            # Backfill: copy interview_date from the root interview row (parent_interview_id IS NULL)
+            # for each thread that already has a lead_threads row but no arrived_on yet.
+            ("""
+            UPDATE lead_threads lt
+            SET arrived_on = sub.interview_date
+            FROM (
+                SELECT DISTINCT ON (thread_id) thread_id, interview_date
+                FROM interviews
+                WHERE parent_interview_id IS NULL
+                ORDER BY thread_id, created_at ASC
+            ) sub
+            WHERE lt.thread_id = sub.thread_id
+              AND lt.arrived_on IS NULL
+              AND sub.interview_date IS NOT NULL;
+            """,
+             "Migration successful! Backfilled lead_threads.arrived_on from root interview rows."),
         ]
         for sql, msg in migrations:
             try:

@@ -104,10 +104,13 @@ def _build_lead_list_item(
     cand_id, cand_name = _list_candidate_display(session, lt, rows)
     eff = effective_lead_fields(session, thread_id, lt, rows=rows)
 
-    # Lead arrival date: comes ONLY from the root lead row (parent_interview_id is None).
-    # This is set when the lead is created and updated only via arrived_on, never by interview rounds.
-    root_row = next((x for x in ordered if x.parent_interview_id is None), ordered[0])
-    lead_arrival_date = root_row.interview_date
+    # Lead arrival date: stored on the LeadThread row, completely independent of
+    # interview dates. Falls back to root interview row for threads created before this column.
+    if lt and lt.arrived_on is not None:
+        lead_arrival_date = lt.arrived_on
+    else:
+        root_row = next((x for x in ordered if x.parent_interview_id is None), ordered[0])
+        lead_arrival_date = root_row.interview_date
 
     # first/last interview dates: derived from child interview rounds only (parent_interview_id is not None).
     # Falls back to all rows when no child rounds exist yet (lead-only thread).
@@ -542,6 +545,8 @@ def create_lead(
     if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         lt.bd_notes = data.bd_notes.strip()
     lt.updated_at = datetime.utcnow()
+    if data.arrived_on:
+        lt.arrived_on = data.arrived_on
     session.add(lt)
 
     # Derive department: prefer the active department from the request context
@@ -693,7 +698,7 @@ def update_lead(
                 row.updated_at = datetime.utcnow()
                 session.add(row)
     if "arrived_on" in patch:
-        first.interview_date = patch["arrived_on"]
+        lt.arrived_on = patch["arrived_on"]
     if "resume_profile_id" in patch:
 
         rid = patch["resume_profile_id"]
