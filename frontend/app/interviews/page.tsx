@@ -3089,6 +3089,11 @@ export default function InterviewsPage() {
         onConfirm={handleDelete}
         isDeleting={isDeleting}
         title="Delete Interview"
+        description={
+          deleteModal?.pipeline_thread_total === 1
+            ? "This is the only round in this pipeline. Deleting it will also permanently remove the lead."
+            : undefined
+        }
         itemName={
           deleteModal ? `${deleteModal.company_name} — ${deleteModal.role}` : ""
         }

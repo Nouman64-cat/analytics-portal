@@ -20,6 +20,7 @@ from app.models.resume_profile import ResumeProfile
 from app.models.business_developer import BusinessDeveloper
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.models.lead_thread import LeadThread
+from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
 from app.models.user import User, UserRole
 from app.lead_thread_utils import (
     ALLOWED_LEAD_OUTCOMES,
@@ -1231,23 +1232,30 @@ def delete_interview(
 
     is_only_interview = len(thread_interviews) == 1
 
-    if is_only_interview:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete the only interview round in this thread. Delete the lead from the Leads page if you want to remove this opportunity entirely.",
-        )
+    role_label = interview.role
+    company_label = interview.company.name if interview.company else "Unknown company"
 
-    # Not the only interview, delete normally
-    reminder_logs = session.exec(
+    # Delete reminder logs for this interview first (FK constraint)
+    for row in session.exec(
         select(InterviewReminderLog).where(
             InterviewReminderLog.interview_id == interview_id
         )
-    ).all()
-    for row in reminder_logs:
+    ).all():
         session.delete(row)
 
-    role_label = interview.role
-    company_label = interview.company.name if interview.company else "Unknown company"
+    if is_only_interview:
+        # Last round in the thread — also remove the lead (LeadThread + dependents)
+        followup = session.exec(
+            select(UnresponsiveFollowUpLog).where(
+                UnresponsiveFollowUpLog.thread_id == thread_id
+            )
+        ).first()
+        if followup:
+            session.delete(followup)
+        lt = session.get(LeadThread, thread_id)
+        if lt:
+            session.delete(lt)
+
     session.delete(interview)
     record_activity(
         session,
