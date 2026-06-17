@@ -545,8 +545,9 @@ def create_lead(
     if data.bd_notes and data.bd_notes.strip() and current_user.role in (UserRole.SUPERADMIN, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
         lt.bd_notes = data.bd_notes.strip()
     lt.updated_at = datetime.utcnow()
-    if data.arrived_on:
-        lt.arrived_on = data.arrived_on
+    # Always stamp arrival date so it never stays NULL (a NULL arrived_on makes the
+    # Leads page fall back to the live interview_date and drift on later edits).
+    lt.arrived_on = data.arrived_on or datetime.utcnow().date()
     session.add(lt)
 
     # Derive department: prefer the active department from the request context

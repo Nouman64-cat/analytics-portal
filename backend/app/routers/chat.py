@@ -671,8 +671,9 @@ def _exec_tool(
         notes = (args.get("notes") or "").strip() or None
         if notes:
             lt.notes = notes
-        if arrived_on:
-            lt.arrived_on = arrived_on
+        # Always stamp arrival date so it never stays NULL (a NULL arrived_on makes the
+        # Leads page fall back to the live interview_date and drift on later edits).
+        lt.arrived_on = arrived_on or datetime.utcnow().date()
         lt.updated_at = datetime.utcnow()
         session.add(lt)
 
@@ -792,7 +793,16 @@ def _exec_tool(
         changed = []
         if "interview_date" in args and args["interview_date"]:
             try:
-                iv.interview_date = date.fromisoformat(args["interview_date"])
+                new_date = date.fromisoformat(args["interview_date"])
+                # Lock the lead arrival date before changing a root interview's date, so a
+                # legacy/NULL arrived_on doesn't drift with the edit (see update_interview).
+                if iv.parent_interview_id is None:
+                    lt = ensure_lead_thread(session, iv.thread_id)
+                    if lt.arrived_on is None:
+                        lt.arrived_on = iv.interview_date or new_date
+                        lt.updated_at = datetime.utcnow()
+                        session.add(lt)
+                iv.interview_date = new_date
                 changed.append("date")
                 # Recompute PKT for the new date if a time is already set
                 if iv.time_est:

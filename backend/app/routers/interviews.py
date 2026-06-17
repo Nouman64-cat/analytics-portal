@@ -727,8 +727,11 @@ def create_interview(
     lt = ensure_lead_thread(session, interview.thread_id)
     # Root interviews created from the interviews page need arrived_on stamped so that
     # future edits to interview_date don't change the lead arrival date on the Leads page.
-    if interview.parent_interview_id is None and lt.arrived_on is None and interview.interview_date:
-        lt.arrived_on = interview.interview_date
+    # Stamp even when no date was supplied (default to today) so arrived_on is never left
+    # NULL — otherwise the Leads page falls back to the live interview_date and the arrival
+    # date would drift when the date is filled in/edited later.
+    if interview.parent_interview_id is None and lt.arrived_on is None:
+        lt.arrived_on = interview.interview_date or datetime.utcnow().date()
         lt.updated_at = datetime.utcnow()
         session.add(lt)
     if parent_for_followup:
@@ -1142,6 +1145,19 @@ def update_interview(
                     detail="Invalid parent interview (would create a cycle)",
                 )
             _propagate_thread_id(session, interview_id, par.thread_id)
+
+    # Lock the lead arrival date the first time a root interview's date is touched.
+    # Legacy/derived leads may have a NULL lead_threads.arrived_on (e.g. the interview
+    # was created without a date, so create_interview never stamped it). Without this,
+    # _build_lead_list_item falls back to the live root interview_date, so the Leads-page
+    # arrival date would shift every time this date is edited. We capture arrived_on from
+    # the ORIGINAL (pre-edit) date when one exists, otherwise the newly assigned date.
+    if "interview_date" in update_data and interview.parent_interview_id is None:
+        lt = ensure_lead_thread(session, interview.thread_id)
+        if lt.arrived_on is None:
+            lt.arrived_on = interview.interview_date or update_data["interview_date"]
+            lt.updated_at = datetime.utcnow()
+            session.add(lt)
 
     for key, value in update_data.items():
         setattr(interview, key, value)
