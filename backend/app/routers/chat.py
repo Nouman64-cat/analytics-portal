@@ -671,6 +671,8 @@ def _exec_tool(
         notes = (args.get("notes") or "").strip() or None
         if notes:
             lt.notes = notes
+        if arrived_on:
+            lt.arrived_on = arrived_on
         lt.updated_at = datetime.utcnow()
         session.add(lt)
 
