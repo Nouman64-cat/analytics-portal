@@ -262,6 +262,21 @@ export default function CandidatesPage() {
     return counts;
   }, [allLeads, selectedMonth, monthFilteredInterviews]);
 
+  const legitLeadCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const activeThreadIds = selectedMonth === "all"
+      ? null
+      : new Set(monthFilteredInterviews.filter(i => i.thread_id).map(i => i.thread_id!));
+    allLeads.forEach(l => {
+      if (!l.candidate_id) return;
+      if (activeThreadIds && !activeThreadIds.has(l.thread_id)) return;
+      if (l.lead_outcome !== "dropped") {
+        counts[l.candidate_id] = (counts[l.candidate_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [allLeads, selectedMonth, monthFilteredInterviews]);
+
   const filteredCandidates = useMemo(() => {
     if (!search.trim()) return candidates;
     const q = search.toLowerCase();
@@ -501,6 +516,7 @@ export default function CandidatesPage() {
           {filteredCandidates.map(candidate => {
             const interviewCount = interviewCounts[candidate.id] || 0;
             const leadCount = leadCounts[candidate.id] || 0;
+            const legitLeadCount = legitLeadCounts[candidate.id] || 0;
             const breakdown = leadStatusBreakdown[candidate.id] || {};
             const converted = convertedLeadCounts[candidate.id] || 0;
             const rejected  = (breakdown["Rejected"]  || 0) + (breakdown["rejected"] || 0) + (breakdown["Dead"] || 0) + (breakdown["dead"] || 0);
@@ -571,9 +587,11 @@ export default function CandidatesPage() {
                         <span className="text-slate-900 dark:text-white">{interviewCount}</span>
                         <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
                         <span className="text-slate-500 dark:text-slate-400">{leadCount}</span>
+                        <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
+                        <span className="text-teal-600 dark:text-teal-400">{legitLeadCount}</span>
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                        Interviews / Leads
+                        Interviews / Leads / Legit
                       </p>
                     </div>
                   </div>
