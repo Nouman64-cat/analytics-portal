@@ -158,6 +158,7 @@ export default function Sidebar({
   const HIDDEN_BY_ROLE: Record<string, string[]> = {
     manager: [
       "/",
+      "/leads",
       "/business-developers",
       "/activities",
       "/users",

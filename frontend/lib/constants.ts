@@ -88,6 +88,7 @@ export const INTERVIEW_STATS_GRADIENT = {
   upcoming: "bg-gradient-to-br from-blue-600 to-cyan-500",
   unresponsed: LEAD_STAT_CARD_GRADIENT.dropped,
   converted: "bg-gradient-to-br from-violet-600 to-fuchsia-600",
+  progressed: "bg-gradient-to-br from-violet-600 to-fuchsia-600",
   rejected: LEAD_STAT_CARD_GRADIENT.rejected,
   dead: LEAD_STAT_CARD_GRADIENT.dead,
 } as const;

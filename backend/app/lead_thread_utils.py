@@ -87,6 +87,10 @@ def _derive_lead_outcome(rows: list[Interview]) -> dict[str, Any]:
         outcome = "dead"
     elif "reject" in raw_lower or (cs and "reject" in cs.lower()):
         outcome = "rejected"
+    elif "drop" in raw_lower or (cs and "drop" in cs.lower()):
+        outcome = "dropped"
+    elif "close" in raw_lower or (cs and "close" in cs.lower()):
+        outcome = "closed"
     elif cs == "Upcoming":
         outcome = "active"
     else:

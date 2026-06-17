@@ -3,7 +3,7 @@ from typing import Optional
 
 # Stored on interview.status — outcomes that are only meaningful at lead level (not round-level).
 # "rejected" is allowed on a round when that step received a rejection; lead derives from latest round.
-LEAD_ONLY_INTERVIEW_STATUSES = frozenset({"dropped", "closed", "dead"})
+LEAD_ONLY_INTERVIEW_STATUSES = frozenset({"dead"})
 
 
 def sanitize_status_for_interview_compute(status: Optional[str]) -> Optional[str]:

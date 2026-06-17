@@ -736,7 +736,7 @@ Return "all" for fields the user didn't mention.`;
         {[
           { title: "Legit Leads", value: Math.max(0, displayStats.total_leads - displayStats.dropped), icon: ShieldCheck, color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
           { title: "Total", value: total, icon: List, color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
-          { title: "Converted", value: displayStats.converted, icon: Activity, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+          { title: "Progressed", value: displayStats.converted, icon: Activity, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
           { title: "Rejected", value: displayStats.rejected, icon: Ban, color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
           { title: "Dropped", value: displayStats.dropped, icon: CircleSlash, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
           { title: "Closed", value: displayStats.closed, icon: Lock, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
@@ -808,8 +808,8 @@ Return "all" for fields the user didn't mention.`;
                   className={lSel}
                 >
                   <option value="all">Any conversion</option>
-                  <option value="true">Converted</option>
-                  <option value="false">Not Converted</option>
+                  <option value="true">Progressed</option>
+                  <option value="false">Not Progressed</option>
                 </select>
                 <select
                   value={candidateFilter}
@@ -1320,8 +1320,8 @@ Return "all" for fields the user didn't mention.`;
                 className={selectClass}
               >
                 <option value="auto">Auto (Derived from interviews)</option>
-                <option value="true">Force YES (Converted)</option>
-                <option value="false">Force NO (Not Converted)</option>
+                <option value="true">Force YES (Progressed)</option>
+                <option value="false">Force NO (Not Progressed)</option>
               </select>
             </FormField>
           )}

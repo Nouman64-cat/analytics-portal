@@ -185,7 +185,7 @@ export function getStatusStyle(status: string | null | undefined) {
       dot: "bg-blue-500",
     };
   }
-  if (label.includes("converted")) return STATUS_COLORS.converted;
+  if (label.includes("converted") || label.includes("progressed")) return STATUS_COLORS.converted;
   if (label.includes("rejected")) return STATUS_COLORS.rejected;
   if (label.includes("dropped")) return STATUS_COLORS.dropped;
   if (label.includes("closed")) return STATUS_COLORS.closed;
@@ -200,6 +200,7 @@ export function getStatusStyle(status: string | null | undefined) {
 export function getStatusLabel(status: string | null | undefined): string {
   if (!status || status.trim() === "") return "Unresponsed";
   if (status.length > 50) return status.substring(0, 47) + "...";
+  if (status.toLowerCase() === "converted") return "Progressed";
   return status;
 }
 

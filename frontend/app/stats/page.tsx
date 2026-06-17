@@ -210,8 +210,8 @@ function CandidateSection({
     <StatsGrid cols={6}>
       <StatsCard title="Total Leads" value={s.total} icon={List} gradient={LEAD_STAT_CARD_GRADIENT.total}
         onClick={() => open("total", "Total Leads")} />
-      <StatsCard title="Converted" value={s.converted} icon={Activity} gradient={LEAD_STAT_CARD_GRADIENT.converted}
-        onClick={() => open("converted", "Converted")} />
+      <StatsCard title="Progressed" value={s.converted} icon={Activity} gradient={LEAD_STAT_CARD_GRADIENT.converted}
+        onClick={() => open("converted", "Progressed")} />
       <StatsCard title="Rejected" value={s.rejected} icon={Ban} gradient={LEAD_STAT_CARD_GRADIENT.rejected}
         onClick={() => open("rejected", "Rejected")} />
       <StatsCard title="Dropped" value={s.dropped} icon={CircleSlash} gradient={LEAD_STAT_CARD_GRADIENT.dropped}
@@ -354,8 +354,8 @@ export default function StatsPage() {
         <StatsGrid cols={6}>
           <StatsCard title="Total Leads" value={deptStats.total} icon={List} gradient={LEAD_STAT_CARD_GRADIENT.total}
             onClick={() => openDept("total", "Total Leads")} />
-          <StatsCard title="Converted" value={deptStats.converted} icon={Activity} gradient={LEAD_STAT_CARD_GRADIENT.converted}
-            onClick={() => openDept("converted", "Converted")} />
+          <StatsCard title="Progressed" value={deptStats.converted} icon={Activity} gradient={LEAD_STAT_CARD_GRADIENT.converted}
+            onClick={() => openDept("converted", "Progressed")} />
           <StatsCard title="Rejected" value={deptStats.rejected} icon={Ban} gradient={LEAD_STAT_CARD_GRADIENT.rejected}
             onClick={() => openDept("rejected", "Rejected")} />
           <StatsCard title="Dropped" value={deptStats.dropped} icon={CircleSlash} gradient={LEAD_STAT_CARD_GRADIENT.dropped}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX, X, Building2 } from "lucide-react";
 import { candidatesService, interviewsService, leadsService, departmentsService } from "@/lib/services";
-import { formatDate, formatInterviewDateEst, getStatusStyle, getLeadOutcomeBadgeStyle } from "@/lib/utils";
+import { formatDate, formatInterviewDateEst, getStatusStyle, getStatusLabel, getLeadOutcomeBadgeStyle } from "@/lib/utils";
 import type { Candidate, CandidateFormData, Interview, LeadListItem, Department } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
@@ -603,7 +603,7 @@ export default function CandidatesPage() {
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                         : "bg-slate-100 dark:bg-white/[0.04] text-slate-400 dark:text-slate-500 border-slate-200 dark:border-white/[0.06]"
                     }`}>
-                      ✅ {converted} Converted
+                      ✅ {converted} Progressed
                     </span>
                     {rejected > 0 && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
@@ -710,7 +710,7 @@ export default function CandidatesPage() {
                       return (
                         <div key={status} className="w-48 flex-shrink-0 flex flex-col">
                           <div className={`flex items-center justify-between rounded-t-lg px-3 py-2 ${style.bg}`}>
-                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${style.text}`}>{status}</span>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${style.text}`}>{getStatusLabel(status)}</span>
                             <span className={`text-xs font-bold tabular-nums ${style.text}`}>{items.length}</span>
                           </div>
                           <div className="flex-1 space-y-2 rounded-b-lg border border-t-0 border-slate-100 dark:border-white/[0.05] bg-slate-50 dark:bg-white/[0.02] p-2">

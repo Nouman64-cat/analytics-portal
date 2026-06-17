@@ -1578,22 +1578,26 @@ export default function InterviewsPage() {
   const statusCounts = {
     Upcoming: 0,
     Unresponsed: 0,
-    Converted: 0,
+    Progressed: 0,
     Rejected: 0,
     Dead: 0,
+    Closed: 0,
+    Dropped: 0,
   };
 
   let legitInterviewsCount = 0;
 
   filtered.forEach((i) => {
     if (i.lead_outcome !== "dropped") legitInterviewsCount++;
-    
+
     const label = i.computed_status.toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
     else if (label === "unresponsed") statusCounts.Unresponsed++;
-    else if (label.includes("converted")) statusCounts.Converted++;
+    else if (label.includes("converted") || label.includes("progressed")) statusCounts.Progressed++;
     else if (label.includes("rejected")) statusCounts.Rejected++;
     else if (label === "dead") statusCounts.Dead++;
+    else if (label.includes("closed")) statusCounts.Closed++;
+    else if (label.includes("dropped")) statusCounts.Dropped++;
   });
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -1663,7 +1667,9 @@ export default function InterviewsPage() {
           { title: "Unresponsed", value: statusCounts.Unresponsed, icon: Clock, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
           { title: "Dead", value: statusCounts.Dead, icon: Ban, color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
           { title: "Rejected", value: statusCounts.Rejected, icon: Ban, color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
-          { title: "Converted", value: statusCounts.Converted, icon: CheckCircle2, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+          { title: "Progressed", value: statusCounts.Progressed, icon: CheckCircle2, color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+          { title: "Closed", value: statusCounts.Closed, icon: CheckCircle2, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+          { title: "Dropped", value: statusCounts.Dropped, icon: Ban, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
         ].map((s, i) => (
           <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
@@ -1730,11 +1736,13 @@ export default function InterviewsPage() {
                 className={iSel}
               >
                 <option value="All">All statuses</option>
-                <option value="Converted">Converted</option>
+                <option value="Converted">Progressed</option>
                 <option value="Upcoming">Upcoming</option>
                 <option value="Unresponsed">Unresponsed</option>
                 <option value="Dead">Dead</option>
                 <option value="Rejected">Rejected</option>
+                <option value="Closed">Closed</option>
+                <option value="Dropped">Dropped</option>
               </select>
               {!isTeamMember && (
                 <select
@@ -2792,11 +2800,12 @@ export default function InterviewsPage() {
                     "",
                     "Upcoming",
                     "Converted",
-                    "Unresponsed",
+                    "Closed",
+                    "Dropped",
                     "Rejected",
                   ] as const
                 ).map((val) => {
-                  const label = val === "" ? "Unresponsed" : val;
+                  const label = val === "" ? "Unresponsed" : val === "Converted" ? "Progressed" : val;
                   const s = getStatusStyle(val === "" ? null : val);
                   const selected = (formData.status || "") === val;
                   return (
@@ -2822,10 +2831,13 @@ export default function InterviewsPage() {
                 })}
               </div>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Use <span className="font-medium">Rejected</span> when this
-                round ended in a no — the pipeline lead will show Rejected when
-                this is the latest round. Dropped, closed, and dead are still
-                set on the lead (lead section when viewing a thread).
+                Use <span className="font-medium">Progressed</span> when this
+                round moved the candidate forward. Use{" "}
+                <span className="font-medium">Closed</span> when the position
+                was filled, <span className="font-medium">Dropped</span> when
+                the candidate withdrew or the opportunity ended. Only{" "}
+                <span className="font-medium">Dead</span> is set at the lead
+                level only.
               </p>
             </FormField>
           </div>

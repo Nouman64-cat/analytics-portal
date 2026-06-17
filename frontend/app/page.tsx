@@ -217,7 +217,7 @@ export default function DashboardPage() {
   /** Map lead-centric labels (e.g. "Lead unresponsive") to pie buckets. */
   function leadLabelToChartKey(label: string): string {
     const lower = label.trim().toLowerCase();
-    if (lower.includes("converted")) return "Converted";
+    if (lower.includes("converted") || lower.includes("progressed")) return "Progressed";
     if (lower.includes("rejected")) return "Rejected";
     if (lower.includes("dropped")) return "Dropped";
     if (lower.includes("closed") && !lower.includes("unresponsive")) return "Closed";
@@ -241,7 +241,7 @@ export default function DashboardPage() {
     } else {
       const lower = status.trim().toLowerCase();
       key = "Other";
-      if (lower.includes("converted")) key = "Converted";
+      if (lower.includes("converted") || lower.includes("progressed")) key = "Progressed";
       else if (lower.includes("rejected")) key = "Rejected";
       else if (lower.includes("dropped")) key = "Dropped";
       else if (lower.includes("closed")) key = "Closed";
@@ -260,7 +260,7 @@ export default function DashboardPage() {
       ? stats.conversion_rate_percent
       : (() => {
         const totalConverted =
-          (statusMap["Converted"] || 0) + (statusMap["Closed"] || 0);
+          (statusMap["Progressed"] || 0) + (statusMap["Closed"] || 0);
         const totalResolved =
           totalConverted +
           (statusMap["Rejected"] || 0) +
@@ -271,7 +271,7 @@ export default function DashboardPage() {
       })();
 
   const STATUS_HEX_COLORS: Record<string, string> = {
-    "Converted": "#f97316", // orange-500 — enthusiastic/energized
+    "Progressed": "#f97316", // orange-500 — enthusiastic/energized
     "Rejected": "#ef4444",  // red-500
     "Dropped": "#f59e0b",   // amber-500
     "Closed": "#10b981",    // emerald-500 — success/job landed
@@ -530,7 +530,7 @@ export default function DashboardPage() {
               className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#12141c] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 outline-none transition-all hover:border-slate-300 dark:hover:border-white/[0.12] focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
             >
               <option value="dropped">Dropped</option>
-              <option value="converted">Converted</option>
+              <option value="converted">Progressed</option>
               <option value="rejected">Rejected</option>
             </select>
             <select
