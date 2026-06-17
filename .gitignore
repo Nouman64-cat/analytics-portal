@@ -4,3 +4,5 @@
 .env
 
 data-structures
+
+*.sql.gz

@@ -1115,9 +1115,13 @@ def update_interview(
     if "parent_interview_id" in update_data:
         new_parent = update_data["parent_interview_id"]
         tgt_company = update_data.get("company_id", interview.company_id)
-        if new_parent is None:
+        if new_parent is None and interview.parent_interview_id is not None:
+            # Only create a new thread when genuinely detaching from a parent.
+            # If the interview is already a root (parent_interview_id already NULL),
+            # sending null in the payload is a no-op — don't rotate the thread_id or
+            # we silently orphan the LeadThread and corrupt arrived_on.
             _propagate_thread_id(session, interview_id, uuid.uuid4())
-        else:
+        elif new_parent is not None:
             par = session.get(Interview, new_parent)
             if not par:
                 raise HTTPException(

@@ -433,6 +433,29 @@ def migrate():
               AND sub.interview_date IS NOT NULL;
             """,
              "Migration successful! Backfilled arrived_on for newly created lead_threads rows."),
+
+            # ── Clean up orphaned lead_threads rows ──────────────────────────────────
+            # A bug in update_interview called _propagate_thread_id(new uuid) for root
+            # interviews every time parent_interview_id=null was included in the payload
+            # (which the frontend always does when editing). This rotated the thread_id
+            # on every save, leaving the old lead_threads row with no interviews.
+            # Those orphaned rows are safe to delete; they represent stale snapshots of
+            # threads that were re-assigned.  Delete dependent rows first to satisfy FKs.
+            ("""
+            DELETE FROM unresponsive_followup_logs
+            WHERE thread_id NOT IN (
+                SELECT DISTINCT thread_id FROM interviews
+            );
+            """,
+             "Migration successful! Deleted orphaned unresponsive_followup_logs for non-existent threads."),
+            ("""
+            DELETE FROM lead_threads
+            WHERE thread_id NOT IN (
+                SELECT DISTINCT thread_id FROM interviews
+            );
+            """,
+             "Migration successful! Deleted orphaned lead_threads rows with no interviews."),
+
         ]
         for sql, msg in migrations:
             try:
