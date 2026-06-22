@@ -952,6 +952,9 @@ Return "all" for fields the user didn't mention.`;
                   <th className="hidden xl:table-cell py-2.5 pr-3 font-medium">
                     BD
                   </th>
+                  <th className="hidden xl:table-cell py-2.5 pr-3 font-medium">
+                    Profile
+                  </th>
                   <th className="hidden md:table-cell py-2.5 pr-3 font-medium">
                     Conv.
                   </th>
@@ -1026,6 +1029,15 @@ Return "all" for fields the user didn't mention.`;
                     </td>
                     <td className="hidden xl:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.primary_bd_name ?? "—"}
+                    </td>
+                    <td className="hidden xl:table-cell py-2.5 pr-3">
+                      {l.resume_profile_name ? (
+                        <span className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 ring-1 ring-inset ring-indigo-500/20 dark:ring-indigo-500/20 max-w-[160px] truncate">
+                          {l.resume_profile_name}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="hidden md:table-cell py-2.5 pr-3">
                       {isSuperAdmin ? (
