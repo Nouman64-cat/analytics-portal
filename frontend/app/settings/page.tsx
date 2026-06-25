@@ -340,142 +340,139 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {/* Thresholds + sound + style — shown when alarm is on */}
+          {/* Thresholds info — shown when alarm is on */}
           {alarmEnabled && (
-            <>
-              {/* Thresholds info */}
-              <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.04] px-4 py-4">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                  Alarm fires at
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {[60, 30, 15].map((min) => (
-                    <span
-                      key={min}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs font-semibold border border-indigo-500/20"
-                    >
-                      <Clock size={11} />
-                      {min} min before
-                    </span>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
-                  A catch-up alarm also fires if you open the app within 60 minutes of a scheduled interview.
-                </p>
-              </div>
-
-              {/* Sound picker */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Volume2 size={14} className="text-slate-400" />
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Alarm Sound
-                  </p>
-                  {soundSaving && <Loader2 size={11} className="animate-spin text-slate-400 ml-auto" />}
-                  {soundSaved && !soundSaving && <CheckCircle size={11} className="text-emerald-500 ml-auto" />}
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {SOUND_OPTIONS.map((opt) => {
-                    const isActive = alarmSound === opt.id;
-                    return (
-                      <div
-                        key={opt.id}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all duration-150 ${
-                          isActive
-                            ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/[0.08]"
-                            : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
-                        }`}
-                        onClick={() => pickSound(opt.id)}
-                      >
-                        <span className="text-lg select-none">{opt.emoji}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-semibold ${isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-300"}`}>
-                            {opt.label}
-                          </p>
-                          <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{opt.description}</p>
-                        </div>
-                        {/* Radio indicator */}
-                        <div className={`shrink-0 h-4 w-4 rounded-full border-2 transition-colors ${
-                          isActive
-                            ? "border-indigo-500 bg-indigo-500"
-                            : "border-slate-300 dark:border-slate-600 bg-transparent"
-                        }`}>
-                          {isActive && <div className="h-full w-full flex items-center justify-center"><div className="h-1.5 w-1.5 rounded-full bg-white" /></div>}
-                        </div>
-                        {/* Preview button */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); previewSound(opt.id); }}
-                          title="Preview sound"
-                          className="shrink-0 h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-500 dark:text-slate-400 transition-colors"
-                        >
-                          <Volume2 size={12} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Notification style */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Monitor size={14} className="text-slate-400" />
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Notification Style
-                  </p>
-                  {styleSaving && <Loader2 size={11} className="animate-spin text-slate-400 ml-auto" />}
-                  {styleSaved && !styleSaving && <CheckCircle size={11} className="text-emerald-500 ml-auto" />}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Full screen option */}
-                  <button
-                    onClick={() => pickStyle("fullscreen")}
-                    className={`flex flex-col items-center gap-2 px-4 py-5 rounded-xl border transition-all duration-150 ${
-                      alarmStyle === "fullscreen"
-                        ? "border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-500/[0.08]"
-                        : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
-                    }`}
+            <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.04] px-4 py-4">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                Alarm fires at
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[60, 30, 15].map((min) => (
+                  <span
+                    key={min}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs font-semibold border border-indigo-500/20"
                   >
-                    <Monitor size={22} className={alarmStyle === "fullscreen" ? "text-red-500" : "text-slate-400"} />
-                    <div className="text-center">
-                      <p className={`text-sm font-bold ${alarmStyle === "fullscreen" ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"}`}>
-                        Full Screen
-                      </p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
-                        Flashing overlay that takes over the screen
-                      </p>
-                    </div>
-                    {alarmStyle === "fullscreen" && (
-                      <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                    )}
-                  </button>
+                    <Clock size={11} />
+                    {min} min before
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
+                A catch-up alarm also fires if you open the app within 60 minutes of a scheduled interview.
+              </p>
+            </div>
+          )}
 
-                  {/* Toast option */}
-                  <button
-                    onClick={() => pickStyle("toast")}
-                    className={`flex flex-col items-center gap-2 px-4 py-5 rounded-xl border transition-all duration-150 ${
-                      alarmStyle === "toast"
+          {/* Sound picker — always visible */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Volume2 size={14} className="text-slate-400" />
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Alarm Sound
+              </p>
+              {soundSaving && <Loader2 size={11} className="animate-spin text-slate-400 ml-auto" />}
+              {soundSaved && !soundSaving && <CheckCircle size={11} className="text-emerald-500 ml-auto" />}
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {SOUND_OPTIONS.map((opt) => {
+                const isActive = alarmSound === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all duration-150 ${
+                      isActive
                         ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/[0.08]"
                         : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
                     }`}
+                    onClick={() => pickSound(opt.id)}
                   >
-                    <MessageSquare size={22} className={alarmStyle === "toast" ? "text-indigo-500" : "text-slate-400"} />
-                    <div className="text-center">
-                      <p className={`text-sm font-bold ${alarmStyle === "toast" ? "text-indigo-600 dark:text-indigo-400" : "text-slate-600 dark:text-slate-300"}`}>
-                        Toast
+                    <span className="text-lg select-none">{opt.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold ${isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-300"}`}>
+                        {opt.label}
                       </p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
-                        Compact card at top of screen, auto-dismisses
-                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{opt.description}</p>
                     </div>
-                    {alarmStyle === "toast" && (
-                      <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                    )}
-                  </button>
+                    {/* Radio indicator */}
+                    <div className={`shrink-0 h-4 w-4 rounded-full border-2 transition-colors ${
+                      isActive
+                        ? "border-indigo-500 bg-indigo-500"
+                        : "border-slate-300 dark:border-slate-600 bg-transparent"
+                    }`}>
+                      {isActive && <div className="h-full w-full flex items-center justify-center"><div className="h-1.5 w-1.5 rounded-full bg-white" /></div>}
+                    </div>
+                    {/* Preview button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); previewSound(opt.id); }}
+                      title="Preview sound"
+                      className="shrink-0 h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-500 dark:text-slate-400 transition-colors"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Notification style — always visible */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Monitor size={14} className="text-slate-400" />
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Notification Style
+              </p>
+              {styleSaving && <Loader2 size={11} className="animate-spin text-slate-400 ml-auto" />}
+              {styleSaved && !styleSaving && <CheckCircle size={11} className="text-emerald-500 ml-auto" />}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Full screen option */}
+              <button
+                onClick={() => pickStyle("fullscreen")}
+                className={`flex flex-col items-center gap-2 px-4 py-5 rounded-xl border transition-all duration-150 ${
+                  alarmStyle === "fullscreen"
+                    ? "border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-500/[0.08]"
+                    : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                }`}
+              >
+                <Monitor size={22} className={alarmStyle === "fullscreen" ? "text-red-500" : "text-slate-400"} />
+                <div className="text-center">
+                  <p className={`text-sm font-bold ${alarmStyle === "fullscreen" ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"}`}>
+                    Full Screen
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                    Flashing overlay that takes over the screen
+                  </p>
                 </div>
-              </div>
-            </>
-          )}
+                {alarmStyle === "fullscreen" && (
+                  <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                )}
+              </button>
+
+              {/* Toast option */}
+              <button
+                onClick={() => pickStyle("toast")}
+                className={`flex flex-col items-center gap-2 px-4 py-5 rounded-xl border transition-all duration-150 ${
+                  alarmStyle === "toast"
+                    ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/[0.08]"
+                    : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                }`}
+              >
+                <MessageSquare size={22} className={alarmStyle === "toast" ? "text-indigo-500" : "text-slate-400"} />
+                <div className="text-center">
+                  <p className={`text-sm font-bold ${alarmStyle === "toast" ? "text-indigo-600 dark:text-indigo-400" : "text-slate-600 dark:text-slate-300"}`}>
+                    Toast
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                    Compact card at top of screen, auto-dismisses
+                  </p>
+                </div>
+                {alarmStyle === "toast" && (
+                  <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                )}
+              </button>
+            </div>
+          </div>
 
           {/* Feedback */}
           {saving && (
