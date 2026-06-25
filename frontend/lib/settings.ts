@@ -1,7 +1,7 @@
 import { getUserId } from "./auth";
 import { authService } from "./services";
 
-export type AlarmSound = "beep" | "chime" | "ping" | "pulse" | "siren";
+export type AlarmSound = "beep" | "chime" | "ping" | "pulse" | "siren" | "fanfare";
 export type AlarmStyle = "fullscreen" | "toast";
 
 function cacheKey(): string | null {

@@ -158,6 +158,33 @@ export function playAlarmSound(sound: AlarmSound): StopFn {
         setTimeout(siren, 1200);
       }
       siren();
+
+    } else if (sound === "fanfare") {
+      // Brass fanfare: C-E-G grace notes then big sustained FAAAA
+      function note(freq: number, t: number, dur: number, vol: number) {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = "sawtooth";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.02);
+        gain.gain.setValueAtTime(vol, t + dur - 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.start(t);
+        osc.stop(t + dur);
+      }
+      function fanfare() {
+        if (stopped) return;
+        const now = ac.currentTime;
+        note(261, now,        0.09, 0.09); // C4
+        note(329, now + 0.1,  0.09, 0.09); // E4
+        note(392, now + 0.2,  0.09, 0.09); // G4
+        note(523, now + 0.32, 0.55, 0.12); // C5 — the "FAAAA"
+        setTimeout(fanfare, 1800);
+      }
+      fanfare();
     }
   } catch {
     // AudioContext unavailable — silent mode
