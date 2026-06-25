@@ -434,6 +434,12 @@ def migrate():
             """,
              "Migration successful! Backfilled arrived_on for newly created lead_threads rows."),
 
+            # ── Alarm sound and style preferences ────────────────────────────────────
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS alarm_sound VARCHAR(30);",
+             "Migration successful! 'alarm_sound' column added to 'users' table."),
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS alarm_style VARCHAR(20);",
+             "Migration successful! 'alarm_style' column added to 'users' table."),
+
             # ── Clean up orphaned lead_threads rows ──────────────────────────────────
             # A bug in update_interview called _propagate_thread_id(new uuid) for root
             # interviews every time parent_interview_id=null was included in the payload

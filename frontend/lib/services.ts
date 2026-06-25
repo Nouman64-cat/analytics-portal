@@ -124,7 +124,7 @@ export const authService = {
       body: JSON.stringify(data),
     }),
 
-  updateSettings: (data: { alarm_enabled?: boolean; accent_color?: string | null; glassmorphism_enabled?: boolean }) =>
+  updateSettings: (data: { alarm_enabled?: boolean; alarm_sound?: string | null; alarm_style?: string | null; accent_color?: string | null; glassmorphism_enabled?: boolean }) =>
     apiFetch<User>("/auth/settings", {
       method: "PUT",
       body: JSON.stringify(data),

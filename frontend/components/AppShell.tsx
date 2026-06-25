@@ -16,7 +16,7 @@ import {
   getUserRole,
 } from "@/lib/auth";
 import { authService } from "@/lib/services";
-import { hydrateSettingsCache } from "@/lib/settings";
+import { hydrateSettingsCache, type AlarmSound, type AlarmStyle } from "@/lib/settings";
 import { DepartmentProvider } from "@/lib/DepartmentContext";
 
 const PUBLIC_PATHS = [
@@ -108,7 +108,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     authService
       .getMe()
       .then((user) => {
-        hydrateSettingsCache(user.alarm_enabled, user.glassmorphism_enabled);
+        hydrateSettingsCache(
+          user.alarm_enabled,
+          user.glassmorphism_enabled,
+          (user.alarm_sound as AlarmSound) ?? "beep",
+          (user.alarm_style as AlarmStyle) ?? "fullscreen",
+        );
       })
       .catch(() => {});
 

@@ -4,21 +4,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { fromZonedTime } from "date-fns-tz";
 import { interviewsService } from "@/lib/services";
 import { INTERVIEW_SCHEDULE_TZ, formatTime, getTodayEst, getTomorrowEst } from "@/lib/utils";
-import { isAlarmEnabled } from "@/lib/settings";
+import { isAlarmEnabled, getCachedAlarmSound, getCachedAlarmStyle, type AlarmSound } from "@/lib/settings";
 import type { Interview } from "@/lib/types";
 
 const THRESHOLDS_MIN = [60, 30, 15];
 const POLL_MS = 60_000;
 const WINDOW_MS = 90_000;
+const TOAST_AUTO_DISMISS_MS = 15_000;
 
-// ivMs is the interview's exact UTC epoch — changing time_est produces a new key,
-// so a rescheduled interview is never blocked by a prior dismiss.
 function alertKey(id: string, ivMs: number, mins: number) {
   return `iv-alert-${id}-${ivMs}-${mins}`;
 }
 
-// sessionStorage: only written when the user explicitly dismisses an alarm.
-// Guards against the same alarm re-firing after the user has already seen it.
 function wasDismissed(key: string): boolean {
   try { return sessionStorage.getItem(key) === "1"; } catch { return false; }
 }
@@ -38,37 +35,130 @@ function interviewUtcMs(iv: Interview): number | null {
   return isNaN(utc.getTime()) ? null : utc.getTime();
 }
 
-function startAlarm(): () => void {
+// ─── Sound profiles ────────────────────────────────────────────────────────
+
+type StopFn = () => void;
+
+export function playAlarmSound(sound: AlarmSound): StopFn {
   let stopped = false;
   let ctx: AudioContext | null = null;
   try {
     const AC =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     ctx = new AC();
     const ac = ctx;
-    function beep(t: number, freq: number, dur: number) {
-      const osc = ac.createOscillator();
-      const gain = ac.createGain();
-      osc.connect(gain);
-      gain.connect(ac.destination);
-      osc.type = "square";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.start(t);
-      osc.stop(t + dur);
+
+    if (sound === "beep") {
+      // Urgent ascending square-wave triple beep
+      function beep(t: number, freq: number, dur: number) {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = "square";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.start(t);
+        osc.stop(t + dur);
+      }
+      function schedule() {
+        if (stopped) return;
+        const now = ac.currentTime;
+        beep(now, 660, 0.15);
+        beep(now + 0.22, 880, 0.15);
+        beep(now + 0.44, 1100, 0.22);
+        setTimeout(schedule, 1300);
+      }
+      schedule();
+
+    } else if (sound === "chime") {
+      // Gentle descending sine chime
+      function chime(t: number, freq: number, dur: number) {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.start(t);
+        osc.stop(t + dur);
+      }
+      function schedule() {
+        if (stopped) return;
+        const now = ac.currentTime;
+        chime(now,        1047, 0.4);
+        chime(now + 0.55, 784,  0.4);
+        chime(now + 1.1,  523,  0.6);
+        setTimeout(schedule, 2600);
+      }
+      schedule();
+
+    } else if (sound === "ping") {
+      // Short clean sine ping
+      function ping() {
+        if (stopped) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1760, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.3);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+        setTimeout(ping, 1800);
+      }
+      ping();
+
+    } else if (sound === "pulse") {
+      // Low rhythmic triangle pulse
+      function pulse() {
+        if (stopped) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = "triangle";
+        osc.frequency.value = 330;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+        gain.gain.linearRampToValueAtTime(0, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.3);
+        setTimeout(pulse, 700);
+      }
+      pulse();
+
+    } else if (sound === "siren") {
+      // Two-tone alternating sawtooth siren
+      function siren() {
+        if (stopped) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = "sawtooth";
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.setValueAtTime(0.08, now + 1.0);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.05);
+        osc.frequency.setValueAtTime(660, now);
+        osc.frequency.linearRampToValueAtTime(880, now + 0.5);
+        osc.frequency.linearRampToValueAtTime(660, now + 1.0);
+        osc.start(now);
+        osc.stop(now + 1.05);
+        setTimeout(siren, 1200);
+      }
+      siren();
     }
-    function schedule() {
-      if (stopped) return;
-      const now = ac.currentTime;
-      beep(now, 660, 0.15);
-      beep(now + 0.22, 880, 0.15);
-      beep(now + 0.44, 1100, 0.22);
-      setTimeout(schedule, 1300);
-    }
-    schedule();
   } catch {
     // AudioContext unavailable — silent mode
   }
@@ -81,18 +171,12 @@ function startAlarm(): () => void {
 interface AlertItem {
   interview: Interview;
   threshold: number;
-  // The key used so dismiss can write to sessionStorage
   key: string;
 }
 
 export default function InterviewAlertMonitor() {
   const [queue, setQueue] = useState<AlertItem[]>([]);
-  const stopAlarmRef = useRef<(() => void) | null>(null);
-
-  // In-memory deduplication: tracks keys already pushed to the queue this page
-  // load. Resets on refresh — unlike sessionStorage, it does NOT persist across
-  // navigation. This is intentional: if the user refreshes, the alarm re-fires
-  // unless they have explicitly dismissed it (sessionStorage).
+  const stopAlarmRef = useRef<StopFn | null>(null);
   const queuedThisLoad = useRef<Set<string>>(new Set());
 
   const checkInterviews = useCallback(async () => {
@@ -100,81 +184,45 @@ export default function InterviewAlertMonitor() {
       setQueue([]);
       return;
     }
-    const pollTime = new Date().toLocaleTimeString();
-    console.log(`[Alarm] poll at ${pollTime}`);
     try {
       const today = getTodayEst();
       const tomorrow = getTomorrowEst();
-      console.log(`[Alarm] fetching date_from=${today} date_to=${tomorrow}`);
-
-      const interviews = await interviewsService.list({
-        date_from: today,
-        date_to: tomorrow,
-      });
-      console.log(`[Alarm] fetched ${interviews.length} interview(s)`);
-
+      const interviews = await interviewsService.list({ date_from: today, date_to: tomorrow });
       const now = Date.now();
       const newAlerts: AlertItem[] = [];
 
       for (const iv of interviews) {
         const ivMs = interviewUtcMs(iv);
-        console.log(
-          `[Alarm] "${iv.company_name}" | interview_date=${iv.interview_date} time_est=${iv.time_est} | ivMs=${ivMs}`,
-        );
-
-        if (ivMs === null) {
-          console.warn(`[Alarm] skipping — no date/time set`);
-          continue;
-        }
-
+        if (ivMs === null) continue;
         const minsLeft = Math.round((ivMs - now) / 60_000);
-        console.log(`[Alarm] minsLeft=${minsLeft}`);
 
         for (const threshold of THRESHOLDS_MIN) {
           const thresholdTime = ivMs - threshold * 60_000;
-          const inWindow =
-            now >= thresholdTime - WINDOW_MS &&
-            now <= thresholdTime + WINDOW_MS;
+          const inWindow = now >= thresholdTime - WINDOW_MS && now <= thresholdTime + WINDOW_MS;
           const key = alertKey(iv.id, ivMs, threshold);
-          const alreadyQueued = queuedThisLoad.current.has(key);
-          const alreadyDismissed = wasDismissed(key);
-          console.log(
-            `[Alarm]   threshold=${threshold}min | inWindow=${inWindow} | alreadyQueued=${alreadyQueued} | dismissed=${alreadyDismissed}`,
-          );
-          if (inWindow && !alreadyQueued && !alreadyDismissed) {
+          if (inWindow && !queuedThisLoad.current.has(key) && !wasDismissed(key)) {
             queuedThisLoad.current.add(key);
             newAlerts.push({ interview: iv, threshold, key });
-            console.log(`[Alarm]   >>> FIRING threshold alarm at ${threshold}min`);
           }
         }
 
-        // Catch-up: fire immediately when within 60 min if no threshold has
-        // fired yet this page load. Covers the case where the page was opened
-        // after all threshold windows already closed.
         if (minsLeft >= 0 && minsLeft <= 60) {
           const catchUpKey = alertKey(iv.id, ivMs, 0);
           const anyThresholdQueued = THRESHOLDS_MIN.some((t) =>
             queuedThisLoad.current.has(alertKey(iv.id, ivMs, t)),
           );
-          const alreadyQueued = queuedThisLoad.current.has(catchUpKey);
-          const alreadyDismissed = wasDismissed(catchUpKey);
-          console.log(
-            `[Alarm]   catch-up | anyThresholdQueued=${anyThresholdQueued} | alreadyQueued=${alreadyQueued} | dismissed=${alreadyDismissed}`,
-          );
-          if (!anyThresholdQueued && !alreadyQueued && !alreadyDismissed) {
+          if (!anyThresholdQueued && !queuedThisLoad.current.has(catchUpKey) && !wasDismissed(catchUpKey)) {
             queuedThisLoad.current.add(catchUpKey);
             newAlerts.push({ interview: iv, threshold: Math.max(minsLeft, 1), key: catchUpKey });
-            console.log(`[Alarm]   >>> FIRING catch-up alarm at ${minsLeft}min`);
           }
         }
       }
 
-      console.log(`[Alarm] new alerts this poll: ${newAlerts.length}`);
       if (newAlerts.length > 0) {
         setQueue((prev) => [...prev, ...newAlerts]);
       }
-    } catch (err) {
-      console.error("[Alarm] fetch failed:", err);
+    } catch {
+      // fetch failed silently
     }
   }, []);
 
@@ -184,24 +232,22 @@ export default function InterviewAlertMonitor() {
     return () => clearInterval(id);
   }, [checkInterviews]);
 
-  // React immediately when user toggles alarm on/off in Settings
   useEffect(() => {
     const handler = () => checkInterviews();
     window.addEventListener("user-settings-changed", handler);
     return () => window.removeEventListener("user-settings-changed", handler);
   }, [checkInterviews]);
 
-  // Start / stop the alarm based on queue presence
+  // Start / stop the sound based on queue presence
   useEffect(() => {
     if (queue.length > 0 && !stopAlarmRef.current) {
-      stopAlarmRef.current = startAlarm();
+      stopAlarmRef.current = playAlarmSound(getCachedAlarmSound());
     } else if (queue.length === 0 && stopAlarmRef.current) {
       stopAlarmRef.current();
       stopAlarmRef.current = null;
     }
   }, [queue.length]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => { stopAlarmRef.current?.(); };
   }, []);
@@ -222,6 +268,26 @@ export default function InterviewAlertMonitor() {
 
   if (queue.length === 0) return null;
 
+  const style = getCachedAlarmStyle();
+
+  if (style === "toast") {
+    return <ToastAlerts queue={queue} onDismiss={dismissCurrent} onDismissAll={dismissAll} />;
+  }
+
+  return <FullScreenAlert queue={queue} onDismiss={dismissCurrent} onDismissAll={dismissAll} />;
+}
+
+// ─── Full-screen alarm overlay ────────────────────────────────────────────
+
+function FullScreenAlert({
+  queue,
+  onDismiss,
+  onDismissAll,
+}: {
+  queue: AlertItem[];
+  onDismiss: () => void;
+  onDismissAll: () => void;
+}) {
   const { interview, threshold } = queue[0]!;
 
   return (
@@ -254,12 +320,8 @@ export default function InterviewAlertMonitor() {
         .iv-blink      { animation: iv-blink       0.85s ease-in-out infinite; }
       `}</style>
 
-      {/* Full-screen flashing backdrop */}
       <div className="iv-bg fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        {/* Alert card */}
         <div className="iv-card-shake bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border-4 border-red-600 w-full max-w-md overflow-hidden">
-
-          {/* Top bar */}
           <div className="bg-red-600 py-3 px-5 flex items-center justify-between">
             <span className="text-white font-black text-sm uppercase tracking-widest">
               Interview Alarm
@@ -319,14 +381,14 @@ export default function InterviewAlertMonitor() {
 
             <div className="flex gap-3">
               <button
-                onClick={dismissAll}
+                onClick={onDismissAll}
                 className="flex-1 py-4 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-black text-lg rounded-xl uppercase tracking-wider transition-colors shadow-lg shadow-red-500/30"
               >
                 Stop Alarm
               </button>
               {queue.length > 1 && (
                 <button
-                  onClick={dismissCurrent}
+                  onClick={onDismiss}
                   className="px-5 py-4 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 font-bold text-sm rounded-xl transition-colors"
                 >
                   Next →
@@ -337,5 +399,153 @@ export default function InterviewAlertMonitor() {
         </div>
       </div>
     </>
+  );
+}
+
+// ─── Toast notification stack ────────────────────────────────────────────
+
+function ToastAlerts({
+  queue,
+  onDismiss,
+  onDismissAll,
+}: {
+  queue: AlertItem[];
+  onDismiss: () => void;
+  onDismissAll: () => void;
+}) {
+  // Auto-dismiss the front-of-queue toast after TOAST_AUTO_DISMISS_MS
+  useEffect(() => {
+    const id = setTimeout(() => {
+      onDismiss();
+    }, TOAST_AUTO_DISMISS_MS);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue[0]?.key]);
+
+  // Show at most 3 toasts stacked
+  const visible = queue.slice(0, 3);
+
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 w-full max-w-sm px-4">
+      {visible.map((item, i) => (
+        <ToastCard
+          key={item.key}
+          item={item}
+          isTop={i === 0}
+          remaining={i === 0 ? queue.length : 0}
+          onDismiss={onDismiss}
+          onDismissAll={onDismissAll}
+          style={{ opacity: 1 - i * 0.2, transform: `scale(${1 - i * 0.04})` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ToastCard({
+  item,
+  isTop,
+  remaining,
+  onDismiss,
+  onDismissAll,
+  style,
+}: {
+  item: AlertItem;
+  isTop: boolean;
+  remaining: number;
+  onDismiss: () => void;
+  onDismissAll: () => void;
+  style?: React.CSSProperties;
+}) {
+  const { interview, threshold } = item;
+
+  return (
+    <div
+      style={style}
+      className="w-full bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-red-300 dark:border-red-700 overflow-hidden transition-all duration-300"
+    >
+      {/* Colored top strip */}
+      <div className="bg-red-600 h-1 w-full" />
+
+      <div className="px-4 py-3 flex items-start gap-3">
+        {/* Icon */}
+        <div className="shrink-0 mt-0.5 text-2xl select-none">🚨</div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-xs font-black text-red-600 dark:text-red-400 uppercase tracking-widest">
+              {threshold} min
+            </span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">until interview</span>
+            {remaining > 1 && (
+              <span className="ml-auto text-[10px] font-bold bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full">
+                +{remaining - 1} more
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+            {interview.company_name ?? "Unknown Company"}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            {interview.role}
+            {interview.round ? ` · ${interview.round}` : ""}
+            {interview.time_est ? ` · ${formatTime(interview.time_est)} EST` : ""}
+          </p>
+          {interview.candidate_name && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+              {interview.candidate_name}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        {isTop && (
+          <div className="shrink-0 flex flex-col gap-1 ml-1">
+            {interview.interview_link && (
+              <a
+                href={interview.interview_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 whitespace-nowrap"
+              >
+                Join ↗
+              </a>
+            )}
+            <button
+              onClick={onDismissAll}
+              className="text-[10px] font-semibold text-red-600 hover:text-red-700 dark:text-red-400 whitespace-nowrap"
+            >
+              Dismiss
+            </button>
+            {remaining > 1 && (
+              <button
+                onClick={onDismiss}
+                className="text-[10px] font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 whitespace-nowrap"
+              >
+                Next
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Auto-dismiss progress bar (only on top toast) */}
+      {isTop && (
+        <div className="h-0.5 bg-red-100 dark:bg-red-900/30">
+          <div
+            className="h-full bg-red-500 origin-left"
+            style={{ animation: `iv-toast-shrink ${TOAST_AUTO_DISMISS_MS}ms linear forwards` }}
+          />
+        </div>
+      )}
+
+      <style>{`
+        @keyframes iv-toast-shrink {
+          from { transform: scaleX(1); }
+          to   { transform: scaleX(0); }
+        }
+      `}</style>
+    </div>
   );
 }

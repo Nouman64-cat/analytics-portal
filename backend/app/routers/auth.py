@@ -155,6 +155,10 @@ def update_settings(
     user = session.get(User, current_user.id)
     if body.alarm_enabled is not None:
         user.alarm_enabled = body.alarm_enabled
+    if body.alarm_sound is not None:
+        user.alarm_sound = body.alarm_sound
+    if body.alarm_style is not None:
+        user.alarm_style = body.alarm_style
     if body.accent_color is not None:
         user.accent_color = body.accent_color
     if body.glassmorphism_enabled is not None:

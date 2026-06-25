@@ -482,6 +482,8 @@ export interface User {
   can_broadcast: boolean;
   must_change_password: boolean;
   alarm_enabled: boolean;
+  alarm_sound: string | null;
+  alarm_style: string | null;
   accent_color: string | null;
   glassmorphism_enabled: boolean;
   created_at: string;

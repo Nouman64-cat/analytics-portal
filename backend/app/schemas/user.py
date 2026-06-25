@@ -41,6 +41,8 @@ class UserRead(UserBase):
     can_broadcast: bool = False
     must_change_password: bool
     alarm_enabled: bool
+    alarm_sound: Optional[str] = None
+    alarm_style: Optional[str] = None
     accent_color: Optional[str] = None
     glassmorphism_enabled: bool = False
     created_at: datetime
@@ -64,6 +66,8 @@ class UserRead(UserBase):
 
 class UserSettingsUpdate(BaseModel):
     alarm_enabled: Optional[bool] = None
+    alarm_sound: Optional[str] = None
+    alarm_style: Optional[str] = None
     accent_color: Optional[str] = None
     glassmorphism_enabled: Optional[bool] = None
 

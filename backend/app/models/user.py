@@ -78,6 +78,8 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     must_change_password: bool = Field(default=True)
     alarm_enabled: bool = Field(default=False)
+    alarm_sound: Optional[str] = Field(default=None, max_length=30)
+    alarm_style: Optional[str] = Field(default=None, max_length=20)
     accent_color: Optional[str] = Field(default=None, max_length=20)
     glassmorphism_enabled: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
