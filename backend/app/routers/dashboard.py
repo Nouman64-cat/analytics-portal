@@ -213,10 +213,11 @@ def get_dashboard_stats(
     company_results = session.exec(company_query).all()
     interviews_by_company = {name: count for name, count in company_results}
 
-    # Interviews by candidate
+    # Interviews by candidate (active candidates only)
     candidate_query = (
         select(Candidate.name, func.count(Interview.id))
         .join(Interview, Interview.candidate_id == Candidate.id)
+        .where(Candidate.is_active == True)
         .group_by(Candidate.name)
         .order_by(func.count(Interview.id).desc())
     )
@@ -227,13 +228,14 @@ def get_dashboard_stats(
     candidate_results = session.exec(candidate_query).all()
     interviews_by_candidate = {name: count for name, count in candidate_results}
 
-    # Candidates detailed metrics
+    # Candidates detailed metrics (active candidates only)
     # Success  = any interview round with Converted status OR the lead closed
     # Failure  = lead rejected OR lead dead
     # A thread counts at most once per candidate (use the best outcome across rounds)
     candidate_thread_query = session.exec(
         iv_where(select(Candidate.name, Interview.thread_id, Interview.status, Interview.interview_date, Interview.created_at)
-        .join(Interview, Interview.candidate_id == Candidate.id))
+        .join(Interview, Interview.candidate_id == Candidate.id)
+        .where(Candidate.is_active == True))
     ).all()
 
     # Group by (candidate_name, thread_id): collect all round statuses in that thread for that candidate
@@ -459,7 +461,9 @@ def get_lead_outcomes_by_candidate(
         if lt.entertaining_candidate_id
     }
     if cand_ids:
-        cands = session.exec(select(Candidate).where(Candidate.id.in_(cand_ids))).all()
+        cands = session.exec(
+            select(Candidate).where(Candidate.id.in_(cand_ids)).where(Candidate.is_active == True)
+        ).all()
     else:
         cands = []
     cand_map = {c.id: c.name for c in cands}
