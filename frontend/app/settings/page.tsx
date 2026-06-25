@@ -11,7 +11,7 @@ import {
   type AlarmSound,
   type AlarmStyle,
 } from "@/lib/settings";
-import { playAlarmSound } from "@/components/InterviewAlertMonitor";
+import { playAlarmSound, FullScreenAlert, ToastAlerts } from "@/components/InterviewAlertMonitor";
 import { ACCENT_OPTIONS, type AccentId, getAccentColor, saveAccentColor, persistAccentColor } from "@/lib/accent";
 import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 
@@ -39,6 +39,7 @@ export default function SettingsPage() {
   const [glassSaved, setGlassSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accentId, setAccentId] = useState<AccentId>("indigo");
+  const [showPreview, setShowPreview] = useState(false);
   const stopPreviewRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -100,6 +101,12 @@ export default function SettingsPage() {
       stop();
       if (stopPreviewRef.current === stop) stopPreviewRef.current = null;
     }, 3000);
+  };
+
+  const triggerPreview = () => {
+    setShowPreview(true);
+    previewSound(alarmSound);
+    setTimeout(() => setShowPreview(false), 6000);
   };
 
   const pickStyle = async (style: AlarmStyle) => {
@@ -166,8 +173,8 @@ export default function SettingsPage() {
       />
 
       {/* App Color card */}
-      <div className="glass-card rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/[0.04]">
+      <div className="glass-card rounded-2xl border border-slate-200 dark:border-white/6 bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/4">
           <div className="h-9 w-9 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
             <Palette size={18} />
           </div>
@@ -214,8 +221,8 @@ export default function SettingsPage() {
       </div>
 
       {/* Glassmorphism card */}
-      <div className="glass-card rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/[0.04]">
+      <div className="glass-card rounded-2xl border border-slate-200 dark:border-white/6 bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/4">
           <div className="h-9 w-9 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-500">
             <Sparkles size={18} />
           </div>
@@ -265,7 +272,7 @@ export default function SettingsPage() {
           </div>
 
           {glassEnabled && (
-            <div className="rounded-xl bg-violet-50 dark:bg-violet-500/[0.06] border border-violet-200 dark:border-violet-500/20 px-4 py-4">
+            <div className="rounded-xl bg-violet-50 dark:bg-violet-500/6 border border-violet-200 dark:border-violet-500/20 px-4 py-4">
               <p className="text-xs text-violet-700 dark:text-violet-300 font-medium">
                 Glassmorphism is active — this card and all major panels now use the frosted-glass style.
               </p>
@@ -288,8 +295,8 @@ export default function SettingsPage() {
       </div>
 
       {/* Interview Alerts card */}
-      <div className="glass-card rounded-2xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/[0.04]">
+      <div className="glass-card rounded-2xl border border-slate-200 dark:border-white/6 bg-white dark:bg-[#12141c] shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 dark:border-white/4">
           <div className="h-9 w-9 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
             <Bell size={18} />
           </div>
@@ -342,7 +349,7 @@ export default function SettingsPage() {
 
           {/* Thresholds info — shown when alarm is on */}
           {alarmEnabled && (
-            <div className="rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.04] px-4 py-4">
+            <div className="rounded-xl bg-slate-50 dark:bg-white/3 border border-slate-100 dark:border-white/4 px-4 py-4">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
                 Alarm fires at
               </p>
@@ -381,8 +388,8 @@ export default function SettingsPage() {
                     key={opt.id}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all duration-150 ${
                       isActive
-                        ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/[0.08]"
-                        : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                        ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/8"
+                        : "border-slate-200 dark:border-white/6 bg-slate-50 dark:bg-white/2 hover:bg-slate-100 dark:hover:bg-white/4"
                     }`}
                     onClick={() => pickSound(opt.id)}
                   >
@@ -405,7 +412,7 @@ export default function SettingsPage() {
                     <button
                       onClick={(e) => { e.stopPropagation(); previewSound(opt.id); }}
                       title="Preview sound"
-                      className="shrink-0 h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-500 dark:text-slate-400 transition-colors"
+                      className="shrink-0 h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-white/6 dark:hover:bg-white/12 text-slate-500 dark:text-slate-400 transition-colors"
                     >
                       <Volume2 size={12} />
                     </button>
@@ -431,8 +438,8 @@ export default function SettingsPage() {
                 onClick={() => pickStyle("fullscreen")}
                 className={`flex flex-col items-center gap-2 px-4 py-5 rounded-xl border transition-all duration-150 ${
                   alarmStyle === "fullscreen"
-                    ? "border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-500/[0.08]"
-                    : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                    ? "border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-500/8"
+                    : "border-slate-200 dark:border-white/6 bg-slate-50 dark:bg-white/2 hover:bg-slate-100 dark:hover:bg-white/4"
                 }`}
               >
                 <Monitor size={22} className={alarmStyle === "fullscreen" ? "text-red-500" : "text-slate-400"} />
@@ -454,8 +461,8 @@ export default function SettingsPage() {
                 onClick={() => pickStyle("toast")}
                 className={`flex flex-col items-center gap-2 px-4 py-5 rounded-xl border transition-all duration-150 ${
                   alarmStyle === "toast"
-                    ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/[0.08]"
-                    : "border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                    ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/8"
+                    : "border-slate-200 dark:border-white/6 bg-slate-50 dark:bg-white/2 hover:bg-slate-100 dark:hover:bg-white/4"
                 }`}
               >
                 <MessageSquare size={22} className={alarmStyle === "toast" ? "text-indigo-500" : "text-slate-400"} />
@@ -474,6 +481,21 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Preview notification button */}
+          <div className="pt-1">
+            <button
+              onClick={triggerPreview}
+              disabled={showPreview}
+              className="w-full py-3 px-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/10 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Bell size={14} />
+              {showPreview ? "Previewing…" : "Preview Notification"}
+            </button>
+            <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 mt-2">
+              Shows a mock alert using your current style and sound for 6 seconds
+            </p>
+          </div>
+
           {/* Feedback */}
           {saving && (
             <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -489,6 +511,28 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Mock alert preview */}
+      {showPreview && (() => {
+        const mockItem = {
+          interview: {
+            id: "preview",
+            interview_date: new Date().toISOString().split("T")[0]!,
+            time_est: new Date().toTimeString().slice(0, 5),
+            company_name: "Acme Corp",
+            role: "Senior Engineer",
+            round: "Technical",
+            candidate_name: "Preview Mode",
+            interview_link: null,
+          } as never,
+          threshold: 15,
+          key: "preview",
+        };
+        const dismiss = () => setShowPreview(false);
+        return alarmStyle === "toast"
+          ? <ToastAlerts queue={[mockItem]} onDismiss={dismiss} onDismissAll={dismiss} />
+          : <FullScreenAlert queue={[mockItem]} onDismiss={dismiss} onDismissAll={dismiss} />;
+      })()}
     </div>
   );
 }

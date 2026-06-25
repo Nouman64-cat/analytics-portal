@@ -279,7 +279,7 @@ export default function InterviewAlertMonitor() {
 
 // ─── Full-screen alarm overlay ────────────────────────────────────────────
 
-function FullScreenAlert({
+export function FullScreenAlert({
   queue,
   onDismiss,
   onDismissAll,
@@ -404,7 +404,7 @@ function FullScreenAlert({
 
 // ─── Toast notification stack ────────────────────────────────────────────
 
-function ToastAlerts({
+export function ToastAlerts({
   queue,
   onDismiss,
   onDismissAll,
