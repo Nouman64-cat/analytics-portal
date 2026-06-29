@@ -434,6 +434,10 @@ def migrate():
             """,
              "Migration successful! Backfilled arrived_on for newly created lead_threads rows."),
 
+            # ── AI-generated interview introduction ───────────────────────────────────
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS ai_introduction TEXT;",
+             "Migration successful! 'ai_introduction' column added to 'interviews' table."),
+
             # ── Alarm sound and style preferences ────────────────────────────────────
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS alarm_sound VARCHAR(30);",
              "Migration successful! 'alarm_sound' column added to 'users' table."),

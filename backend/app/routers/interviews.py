@@ -125,6 +125,7 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "interview_link": interview.interview_link,
         "interview_doc_url": interview.interview_doc_url,
         "resume_url": interview.resume_url,
+        "ai_introduction": interview.ai_introduction,
         "is_phone_call": interview.is_phone_call,
         "computed_status": computed_status_for_interview_display(
             interview.status, interview.interview_date, interview.created_at
@@ -1194,6 +1195,12 @@ Rules:
     )
 
     introduction = response.choices[0].message.content.strip()
+
+    interview.ai_introduction = introduction
+    interview.updated_at = datetime.utcnow()
+    session.add(interview)
+    session.commit()
+
     return IntroductionResponse(introduction=introduction)
 
 

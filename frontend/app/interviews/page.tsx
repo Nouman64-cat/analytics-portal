@@ -914,6 +914,16 @@ export default function InterviewsPage() {
       setPipelineThreadChains(pipelineChains);
 
       setInterviews(interviewsData);
+      // Seed introMap with any AI introductions already saved in the DB
+      setIntroMap((prev) => {
+        const next = new Map(prev);
+        for (const iv of interviewsData) {
+          if (iv.ai_introduction && !next.has(iv.id)) {
+            next.set(iv.id, iv.ai_introduction);
+          }
+        }
+        return next;
+      });
       setCompanies(companiesData);
       setCandidates(candidatesData);
       setProfiles(profilesData);
@@ -3173,9 +3183,9 @@ export default function InterviewsPage() {
         size="xl"
       >
         {detailModal && (
-          <div className="flex flex-col lg:flex-row lg:items-start lg:gap-5">
-            {/* Left on desktop / bottom on mobile — AI Introduction */}
-            <div className="order-2 lg:order-1 shrink-0 lg:w-[300px] xl:w-[340px]">
+          <div className="flex flex-col lg:flex-row lg:gap-5 lg:h-full">
+            {/* Left on desktop / bottom on mobile — AI Introduction (scrolls independently) */}
+            <div className="order-2 lg:order-1 shrink-0 lg:w-[300px] xl:w-[340px] lg:overflow-y-auto lg:pb-4">
               <div className="rounded-xl border border-violet-200/80 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/[0.06] overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3">
                   <div>
@@ -3239,8 +3249,8 @@ export default function InterviewsPage() {
                 )}
               </div>
             </div>
-            {/* Right on desktop / top on mobile — Interview details */}
-            <div className="order-1 lg:order-2 min-w-0 flex-1 space-y-5">
+            {/* Right on desktop / top on mobile — Interview details (scrolls independently) */}
+            <div className="order-1 lg:order-2 min-w-0 flex-1 space-y-5 lg:overflow-y-auto lg:pb-4">
             {/* {!cannotCRUD && !isRejectedInterview(detailModal) && canAddPipelineRound && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-indigo-200/80 dark:border-indigo-500/30 bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-500/10 dark:to-[#151821] px-4 py-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
