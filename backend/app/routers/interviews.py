@@ -1078,6 +1078,125 @@ def confirm_upload(
     return _finalize_interview_response(session, loaded, current_user)
 
 
+def _extract_pdf_text_from_s3(settings, url: str) -> str:
+    """Download a PDF from S3 by key and return its extracted text. Returns empty string on any failure."""
+    try:
+        from urllib.parse import urlparse
+        from pypdf import PdfReader
+        import io
+
+        key = urlparse(url).path.lstrip("/")
+        if not key or not settings.AWS_S3_BUCKET_NAME:
+            return ""
+        s3 = _get_s3_client(settings)
+        obj = s3.get_object(Bucket=settings.AWS_S3_BUCKET_NAME, Key=key)
+        pdf_bytes = obj["Body"].read()
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        return "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+    except Exception:
+        return ""
+
+
+class IntroductionResponse(BaseModel):
+    introduction: str
+
+
+@router.post("/{interview_id}/generate-introduction", response_model=IntroductionResponse)
+def generate_introduction(
+    interview_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    settings=Depends(get_settings),
+):
+    """Generate a humanized first-person interview introduction using the resume and job document."""
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
+
+    stmt = (
+        select(Interview)
+        .where(Interview.id == interview_id)
+        .options(
+            selectinload(Interview.resume_profile),
+            selectinload(Interview.company),
+            selectinload(Interview.candidate),
+        )
+    )
+    interview = session.exec(stmt).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    profile = interview.resume_profile
+    resume_url = interview.resume_url or (profile.resume_url if profile else None)
+
+    resume_text = _extract_pdf_text_from_s3(settings, resume_url) if resume_url else ""
+    doc_text = _extract_pdf_text_from_s3(settings, interview.interview_doc_url) if interview.interview_doc_url else ""
+
+    profile_name = profile.name if profile else "the candidate"
+    company_name = interview.company.name if interview.company else "the company"
+    location = profile.location if profile else None
+    linkedin = profile.linkedin_url if profile else None
+    github = profile.github_url if profile else None
+
+    context_parts = [
+        f"Candidate name: {profile_name}",
+        f"Role applying for: {interview.role}",
+        f"Company: {company_name}",
+    ]
+    if location:
+        context_parts.append(f"Location: {location}")
+    if interview.round and interview.round.lower() != "lead":
+        context_parts.append(f"Interview round: {interview.round}")
+    if linkedin:
+        context_parts.append(f"LinkedIn: {linkedin}")
+    if github:
+        context_parts.append(f"GitHub: {github}")
+
+    context_block = "\n".join(context_parts)
+
+    resume_block = f"\nRESUME CONTENT:\n{resume_text[:4500]}" if resume_text else ""
+    doc_block = f"\nJOB DESCRIPTION / INTERVIEW DOCUMENT:\n{doc_text[:3500]}" if doc_text else ""
+
+    user_msg = f"""{context_block}
+{resume_block}
+{doc_block}
+
+Write the introduction now. Output only the spoken introduction — no labels, no preamble, no quotes around it."""
+
+    system_prompt = """You are a professional speech coach who writes natural, spoken interview introductions.
+
+Write a first-person introduction that a candidate would say aloud at the very start of a job interview when the interviewer says "Tell me about yourself."
+
+Rules:
+- Write entirely in first person ("I", "my", "me")
+- Sound like real spoken English — not formal written prose, not a cover letter
+- Vary sentence length; mix short punchy sentences with longer ones the way people actually speak
+- 3 short paragraphs, roughly 60–90 seconds when read aloud at a natural pace
+- Paragraph 1: Who they are and their professional background (anchor with most relevant experience)
+- Paragraph 2: A specific thing they've built, solved, or shipped that is most relevant to the role
+- Paragraph 3: Why this role at this company excites them (genuine, not generic)
+- End with one warm, forward-looking sentence that invites conversation
+- Do NOT open with "Hi, my name is" or "My name is" — start with something more engaging
+- Do NOT use buzzwords: synergy, leverage, passionate, results-driven, dynamic, innovative
+- Do NOT add placeholders like [Company Name] — use the actual names provided
+- Sound human and confident, not nervous or overly salesy"""
+
+    from openai import OpenAI
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg},
+        ],
+        temperature=0.82,
+        max_tokens=650,
+    )
+
+    introduction = response.choices[0].message.content.strip()
+    return IntroductionResponse(introduction=introduction)
+
+
 @router.put("/{interview_id}", response_model=InterviewReadWithDetails)
 def update_interview(
     interview_id: uuid.UUID,

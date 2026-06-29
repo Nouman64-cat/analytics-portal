@@ -37,6 +37,8 @@ import {
   Thermometer,
   Map as MapIcon,
   Upload,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -751,6 +753,11 @@ export default function InterviewsPage() {
     doc: number;
     resume: number;
   }>({ doc: 0, resume: 0 });
+  const [generatingIntro, setGeneratingIntro] = useState(false);
+  const [introText, setIntroText] = useState<string | null>(null);
+  const [introInterviewId, setIntroInterviewId] = useState<string | null>(null);
+  const [introCopied, setIntroCopied] = useState(false);
+  const [introError, setIntroError] = useState<string | null>(null);
   const [docDragOver, setDocDragOver] = useState(false);
   const [resumeDragOver, setResumeDragOver] = useState(false);
 
@@ -1275,6 +1282,35 @@ export default function InterviewsPage() {
       );
     } finally {
       setUploadingInterviewId(null);
+    }
+  };
+
+  const handleGenerateIntroduction = async (interviewId: string) => {
+    setGeneratingIntro(true);
+    setIntroError(null);
+    setIntroText(null);
+    setIntroInterviewId(interviewId);
+    setIntroCopied(false);
+    try {
+      const res = await interviewsService.generateIntroduction(interviewId);
+      setIntroText(res.introduction);
+    } catch (err) {
+      setIntroError(
+        err instanceof Error ? err.message : "Failed to generate introduction",
+      );
+    } finally {
+      setGeneratingIntro(false);
+    }
+  };
+
+  const handleCopyIntro = async () => {
+    if (!introText) return;
+    try {
+      await navigator.clipboard.writeText(introText);
+      setIntroCopied(true);
+      setTimeout(() => setIntroCopied(false), 2000);
+    } catch {
+      // ignore
     }
   };
 
@@ -3602,6 +3638,67 @@ export default function InterviewsPage() {
                 )}
               </div>
             )}
+
+            {/* AI Introduction Generator */}
+            <div className="rounded-xl border border-violet-200/80 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/[0.06] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-violet-800 dark:text-violet-300">
+                    AI Interview Introduction
+                  </p>
+                  <p className="mt-0.5 text-xs text-violet-600/70 dark:text-violet-400/60">
+                    Generated from resume &amp; job document — read it naturally, as if speaking
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateIntroduction(detailModal.id)}
+                  disabled={generatingIntro}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {generatingIntro && introInterviewId === detailModal.id ? (
+                    <Loader2 size={13} className="animate-spin" aria-hidden />
+                  ) : (
+                    <Sparkles size={13} aria-hidden />
+                  )}
+                  {generatingIntro && introInterviewId === detailModal.id
+                    ? "Generating…"
+                    : introText && introInterviewId === detailModal.id
+                      ? "Regenerate"
+                      : "Generate"}
+                </button>
+              </div>
+
+              {introError && introInterviewId === detailModal.id && (
+                <div className="px-4 pb-3">
+                  <p className="text-xs text-red-500 dark:text-red-400">
+                    {introError}
+                  </p>
+                </div>
+              )}
+
+              {introText && introInterviewId === detailModal.id && (
+                <div className="relative px-4 pb-4">
+                  <div className="relative">
+                    <p className="whitespace-pre-wrap rounded-xl border border-violet-200/60 dark:border-violet-500/20 bg-white dark:bg-white/[0.04] px-4 py-3.5 pr-10 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      {introText}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCopyIntro}
+                      title={introCopied ? "Copied!" : "Copy to clipboard"}
+                      className="absolute right-2.5 top-2.5 rounded-md p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.07] transition-colors"
+                    >
+                      {introCopied ? (
+                        <Check size={14} className="text-emerald-500" aria-hidden />
+                      ) : (
+                        <Copy size={14} aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>

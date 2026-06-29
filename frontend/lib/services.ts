@@ -439,6 +439,10 @@ export const interviewsService = {
     }
     return confirmRes.json() as Promise<Interview>;
   },
+  generateIntroduction: (id: string) =>
+    apiFetch<{ introduction: string }>(`/interviews/${id}/generate-introduction`, {
+      method: "POST",
+    }),
   delete: (id: string) =>
     apiFetch<void>(`/interviews/${id}`, { method: "DELETE" }),
 };
