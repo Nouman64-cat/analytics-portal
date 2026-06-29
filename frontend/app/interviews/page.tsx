@@ -753,11 +753,11 @@ export default function InterviewsPage() {
     doc: number;
     resume: number;
   }>({ doc: 0, resume: 0 });
+  const [introMap, setIntroMap] = useState<Map<string, string>>(new Map());
   const [generatingIntro, setGeneratingIntro] = useState(false);
-  const [introText, setIntroText] = useState<string | null>(null);
-  const [introInterviewId, setIntroInterviewId] = useState<string | null>(null);
   const [introCopied, setIntroCopied] = useState(false);
   const [introError, setIntroError] = useState<string | null>(null);
+  const [introErrorId, setIntroErrorId] = useState<string | null>(null);
   const [docDragOver, setDocDragOver] = useState(false);
   const [resumeDragOver, setResumeDragOver] = useState(false);
 
@@ -1286,33 +1286,43 @@ export default function InterviewsPage() {
   };
 
   const handleGenerateIntroduction = async (interviewId: string) => {
+    if (generatingIntro) return;
     setGeneratingIntro(true);
     setIntroError(null);
-    setIntroText(null);
-    setIntroInterviewId(interviewId);
+    setIntroErrorId(null);
     setIntroCopied(false);
     try {
       const res = await interviewsService.generateIntroduction(interviewId);
-      setIntroText(res.introduction);
+      setIntroMap((prev) => new Map(prev).set(interviewId, res.introduction));
     } catch (err) {
       setIntroError(
         err instanceof Error ? err.message : "Failed to generate introduction",
       );
+      setIntroErrorId(interviewId);
     } finally {
       setGeneratingIntro(false);
     }
   };
 
   const handleCopyIntro = async () => {
-    if (!introText) return;
+    const text = detailModal ? introMap.get(detailModal.id) ?? null : null;
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(introText);
+      await navigator.clipboard.writeText(text);
       setIntroCopied(true);
       setTimeout(() => setIntroCopied(false), 2000);
     } catch {
       // ignore
     }
   };
+
+  // Auto-generate introduction when the detail modal opens for a new interview
+  useEffect(() => {
+    if (!detailModal) return;
+    if (introMap.has(detailModal.id) || generatingIntro) return;
+    handleGenerateIntroduction(detailModal.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailModal?.id]);
 
   const interviewsByThread = useMemo(() => {
     const m = new Map<string, Interview[]>();
@@ -3160,10 +3170,77 @@ export default function InterviewsPage() {
           setLinkCopied(false);
         }}
         title="Interview Details"
-        size="lg"
+        size="xl"
       >
         {detailModal && (
-          <div className="space-y-5">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:gap-5">
+            {/* Left on desktop / bottom on mobile — AI Introduction */}
+            <div className="order-2 lg:order-1 shrink-0 lg:w-[300px] xl:w-[340px]">
+              <div className="rounded-xl border border-violet-200/80 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/[0.06] overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-violet-800 dark:text-violet-300">
+                      AI Introduction
+                    </p>
+                    <p className="mt-0.5 text-xs text-violet-600/70 dark:text-violet-400/60">
+                      Read aloud naturally at the start of your interview
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateIntroduction(detailModal.id)}
+                    disabled={generatingIntro}
+                    title="Regenerate introduction"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {generatingIntro ? (
+                      <Loader2 size={13} className="animate-spin" aria-hidden />
+                    ) : (
+                      <Sparkles size={13} aria-hidden />
+                    )}
+                    {generatingIntro
+                      ? "Generating…"
+                      : introMap.has(detailModal.id)
+                        ? "Regenerate"
+                        : "Generate"}
+                  </button>
+                </div>
+                {introError && introErrorId === detailModal.id && (
+                  <div className="px-4 pb-3">
+                    <p className="text-xs text-red-500 dark:text-red-400">
+                      {introError}
+                    </p>
+                  </div>
+                )}
+                {generatingIntro && !introMap.has(detailModal.id) && (
+                  <div className="flex items-center gap-2 px-4 pb-4 text-xs text-violet-500 dark:text-violet-400">
+                    <Loader2 size={12} className="animate-spin" aria-hidden />
+                    Generating your introduction…
+                  </div>
+                )}
+                {introMap.has(detailModal.id) && (
+                  <div className="relative px-4 pb-4">
+                    <p className="whitespace-pre-wrap rounded-xl border border-violet-200/60 dark:border-violet-500/20 bg-white dark:bg-white/[0.04] px-4 py-3.5 pr-10 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      {introMap.get(detailModal.id)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCopyIntro}
+                      title={introCopied ? "Copied!" : "Copy to clipboard"}
+                      className="absolute right-6 bottom-7 rounded-md p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.07] transition-colors"
+                    >
+                      {introCopied ? (
+                        <Check size={14} className="text-emerald-500" aria-hidden />
+                      ) : (
+                        <Copy size={14} aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Right on desktop / top on mobile — Interview details */}
+            <div className="order-1 lg:order-2 min-w-0 flex-1 space-y-5">
             {/* {!cannotCRUD && !isRejectedInterview(detailModal) && canAddPipelineRound && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-indigo-200/80 dark:border-indigo-500/30 bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-500/10 dark:to-[#151821] px-4 py-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
@@ -3639,65 +3716,6 @@ export default function InterviewsPage() {
               </div>
             )}
 
-            {/* AI Introduction Generator */}
-            <div className="rounded-xl border border-violet-200/80 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/[0.06] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-violet-800 dark:text-violet-300">
-                    AI Interview Introduction
-                  </p>
-                  <p className="mt-0.5 text-xs text-violet-600/70 dark:text-violet-400/60">
-                    Generated from resume &amp; job document — read it naturally, as if speaking
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleGenerateIntroduction(detailModal.id)}
-                  disabled={generatingIntro}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                >
-                  {generatingIntro && introInterviewId === detailModal.id ? (
-                    <Loader2 size={13} className="animate-spin" aria-hidden />
-                  ) : (
-                    <Sparkles size={13} aria-hidden />
-                  )}
-                  {generatingIntro && introInterviewId === detailModal.id
-                    ? "Generating…"
-                    : introText && introInterviewId === detailModal.id
-                      ? "Regenerate"
-                      : "Generate"}
-                </button>
-              </div>
-
-              {introError && introInterviewId === detailModal.id && (
-                <div className="px-4 pb-3">
-                  <p className="text-xs text-red-500 dark:text-red-400">
-                    {introError}
-                  </p>
-                </div>
-              )}
-
-              {introText && introInterviewId === detailModal.id && (
-                <div className="relative px-4 pb-4">
-                  <div className="relative">
-                    <p className="whitespace-pre-wrap rounded-xl border border-violet-200/60 dark:border-violet-500/20 bg-white dark:bg-white/[0.04] px-4 py-3.5 pr-10 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-                      {introText}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleCopyIntro}
-                      title={introCopied ? "Copied!" : "Copy to clipboard"}
-                      className="absolute right-2.5 top-2.5 rounded-md p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.07] transition-colors"
-                    >
-                      {introCopied ? (
-                        <Check size={14} className="text-emerald-500" aria-hidden />
-                      ) : (
-                        <Copy size={14} aria-hidden />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
