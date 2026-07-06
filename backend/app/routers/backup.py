@@ -8,6 +8,7 @@ from sqlmodel import Session
 from app.activity_log import record_activity
 from app.backup_db import (
     build_backup_s3_key,
+    generate_backup_download_url,
     list_backup_objects,
     run_pg_dump_gzip,
     upload_bytes_to_s3,
@@ -61,6 +62,7 @@ def create_database_backup(
         s3_key=s3_key,
         size_bytes=len(blob),
         created_at=now.isoformat().replace("+00:00", "Z"),
+        download_url=generate_backup_download_url(settings, key=s3_key),
     )
 
 
@@ -82,6 +84,7 @@ def list_backups(
                 s3_key=key,
                 size_bytes=obj.get("Size"),
                 last_modified=lm.isoformat().replace("+00:00", "Z") if lm else None,
+                download_url=generate_backup_download_url(settings, key=key),
             )
         )
     return BackupListResponse(

@@ -149,6 +149,24 @@ def upload_bytes_to_s3(
         ) from e
 
 
+def generate_backup_download_url(
+    settings: Settings, *, key: str, expiry: int = 3600
+) -> Optional[str]:
+    """Return a pre-signed GET URL (default 1 hour) for a backup object, or None on error."""
+    bucket = settings.AWS_S3_BUCKET_NAME
+    if not bucket:
+        return None
+    try:
+        client = get_s3_client(settings)
+        return client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expiry,
+        )
+    except (BotoCoreError, ClientError, HTTPException):
+        return None
+
+
 def list_backup_objects(
     settings: Settings, *, prefix: str = "backups/", max_keys: int = 50
 ) -> tuple[list, Optional[str]]:

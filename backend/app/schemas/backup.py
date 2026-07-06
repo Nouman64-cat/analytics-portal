@@ -9,6 +9,9 @@ class BackupCreatedResponse(BaseModel):
         ...,
         description="UTC ISO8601 timestamp when the backup was stored",
     )
+    download_url: str | None = Field(
+        None, description="Pre-signed S3 GET URL, valid for 1 hour"
+    )
 
 
 class BackupListItem(BaseModel):
@@ -16,6 +19,9 @@ class BackupListItem(BaseModel):
     size_bytes: int | None = None
     last_modified: str | None = Field(
         None, description="UTC ISO8601 from S3 LastModified"
+    )
+    download_url: str | None = Field(
+        None, description="Pre-signed S3 GET URL, valid for 1 hour"
     )
 
 

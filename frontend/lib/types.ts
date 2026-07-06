@@ -539,12 +539,16 @@ export interface DatabaseBackupResult {
   s3_key: string;
   size_bytes: number;
   created_at: string;
+  /** Pre-signed S3 GET URL, valid for 1 hour. */
+  download_url?: string | null;
 }
 
 export interface DatabaseBackupListItem {
   s3_key: string;
   size_bytes: number | null;
   last_modified: string | null;
+  /** Pre-signed S3 GET URL, valid for 1 hour. */
+  download_url?: string | null;
 }
 
 export interface DatabaseBackupListResponse {

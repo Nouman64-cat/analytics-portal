@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Database, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
+import { Database, Download, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 import { backupService } from "@/lib/services";
 import { getUserRole } from "@/lib/auth";
 import type { DatabaseBackupListItem, DatabaseBackupResult } from "@/lib/types";
@@ -137,6 +137,15 @@ export default function BackupPage() {
             Stored as <code className="rounded bg-black/20 px-1.5 py-0.5 text-xs">{lastResult.s3_key}</code> in bucket{" "}
             <code className="rounded bg-black/20 px-1.5 py-0.5 text-xs">{lastResult.bucket}</code> ({formatBytes(lastResult.size_bytes)}).
           </p>
+          {lastResult.download_url && (
+            <a
+              href={lastResult.download_url}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-100 underline underline-offset-2 hover:text-white"
+            >
+              <Download size={14} aria-hidden />
+              Download this backup
+            </a>
+          )}
         </div>
       )}
 
@@ -171,6 +180,7 @@ export default function BackupPage() {
                     <th className="px-4 py-3 font-medium">S3 key</th>
                     <th className="px-4 py-3 font-medium">Size</th>
                     <th className="px-4 py-3 font-medium">Last modified (UTC)</th>
+                    <th className="px-4 py-3 font-medium">Download</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-white/[0.06]">
@@ -182,6 +192,19 @@ export default function BackupPage() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-400">
                         {row.last_modified ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {row.download_url ? (
+                          <a
+                            href={row.download_url}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                          >
+                            <Download size={14} aria-hidden />
+                            Download
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   ))}
