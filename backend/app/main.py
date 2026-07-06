@@ -16,6 +16,7 @@ logging.basicConfig(
 from app.config import get_settings
 from app.database import create_db_and_tables
 from app.reminder_worker import run_reminder_worker
+from app.backup_scheduler import run_backup_scheduler
 from migrate import migrate
 
 # Import all models so SQLModel registers them
@@ -94,9 +95,11 @@ async def lifespan(app: FastAPI):
     _configure_s3_cors(settings)
     stop_event = asyncio.Event()
     worker_task = asyncio.create_task(run_reminder_worker(stop_event, settings))
+    backup_task = asyncio.create_task(run_backup_scheduler(stop_event, settings))
     yield
     stop_event.set()
     await worker_task
+    await backup_task
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
