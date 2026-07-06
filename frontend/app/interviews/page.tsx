@@ -2725,7 +2725,6 @@ export default function InterviewsPage() {
                   }
                   className={selectClass}
                 >
-                  <option value="">None — not linked to a prior round</option>
                   {pipelineParentSelectOptions.map((i) => (
                     <option key={i.id} value={i.id}>
                       {i.round} ·{" "}

@@ -1204,7 +1204,6 @@ Return "all" for fields the user didn't mention.`;
               value={form.bd_id || ""}
               onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
               placeholder="Select BD…"
-              optional
             />
           </FormField>
           <FormField
@@ -1307,7 +1306,6 @@ Return "all" for fields the user didn't mention.`;
                 value={form.candidate_id || ""}
                 onChange={(id) => setForm((f) => ({ ...f, candidate_id: id }))}
                 placeholder="Select candidate…"
-                optional
               />
             )}
           </FormField>
