@@ -57,6 +57,7 @@ import {
   getLeadOutcomeSelectShellClass,
   getLeadOutcomeEmoji,
   getStatusStyle,
+  getStatusEmoji,
   getTodayEst,
   minutesUntilInterview,
 } from "@/lib/utils";
@@ -613,7 +614,7 @@ function LeadThreadPanel({
               </option>
               {LEAD_OUTCOME_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {getLeadOutcomeEmoji(o.value)} {o.label}
                 </option>
               ))}
             </select>
@@ -2877,6 +2878,7 @@ export default function InterviewsPage() {
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${selected ? s.dot : "bg-slate-400 dark:bg-slate-500"}`}
                       />
+                      <span aria-hidden="true">{getStatusEmoji(val || null)}</span>
                       {label}
                     </button>
                   );
