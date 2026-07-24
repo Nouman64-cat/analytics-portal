@@ -1,6 +1,6 @@
 "use client";
 
-import { getStatusStyle, getStatusLabel } from "@/lib/utils";
+import { getStatusStyle, getStatusLabel, getStatusEmoji } from "@/lib/utils";
 
 interface StatusBadgeProps {
   status: string | null | undefined;
@@ -9,6 +9,7 @@ interface StatusBadgeProps {
 export default function StatusBadge({ status }: StatusBadgeProps) {
   const style = getStatusStyle(status);
   const label = getStatusLabel(status);
+  const emoji = getStatusEmoji(status);
 
   const isUpcoming = label.toLowerCase() === "upcoming";
 
@@ -24,6 +25,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
       ) : (
         <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
       )}
+      <span aria-hidden="true">{emoji}</span>
       {label}
     </span>
   );

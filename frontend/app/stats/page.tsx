@@ -20,7 +20,7 @@ import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 import StatsCard, { StatsGrid } from "@/components/StatsCard";
 import Modal from "@/components/Modal";
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
-import { formatDate, getLeadOutcomeBadgeStyle } from "@/lib/utils";
+import { formatDate, getLeadOutcomeBadgeStyle, getLeadOutcomeEmoji } from "@/lib/utils";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { inputClass } from "@/components/Modal";
@@ -68,6 +68,7 @@ function LeadsBadge({ outcome, label }: { outcome: string; label: string }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${s.bg} ${s.text}`}>
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
+      <span aria-hidden="true">{getLeadOutcomeEmoji(outcome)}</span>
       {label}
     </span>
   );

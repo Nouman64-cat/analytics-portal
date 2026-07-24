@@ -60,6 +60,7 @@ import {
   collectDescendantInterviewIds,
   getLeadOutcomeBadgeStyle,
   getLeadOutcomeSelectShellClass,
+  getLeadOutcomeEmoji,
   getStatusStyle,
   getTodayEst,
   minutesUntilInterview,
@@ -546,6 +547,7 @@ function LeadThreadPanel({
         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${loStyle.bg} ${loStyle.text}`}
       >
         <span className={`h-1.5 w-1.5 rounded-full ${loStyle.dot}`} />
+        <span aria-hidden="true">{getLeadOutcomeEmoji(outcome)}</span>
         {label ?? "—"}
       </span>
     );

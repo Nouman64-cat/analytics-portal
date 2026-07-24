@@ -76,6 +76,7 @@ import {
   formatDate,
   getLeadOutcomeBadgeStyle,
   getLeadOutcomeSelectShellClass,
+  getLeadOutcomeEmoji,
 } from "@/lib/utils";
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
@@ -105,6 +106,7 @@ function LeadOutcomeBadge({
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${s.bg} ${s.text}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
+      <span aria-hidden="true">{getLeadOutcomeEmoji(outcome)}</span>
       {label}
     </span>
   );

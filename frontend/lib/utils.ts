@@ -194,6 +194,36 @@ export function getStatusStyle(status: string | null | undefined) {
   return { bg: "bg-slate-500/10", text: "text-slate-400", dot: "bg-slate-400" };
 }
 
+/** Face emoji for an interview's computed status. */
+export function getStatusEmoji(status: string | null | undefined): string {
+  const label = getStatusLabel(status).toLowerCase();
+
+  if (label === "unresponsed") return "😐";
+  if (label === "upcoming") return "🙂";
+  if (label.includes("converted") || label.includes("progressed")) return "😄";
+  if (label.includes("rejected")) return "😞";
+  if (label.includes("dropped")) return "🙁";
+  if (label.includes("closed")) return "😌";
+  if (label === "dead") return "💀";
+
+  return "🤷";
+}
+
+/** Face emoji for a lead's outcome, matching {@link getLeadOutcomeBadgeStyle}'s palette. */
+export function getLeadOutcomeEmoji(outcome: string | null | undefined): string {
+  const o = (outcome || "").toLowerCase();
+
+  if (o === "active" || o === "in_pipeline") return "🙂";
+  if (o === "unresponsive") return "😐";
+  if (o === "rejected") return "😞";
+  if (o === "dropped") return "🙁";
+  if (o === "closed") return "😌";
+  if (o === "dead") return "💀";
+  if (o === "converted") return "😄";
+
+  return "🤷";
+}
+
 /**
  * Get a short label for a status string.
  */
