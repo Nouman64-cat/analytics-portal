@@ -209,6 +209,51 @@ export interface Interview {
   bd_dept_only?: boolean;
 }
 
+/** GET /api/v1/interviews/search — aggregates for the current filters (full filtered set, not only the page). */
+export interface InterviewListStats {
+  total: number;
+  /** `lead_outcome !== "dropped"` */
+  legit: number;
+  upcoming: number;
+  unresponsed: number;
+  dead: number;
+  rejected: number;
+  progressed: number;
+  closed: number;
+  dropped: number;
+}
+
+/** GET /api/v1/interviews/search — paginated list response. */
+export interface InterviewListPage {
+  items: Interview[];
+  total: number;
+  page: number;
+  page_size: number;
+  stats: InterviewListStats;
+}
+
+export interface InterviewListParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  candidate_id?: string;
+  company_id?: string;
+  resume_profile_id?: string;
+  round?: string;
+  bd_id?: string;
+  /** Exact `computed_status` match, e.g. "Upcoming" (case-insensitive). */
+  status?: string;
+  /** Full month name interview_date falls in, e.g. "July". */
+  month?: string;
+  is_today?: boolean;
+  company_kind?: "staffing" | "direct";
+  department_id?: string;
+  /** ISO date string YYYY-MM-DD */
+  date_from?: string;
+  /** ISO date string YYYY-MM-DD */
+  date_to?: string;
+}
+
 /** GET/PATCH /interviews/thread/:id/lead */
 export interface LeadThreadRead {
   thread_id: string;

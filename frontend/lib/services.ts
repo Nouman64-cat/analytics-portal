@@ -16,6 +16,8 @@ import type {
   CompanyFormData,
   Interview,
   InterviewFormData,
+  InterviewListPage,
+  InterviewListParams,
   LeadThreadRead,
   LeadThreadUpdate,
   LeadListItem,
@@ -317,6 +319,27 @@ export const interviewsService = {
   list: (params?: Record<string, string>) => {
     const query = params ? "?" + new URLSearchParams(params).toString() : "";
     return apiFetch<Interview[]>(`/interviews/${query}`);
+  },
+  search: (params?: InterviewListParams) => {
+    const sp = new URLSearchParams();
+    if (params?.page != null) sp.set("page", String(params.page));
+    if (params?.page_size != null) sp.set("page_size", String(params.page_size));
+    if (params?.search?.trim()) sp.set("search", params.search.trim());
+    if (params?.candidate_id) sp.set("candidate_id", params.candidate_id);
+    if (params?.company_id) sp.set("company_id", params.company_id);
+    if (params?.resume_profile_id)
+      sp.set("resume_profile_id", params.resume_profile_id);
+    if (params?.round) sp.set("round", params.round);
+    if (params?.bd_id) sp.set("bd_id", params.bd_id);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.month) sp.set("month", params.month);
+    if (params?.is_today) sp.set("is_today", "true");
+    if (params?.company_kind) sp.set("company_kind", params.company_kind);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    if (params?.date_from) sp.set("date_from", params.date_from);
+    if (params?.date_to) sp.set("date_to", params.date_to);
+    const q = sp.toString();
+    return apiFetch<InterviewListPage>(`/interviews/search${q ? `?${q}` : ""}`);
   },
   listByThread: (threadId: string) =>
     apiFetch<Interview[]>(`/interviews/thread/${threadId}`),
