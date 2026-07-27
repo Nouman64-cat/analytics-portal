@@ -8,7 +8,7 @@ from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import joinedload
-from sqlmodel import Session, or_, select
+from sqlmodel import Session, or_, and_, select
 
 from app.activity_log import record_activity
 from app.database import get_session
@@ -23,13 +23,14 @@ from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.schemas.lead import LeadCreate, LeadListItem, LeadListPage, LeadListStats, LeadUpdate
-from app.interview_scope import apply_interview_non_team_scope
+from app.dept_scope import apply_dept_filter
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
     team_member_can_access_thread,
 )
-from app.bd_scope import assert_bd_lead_write_access
+from app.bd_scope import get_bd_entity_scope, assert_bd_lead_write_access, other_bd_user_ids_select, is_superadmin_linked_bd
+from sqlmodel import func
 from sqlalchemy import false as sql_false
 from app.config import get_settings
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
@@ -382,8 +383,79 @@ def list_leads(
         if department_id:
             query = query.where(Interview.department_id == department_id)
     else:
-        base_query = apply_interview_non_team_scope(
-            session, current_user, base_query, department_id)
+        if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
+            # Superadmin-linked BD: full cross-dept read access, no entity scope restriction.
+            # Each lead is stamped to exactly one department; filter by that column only.
+            base_query = apply_dept_filter(base_query, Interview, current_user, department_id, session)
+        elif current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+            scope = get_bd_entity_scope(current_user, session)
+
+            if current_user.role == UserRole.BD:
+                # Regular BD: only see leads they personally created, OR leads
+                # attributed to their BD entity that were NOT created by another BD user
+                # who also links to that same entity (prevents cross-member leakage).
+                conds: list = [Interview.created_by_user_id == current_user.id]
+                if scope:  # bd_entity_id is linked
+                    # Every OTHER BD-type user (keyed on role, not on the bd_entity_id
+                    # column, so siblings resolved via fallback are caught).
+                    other_bd_user_ids = other_bd_user_ids_select(current_user)
+                    conds.append(
+                        and_(
+                            Interview.bd_id.in_(scope),
+                            Interview.created_by_user_id.not_in(other_bd_user_ids),
+                        )
+                    )
+
+            else:  # BD_TEAM_LEAD
+                conds = [Interview.created_by_user_id == current_user.id]
+
+                if scope is None:
+                    # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
+                    bd = session.exec(
+                        select(BusinessDeveloper).where(func.lower(
+                            BusinessDeveloper.email) == current_user.email.lower())
+                    ).first()
+                    if not bd:
+                        bd = session.exec(
+                            select(BusinessDeveloper).where(
+                                or_(
+                                    func.lower(
+                                        BusinessDeveloper.name) == current_user.full_name.lower(),
+                                    func.lower(current_user.full_name).contains(
+                                        func.lower(BusinessDeveloper.name)),
+                                    func.lower(BusinessDeveloper.name).contains(
+                                        func.lower(current_user.full_name))
+                                )
+                            )
+                        ).first()
+                    if bd:
+                        conds.append(Interview.bd_id == bd.id)
+                else:
+                    # Scoped: only leads attributed to this user's BD scope
+                    conds.append(Interview.bd_id.in_(scope))
+
+                # Always include leads created by direct team members,
+                # regardless of whether the team lead has a bd_entity_id linked.
+                team_user_ids_query = select(User.id).where(
+                    User.team_lead_user_id == current_user.id)
+                conds.append(Interview.created_by_user_id.in_(
+                    team_user_ids_query))
+
+            # NOTE: BD / BD_TEAM_LEAD visibility is strictly ownership/hierarchy based.
+            # We intentionally do NOT OR-in department-wide rows here: a regular BD must
+            # see only what they created (plus admin-attributed entity rows), and a team
+            # lead only their own + direct team members'. Pulling in the whole department
+            # leaked sibling BDs' leads to each other.
+
+            # Apply department_id filter parameter if specified
+            if department_id:
+                base_query = base_query.where(
+                    Interview.department_id == department_id)
+
+            base_query = base_query.where(or_(*conds))
+        else:
+            base_query = apply_dept_filter(
+                base_query, Interview, current_user, department_id)
         query = apply_team_member_interview_list_filter(
             session, current_user, base_query)
 

@@ -100,25 +100,3 @@ class InterviewReadWithDetails(InterviewRead):
     # True when a BD user can see this interview (via dept association) but it isn't their own BD's lead.
     # Full detail access (edit, delete, open modal) is restricted for these rows.
     bd_dept_only: bool = False
-
-
-class InterviewListStats(BaseModel):
-    """Aggregates for the current filter set (before pagination)."""
-
-    total: int
-    legit: int
-    upcoming: int
-    unresponsed: int
-    dead: int
-    rejected: int
-    progressed: int
-    closed: int
-    dropped: int
-
-
-class InterviewListPage(BaseModel):
-    items: list[InterviewReadWithDetails]
-    total: int
-    page: int
-    page_size: int
-    stats: InterviewListStats

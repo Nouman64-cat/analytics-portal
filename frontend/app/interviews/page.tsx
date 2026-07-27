@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Suspense,
   useEffect,
   useState,
   useCallback,
@@ -9,7 +8,6 @@ import {
   useMemo,
   ChangeEvent,
 } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Plus,
   Search,
@@ -60,6 +58,7 @@ import {
   getLeadOutcomeEmoji,
   getStatusStyle,
   getStatusEmoji,
+  getTodayEst,
   minutesUntilInterview,
 } from "@/lib/utils";
 import { INTERVIEW_STATS_GRADIENT } from "@/lib/constants";
@@ -70,7 +69,6 @@ import type {
   ResumeProfile,
   BusinessDeveloper,
   InterviewFormData,
-  InterviewListStats,
   LeadListItem,
   JobRole,
 } from "@/lib/types";
@@ -658,30 +656,6 @@ function LeadThreadPanel({
 }
 
 export default function InterviewsPage() {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <InterviewsPageInner />
-    </Suspense>
-  );
-}
-
-const EMPTY_STATS: InterviewListStats = {
-  total: 0,
-  legit: 0,
-  upcoming: 0,
-  unresponsed: 0,
-  dead: 0,
-  rejected: 0,
-  progressed: 0,
-  closed: 0,
-  dropped: 0,
-};
-
-function InterviewsPageInner() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const [interviews, setInterviews] = useState<Interview[]>([]);
   /** Full thread chains for team members (main list is scoped per candidate). */
   const [pipelineThreadChains, setPipelineThreadChains] = useState<
@@ -694,48 +668,22 @@ function InterviewsPageInner() {
   const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // `search` is the live input value; `debouncedSearch` (below) drives fetches + the URL
-  // so typing doesn't refetch/rewrite the URL on every keystroke.
-  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
-  const [currentPage, setCurrentPage] = useState(() => {
-    const p = Number(searchParams.get("page"));
-    return Number.isFinite(p) && p >= 1 ? p : 1;
-  });
-  const [total, setTotal] = useState(0);
-  const [stats, setStats] = useState<InterviewListStats>(EMPTY_STATS);
+  const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
-  const [filters, setFilters] = useState(() => ({
-    status: searchParams.get("status") ?? "All",
-    company_id: searchParams.get("company_id") ?? "All",
-    candidate_id: searchParams.get("candidate_id") ?? "All",
-    resume_profile_id: searchParams.get("resume_profile_id") ?? "All",
-    round: searchParams.get("round") ?? "All",
-    bd_id: searchParams.get("bd_id") ?? "All",
-    month: searchParams.get("month") ?? "All",
-    is_today: searchParams.get("is_today") === "true",
-    date_from: searchParams.get("date_from") ?? "",
-    date_to: searchParams.get("date_to") ?? "",
-  }));
+  const [filters, setFilters] = useState({
+    status: "All",
+    company_id: "All",
+    candidate_id: "All",
+    resume_profile_id: "All",
+    round: "All",
+    bd_id: "All",
+    month: "All",
+    is_today: false,
+    date_from: "",
+    date_to: "",
+  });
   const [showExtraFilters, setShowExtraFilters] = useState(false);
-  /** Thread keys (lead ids) whose other rounds are expanded in the table, on the current page. */
-  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(
-    new Set(),
-  );
-  const toggleThreadExpanded = (key: string) => {
-    setExpandedThreads((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  // Debounce the search box before it drives a refetch / URL update.
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(id);
-  }, [search]);
 
   // Ticks every 30 s so countdown badges in the table stay live.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -744,63 +692,38 @@ function InterviewsPageInner() {
     return () => clearInterval(id);
   }, []);
 
-  // Month names for the filter dropdown — static since `interviews` is now only the
-  // current page/filtered slice and can't be used to discover which months exist.
-  const availableMonths = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    interviews.forEach((i) => {
+      if (i.interview_date) {
+        const d = new Date(i.interview_date + "T12:00:00");
+        const monthName = d.toLocaleString("default", { month: "long" });
+        months.add(monthName);
+      }
+    });
+    const monthsOrder = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return Array.from(months).sort(
+      (a, b) => monthsOrder.indexOf(a) - monthsOrder.indexOf(b),
+    );
+  }, [interviews]);
 
-  // Reset page to 1 when search or filters change (skip on the initial mount, since
-  // the page may have been hydrated from a shared URL and shouldn't snap back to 1).
-  const isFirstFilterResetEffect = useRef(true);
+  // Reset page to 1 when search or filters change
   useEffect(() => {
-    if (isFirstFilterResetEffect.current) {
-      isFirstFilterResetEffect.current = false;
-      return;
-    }
     setCurrentPage(1);
-  }, [debouncedSearch, filters]);
-
-  // Reflect current filters/search/page in the URL so the view is shareable.
-  // Skipped on mount since the URL is already the source of the initial state.
-  const isFirstUrlSyncEffect = useRef(true);
-  useEffect(() => {
-    if (isFirstUrlSyncEffect.current) {
-      isFirstUrlSyncEffect.current = false;
-      return;
-    }
-    const sp = new URLSearchParams();
-    if (debouncedSearch.trim()) sp.set("search", debouncedSearch.trim());
-    if (filters.status !== "All") sp.set("status", filters.status);
-    if (filters.company_id !== "All") sp.set("company_id", filters.company_id);
-    if (filters.candidate_id !== "All")
-      sp.set("candidate_id", filters.candidate_id);
-    if (filters.resume_profile_id !== "All")
-      sp.set("resume_profile_id", filters.resume_profile_id);
-    if (filters.round !== "All") sp.set("round", filters.round);
-    if (filters.bd_id !== "All") sp.set("bd_id", filters.bd_id);
-    if (filters.month !== "All") sp.set("month", filters.month);
-    if (filters.is_today) sp.set("is_today", "true");
-    if (filters.date_from) sp.set("date_from", filters.date_from);
-    if (filters.date_to) sp.set("date_to", filters.date_to);
-    if (currentPage > 1) sp.set("page", String(currentPage));
-    const qs = sp.toString();
-    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
-    // department_id is intentionally excluded — it's account-local (DepartmentContext →
-    // localStorage), not part of a shareable view.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filters, currentPage, pathname]);
+  }, [search, filters]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -916,11 +839,6 @@ function InterviewsPageInner() {
   }, []);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  /** Thread of the interview being edited — used to fetch its full round chain, since with
-   * server-side pagination sibling rounds may not be present in the currently loaded page. */
-  const [editingThreadId, setEditingThreadId] = useState<string | undefined>(
-    undefined,
-  );
   const role = getUserRole();
   const { departmentId } = useDepartmentContext();
   const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest";
@@ -952,7 +870,7 @@ function InterviewsPageInner() {
       setLoading(true);
       setError(null);
       const [
-        interviewsPage,
+        interviewsData,
         companiesData,
         candidatesData,
         profilesData,
@@ -961,29 +879,9 @@ function InterviewsPageInner() {
         me,
         rolesData,
       ] = await Promise.all([
-        interviewsService.search({
-          page: currentPage,
-          page_size: ITEMS_PER_PAGE,
-          search: debouncedSearch.trim() || undefined,
-          status: filters.status !== "All" ? filters.status : undefined,
-          company_kind:
-            filters.company_id === "staffing" || filters.company_id === "direct"
-              ? filters.company_id
-              : undefined,
-          candidate_id:
-            filters.candidate_id !== "All" ? filters.candidate_id : undefined,
-          resume_profile_id:
-            filters.resume_profile_id !== "All"
-              ? filters.resume_profile_id
-              : undefined,
-          round: filters.round !== "All" ? filters.round : undefined,
-          bd_id: filters.bd_id !== "All" ? filters.bd_id : undefined,
-          month: filters.month !== "All" ? filters.month : undefined,
-          is_today: filters.is_today,
-          date_from: filters.date_from || undefined,
-          date_to: filters.date_to || undefined,
-          department_id: departmentId ?? undefined,
-        }),
+        interviewsService.list(
+          departmentId ? { department_id: departmentId } : undefined,
+        ),
         companiesService.list(),
         candidatesService.list({ department_id: departmentId }),
         profilesService.list({ department_id: departmentId }),
@@ -996,7 +894,6 @@ function InterviewsPageInner() {
         authService.getMe(),
         jobRolesService.list(),
       ]);
-      const interviewsData = interviewsPage.items;
 
       let pipelineChains: Record<string, Interview[]> = {};
       if (me.role === "team-member") {
@@ -1015,8 +912,6 @@ function InterviewsPageInner() {
       setPipelineThreadChains(pipelineChains);
 
       setInterviews(interviewsData);
-      setTotal(interviewsPage.total);
-      setStats(interviewsPage.stats);
       // Seed introMap with any AI introductions already saved in the DB
       setIntroMap((prev) => {
         const next = new Map(prev);
@@ -1035,25 +930,16 @@ function InterviewsPageInner() {
       setMeCandidateId(me.candidate_id ?? null);
       setJobRoles(rolesData);
 
-      // Handle deep-linked interview from Dashboard: fetch it directly since with
-      // server-side pagination it may not be part of the current filtered page.
+      // Handle deep-linked interview from Dashboard
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const targetId = params.get("id");
         if (targetId) {
-          // Only strip `id` — other params encode the shareable filter/page view.
-          params.delete("id");
-          const qs = params.toString();
-          window.history.replaceState(
-            {},
-            "",
-            `/interviews${qs ? `?${qs}` : ""}`,
-          );
-          try {
-            const target = await interviewsService.get(targetId);
+          const target = interviewsData.find((i) => i.id === targetId);
+          if (target) {
             setDetailModal(target);
-          } catch {
-            // Interview may no longer exist or isn't accessible — ignore.
+            // Clean URL to prevent re-opening on manual refresh
+            window.history.replaceState({}, "", "/interviews");
           }
         }
       }
@@ -1064,7 +950,7 @@ function InterviewsPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [departmentId, currentPage, debouncedSearch, filters]);
+  }, [departmentId]);
 
   useEffect(() => {
     fetchData();
@@ -1077,7 +963,6 @@ function InterviewsPageInner() {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setEditingThreadId(undefined);
     setSelectedLeadThreadId("");
     setLockLeadPicker(false);
     const defaultCandidate = isTeamMember ? meCandidateId || "" : "";
@@ -1106,7 +991,6 @@ function InterviewsPageInner() {
 
   const openCreateNextRound = (parent: Interview) => {
     setEditingId(null);
-    setEditingThreadId(undefined);
     setSelectedLeadThreadId(parent.thread_id || "");
     setLockLeadPicker(true);
     const nextCandidate = isTeamMember
@@ -1142,22 +1026,8 @@ function InterviewsPageInner() {
 
   const openEditModal = (interview: Interview) => {
     setEditingId(interview.id);
-    setEditingThreadId(interview.thread_id);
     setSelectedLeadThreadId("");
     setLockLeadPicker(false);
-    // Fetch the full round chain for this thread — with server-side pagination, sibling
-    // rounds eligible as a "previous round" may not be part of the currently loaded page.
-    if (interview.thread_id) {
-      interviewsService
-        .listByThread(interview.thread_id)
-        .then((chain) => {
-          setPipelineThreadChains((prev) => ({
-            ...prev,
-            [interview.thread_id!]: chain,
-          }));
-        })
-        .catch(() => {});
-    }
     setFormData({
       company_id: interview.company_id,
       candidate_id: interview.candidate_id || "",
@@ -1526,20 +1396,10 @@ function InterviewsPageInner() {
   );
 
   /** Eligible "previous round" rows when editing (same company, candidate, profile; no cycles). */
-  /** Rows in the thread being edited — sourced from the full-chain fetch in openEditModal
-   * (falls back to the current page's rows for that thread if the fetch hasn't landed yet). */
-  const editingThreadRows = useMemo(() => {
-    if (!editingThreadId) return [] as Interview[];
-    return chainByThreadId.get(editingThreadId) ?? [];
-  }, [editingThreadId, chainByThreadId]);
-
   const pipelineParentOptions = useMemo(() => {
     if (!editingId) return [] as Interview[];
-    const descendants = collectDescendantInterviewIds(
-      editingThreadRows,
-      editingId,
-    );
-    const rows = editingThreadRows.filter(
+    const descendants = collectDescendantInterviewIds(interviews, editingId);
+    const rows = interviews.filter(
       (i) =>
         i.id !== editingId &&
         !descendants.has(i.id) &&
@@ -1551,7 +1411,7 @@ function InterviewsPageInner() {
     return rows;
   }, [
     editingId,
-    editingThreadRows,
+    interviews,
     formData.company_id,
     formData.candidate_id,
     formData.resume_profile_id,
@@ -1560,12 +1420,12 @@ function InterviewsPageInner() {
   const pipelineParentSelectOptions = useMemo(() => {
     const pid = formData.parent_interview_id;
     if (!pid) return pipelineParentOptions;
-    const current = editingThreadRows.find((i) => i.id === pid);
+    const current = interviews.find((i) => i.id === pid);
     if (current && !pipelineParentOptions.some((x) => x.id === current.id)) {
       return [current, ...pipelineParentOptions];
     }
     return pipelineParentOptions;
-  }, [pipelineParentOptions, formData.parent_interview_id, editingThreadRows]);
+  }, [pipelineParentOptions, formData.parent_interview_id, interviews]);
 
   const leadsForInterviewPicker = useMemo(() => {
     const withParent = leadsList.filter((l) => l.last_interview_id);
@@ -1657,90 +1517,148 @@ function InterviewsPageInner() {
     editingInterviewForDoc?.interview_doc_url ?? null;
   const existingInterviewResumeUrl = editingInterviewForDoc?.resume_url ?? null;
 
-  const [exporting, setExporting] = useState(false);
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const exportPage = await interviewsService.search({
-        page: 1,
-        page_size: 500,
-        search: debouncedSearch.trim() || undefined,
-        status: filters.status !== "All" ? filters.status : undefined,
-        company_kind:
-          filters.company_id === "staffing" || filters.company_id === "direct"
-            ? filters.company_id
-            : undefined,
-        candidate_id:
-          filters.candidate_id !== "All" ? filters.candidate_id : undefined,
-        resume_profile_id:
-          filters.resume_profile_id !== "All"
-            ? filters.resume_profile_id
-            : undefined,
-        round: filters.round !== "All" ? filters.round : undefined,
-        bd_id: filters.bd_id !== "All" ? filters.bd_id : undefined,
-        month: filters.month !== "All" ? filters.month : undefined,
-        is_today: filters.is_today,
-        date_from: filters.date_from || undefined,
-        date_to: filters.date_to || undefined,
-        department_id: departmentId ?? undefined,
-      });
-      const dataToExport = exportPage.items.map((i) => ({
-        Company: i.company_name,
-        Role: i.role,
-        Candidate: i.candidate_name,
-        Profile: i.resume_profile_name,
-        Round: i.round,
-        "Interview Date": i.interview_date
-          ? formatInterviewDateEst(i.interview_date, i.time_est)
-          : "",
-        "Time (EST)": i.time_est ? formatTime(i.time_est) : "",
-        "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
-        "Salary Range": i.salary_range || "",
-        Status: i.computed_status,
-        "Pipeline step": (() => {
-          const { step, total } = chainStep(i);
-          return total > 1 ? `${step} of ${total}` : "—";
-        })(),
-        "Thread ID": i.thread_id ?? i.id,
-        "Our notes (presentation)": i.feedback || "",
-        "Recruiter notes": i.recruiter_feedback || "",
-      }));
+  const filtered = interviews.filter((i) => {
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      i.company_name?.toLowerCase().includes(q) ||
+      i.candidate_name?.toLowerCase().includes(q) ||
+      i.role?.toLowerCase().includes(q) ||
+      i.status?.toLowerCase().includes(q) ||
+      i.resume_profile_name?.toLowerCase().includes(q) ||
+      i.feedback?.toLowerCase().includes(q) ||
+      i.recruiter_feedback?.toLowerCase().includes(q);
 
-      const worksheet = xlsx.utils.json_to_sheet(dataToExport);
-      const workbook = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(workbook, worksheet, "Interviews");
-      xlsx.writeFile(
-        workbook,
-        `Interviews_Export_${new Date().toISOString().split("T")[0]}.xlsx`,
-      );
-    } finally {
-      setExporting(false);
+    const interviewCompany = companies.find((c) => c.id === i.company_id);
+    const matchCompany =
+      filters.company_id === "All" ||
+      (filters.company_id === "staffing" &&
+        interviewCompany?.is_staffing_firm === true) ||
+      (filters.company_id === "direct" &&
+        interviewCompany?.is_staffing_firm === false) ||
+      i.company_id === filters.company_id;
+    const matchCandidate =
+      filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
+    const matchProfile =
+      filters.resume_profile_id === "All" ||
+      i.resume_profile_id === filters.resume_profile_id;
+    const matchRound = filters.round === "All" || i.round === filters.round;
+    const matchBd = filters.bd_id === "All" || i.bd_id === filters.bd_id;
+
+    let matchStatus = true;
+    if (filters.status !== "All") {
+      matchStatus =
+        i.computed_status.toLowerCase() === filters.status.toLowerCase();
     }
+
+    let matchMonth = true;
+    if (filters.month !== "All") {
+      if (!i.interview_date) {
+        matchMonth = false;
+      } else {
+        const d = new Date(i.interview_date + "T12:00:00");
+        const m = d.toLocaleString("default", { month: "long" });
+        matchMonth = m === filters.month;
+      }
+    }
+
+    let matchToday = true;
+    if (filters.is_today) {
+      if (!i.interview_date) {
+        matchToday = false;
+      } else {
+        matchToday = i.interview_date === getTodayEst();
+      }
+    }
+
+    const matchDateFrom =
+      !filters.date_from ||
+      (!!i.interview_date && i.interview_date >= filters.date_from);
+    const matchDateTo =
+      !filters.date_to ||
+      (!!i.interview_date && i.interview_date <= filters.date_to);
+
+    return (
+      matchSearch &&
+      matchCompany &&
+      matchCandidate &&
+      matchProfile &&
+      matchRound &&
+      matchBd &&
+      matchStatus &&
+      matchMonth &&
+      matchToday &&
+      matchDateFrom &&
+      matchDateTo
+    );
+  });
+
+  const handleExport = () => {
+    const dataToExport = filtered.map((i) => ({
+      Company: i.company_name,
+      Role: i.role,
+      Candidate: i.candidate_name,
+      Profile: i.resume_profile_name,
+      Round: i.round,
+      "Interview Date": i.interview_date
+        ? formatInterviewDateEst(i.interview_date, i.time_est)
+        : "",
+      "Time (EST)": i.time_est ? formatTime(i.time_est) : "",
+      "Time (PKT)": i.time_pkt ? formatTime(i.time_pkt) : "",
+      "Salary Range": i.salary_range || "",
+      Status: i.computed_status,
+      "Pipeline step": (() => {
+        const { step, total } = chainStep(i);
+        return total > 1 ? `${step} of ${total}` : "—";
+      })(),
+      "Thread ID": i.thread_id ?? i.id,
+      "Our notes (presentation)": i.feedback || "",
+      "Recruiter notes": i.recruiter_feedback || "",
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(dataToExport);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Interviews");
+    xlsx.writeFile(
+      workbook,
+      `Interviews_Export_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
   };
 
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
-  const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
-  const paginatedInterviews = interviews;
+  // Computed distributions
+  const statusCounts = {
+    Upcoming: 0,
+    Unresponsed: 0,
+    Progressed: 0,
+    Rejected: 0,
+    Dead: 0,
+    Closed: 0,
+    Dropped: 0,
+  };
 
-  // Group same-lead rounds on this page under one collapsible row. The first row
-  // encountered per thread (rows are already ordered by date desc from the API) is
-  // the primary/summary row; the rest stay hidden until that lead is expanded.
-  const threadGroupCounts = new Map<string, number>();
-  for (const iv of paginatedInterviews) {
-    const key = iv.thread_id ?? iv.id;
-    threadGroupCounts.set(key, (threadGroupCounts.get(key) ?? 0) + 1);
-  }
-  const primaryIdByThread = new Map<string, string>();
-  for (const iv of paginatedInterviews) {
-    const key = iv.thread_id ?? iv.id;
-    if (!primaryIdByThread.has(key)) primaryIdByThread.set(key, iv.id);
-  }
-  const visibleRows = paginatedInterviews.filter((iv) => {
-    const key = iv.thread_id ?? iv.id;
-    return primaryIdByThread.get(key) === iv.id || expandedThreads.has(key);
+  let legitInterviewsCount = 0;
+
+  filtered.forEach((i) => {
+    if (i.lead_outcome !== "dropped") legitInterviewsCount++;
+
+    const label = i.computed_status.toLowerCase();
+    if (label === "upcoming") statusCounts.Upcoming++;
+    else if (label === "unresponsed") statusCounts.Unresponsed++;
+    else if (label.includes("converted") || label.includes("progressed")) statusCounts.Progressed++;
+    else if (label.includes("rejected")) statusCounts.Rejected++;
+    else if (label === "dead") statusCounts.Dead++;
+    else if (label.includes("closed")) statusCounts.Closed++;
+    else if (label.includes("dropped")) statusCounts.Dropped++;
   });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedInterviews = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1760,16 +1678,8 @@ function InterviewsPageInner() {
         title="Interviews"
         action={
           <div className="flex gap-2">
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className={`${buttonSecondary} disabled:opacity-60 disabled:cursor-not-allowed`}
-            >
-              {exporting ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Download size={16} />
-              )}
+            <button onClick={handleExport} className={buttonSecondary}>
+              <Download size={16} />
               Export
             </button>
             {!cannotCRUD && (
@@ -1805,15 +1715,15 @@ function InterviewsPageInner() {
 
       <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2 w-full">
         {[
-          { title: "Legit", value: stats.legit, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
-          { title: "Total", value: stats.total, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
-          { title: "Upcoming", value: stats.upcoming, emoji: "🙂", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 dark:bg-blue-500/20" },
-          { title: "Unresponsed", value: stats.unresponsed, emoji: "😐", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
-          { title: "Dead", value: stats.dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
-          { title: "Rejected", value: stats.rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
-          { title: "Progressed", value: stats.progressed, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
-          { title: "Closed", value: stats.closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
-          { title: "Dropped", value: stats.dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+          { title: "Legit", value: legitInterviewsCount, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
+          { title: "Total", value: filtered.length, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+          { title: "Upcoming", value: statusCounts.Upcoming, emoji: "🙂", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 dark:bg-blue-500/20" },
+          { title: "Unresponsed", value: statusCounts.Unresponsed, emoji: "😐", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+          { title: "Dead", value: statusCounts.Dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
+          { title: "Rejected", value: statusCounts.Rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
+          { title: "Progressed", value: statusCounts.Progressed, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+          { title: "Closed", value: statusCounts.Closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+          { title: "Dropped", value: statusCounts.Dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
         ].map((s, i) => (
           <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
@@ -2057,7 +1967,7 @@ function InterviewsPageInner() {
       })()}
 
       {/* Table */}
-      {total === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState message="No interviews found" />
       ) : (
           <div className="overflow-hidden rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
@@ -2113,12 +2023,7 @@ function InterviewsPageInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map((interview) => {
-                    const groupKey = interview.thread_id ?? interview.id;
-                    const groupSize = threadGroupCounts.get(groupKey) ?? 1;
-                    const isGroupPrimary =
-                      primaryIdByThread.get(groupKey) === interview.id;
-                    const isGroupSecondary = !isGroupPrimary;
+                  {paginatedInterviews.map((interview) => {
                     const isUpcoming =
                       interview.computed_status.toLowerCase() === "upcoming";
                     const isClosed =
@@ -2159,64 +2064,37 @@ function InterviewsPageInner() {
                         className={`transition-colors ${rowSep} ${rowBg}`}
                       >
                         <td className="px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-1.5">
-                            {isGroupPrimary && groupSize > 1 && (
+                          {(() => {
+                            const company = companies.find(
+                              (c) => c.id === interview.company_id,
+                            );
+                            if (!company?.detail)
+                              return <span>{interview.company_name}</span>;
+                            return (
                               <button
-                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  toggleThreadExpanded(groupKey);
+                                  const rect = (
+                                    e.target as HTMLElement
+                                  ).getBoundingClientRect();
+                                  setProfilePopover(null);
+                                  setPipelinePopover(null);
+                                  setCompanyPopover((prev) =>
+                                    prev?.company.id === company.id
+                                      ? null
+                                      : {
+                                          company,
+                                          x: rect.left,
+                                          y: rect.bottom + 6,
+                                        },
+                                  );
                                 }}
-                                title={`${groupSize} rounds for this lead — click to ${expandedThreads.has(groupKey) ? "collapse" : "expand"}`}
-                                className="shrink-0 inline-flex items-center gap-0.5 rounded-md pl-0.5 pr-1.5 py-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                                className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
                               >
-                                <ChevronRight
-                                  size={12}
-                                  className={`shrink-0 transition-transform ${expandedThreads.has(groupKey) ? "rotate-90" : ""}`}
-                                />
-                                {groupSize}
+                                {interview.company_name}
                               </button>
-                            )}
-                            {isGroupSecondary && (
-                              <span
-                                className="shrink-0 text-slate-300 dark:text-slate-700"
-                                aria-hidden="true"
-                              >
-                                ↳
-                              </span>
-                            )}
-                            {(() => {
-                              const company = companies.find(
-                                (c) => c.id === interview.company_id,
-                              );
-                              if (!company?.detail)
-                                return <span>{interview.company_name}</span>;
-                              return (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const rect = (
-                                      e.target as HTMLElement
-                                    ).getBoundingClientRect();
-                                    setProfilePopover(null);
-                                    setPipelinePopover(null);
-                                    setCompanyPopover((prev) =>
-                                      prev?.company.id === company.id
-                                        ? null
-                                        : {
-                                            company,
-                                            x: rect.left,
-                                            y: rect.bottom + 6,
-                                          },
-                                    );
-                                  }}
-                                  className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                                >
-                                  {interview.company_name}
-                                </button>
-                              );
-                            })()}
-                          </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
                           {truncate(interview.role, 40)}
@@ -2545,9 +2423,12 @@ function InterviewsPageInner() {
                       </span>{" "}
                       to{" "}
                       <span className="font-medium">
-                        {Math.min(currentPage * ITEMS_PER_PAGE, total)}
+                        {Math.min(
+                          currentPage * ITEMS_PER_PAGE,
+                          filtered.length,
+                        )}
                       </span>{" "}
-                      of <span className="font-medium">{total}</span>{" "}
+                      of <span className="font-medium">{filtered.length}</span>{" "}
                       results
                     </p>
                   </div>

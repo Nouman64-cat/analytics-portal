@@ -1,19 +1,17 @@
 import uuid
 import os
 from datetime import datetime, date
-from typing import Literal, Optional
-from zoneinfo import ZoneInfo
+from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user, assert_write_access
-from sqlmodel import Session, select, col, or_, func
+from sqlmodel import Session, select, col, or_, and_, func
 from sqlalchemy import false as sql_false, nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
 from app.dept_scope import apply_dept_filter, get_user_allowed_depts
-from app.interview_scope import apply_interview_non_team_scope
 from app.activity_log import record_activity
 from app.models.interview import Interview
 from app.models.company import Company
@@ -43,8 +41,6 @@ from app.schemas.interview import (
     InterviewRead,
     InterviewUpdate,
     InterviewReadWithDetails,
-    InterviewListStats,
-    InterviewListPage,
 )
 from app.schemas.lead_thread import LeadThreadRead, LeadThreadUpdate
 from app.status_utils import (
@@ -141,9 +137,6 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "resume_profile_name": interview.resume_profile.name if interview.resume_profile else None,
         "bd_name": interview.business_developer.name if interview.business_developer else None,
         "bd_dept_only": bd_dept_only,
-        # Not part of InterviewReadWithDetails (dropped on response serialization);
-        # only used by search_interviews' company_kind filter below.
-        "company_is_staffing_firm": interview.company.is_staffing_firm if interview.company else None,
     }
     return data
 
@@ -330,8 +323,78 @@ def list_interviews(
     if current_user.role == UserRole.TEAM_MEMBER and department_id:
         query = query.where(Interview.department_id == department_id)
     elif current_user.role != UserRole.TEAM_MEMBER:
-        query = apply_interview_non_team_scope(
-            session, current_user, query, department_id)
+        if current_user.role == UserRole.BD and is_superadmin_linked_bd(current_user, session):
+            # Superadmin-linked BD: full cross-dept read access, no entity scope restriction
+            query = apply_dept_filter(query, Interview, current_user, department_id, session)
+        elif current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+            scope = get_bd_entity_scope(current_user, session)
+
+            if current_user.role == UserRole.BD:
+                # Regular BD: only see interviews they personally created, OR interviews
+                # attributed to their BD entity that were NOT created by another BD user
+                # who also links to that same entity (prevents cross-member leakage).
+                # This handles the case where a superadmin creates an interview and sets
+                # bd_id to this BD's entity — that row should still be visible to the BD.
+                conds: list = [Interview.created_by_user_id == current_user.id]
+                if scope:  # bd_entity_id is linked
+                    # Subquery: every OTHER BD-type user (keyed on role, not on the
+                    # bd_entity_id column, so siblings resolved via fallback are caught).
+                    other_bd_user_ids = other_bd_user_ids_select(current_user)
+                    # Include bd_id matches only if NOT created by another BD user
+                    # (i.e. only rows an admin attributed to this BD's entity).
+                    conds.append(
+                        and_(
+                            Interview.bd_id.in_(scope),
+                            Interview.created_by_user_id.not_in(other_bd_user_ids),
+                        )
+                    )
+
+            else:  # BD_TEAM_LEAD
+                conds = [Interview.created_by_user_id == current_user.id]
+
+                if scope is None:
+                    # Backward compat: bd_entity_id not linked — match by email/name to BD entity only
+                    bd = session.exec(
+                        select(BusinessDeveloper).where(func.lower(
+                            BusinessDeveloper.email) == current_user.email.lower())
+                    ).first()
+                    if not bd:
+                        bd = session.exec(
+                            select(BusinessDeveloper).where(
+                                or_(
+                                    func.lower(
+                                        BusinessDeveloper.name) == current_user.full_name.lower(),
+                                    func.lower(current_user.full_name).contains(
+                                        func.lower(BusinessDeveloper.name)),
+                                    func.lower(BusinessDeveloper.name).contains(
+                                        func.lower(current_user.full_name))
+                                )
+                            )
+                        ).first()
+                    if bd:
+                        conds.append(Interview.bd_id == bd.id)
+                else:
+                    # BD_TEAM_LEAD scope = own entity + all team member entities
+                    conds.append(Interview.bd_id.in_(scope))
+
+                # Always include interviews created by direct team members.
+                team_user_ids_query = select(User.id).where(
+                    User.team_lead_user_id == current_user.id)
+                conds.append(Interview.created_by_user_id.in_(
+                    team_user_ids_query))
+
+            # NOTE: BD / BD_TEAM_LEAD visibility is strictly ownership/hierarchy based.
+            # We intentionally do NOT OR-in department-wide rows here: a regular BD must
+            # see only what they created (plus admin-attributed entity rows), and a team
+            # lead only their own + direct team members'. Pulling in the whole department
+            # leaked sibling BDs' leads/interviews to each other.
+            if department_id:
+                query = query.where(Interview.department_id == department_id)
+
+            query = query.where(or_(*conds))
+        else:
+            query = apply_dept_filter(
+                query, Interview, current_user, department_id)
 
     if candidate_id:
         query = query.where(Interview.candidate_id == candidate_id)
@@ -369,14 +432,7 @@ def list_interviews(
         Interview.created_at.desc(),
     )
     interviews = session.exec(query).all()
-    return _enrich_interview_list_for_reader(session, current_user, interviews)
 
-
-def _enrich_interview_list_for_reader(
-    session: Session, current_user: User, interviews: list[Interview]
-) -> list[dict]:
-    """Shared per-row enrichment: bd_dept_only marking, pipeline step/total, lead fields.
-    Used by both GET / and GET /search so the two endpoints can't drift apart on visibility."""
     # Build the BD's own interview ID set so we can mark dept-only rows.
     # ONLY active when allowed_dept_ids is explicitly set by an admin.
     bd_owned_ids: Optional[set] = None
@@ -385,7 +441,7 @@ def _enrich_interview_list_for_reader(
         explicit_depts = get_user_allowed_depts(current_user)
         if explicit_depts:  # explicit non-empty dept list → dept-wide view active
             owned_ids: set[uuid.UUID] = set()
-
+            
             # Pre-fetch other BD user IDs sharing the same entity(ies) for regular BDs
             other_bd_user_ids_set = set()
             if current_user.role == UserRole.BD and owned_scope:
@@ -397,8 +453,8 @@ def _enrich_interview_list_for_reader(
             for iv in interviews:
                 # Own = created by this user.
                 is_own = iv.created_by_user_id == current_user.id
-
-                # Or attributed to this BD's entity, BUT (for regular BDs) NOT created
+                
+                # Or attributed to this BD's entity, BUT (for regular BDs) NOT created 
                 # by another BD user who shares the exact same entity.
                 if owned_scope and iv.bd_id and iv.bd_id in owned_scope:
                     if current_user.role == UserRole.BD:
@@ -406,7 +462,7 @@ def _enrich_interview_list_for_reader(
                             is_own = True
                     else:
                         is_own = True
-
+                
                 if is_own:
                     owned_ids.add(iv.id)
             # Second pass: team lead team members' created interviews are also "owned"
@@ -431,186 +487,6 @@ def _enrich_interview_list_for_reader(
         data = _attach_pipeline_meta(data, i.id, pipe_map)
         out.append(_merge_lead_fields(session, data, i.thread_id, lead_map))
     return out
-
-
-def _today_est() -> date:
-    return datetime.now(ZoneInfo("America/New_York")).date()
-
-
-def _filter_enriched_interviews(
-    items: list[dict],
-    *,
-    status: Optional[str],
-    month: Optional[str],
-    is_today: bool,
-    company_kind: Optional[str],
-) -> list[dict]:
-    """Python-side filters for fields that are derived, not raw columns
-    (computed_status, month name, 'today', staffing/direct company kind)."""
-    rows = list(items)
-    if status and status.strip().lower() != "all":
-        s = status.strip().lower()
-        rows = [r for r in rows if (r.get("computed_status") or "").lower() == s]
-    if month and month.strip().lower() != "all":
-        m = month.strip().lower()
-        rows = [
-            r for r in rows
-            if r.get("interview_date") is not None
-            and r["interview_date"].strftime("%B").lower() == m
-        ]
-    if is_today:
-        today = _today_est()
-        rows = [r for r in rows if r.get("interview_date") == today]
-    if company_kind in ("staffing", "direct"):
-        want = company_kind == "staffing"
-        rows = [r for r in rows if r.get("company_is_staffing_firm") == want]
-    return rows
-
-
-def _compute_interview_stats(items: list[dict]) -> InterviewListStats:
-    """Mirrors the frontend's statusCounts/legitInterviewsCount bucketing exactly."""
-    legit = upcoming = unresponsed = dead = rejected = progressed = closed = dropped = 0
-    for r in items:
-        if (r.get("lead_outcome") or "") != "dropped":
-            legit += 1
-        label = (r.get("computed_status") or "").lower()
-        if label == "upcoming":
-            upcoming += 1
-        elif label == "unresponsed":
-            unresponsed += 1
-        elif "converted" in label or "progressed" in label:
-            progressed += 1
-        elif "rejected" in label:
-            rejected += 1
-        elif label == "dead":
-            dead += 1
-        elif "closed" in label:
-            closed += 1
-        elif "dropped" in label:
-            dropped += 1
-    return InterviewListStats(
-        total=len(items),
-        legit=legit,
-        upcoming=upcoming,
-        unresponsed=unresponsed,
-        dead=dead,
-        rejected=rejected,
-        progressed=progressed,
-        closed=closed,
-        dropped=dropped,
-    )
-
-
-@router.get("/search", response_model=InterviewListPage)
-def search_interviews(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=500),
-    candidate_id: Optional[uuid.UUID] = Query(
-        None, description="Filter by candidate"),
-    company_id: Optional[uuid.UUID] = Query(
-        None, description="Filter by company"),
-    resume_profile_id: Optional[uuid.UUID] = Query(
-        None, description="Filter by resume profile"),
-    round: Optional[str] = Query(None, description="Filter by round, e.g. '1st'"),
-    bd_id: Optional[uuid.UUID] = Query(None, description="Filter by business developer"),
-    status: Optional[str] = Query(
-        None, description="Match against computed_status, e.g. 'Upcoming' (case-insensitive, exact)"),
-    month: Optional[str] = Query(
-        None, description="Full month name interview_date falls in, e.g. 'July'"),
-    is_today: bool = Query(False, description="Only interviews scheduled today (US Eastern)"),
-    company_kind: Optional[Literal["staffing", "direct"]] = Query(
-        None, description="Filter by whether the company is a staffing firm"),
-    search: Optional[str] = Query(
-        None,
-        description="Search interviews by company, role, candidate, profile, status, or notes",
-    ),
-    date_from: Optional[date] = Query(
-        None, description="Filter interviews from this date"),
-    date_to: Optional[date] = Query(
-        None, description="Filter interviews up to this date"),
-    department_id: Optional[uuid.UUID] = Query(
-        None, description="Filter by department (cross-dept roles only)"),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    """Paginated, filterable interview list with aggregate stats over the full filtered set
-    (before pagination). Query params mirror the Interviews page filters 1:1 so the page can
-    encode its current view in the URL and make it shareable. Visibility rules are identical
-    to GET / (same helpers); GET / itself is unchanged for its other callers."""
-    query = select(Interview).options(
-        joinedload(Interview.company),
-        joinedload(Interview.candidate),
-        joinedload(Interview.resume_profile),
-        joinedload(Interview.business_developer),
-    )
-
-    query = apply_team_member_interview_list_filter(
-        session, current_user, query)
-    if current_user.role == UserRole.TEAM_MEMBER and department_id:
-        query = query.where(Interview.department_id == department_id)
-    elif current_user.role != UserRole.TEAM_MEMBER:
-        query = apply_interview_non_team_scope(
-            session, current_user, query, department_id)
-
-    if candidate_id:
-        query = query.where(Interview.candidate_id == candidate_id)
-    if company_id:
-        query = query.where(Interview.company_id == company_id)
-    if resume_profile_id:
-        query = query.where(Interview.resume_profile_id == resume_profile_id)
-    if round:
-        query = query.where(Interview.round == round)
-    if bd_id:
-        query = query.where(Interview.bd_id == bd_id)
-    if search:
-        search_q = search.lower()
-        query = query.join(Interview.company, isouter=True)
-        query = query.join(Interview.candidate, isouter=True)
-        query = query.join(Interview.resume_profile, isouter=True)
-        query = query.where(
-            or_(
-                func.lower(Interview.role).contains(search_q),
-                func.lower(Interview.status).contains(search_q),
-                func.lower(Interview.interviewer).contains(search_q),
-                func.lower(Interview.feedback).contains(search_q),
-                func.lower(Interview.recruiter_feedback).contains(search_q),
-                func.lower(Company.name).contains(search_q),
-                func.lower(Candidate.name).contains(search_q),
-                func.lower(ResumeProfile.name).contains(search_q),
-            )
-        )
-    if date_from:
-        query = query.where(Interview.interview_date >= date_from)
-    if date_to:
-        query = query.where(Interview.interview_date <= date_to)
-
-    query = query.order_by(  # type: ignore
-        Interview.interview_date.desc(),
-        nulls_last(Interview.time_est.desc()),
-        Interview.created_at.desc(),
-    )
-    interviews = session.exec(query).all()
-
-    enriched = _enrich_interview_list_for_reader(session, current_user, interviews)
-    filtered = _filter_enriched_interviews(
-        enriched,
-        status=status,
-        month=month,
-        is_today=is_today,
-        company_kind=company_kind,
-    )
-    stats = _compute_interview_stats(filtered)
-    total = len(filtered)
-    start = (page - 1) * page_size
-    page_items = filtered[start: start + page_size]
-
-    return InterviewListPage(
-        items=page_items,
-        total=total,
-        page=page,
-        page_size=page_size,
-        stats=stats,
-    )
 
 
 @router.get("/thread/{thread_id}/lead", response_model=LeadThreadRead)
