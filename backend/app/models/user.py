@@ -16,6 +16,7 @@ class UserRole(str, Enum):
     BD_TEAM_LEAD = "bd-team-lead"
     BD_MANAGER = "bd-manager"
     GUEST = "guest"
+    TECH_STACK_MANAGER = "tech-stack-manager"
 
 
 class UserRoleColumn(TypeDecorator):

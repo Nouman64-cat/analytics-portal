@@ -473,7 +473,7 @@ export interface User {
   full_name: string;
   role: string;
   department_id: string | null;
-  /** null = role default; [] = all depts; [uuid,...] = specific depts. BD / BD Team Lead only. */
+  /** null = role default; [] = all depts; [uuid,...] = specific depts. Used by BD / BD Team Lead / Team Member / Dept Lead / Tech Stack Manager. */
   allowed_dept_ids: string[] | null;
   /** Links this bd/bd-team-lead user to their BusinessDeveloper entity. */
   bd_entity_id: string | null;

@@ -185,6 +185,21 @@ export default function Sidebar({
     ],
     "bd-team-lead": ["/activities", "/backup", "/departments", "/announcements"],
     "bd-manager": ["/activities", "/users", "/backup", "/announcements"],
+    "tech-stack-manager": [
+      "/",
+      "/leads",
+      "/stats",
+      "/interviews",
+      "/calendar",
+      "/companies",
+      "/candidates",
+      "/resume-profiles",
+      "/business-developers",
+      "/activities",
+      "/users",
+      "/backup",
+      "/announcements",
+    ],
   };
   const hiddenHrefs = useMemo(() => {
     if (!role) return [];

@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Loader2, Search, Layers, Shield, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
-import { departmentsService } from "@/lib/services";
+import { departmentsService, authService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
-import type { Department, DepartmentFormData } from "@/lib/types";
+import type { Department, DepartmentFormData, User } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import { getUserRole } from "@/lib/auth";
@@ -19,31 +19,46 @@ export default function DepartmentsPage() {
   const [formData, setFormData] = useState<DepartmentFormData>({ name: "", slug: "", is_active: true });
   const [search, setSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
 
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
-  const canView = isSuperadmin || role === "bd-manager" || role === "guest";
+  const isTechStackManager = role === "tech-stack-manager";
+  const canManage = isSuperadmin || isTechStackManager;
+  const canView = isSuperadmin || role === "bd-manager" || role === "guest" || isTechStackManager;
+
+  // Tech stack managers only ever see the departments assigned to them; every
+  // other viewer with canView sees the full list (existing behavior).
+  const scopedDepartments = useMemo(() => {
+    if (!isTechStackManager) return departments;
+    const allowed = profile?.allowed_dept_ids;
+    if (!allowed || allowed.length === 0) return [];
+    return departments.filter((d) => allowed.includes(d.id));
+  }, [departments, isTechStackManager, profile]);
 
   const filteredDepartments = useMemo(() => {
-    if (!search.trim()) return departments;
+    if (!search.trim()) return scopedDepartments;
     const q = search.toLowerCase();
-    return departments.filter(
+    return scopedDepartments.filter(
       (d) => d.name.toLowerCase().includes(q) || d.slug.toLowerCase().includes(q)
     );
-  }, [departments, search]);
+  }, [scopedDepartments, search]);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await departmentsService.list();
+      const [data] = await Promise.all([
+        departmentsService.list(),
+        isTechStackManager ? authService.getMe().then(setProfile) : Promise.resolve(),
+      ]);
       setDepartments(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load departments");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTechStackManager]);
 
   useEffect(() => {
     if (canView) {
@@ -80,6 +95,11 @@ export default function DepartmentsPage() {
       } else {
         const created = await departmentsService.create(formData);
         setDepartments((prev) => [...prev, created]);
+        // Creating auto-assigns the new department to a tech stack manager's
+        // own allowed_dept_ids server-side — refetch so it shows up in scope.
+        if (isTechStackManager) {
+          authService.getMe().then(setProfile).catch(() => {});
+        }
       }
       setModalOpen(false);
     } catch (err) {
@@ -106,7 +126,7 @@ export default function DepartmentsPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Shield size={48} className="text-red-500/50" />
         <h2 className="text-xl font-bold dark:text-white">Access Denied</h2>
-        <p className="text-slate-500 dark:text-slate-400">This page is restricted to Superadmins only.</p>
+        <p className="text-slate-500 dark:text-slate-400">You don&apos;t have permission to view departments.</p>
       </div>
     );
   }
@@ -118,9 +138,9 @@ export default function DepartmentsPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Departments"
-        subtitle={`${departments.length} department${departments.length !== 1 ? "s" : ""}`}
+        subtitle={`${scopedDepartments.length} department${scopedDepartments.length !== 1 ? "s" : ""}`}
         action={
-          isSuperadmin ? (
+          canManage ? (
             <button onClick={openCreate} className={buttonPrimary}>
               <Plus size={16} />
               Add Department
@@ -140,8 +160,8 @@ export default function DepartmentsPage() {
         />
       </div>
 
-      {departments.length === 0 ? (
-        <EmptyState message="No departments found" />
+      {scopedDepartments.length === 0 ? (
+        <EmptyState message={isTechStackManager ? "No departments assigned to you yet" : "No departments found"} />
       ) : filteredDepartments.length === 0 ? (
         <EmptyState message="No departments match your search" />
       ) : (
@@ -155,7 +175,7 @@ export default function DepartmentsPage() {
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Users</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
-                  {isSuperadmin && <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>}
+                  {canManage && <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -194,7 +214,7 @@ export default function DepartmentsPage() {
                     <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-[13px] whitespace-nowrap">
                       {formatDate(dept.created_at)}
                     </td>
-                    {isSuperadmin && (
+                    {canManage && (
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button

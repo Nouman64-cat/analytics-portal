@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,6 +7,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.deps import get_current_user
+from app.dept_scope import get_user_allowed_depts
 from app.models.department import Department
 from app.models.user import User, UserRole
 from app.schemas.department import DepartmentCreate, DepartmentRead, DepartmentUpdate
@@ -15,6 +17,50 @@ router = APIRouter(
     tags=["Departments"],
     dependencies=[Depends(get_current_user)],
 )
+
+# Roles allowed to create/update/deactivate departments. Tech stack managers are
+# further restricted to the departments assigned to them via allowed_dept_ids
+# (see _assert_dept_in_scope) — superadmin is unrestricted.
+_DEPT_MANAGE_ROLES = (UserRole.SUPERADMIN, UserRole.TECH_STACK_MANAGER)
+
+
+def _require_dept_manage_role(current_user: User) -> None:
+    if current_user.role not in _DEPT_MANAGE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only superadmins and tech stack managers can manage departments",
+        )
+
+
+def _assert_dept_in_scope(current_user: User, dept_id: uuid.UUID, session: Session) -> None:
+    """Raise 403 if a tech stack manager isn't assigned to this department.
+
+    Superadmin is always unrestricted. get_user_allowed_depts returns None for
+    unrestricted access or a concrete (never empty — see dept_scope.py) list of
+    UUIDs otherwise, so membership is a straightforward containment check.
+    """
+    if current_user.role == UserRole.SUPERADMIN:
+        return
+    allowed = get_user_allowed_depts(current_user, session)
+    if allowed is not None and dept_id not in allowed:
+        raise HTTPException(status_code=403, detail="This department is not assigned to you")
+
+
+def _grant_dept_access(current_user: User, dept_id: uuid.UUID, session: Session) -> None:
+    """Auto-assign a newly created department to its tech-stack-manager creator
+    so it immediately shows up in their scope, without granting access to any
+    other department they weren't already assigned to."""
+    if current_user.role != UserRole.TECH_STACK_MANAGER:
+        return
+    try:
+        current_ids: list = json.loads(current_user.allowed_dept_ids) if current_user.allowed_dept_ids else []
+    except Exception:
+        current_ids = []
+    dept_id_str = str(dept_id)
+    if dept_id_str not in current_ids:
+        current_ids.append(dept_id_str)
+        current_user.allowed_dept_ids = json.dumps(current_ids)
+        session.add(current_user)
 
 
 def _with_user_count(dept: Department, session: Session) -> DepartmentRead:
@@ -47,9 +93,8 @@ def create_department(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new department. Superadmin only."""
-    if current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=403, detail="Only superadmins can manage departments")
+    """Create a new department. Superadmin or tech stack manager."""
+    _require_dept_manage_role(current_user)
 
     slug = data.slug.strip().lower()
     existing = session.exec(
@@ -60,6 +105,7 @@ def create_department(
 
     dept = Department(name=data.name.strip(), slug=slug)
     session.add(dept)
+    _grant_dept_access(current_user, dept.id, session)
     session.commit()
     session.refresh(dept)
     return _with_user_count(dept, session)
@@ -72,9 +118,10 @@ def update_department(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Update department name, slug, or active status. Superadmin only."""
-    if current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=403, detail="Only superadmins can manage departments")
+    """Update department name, slug, or active status. Superadmin, or tech stack
+    manager for a department assigned to them."""
+    _require_dept_manage_role(current_user)
+    _assert_dept_in_scope(current_user, dept_id, session)
 
     dept = session.get(Department, dept_id)
     if not dept:
@@ -97,9 +144,10 @@ def deactivate_department(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Soft-delete a department (sets is_active=False). Superadmin only."""
-    if current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=403, detail="Only superadmins can manage departments")
+    """Soft-delete a department (sets is_active=False). Superadmin, or tech stack
+    manager for a department assigned to them."""
+    _require_dept_manage_role(current_user)
+    _assert_dept_in_scope(current_user, dept_id, session)
 
     dept = session.get(Department, dept_id)
     if not dept:

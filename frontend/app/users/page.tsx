@@ -19,6 +19,7 @@ const ROLE_OPTIONS = [
   { value: "bd-manager", label: "BD Manager" },
   { value: "bd", label: "Business Developer" },
   { value: "team-member", label: "Team Member" },
+  { value: "tech-stack-manager", label: "Tech Stack Manager" },
   { value: "guest", label: "Guest" },
 ];
 
@@ -30,6 +31,7 @@ function roleBadgeClass(role: string) {
     case "bd-team-lead": return "bg-orange-500/10 text-orange-400 border border-orange-500/20";
     case "bd-manager": return "bg-rose-500/10 text-rose-400 border border-rose-500/20";
     case "bd": return "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+    case "tech-stack-manager": return "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
     case "guest": return "bg-slate-500/10 text-slate-400 border border-slate-500/20";
     default: return "bg-gray-500/10 text-gray-400 border border-gray-500/20";
   }
@@ -464,6 +466,7 @@ export default function UsersPage() {
               {isSuperadmin && <option value="bd-team-lead">BD Team Lead</option>}
               {isSuperadmin && <option value="manager">Manager</option>}
               {isSuperadmin && <option value="bd-manager">BD Manager</option>}
+              {isSuperadmin && <option value="tech-stack-manager">Tech Stack Manager</option>}
               {isSuperadmin && <option value="superadmin">Superadmin</option>}
               {isSuperadmin && <option value="guest">Guest</option>}
             </select>
@@ -543,6 +546,44 @@ export default function UsersPage() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Tech stack manager: multi-select via allowed_dept_ids — created by superadmin only,
+              full CRUD scoped to whichever departments are checked here. No "All" shortcut:
+              access must be assigned explicitly, department by department. */}
+          {isSuperadmin && formData.role === "tech-stack-manager" && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Select one or more departments — this manager gets full CRUD access to exactly these.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {departments.filter((d) => d.is_active).map((d) => {
+                  const selected =
+                    Array.isArray(formData.allowed_dept_ids) && formData.allowed_dept_ids.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => {
+                        const current = Array.isArray(formData.allowed_dept_ids) ? formData.allowed_dept_ids : [];
+                        const next = selected ? current.filter((id) => id !== d.id) : [...current, d.id];
+                        setFormData({ ...formData, allowed_dept_ids: next.length ? next : null });
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                        selected
+                          ? "bg-cyan-500 text-white border-cyan-500"
+                          : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-white/20 hover:border-cyan-400 hover:text-cyan-400"
+                      }`}
+                    >
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {(!formData.allowed_dept_ids || formData.allowed_dept_ids.length === 0) && (
+                <p className="text-xs text-amber-500">Select at least one department, or this manager won&apos;t have access to anything yet.</p>
+              )}
             </div>
           )}
 

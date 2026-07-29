@@ -20,7 +20,13 @@ router = APIRouter(
 )
 
 # Roles that dept leads / bd-team-leads are not allowed to create or assign
-_RESTRICTED_ROLES = {UserRole.SUPERADMIN, UserRole.MANAGER, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD}
+_RESTRICTED_ROLES = {
+    UserRole.SUPERADMIN,
+    UserRole.MANAGER,
+    UserRole.DEPT_LEAD,
+    UserRole.BD_TEAM_LEAD,
+    UserRole.TECH_STACK_MANAGER,
+}
 
 # Roles that have dept-scoped user management authority
 _DEPT_MANAGER_ROLES = (UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD)
