@@ -219,13 +219,14 @@ export default function LeadsPage() {
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const [meCandidateName, setMeCandidateName] = useState<string | null>(null);
-  /** Create / edit / delete leads — superadmin, team member, BD, dept lead, and BD team lead. Manager: read-only. */
+  /** Create / edit / delete leads — superadmin, team member, BD, dept lead, BD team lead, and tech stack manager (scoped to their departments). Manager: read-only. */
   const canMutateLeads =
     role === "superadmin" ||
     role === "team-member" ||
     role === "bd" ||
     role === "dept-lead" ||
-    role === "bd-team-lead";
+    role === "bd-team-lead" ||
+    role === "tech-stack-manager";
   const canEditLeadStatus = canMutateLeads;
   const [savingLeadThreadId, setSavingLeadThreadId] = useState<string | null>(
     null,

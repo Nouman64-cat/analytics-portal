@@ -17,6 +17,10 @@ from app.schemas.business_developer import (
 
 router = APIRouter(prefix="/api/v1/business-developers", tags=["Business Developers"], dependencies=[Depends(get_current_user)])
 
+# BD_TEAM_LEAD/BD: ownership-based dept scoping already existed here.
+# TECH_STACK_MANAGER reuses the same allowed_dept_ids-based scoping.
+_DEPT_SCOPED_BD_ROLES = (UserRole.BD_TEAM_LEAD, UserRole.BD, UserRole.TECH_STACK_MANAGER)
+
 
 def _bd_dept_ids(bd: BusinessDeveloper) -> list[str]:
     """Return the list of dept ID strings for a BD (empty list if none set)."""
@@ -41,10 +45,10 @@ def list_business_developers(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List business developers, scoped to the caller's department(s) for BD_TEAM_LEAD and BD."""
+    """List business developers, scoped to the caller's department(s) for BD_TEAM_LEAD, BD, and tech stack manager."""
     all_bds = session.exec(select(BusinessDeveloper).order_by(BusinessDeveloper.name)).all()
 
-    if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.BD):
+    if current_user.role in _DEPT_SCOPED_BD_ROLES:
         allowed = _allowed_dept_strs(current_user, session)
         if allowed is not None:
             def visible(bd: BusinessDeveloper) -> bool:
@@ -67,13 +71,13 @@ def create_business_developer(
     assert_write_access(current_user)
     dept_ids = data.department_ids
 
-    if current_user.role == UserRole.BD_TEAM_LEAD:
+    if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.TECH_STACK_MANAGER):
         allowed = _allowed_dept_strs(current_user)
         if allowed is not None:
             if not dept_ids:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="BD team leads must assign at least one department",
+                    detail="Must assign at least one department",
                 )
             for did in dept_ids:
                 if did not in allowed:
@@ -112,7 +116,7 @@ def update_business_developer(
     if not bd:
         raise HTTPException(status_code=404, detail="Business developer not found")
 
-    if current_user.role == UserRole.BD_TEAM_LEAD:
+    if current_user.role in (UserRole.BD_TEAM_LEAD, UserRole.TECH_STACK_MANAGER):
         allowed = _allowed_dept_strs(current_user)
         if allowed is not None:
             existing_depts = _bd_dept_ids(bd)
@@ -192,6 +196,17 @@ def delete_business_developer(
     bd = session.get(BusinessDeveloper, bd_id)
     if not bd:
         raise HTTPException(status_code=404, detail="Business developer not found")
+
+    if current_user.role == UserRole.TECH_STACK_MANAGER:
+        allowed = _allowed_dept_strs(current_user)
+        if allowed is not None:
+            existing_depts = _bd_dept_ids(bd)
+            if existing_depts and not any(d in allowed for d in existing_depts):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This BD is not in your department scope",
+                )
+
     bd_name = bd.name
     session.delete(bd)
     record_activity(

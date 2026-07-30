@@ -11,7 +11,7 @@ from sqlmodel import Session, select, col, or_, and_, func
 from sqlalchemy import false as sql_false, nulls_last
 from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_session
-from app.dept_scope import apply_dept_filter, get_user_allowed_depts
+from app.dept_scope import apply_dept_filter, assert_dept_in_scope, get_user_allowed_depts
 from app.activity_log import record_activity
 from app.models.interview import Interview
 from app.models.company import Company
@@ -517,21 +517,29 @@ def patch_lead_thread_status(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Set or clear lead outcome override and notes (superadmin, team members, and BD)."""
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
+    """Set or clear lead outcome override and notes (superadmin, team members, BD, dept lead, BD team lead, tech stack manager)."""
+    if current_user.role not in (
+        UserRole.SUPERADMIN,
+        UserRole.TEAM_MEMBER,
+        UserRole.BD,
+        UserRole.DEPT_LEAD,
+        UserRole.BD_TEAM_LEAD,
+        UserRole.TECH_STACK_MANAGER,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin, team members, BDs, dept leads, and BD team leads can update lead thread status.",
+            detail="Only superadmin, team members, BDs, dept leads, BD team leads, and tech stack managers can update lead thread status.",
         )
     if current_user.role == UserRole.TEAM_MEMBER and not team_member_can_access_thread(
         session, current_user, thread_id
     ):
         raise HTTPException(status_code=404, detail="Interview not found")
-    exists = session.exec(
-        select(Interview.id).where(Interview.thread_id == thread_id).limit(1)
+    thread_row = session.exec(
+        select(Interview).where(Interview.thread_id == thread_id).limit(1)
     ).first()
-    if not exists:
+    if not thread_row:
         raise HTTPException(status_code=404, detail="Thread not found")
+    assert_dept_in_scope(current_user, thread_row.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
 
     row = ensure_lead_thread(session, thread_id)
     prev_override = (row.outcome_override or "").strip().lower()
@@ -722,6 +730,8 @@ def create_interview(
             payload["department_id"] = cand.department_id if cand else current_user.department_id
         else:
             payload["department_id"] = current_user.department_id
+
+    assert_dept_in_scope(current_user, payload.get("department_id"), session, only_roles={UserRole.TECH_STACK_MANAGER})
 
     payload["created_by_user_id"] = current_user.id
     interview = Interview(**payload)
@@ -1217,6 +1227,7 @@ def update_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
+    assert_dept_in_scope(current_user, interview.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
     assert_bd_lead_write_access(current_user, _thread_primary_bd_id(
         session, interview.thread_id), session)
 
@@ -1348,6 +1359,7 @@ def delete_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     team_member_must_own_interview(session, current_user, interview)
+    assert_dept_in_scope(current_user, interview.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
     assert_bd_lead_write_access(current_user, _thread_primary_bd_id(
         session, interview.thread_id), session)
     # Check if this is the ONLY interview in this thread

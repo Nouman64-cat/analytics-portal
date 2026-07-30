@@ -72,14 +72,16 @@ export default function BusinessDevelopersPage() {
   const cannotCRUD = role === "bd" || role === "manager" || role === "bd-manager" || role === "guest";
   const isSuperAdmin = role === "superadmin";
   const isBdTeamLead = role === "bd-team-lead";
+  const isTechStackManager = role === "tech-stack-manager";
+  const isDeptScoped = isBdTeamLead || isTechStackManager;
 
   const myAllowedDepts = useMemo(() => {
-    if (!isBdTeamLead) return departments.filter((d) => d.is_active);
+    if (!isDeptScoped) return departments.filter((d) => d.is_active);
     const allowed = currentUserProfile?.allowed_dept_ids;
     if (allowed === null || allowed === undefined) return [];
     if (allowed.length === 0) return departments.filter((d) => d.is_active);
     return departments.filter((d) => d.is_active && allowed.includes(d.id));
-  }, [isBdTeamLead, currentUserProfile, departments]);
+  }, [isDeptScoped, currentUserProfile, departments]);
 
   const deptMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -87,7 +89,7 @@ export default function BusinessDevelopersPage() {
     return m;
   }, [departments]);
 
-  const canManageDepts = isSuperAdmin || isBdTeamLead;
+  const canManageDepts = isSuperAdmin || isDeptScoped;
 
   const fetchData = useCallback(async () => {
     try {
@@ -108,10 +110,10 @@ export default function BusinessDevelopersPage() {
 
   useEffect(() => {
     fetchData();
-    if (isSuperAdmin || isBdTeamLead) {
+    if (isSuperAdmin || isDeptScoped) {
       departmentsService.list().then(setDepartments).catch(() => {});
     }
-    if (isBdTeamLead) {
+    if (isDeptScoped) {
       authService.getMe().then(setCurrentUserProfile).catch(() => {});
     }
   }, [fetchData]);

@@ -848,7 +848,8 @@ export default function InterviewsPage() {
     role === "team-member" ||
     role === "bd" ||
     role === "dept-lead" ||
-    role === "bd-team-lead";
+    role === "bd-team-lead" ||
+    role === "tech-stack-manager";
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const canAddPipelineRound = !isTeamMember || !!meCandidateId;
   const [isSubmitting, setIsSubmitting] = useState(false);

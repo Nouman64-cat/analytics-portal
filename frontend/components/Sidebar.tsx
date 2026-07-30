@@ -39,7 +39,7 @@ interface SidebarProps {
 }
 
 const CROSS_DEPT_ROLES = new Set(["superadmin", "manager", "guest"]);
-const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "guest", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "guest", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead", "tech-stack-manager"]);
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
@@ -109,8 +109,10 @@ export default function Sidebar({
       return allDepartments.filter((d) => allowed.includes(d.id));
     }
 
-    // team-member and dept-lead: show switcher only if allowed_dept_ids has 2+ depts
-    if (role === "team-member" || role === "dept-lead") {
+    // team-member, dept-lead, and tech stack manager: show switcher only if
+    // allowed_dept_ids has entries — an empty/missing list means no access,
+    // never "all" (unlike BD/BD manager below, which treat [] as unrestricted).
+    if (role === "team-member" || role === "dept-lead" || role === "tech-stack-manager") {
       if (!allowed || allowed.length === 0) return [];
       return allDepartments.filter((d) => allowed.includes(d.id));
     }
@@ -187,14 +189,10 @@ export default function Sidebar({
     "bd-manager": ["/activities", "/users", "/backup", "/announcements"],
     "tech-stack-manager": [
       "/",
-      "/leads",
       "/stats",
-      "/interviews",
       "/calendar",
       "/companies",
       "/candidates",
-      "/resume-profiles",
-      "/business-developers",
       "/activities",
       "/users",
       "/backup",

@@ -9,7 +9,7 @@ from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
 from app.activity_log import record_activity
-from app.dept_scope import apply_dept_filter, is_cross_dept, get_user_allowed_depts
+from app.dept_scope import apply_dept_filter, assert_dept_in_scope, is_cross_dept, get_user_allowed_depts
 from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
 from app.models.department import Department
@@ -125,6 +125,7 @@ def create_resume_profile(
     """Create a new resume profile stamped with the creator's department."""
     assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
+    assert_dept_in_scope(current_user, dept_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
     profile = ResumeProfile(name=data.name, department_id=dept_id, bd_id=data.bd_id)
     session.add(profile)
     session.flush()
@@ -167,6 +168,7 @@ def upload_resume_pdf(
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
+    assert_dept_in_scope(current_user, profile.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
 
     if file.content_type != "application/pdf":
         raise HTTPException(
@@ -222,6 +224,9 @@ def update_resume_profile(
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
+    assert_dept_in_scope(current_user, profile.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
+    if data.department_id is not None:
+        assert_dept_in_scope(current_user, data.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -256,6 +261,7 @@ def delete_resume_profile(
     profile = session.get(ResumeProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Resume profile not found")
+    assert_dept_in_scope(current_user, profile.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
     profile_name = profile.name
     session.delete(profile)
     record_activity(

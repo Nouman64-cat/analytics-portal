@@ -5,6 +5,7 @@ import json
 import uuid
 from typing import Optional
 
+from fastapi import HTTPException
 from sqlalchemy import false as sql_false
 
 from app.models.user import User, UserRole
@@ -88,3 +89,28 @@ def apply_dept_filter(query, model, user: User, dept_id: Optional[uuid.UUID] = N
         return query.where(sql_false())
 
     return query.where(model.department_id.in_(allowed))
+
+
+def assert_dept_in_scope(
+    user: User,
+    dept_id: Optional[uuid.UUID],
+    session=None,
+    *,
+    only_roles: Optional[frozenset] = None,
+) -> None:
+    """Raise 403/400 if dept_id falls outside a scoped user's allowed departments.
+
+    Pass only_roles to restrict this check to specific roles (a no-op for every
+    other role) so existing behavior for roles not named here is left exactly
+    as it was — this is meant for adding scoping to one new role at a time,
+    not for retroactively tightening every role's write path at once.
+    """
+    if only_roles is not None and user.role not in only_roles:
+        return
+    allowed = get_user_allowed_depts(user, session)
+    if allowed is None:
+        return  # unrestricted
+    if dept_id is None:
+        raise HTTPException(status_code=400, detail="A department must be selected for this action")
+    if dept_id not in allowed:
+        raise HTTPException(status_code=403, detail="This department is not assigned to you")

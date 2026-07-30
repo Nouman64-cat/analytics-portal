@@ -23,7 +23,7 @@ from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.schemas.lead import LeadCreate, LeadListItem, LeadListPage, LeadListStats, LeadUpdate
-from app.dept_scope import apply_dept_filter
+from app.dept_scope import apply_dept_filter, assert_dept_in_scope
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
     candidate_id_for_team_member,
@@ -40,11 +40,18 @@ router = APIRouter(prefix="/api/v1/leads",
 
 
 def _require_lead_write_role(current_user: User) -> None:
-    """Create/update/delete leads: superadmin, team member, BD, dept lead, and BD team lead."""
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD, UserRole.DEPT_LEAD, UserRole.BD_TEAM_LEAD):
+    """Create/update/delete leads: superadmin, team member, BD, dept lead, BD team lead, and tech stack manager."""
+    if current_user.role not in (
+        UserRole.SUPERADMIN,
+        UserRole.TEAM_MEMBER,
+        UserRole.BD,
+        UserRole.DEPT_LEAD,
+        UserRole.BD_TEAM_LEAD,
+        UserRole.TECH_STACK_MANAGER,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin, team members, BDs, dept leads, and BD team leads can create, edit, or delete leads.",
+            detail="Only superadmin, team members, BDs, dept leads, BD team leads, and tech stack managers can create, edit, or delete leads.",
         )
 
 
@@ -561,6 +568,8 @@ def create_lead(
         if cand and cand.department_id:
             dept_id = cand.department_id
 
+    assert_dept_in_scope(current_user, dept_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
+
     sr = (data.salary_range or "").strip() or None
     interview = Interview(
         thread_id=thread_id,
@@ -668,6 +677,7 @@ def update_lead(
     rows = _load_thread_interviews(session, thread_id)
     if not rows:
         raise HTTPException(status_code=404, detail="Lead not found")
+    assert_dept_in_scope(current_user, rows[0].department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
     assert_bd_lead_write_access(current_user, _primary_bd(rows)[0], session)
     first = _ordered_thread_rows(rows)[0]
     patch = data.model_dump(exclude_unset=True)
@@ -752,6 +762,7 @@ def delete_lead(
     rows = _load_thread_interviews(session, thread_id)
     if not rows:
         raise HTTPException(status_code=404, detail="Lead not found")
+    assert_dept_in_scope(current_user, rows[0].department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
     assert_bd_lead_write_access(current_user, _primary_bd(rows)[0], session)
     co = session.get(Company, rows[0].company_id)
     company_label = co.name if co else "company"
