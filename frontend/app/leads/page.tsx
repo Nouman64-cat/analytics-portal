@@ -424,6 +424,19 @@ Return "all" for fields the user didn't mention.`;
     return businessDevs.find((b) => b.id === meBdEntityId)?.name ?? null;
   }, [meBdEntityId, businessDevs]);
 
+  // Inactive BDs/candidates are hidden from the Add/Edit lead form's dropdowns,
+  // but a value already selected (e.g. editing an older lead) stays visible so
+  // it isn't silently blanked out.
+  const activeBusinessDevs = useMemo(
+    () => businessDevs.filter((b) => b.is_active !== false || b.id === form.bd_id),
+    [businessDevs, form.bd_id],
+  );
+
+  const activeCandidates = useMemo(
+    () => candidates.filter((c) => c.is_active !== false || c.id === form.candidate_id),
+    [candidates, form.candidate_id],
+  );
+
   const bdOptions = useMemo(
     () =>
       [...businessDevs]
@@ -1242,7 +1255,7 @@ Return "all" for fields the user didn't mention.`;
               </div>
             ) : (
               <SearchableSelect
-                options={businessDevs.map((b) => ({ id: b.id, label: b.name }))}
+                options={activeBusinessDevs.map((b) => ({ id: b.id, label: b.name }))}
                 value={form.bd_id || ""}
                 onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
                 placeholder="Select BD…"
@@ -1342,7 +1355,7 @@ Return "all" for fields the user didn't mention.`;
               </div>
             ) : (
               <SearchableSelect
-                options={candidates
+                options={activeCandidates
                   .slice()
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((c) => ({ id: c.id, label: c.name }))}
