@@ -255,6 +255,8 @@ export const profilesService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  toggleStatus: (id: string) =>
+    apiFetch<ResumeProfile>(`/resume-profiles/${id}/status`, { method: "PATCH" }),
   uploadResume: async (id: string, file: File) => {
     const token = getToken();
     const formData = new FormData();

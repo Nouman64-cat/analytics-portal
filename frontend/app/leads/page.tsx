@@ -450,16 +450,26 @@ Return "all" for fields the user didn't mention.`;
     [profiles],
   );
 
+  // Inactive profiles are hidden from the Add/Edit lead form, but a profile
+  // already selected (e.g. editing an older lead) stays visible.
+  const activeProfiles = useMemo(
+    () =>
+      profiles.filter(
+        (p) => p.is_active !== false || p.id === form.resume_profile_id,
+      ),
+    [profiles, form.resume_profile_id],
+  );
+
   // Profiles that belong to the currently selected BD in the form.
   const profilesForSelectedBd = useMemo(() => {
     if (!form.bd_id) return [];
-    return profiles.filter((p) => p.bd_id === form.bd_id);
-  }, [profiles, form.bd_id]);
+    return activeProfiles.filter((p) => p.bd_id === form.bd_id);
+  }, [activeProfiles, form.bd_id]);
 
   // Auto-select profile when BD changes in the form.
   useEffect(() => {
     if (!form.bd_id) return;
-    const bdProfiles = profiles.filter((p) => p.bd_id === form.bd_id);
+    const bdProfiles = activeProfiles.filter((p) => p.bd_id === form.bd_id);
     if (bdProfiles.length === 1) {
       if (form.resume_profile_id !== bdProfiles[0].id) {
         setForm((f) => ({ ...f, resume_profile_id: bdProfiles[0].id }));
@@ -1272,7 +1282,7 @@ Return "all" for fields the user didn't mention.`;
             <SearchableSelect
               options={(profilesForSelectedBd.length > 0
                 ? profilesForSelectedBd
-                : profiles
+                : activeProfiles
               ).map((p) => ({ id: p.id, label: p.name }))}
               value={form.resume_profile_id}
               onChange={(id) =>

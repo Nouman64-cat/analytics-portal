@@ -284,6 +284,37 @@ def update_resume_profile(
     return _to_read(profile, dept, bd)
 
 
+@router.patch("/{profile_id}/status", response_model=ResumeProfileRead)
+def toggle_resume_profile_status(
+    profile_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle a resume profile's active/inactive status."""
+    assert_write_access(current_user)
+    profile = session.get(ResumeProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Resume profile not found")
+    assert_dept_in_scope(current_user, profile.department_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
+
+    profile.is_active = not profile.is_active
+    profile.updated_at = datetime.utcnow()
+    session.add(profile)
+    record_activity(
+        session,
+        actor=current_user,
+        action="toggle_resume_profile_status",
+        entity_type="resume_profile",
+        entity_id=profile.id,
+        message=f"Marked resume profile '{profile.name}' as {'active' if profile.is_active else 'inactive'}",
+    )
+    session.commit()
+    session.refresh(profile)
+    dept = session.get(Department, profile.department_id) if profile.department_id else None
+    bd = session.get(BusinessDeveloper, profile.bd_id) if profile.bd_id else None
+    return _to_read(profile, dept, bd)
+
+
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_resume_profile(
     profile_id: uuid.UUID,

@@ -53,6 +53,35 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+function StatusSwitch({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange();
+      }}
+      title={checked ? "Active — click to deactivate" : "Closed — click to activate"}
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${checked ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"}`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition duration-200 ${checked ? "translate-x-4" : "translate-x-0"}`}
+      />
+    </button>
+  );
+}
+
 function formatMonthLabel(ym: string) {
   const [year, month] = ym.split("-");
   return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
@@ -84,6 +113,7 @@ export default function ProfilesPage() {
     null,
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const role = getUserRole();
@@ -201,6 +231,19 @@ export default function ProfilesPage() {
       alert(err instanceof Error ? err.message : "Failed to delete");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleToggleStatus = async (profile: ResumeProfile) => {
+    if (togglingId) return;
+    setTogglingId(profile.id);
+    try {
+      await profilesService.toggleStatus(profile.id);
+      await fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -569,14 +612,29 @@ export default function ProfilesPage() {
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        {isActive ? (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                            Active
-                          </span>
+                        {cannotCRUD ? (
+                          isActive ? (
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                              Closed
+                            </span>
+                          )
                         ) : (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
-                            Closed
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <StatusSwitch
+                              checked={isActive}
+                              disabled={togglingId === profile.id}
+                              onChange={() => handleToggleStatus(profile)}
+                            />
+                            <span
+                              className={`text-[11px] font-medium ${isActive ? "text-emerald-500" : "text-slate-500"}`}
+                            >
+                              {isActive ? "Active" : "Closed"}
+                            </span>
+                          </div>
                         )}
                       </td>
                       <td className="px-5 py-4">
