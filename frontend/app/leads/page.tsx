@@ -219,6 +219,8 @@ export default function LeadsPage() {
   /** Candidate row linked to the logged-in team member (null for other roles). */
   const [meCandidateId, setMeCandidateId] = useState<string | null>(null);
   const [meCandidateName, setMeCandidateName] = useState<string | null>(null);
+  /** BD entity linked to the logged-in BD user (null for other roles or unlinked BDs). */
+  const [meBdEntityId, setMeBdEntityId] = useState<string | null>(null);
   /** Create / edit / delete leads — superadmin, team member, BD, dept lead, BD team lead, and tech stack manager (scoped to their departments). Manager: read-only. */
   const canMutateLeads =
     role === "superadmin" ||
@@ -404,6 +406,24 @@ Return "all" for fields the user didn't mention.`;
       .catch(() => {});
   }, [role]);
 
+  // Resolve the logged-in BD's own business-developer entity once on mount.
+  // BD_TEAM_LEAD team members created under a team lead get auto-selected as
+  // themselves on the lead form instead of picking from the full BD list.
+  useEffect(() => {
+    if (role !== "bd") return;
+    authService
+      .getMe()
+      .then((me) => {
+        if (me?.bd_entity_id) setMeBdEntityId(me.bd_entity_id);
+      })
+      .catch(() => {});
+  }, [role]);
+
+  const meBdEntityName = useMemo(() => {
+    if (!meBdEntityId) return null;
+    return businessDevs.find((b) => b.id === meBdEntityId)?.name ?? null;
+  }, [meBdEntityId, businessDevs]);
+
   const bdOptions = useMemo(
     () =>
       [...businessDevs]
@@ -444,8 +464,11 @@ Return "all" for fields the user didn't mention.`;
   }, [form.bd_id]);
 
   // Auto-select BD when profile changes in the form.
+  // Skipped when the BD field is locked to the logged-in BD themself (see
+  // the "Business developer" FormField below) — their own selection wins.
   useEffect(() => {
     if (!form.resume_profile_id) return;
+    if (isBD && modalMode === "create" && meBdEntityId) return;
     const selectedProfile = profiles.find((p) => p.id === form.resume_profile_id);
     if (selectedProfile?.bd_id && selectedProfile.bd_id !== form.bd_id) {
       setForm((f) => ({ ...f, bd_id: selectedProfile.bd_id! }));
@@ -559,7 +582,8 @@ Return "all" for fields the user didn't mention.`;
       resume_profile_id: "",
       role: "",
       salary_range: "",
-      bd_id: "",
+      // Auto-select the logged-in BD as themselves
+      bd_id: isBD && meBdEntityId ? meBdEntityId : "",
       // Auto-select the team member's own candidate
       candidate_id: isTeamMember && meCandidateId ? meCandidateId : "",
       notes: "",
@@ -1196,12 +1220,34 @@ Return "all" for fields the user didn't mention.`;
             />
           </FormField>
           <FormField label="Business developer (optional)">
-            <SearchableSelect
-              options={businessDevs.map((b) => ({ id: b.id, label: b.name }))}
-              value={form.bd_id || ""}
-              onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
-              placeholder="Select BD…"
-            />
+            {isBD && modalMode === "create" && meBdEntityId ? (
+              // BD team member: lead is always attributed to themselves — read-only.
+              <div
+                className={`${selectClass} flex items-center gap-2 bg-slate-50 dark:bg-white/[0.03] cursor-not-allowed opacity-80`}
+              >
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
+                  {meBdEntityName
+                    ? meBdEntityName
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((p) => p[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()
+                    : "…"}
+                </span>
+                <span className="text-sm text-slate-800 dark:text-slate-200">
+                  {meBdEntityName ?? "Loading…"}
+                </span>
+              </div>
+            ) : (
+              <SearchableSelect
+                options={businessDevs.map((b) => ({ id: b.id, label: b.name }))}
+                value={form.bd_id || ""}
+                onChange={(id) => setForm((f) => ({ ...f, bd_id: id }))}
+                placeholder="Select BD…"
+              />
+            )}
           </FormField>
           <FormField
             label={
