@@ -566,6 +566,7 @@ export default function ProfilesPage() {
                 <tr className="border-b border-slate-200 dark:border-white/[0.06]">
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Name</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Department</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Business Developer</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Location</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Interviews</th>
@@ -596,6 +597,15 @@ export default function ProfilesPage() {
                         {profile.department_name ? (
                           <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
                             {profile.department_name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        {profile.bd_name ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-500/20">
+                            {profile.bd_name}
                           </span>
                         ) : (
                           <span className="text-slate-400 dark:text-slate-500">—</span>
@@ -1009,22 +1019,6 @@ export default function ProfilesPage() {
               className={inputClass}
               autoFocus
             />
-          </FormField>
-
-          <FormField label="Global Usage Status">
-            <select
-              value={formData.is_active !== false ? "true" : "false"}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  is_active: e.target.value === "true",
-                })
-              }
-              className={selectClass}
-            >
-              <option value="true">Active (Seeking Deployments)</option>
-              <option value="false">Closed (Retired/Hired)</option>
-            </select>
           </FormField>
 
           <FormField label="Assigned BD (optional)">
