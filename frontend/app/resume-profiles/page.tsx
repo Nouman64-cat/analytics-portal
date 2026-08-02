@@ -129,6 +129,18 @@ export default function ProfilesPage() {
       github_url: "",
       portfolio_url: "",
       location: "",
+      dob: "",
+      phone: "",
+      address: "",
+      zip_code: "",
+      ssn_last4: "",
+      nearby_locations: "",
+      visa_status: "",
+      moved_to_us_year: null,
+      greencard_or_citizenship_year: null,
+      education_degree: "",
+      education_start_year: null,
+      education_end_year: null,
     });
     setModalOpen(true);
   };
@@ -144,6 +156,18 @@ export default function ProfilesPage() {
       github_url: p.github_url || "",
       portfolio_url: p.portfolio_url || "",
       location: p.location || "",
+      dob: p.dob || "",
+      phone: p.phone || "",
+      address: p.address || "",
+      zip_code: p.zip_code || "",
+      ssn_last4: p.ssn_last4 || "",
+      nearby_locations: p.nearby_locations || "",
+      visa_status: p.visa_status || "",
+      moved_to_us_year: p.moved_to_us_year ?? null,
+      greencard_or_citizenship_year: p.greencard_or_citizenship_year ?? null,
+      education_degree: p.education_degree || "",
+      education_start_year: p.education_start_year ?? null,
+      education_end_year: p.education_end_year ?? null,
     });
     setModalOpen(true);
   };
@@ -731,6 +755,103 @@ export default function ProfilesPage() {
                 </p>
               </div>
             </div>
+            {(viewModal.dob ||
+              viewModal.phone ||
+              viewModal.address ||
+              viewModal.zip_code ||
+              viewModal.ssn_last4 ||
+              viewModal.visa_status ||
+              viewModal.moved_to_us_year ||
+              viewModal.greencard_or_citizenship_year ||
+              viewModal.education_degree ||
+              viewModal.nearby_locations) && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                  Demographic Details
+                </p>
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 dark:bg-white/[0.03] p-3 text-[13px]">
+                  {viewModal.dob && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">DOB</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.dob}</p>
+                    </div>
+                  )}
+                  {viewModal.phone && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">Phone #</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.phone}</p>
+                    </div>
+                  )}
+                  {viewModal.address && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">Address</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.address}</p>
+                    </div>
+                  )}
+                  {viewModal.zip_code && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">Zip</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.zip_code}</p>
+                    </div>
+                  )}
+                  {viewModal.ssn_last4 && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">Last 4 of SSN</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.ssn_last4}</p>
+                    </div>
+                  )}
+                  {viewModal.visa_status && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">Visa Status</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.visa_status}</p>
+                    </div>
+                  )}
+                  {viewModal.moved_to_us_year && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">Moved to US</p>
+                      <p className="text-slate-800 dark:text-slate-200">{viewModal.moved_to_us_year}</p>
+                    </div>
+                  )}
+                  {viewModal.greencard_or_citizenship_year && (
+                    <div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                        GC / Citizenship Year
+                      </p>
+                      <p className="text-slate-800 dark:text-slate-200">
+                        {viewModal.greencard_or_citizenship_year}
+                      </p>
+                    </div>
+                  )}
+                  {viewModal.education_degree && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                        Education / Degree
+                      </p>
+                      <p className="text-slate-800 dark:text-slate-200">
+                        {viewModal.education_degree}
+                        {(viewModal.education_start_year || viewModal.education_end_year) && (
+                          <span className="text-slate-500 dark:text-slate-500">
+                            {" "}
+                            ({viewModal.education_start_year ?? "—"}–
+                            {viewModal.education_end_year ?? "—"})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                  {viewModal.nearby_locations && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                        Nearby Location(s)
+                      </p>
+                      <p className="text-slate-800 dark:text-slate-200">
+                        {viewModal.nearby_locations}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {viewModal.linkedin_url ||
             viewModal.github_url ||
             viewModal.portfolio_url ||
@@ -944,6 +1065,151 @@ export default function ProfilesPage() {
               placeholder="e.g., Karachi, Pakistan"
             />
           </FormField>
+
+          <div className="pt-2 border-t border-slate-200 dark:border-white/[0.06]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 mb-3">
+              Demographic Details (optional)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Date of Birth">
+                <input
+                  value={formData.dob || ""}
+                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                  placeholder="e.g., December 5"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Phone #">
+                <input
+                  value={formData.phone || ""}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="e.g., +1 281-522-5699"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Address">
+                <input
+                  value={formData.address || ""}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="e.g., 2935 Ridge Scene Way, Houston TX"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Zip">
+                <input
+                  value={formData.zip_code || ""}
+                  onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                  placeholder="e.g., 77084"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Last 4 digits of SSN">
+                <input
+                  value={formData.ssn_last4 || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      ssn_last4: e.target.value.replace(/\D/g, "").slice(0, 4),
+                    })
+                  }
+                  placeholder="e.g., 6056"
+                  maxLength={4}
+                  inputMode="numeric"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Visa Status">
+                <input
+                  value={formData.visa_status || ""}
+                  onChange={(e) => setFormData({ ...formData, visa_status: e.target.value })}
+                  placeholder="e.g., US Citizen, H1B, Green Card"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="When did you move to US">
+                <input
+                  type="number"
+                  value={formData.moved_to_us_year ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      moved_to_us_year: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="e.g., 2012"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Green Card / Citizenship year">
+                <input
+                  type="number"
+                  value={formData.greencard_or_citizenship_year ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      greencard_or_citizenship_year: e.target.value
+                        ? Number(e.target.value)
+                        : null,
+                    })
+                  }
+                  placeholder="e.g., 2015"
+                  className={inputClass}
+                />
+              </FormField>
+              <div className="sm:col-span-2">
+                <FormField label="Education / Degree">
+                  <input
+                    value={formData.education_degree || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, education_degree: e.target.value })
+                    }
+                    placeholder="e.g., Bachelors in Computer Science — Arid Agricultural University"
+                    className={inputClass}
+                  />
+                </FormField>
+              </div>
+              <FormField label="Education start year">
+                <input
+                  type="number"
+                  value={formData.education_start_year ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      education_start_year: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="e.g., 2006"
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Education end year">
+                <input
+                  type="number"
+                  value={formData.education_end_year ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      education_end_year: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="e.g., 2008"
+                  className={inputClass}
+                />
+              </FormField>
+              <div className="sm:col-span-2">
+                <FormField label="Nearby Location(s) (if any)">
+                  <input
+                    value={formData.nearby_locations || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, nearby_locations: e.target.value })
+                    }
+                    placeholder="e.g., Hosanna Houston Church, Katherine Tyra Branch Library"
+                    className={inputClass}
+                  />
+                </FormField>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button

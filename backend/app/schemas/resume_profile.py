@@ -14,6 +14,18 @@ class ResumeProfileCreate(BaseModel):
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
     location: Optional[str] = None
+    dob: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    ssn_last4: Optional[str] = None
+    nearby_locations: Optional[str] = None
+    visa_status: Optional[str] = None
+    moved_to_us_year: Optional[int] = None
+    greencard_or_citizenship_year: Optional[int] = None
+    education_degree: Optional[str] = None
+    education_start_year: Optional[int] = None
+    education_end_year: Optional[int] = None
 
 
 class ResumeProfileUpdate(BaseModel):
@@ -26,6 +38,18 @@ class ResumeProfileUpdate(BaseModel):
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
     location: Optional[str] = None
+    dob: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    ssn_last4: Optional[str] = None
+    nearby_locations: Optional[str] = None
+    visa_status: Optional[str] = None
+    moved_to_us_year: Optional[int] = None
+    greencard_or_citizenship_year: Optional[int] = None
+    education_degree: Optional[str] = None
+    education_start_year: Optional[int] = None
+    education_end_year: Optional[int] = None
 
 
 class ResumeProfileRead(BaseModel):
@@ -41,6 +65,18 @@ class ResumeProfileRead(BaseModel):
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
     location: Optional[str] = None
+    dob: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    ssn_last4: Optional[str] = None
+    nearby_locations: Optional[str] = None
+    visa_status: Optional[str] = None
+    moved_to_us_year: Optional[int] = None
+    greencard_or_citizenship_year: Optional[int] = None
+    education_degree: Optional[str] = None
+    education_start_year: Optional[int] = None
+    education_end_year: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

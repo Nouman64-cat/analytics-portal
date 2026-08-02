@@ -466,6 +466,32 @@ def migrate():
             """,
              "Migration successful! Deleted orphaned lead_threads rows with no interviews."),
 
+            # ── Resume profile demographic details ───────────────────────────────────
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS dob VARCHAR(50);",
+             "Migration successful! 'dob' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS phone VARCHAR(30);",
+             "Migration successful! 'phone' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS address VARCHAR(500);",
+             "Migration successful! 'address' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS zip_code VARCHAR(15);",
+             "Migration successful! 'zip_code' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS ssn_last4 VARCHAR(4);",
+             "Migration successful! 'ssn_last4' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS nearby_locations VARCHAR(1000);",
+             "Migration successful! 'nearby_locations' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS visa_status VARCHAR(100);",
+             "Migration successful! 'visa_status' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS moved_to_us_year INTEGER;",
+             "Migration successful! 'moved_to_us_year' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS greencard_or_citizenship_year INTEGER;",
+             "Migration successful! 'greencard_or_citizenship_year' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS education_degree VARCHAR(500);",
+             "Migration successful! 'education_degree' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS education_start_year INTEGER;",
+             "Migration successful! 'education_start_year' column added to 'resume_profiles' table."),
+            ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS education_end_year INTEGER;",
+             "Migration successful! 'education_end_year' column added to 'resume_profiles' table."),
+
         ]
         for sql, msg in migrations:
             try:

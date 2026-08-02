@@ -125,6 +125,18 @@ export interface ResumeProfile {
   portfolio_url: string | null;
   resume_url: string | null;
   location: string | null;
+  dob: string | null;
+  phone: string | null;
+  address: string | null;
+  zip_code: string | null;
+  ssn_last4: string | null;
+  nearby_locations: string | null;
+  visa_status: string | null;
+  moved_to_us_year: number | null;
+  greencard_or_citizenship_year: number | null;
+  education_degree: string | null;
+  education_start_year: number | null;
+  education_end_year: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -607,6 +619,18 @@ export interface ResumeProfileFormData {
   github_url?: string;
   portfolio_url?: string;
   location?: string;
+  dob?: string;
+  phone?: string;
+  address?: string;
+  zip_code?: string;
+  ssn_last4?: string;
+  nearby_locations?: string;
+  visa_status?: string;
+  moved_to_us_year?: number | null;
+  greencard_or_citizenship_year?: number | null;
+  education_degree?: string;
+  education_start_year?: number | null;
+  education_end_year?: number | null;
 }
 
 interface LeadOutcomePeriods {

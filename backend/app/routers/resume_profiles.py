@@ -62,6 +62,18 @@ def _to_read(profile: ResumeProfile, dept: Optional[Department], bd: Optional[Bu
         portfolio_url=profile.portfolio_url,
         resume_url=profile.resume_url,
         location=profile.location,
+        dob=profile.dob,
+        phone=profile.phone,
+        address=profile.address,
+        zip_code=profile.zip_code,
+        ssn_last4=profile.ssn_last4,
+        nearby_locations=profile.nearby_locations,
+        visa_status=profile.visa_status,
+        moved_to_us_year=profile.moved_to_us_year,
+        greencard_or_citizenship_year=profile.greencard_or_citizenship_year,
+        education_degree=profile.education_degree,
+        education_start_year=profile.education_start_year,
+        education_end_year=profile.education_end_year,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )
@@ -126,7 +138,29 @@ def create_resume_profile(
     assert_write_access(current_user)
     dept_id = data.department_id or current_user.department_id
     assert_dept_in_scope(current_user, dept_id, session, only_roles={UserRole.TECH_STACK_MANAGER})
-    profile = ResumeProfile(name=data.name, department_id=dept_id, bd_id=data.bd_id)
+    profile = ResumeProfile(
+        name=data.name,
+        is_active=data.is_active,
+        department_id=dept_id,
+        bd_id=data.bd_id,
+        linkedin_url=data.linkedin_url,
+        github_url=data.github_url,
+        portfolio_url=data.portfolio_url,
+        resume_url=data.resume_url,
+        location=data.location,
+        dob=data.dob,
+        phone=data.phone,
+        address=data.address,
+        zip_code=data.zip_code,
+        ssn_last4=data.ssn_last4,
+        nearby_locations=data.nearby_locations,
+        visa_status=data.visa_status,
+        moved_to_us_year=data.moved_to_us_year,
+        greencard_or_citizenship_year=data.greencard_or_citizenship_year,
+        education_degree=data.education_degree,
+        education_start_year=data.education_start_year,
+        education_end_year=data.education_end_year,
+    )
     session.add(profile)
     session.flush()
     record_activity(

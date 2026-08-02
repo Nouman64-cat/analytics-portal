@@ -3445,6 +3445,123 @@ export default function InterviewsPage() {
                         </p>
                       </div>
                     )}
+                    {(() => {
+                      const profile = profiles.find(
+                        (p) => p.id === detailModal.resume_profile_id,
+                      );
+                      if (!profile) return null;
+                      if (
+                        !profile.dob &&
+                        !profile.phone &&
+                        !profile.address &&
+                        !profile.zip_code &&
+                        !profile.ssn_last4 &&
+                        !profile.visa_status &&
+                        !profile.moved_to_us_year &&
+                        !profile.greencard_or_citizenship_year &&
+                        !profile.education_degree &&
+                        !profile.nearby_locations
+                      ) {
+                        return null;
+                      }
+                      return (
+                        <div className="col-span-1 sm:col-span-2 pt-2 border-t border-indigo-200/70 dark:border-indigo-500/25">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-2">
+                            Demographic Details
+                          </p>
+                          <div className="grid grid-cols-2 gap-3 rounded-xl bg-white/50 dark:bg-black/10 p-3 text-[13px]">
+                            {profile.dob && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">DOB</p>
+                                <p className="text-slate-800 dark:text-slate-200">{profile.dob}</p>
+                              </div>
+                            )}
+                            {profile.phone && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">Phone #</p>
+                                <p className="text-slate-800 dark:text-slate-200">{profile.phone}</p>
+                              </div>
+                            )}
+                            {profile.address && (
+                              <div className="col-span-2">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">Address</p>
+                                <p className="text-slate-800 dark:text-slate-200">{profile.address}</p>
+                              </div>
+                            )}
+                            {profile.zip_code && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">Zip</p>
+                                <p className="text-slate-800 dark:text-slate-200">{profile.zip_code}</p>
+                              </div>
+                            )}
+                            {profile.ssn_last4 && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                                  Last 4 of SSN
+                                </p>
+                                <p className="text-slate-800 dark:text-slate-200">{profile.ssn_last4}</p>
+                              </div>
+                            )}
+                            {profile.visa_status && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                                  Visa Status
+                                </p>
+                                <p className="text-slate-800 dark:text-slate-200">{profile.visa_status}</p>
+                              </div>
+                            )}
+                            {profile.moved_to_us_year && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                                  Moved to US
+                                </p>
+                                <p className="text-slate-800 dark:text-slate-200">
+                                  {profile.moved_to_us_year}
+                                </p>
+                              </div>
+                            )}
+                            {profile.greencard_or_citizenship_year && (
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                                  GC / Citizenship Year
+                                </p>
+                                <p className="text-slate-800 dark:text-slate-200">
+                                  {profile.greencard_or_citizenship_year}
+                                </p>
+                              </div>
+                            )}
+                            {profile.education_degree && (
+                              <div className="col-span-2">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                                  Education / Degree
+                                </p>
+                                <p className="text-slate-800 dark:text-slate-200">
+                                  {profile.education_degree}
+                                  {(profile.education_start_year ||
+                                    profile.education_end_year) && (
+                                    <span className="text-slate-500 dark:text-slate-500">
+                                      {" "}
+                                      ({profile.education_start_year ?? "—"}–
+                                      {profile.education_end_year ?? "—"})
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                            {profile.nearby_locations && (
+                              <div className="col-span-2">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                                  Nearby Location(s)
+                                </p>
+                                <p className="text-slate-800 dark:text-slate-200">
+                                  {profile.nearby_locations}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
