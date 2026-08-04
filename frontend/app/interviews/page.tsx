@@ -34,6 +34,7 @@ import {
   Upload,
   Sparkles,
   Check,
+  X,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -1780,8 +1781,18 @@ export default function InterviewsPage() {
                   placeholder="Search interviews by company, role, candidate, status…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className={`${inputClass} pl-10 text-sm py-1.5`}
+                  className={`${inputClass} pl-10 pr-9 text-sm py-1.5`}
                 />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    aria-label="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
               <select
                 value={filters.status}

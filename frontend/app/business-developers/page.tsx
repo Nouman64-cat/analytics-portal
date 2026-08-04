@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight, Mail, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Briefcase, TrendingUp, Users, CalendarCheck, Loader2, ToggleLeft, ToggleRight, Mail, Search, X } from "lucide-react";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { businessDevelopersService, interviewsService, departmentsService, authService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
@@ -381,8 +381,18 @@ export default function BusinessDevelopersPage() {
             placeholder="Search by name or email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 w-64 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] pl-8 pr-3 text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/20"
+            className="h-8 w-64 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] pl-8 pr-7 text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-indigo-400/60 focus:ring-1 focus:ring-indigo-400/20"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              aria-label="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
         {departments.length > 0 && (
           <div className="flex items-center gap-2">

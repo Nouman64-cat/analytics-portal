@@ -22,6 +22,7 @@ import {
   Check,
   SlidersHorizontal,
   ChevronDown,
+  X,
 } from "lucide-react";
 import {
   leadsService,
@@ -129,13 +130,23 @@ const LeadsSearchField = memo(function LeadsSearchField({
         className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
       />
       <input
-        type="search"
+        type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search company, candidate, role, BD, status…"
-        className="w-full rounded-lg border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.04] py-1.5 pl-8 pr-2.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400"
+        className="w-full rounded-lg border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-white/[0.04] py-1.5 pl-8 pr-7 text-xs text-slate-900 dark:text-white placeholder:text-slate-400"
         autoComplete="off"
       />
+      {value && (
+        <button
+          type="button"
+          onClick={() => setValue("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+          aria-label="Clear search"
+        >
+          <X size={13} />
+        </button>
+      )}
     </div>
   );
 });

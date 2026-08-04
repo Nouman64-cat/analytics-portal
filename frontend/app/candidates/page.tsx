@@ -478,8 +478,18 @@ export default function CandidatesPage() {
           placeholder="Search candidates..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className={`${inputClass} pl-10`}
+          className={`${inputClass} pl-10 pr-9`}
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            aria-label="Clear search"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* Month Filter */}

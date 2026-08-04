@@ -13,6 +13,7 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { leadsService, candidatesService, authService } from "@/lib/services";
 import type { LeadListItem, Candidate } from "@/lib/types";
@@ -333,8 +334,18 @@ export default function StatsPage() {
                 placeholder="Search candidate…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={`${inputClass} pl-10 w-48`}
+                className={`${inputClass} pl-10 pr-8 w-48`}
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
             <DateRangeFilter
               from={dateFrom}

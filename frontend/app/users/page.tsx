@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone } from "lucide-react";
+import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone, X } from "lucide-react";
 import { usersService, departmentsService, candidatesService, authService, businessDevelopersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department, BusinessDeveloper } from "@/lib/types";
@@ -273,8 +273,18 @@ export default function UsersPage() {
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`${inputClass} pl-10`}
+            className={`${inputClass} pl-10 pr-9`}
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
         <select
           value={roleFilter}

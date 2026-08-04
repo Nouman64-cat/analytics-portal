@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Loader2, Search, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Eye, X } from "lucide-react";
 import { companiesService, interviewsService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { Company, CompanyFormData, Interview } from "@/lib/types";
@@ -141,8 +141,18 @@ export default function CompaniesPage() {
           placeholder="Search companies..."
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          className={`${inputClass} pl-10`}
+          className={`${inputClass} pl-10 pr-9`}
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => handleSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            aria-label="Clear search"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* Table */}
