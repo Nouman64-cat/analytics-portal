@@ -12,7 +12,10 @@ import { interviewsService, busyDaysService, departmentsService } from "@/lib/se
 import type { Interview, BusyDay, Department } from "@/lib/types";
 import {
   formatInterviewDateEst,
+  formatInterviewTimeInZone,
   formatTime,
+  INTERVIEW_SCHEDULE_TZ,
+  TIMEZONE_OPTIONS,
   truncate,
 } from "@/lib/utils";
 import { getUserRole, getUserId } from "@/lib/auth";
@@ -68,6 +71,7 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [preview, setPreview] = useState<Interview | null>(null);
+  const [tz, setTz] = useState<string>(INTERVIEW_SCHEDULE_TZ);
 
   // Busy day modal state
   const [dayModal, setDayModal] = useState<{ date: string } | null>(null);
@@ -184,7 +188,7 @@ export default function CalendarPage() {
     <div className="mx-auto min-w-0 max-w-full space-y-6 sm:space-y-8">
       <PageHeader
         title="Interview calendar"
-        subtitle="Days follow each interview's scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid use Eastern Time (EST/ET). The preview shows both EST and PKT clock times."
+        subtitle="Days follow each interview's scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid can be viewed in Eastern, Central, Mountain, or Pacific time. The preview shows EST, PKT, and the selected timezone."
       />
       <InterviewsCalendar
         interviews={interviews}
@@ -193,6 +197,8 @@ export default function CalendarPage() {
         currentUserId={currentUserId ?? undefined}
         onDayClick={canMarkBusy ? openDayModal : undefined}
         onBusyBarClick={openDayModal}
+        tz={tz}
+        onTzChange={setTz}
       />
 
       {/* Interview preview modal */}
@@ -236,6 +242,13 @@ export default function CalendarPage() {
                   "—"
                 )}
               </PreviewField>
+              {tz !== INTERVIEW_SCHEDULE_TZ && (
+                <PreviewField
+                  label={`Time (${TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz})`}
+                >
+                  {formatInterviewTimeInZone(preview.interview_date, preview.time_est, tz)}
+                </PreviewField>
+              )}
             </div>
             {preview.salary_range ? (
               <PreviewField label="Salary range">

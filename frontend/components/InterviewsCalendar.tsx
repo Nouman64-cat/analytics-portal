@@ -3,7 +3,12 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Interview, BusyDay } from "@/lib/types";
-import { formatDate, formatTime } from "@/lib/utils";
+import {
+  formatDate,
+  formatInterviewTimeInZone,
+  INTERVIEW_SCHEDULE_TZ,
+  TIMEZONE_OPTIONS,
+} from "@/lib/utils";
 import StatusBadge from "@/components/StatusBadge";
 import Modal from "@/components/Modal";
 
@@ -48,6 +53,8 @@ export default function InterviewsCalendar({
   currentUserId,
   onDayClick,
   onBusyBarClick,
+  tz = INTERVIEW_SCHEDULE_TZ,
+  onTzChange,
 }: {
   interviews: Interview[];
   onSelectInterview: (interview: Interview) => void;
@@ -55,6 +62,9 @@ export default function InterviewsCalendar({
   currentUserId?: string;
   onDayClick?: (date: string) => void;
   onBusyBarClick?: (date: string) => void;
+  /** IANA zone to display interview times in (see {@link TIMEZONE_OPTIONS}). Defaults to Eastern. */
+  tz?: string;
+  onTzChange?: (tz: string) => void;
 }) {
   function getCandidateInitials(name?: string | null): string {
     if (!name) return "?";
@@ -161,14 +171,32 @@ export default function InterviewsCalendar({
         </button>
       </div>
 
-      <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-left">
-        <span className="font-medium text-slate-600 dark:text-slate-300">
-          Times shown in Eastern (EST/ET)
-        </span>{" "}
-        — same as the EST column. Day cells use each row&apos;s interview date
-        (aligned with Date (EST) on the list); within a day, entries sort by EST
-        time.
-      </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-left">
+          <span className="font-medium text-slate-600 dark:text-slate-300">
+            Times shown in {TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz}
+          </span>{" "}
+          — day cells use each row&apos;s interview date (aligned with Date
+          (EST) on the list); within a day, entries sort by scheduled EST
+          time.
+        </p>
+        {onTzChange && (
+          <label className="flex shrink-0 items-center justify-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 sm:justify-start">
+            <span className="font-medium">Timezone:</span>
+            <select
+              value={tz}
+              onChange={(e) => onTzChange(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none transition-colors focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200"
+            >
+              {TIMEZONE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       <div className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/[0.08] dark:bg-[#12141c]">
         <div
@@ -302,7 +330,7 @@ export default function InterviewsCalendar({
                             </span>
                             {inv.time_est && (
                               <span className="hidden sm:block text-[8px] text-slate-400 dark:text-slate-500 tabular-nums">
-                                {formatTime(inv.time_est)}
+                                {formatInterviewTimeInZone(inv.interview_date, inv.time_est, tz)}
                               </span>
                             )}
                           </span>
@@ -372,7 +400,9 @@ export default function InterviewsCalendar({
                         <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 truncate">
                           {inv.company_name || "Company"}
                           {inv.time_est && (
-                            <span className="ml-2 tabular-nums">{formatTime(inv.time_est)} EST</span>
+                            <span className="ml-2 tabular-nums">
+                              {formatInterviewTimeInZone(inv.interview_date, inv.time_est, tz)}
+                            </span>
                           )}
                         </div>
                       </div>

@@ -19,7 +19,15 @@ export function formatDate(dateStr: string | null | undefined): string {
   });
 }
 
-function parseTimePartsForEst(
+/** Timezone choices for the calendar's "view in" selector. IANA zones auto-resolve to the correct DST-aware abbreviation (e.g. CST/CDT). */
+export const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "America/New_York", label: "Eastern (EST/EDT)" },
+  { value: "America/Chicago", label: "Central (CST/CDT)" },
+  { value: "America/Denver", label: "Mountain (MST/MDT)" },
+  { value: "America/Los_Angeles", label: "Pacific (PST/PDT)" },
+];
+
+export function parseTimePartsForEst(
   timeStr: string | null | undefined,
 ): { h: number; m: number; s: number } {
   if (!timeStr || !timeStr.trim()) return { h: 12, m: 0, s: 0 };
@@ -87,6 +95,25 @@ export function minutesUntilInterview(
   const utc = fromZonedTime(`${ymd} ${h}:${m}:${s}`, INTERVIEW_SCHEDULE_TZ);
   if (isNaN(utc.getTime())) return null;
   return Math.round((utc.getTime() - nowMs) / 60_000);
+}
+
+/**
+ * Convert an interview's EST wall-clock time (`interview_date` + `time_est`) into
+ * another IANA timezone (see {@link TIMEZONE_OPTIONS}) for display, e.g. "2:30 PM CDT".
+ */
+export function formatInterviewTimeInZone(
+  interviewDate: string | null | undefined,
+  timeEst: string | null | undefined,
+  targetTz: string,
+): string {
+  if (!interviewDate || !timeEst) return "—";
+  const ymd = interviewDate.split("T")[0]!;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return "—";
+  const { h, m, s } = parseTimePartsForEst(timeEst);
+  const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const utcInstant = fromZonedTime(`${ymd} ${timeStr}`, INTERVIEW_SCHEDULE_TZ);
+  if (Number.isNaN(utcInstant.getTime())) return "—";
+  return formatInTimeZone(utcInstant, targetTz, "h:mm a zzz");
 }
 
 /**
