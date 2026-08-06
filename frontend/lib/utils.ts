@@ -19,12 +19,17 @@ export function formatDate(dateStr: string | null | undefined): string {
   });
 }
 
-/** Timezone choices for the calendar's "view in" selector. IANA zones auto-resolve to the correct DST-aware abbreviation (e.g. CST/CDT). */
-export const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+/**
+ * Timezone choices for the calendar's "view in" selector. IANA zones auto-resolve to the
+ * correct DST-aware abbreviation (e.g. CST/CDT) via Intl — except zones ICU has no short
+ * abbreviation for (it falls back to "GMT+5" etc.), which need an explicit `abbr` override.
+ */
+export const TIMEZONE_OPTIONS: { value: string; label: string; abbr?: string }[] = [
   { value: "America/New_York", label: "Eastern (EST/EDT)" },
   { value: "America/Chicago", label: "Central (CST/CDT)" },
   { value: "America/Denver", label: "Mountain (MST/MDT)" },
   { value: "America/Los_Angeles", label: "Pacific (PST/PDT)" },
+  { value: "Asia/Karachi", label: "Pakistan (PKT)", abbr: "PKT" },
 ];
 
 export function parseTimePartsForEst(
@@ -113,6 +118,10 @@ export function formatInterviewTimeInZone(
   const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   const utcInstant = fromZonedTime(`${ymd} ${timeStr}`, INTERVIEW_SCHEDULE_TZ);
   if (Number.isNaN(utcInstant.getTime())) return "—";
+  const abbrOverride = TIMEZONE_OPTIONS.find((o) => o.value === targetTz)?.abbr;
+  if (abbrOverride) {
+    return `${formatInTimeZone(utcInstant, targetTz, "h:mm a")} ${abbrOverride}`;
+  }
   return formatInTimeZone(utcInstant, targetTz, "h:mm a zzz");
 }
 

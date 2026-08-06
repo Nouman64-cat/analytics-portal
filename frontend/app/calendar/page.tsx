@@ -242,7 +242,7 @@ export default function CalendarPage() {
                   "—"
                 )}
               </PreviewField>
-              {tz !== INTERVIEW_SCHEDULE_TZ && (
+              {tz !== INTERVIEW_SCHEDULE_TZ && tz !== "Asia/Karachi" && (
                 <PreviewField
                   label={`Time (${TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz})`}
                 >
