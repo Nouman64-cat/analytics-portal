@@ -671,7 +671,8 @@ export default function InterviewsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
+  const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [filters, setFilters] = useState({
     status: "All",
     company_id: "All",
@@ -721,10 +722,10 @@ export default function InterviewsPage() {
     );
   }, [interviews]);
 
-  // Reset page to 1 when search or filters change
+  // Reset page to 1 when search, filters, or page size change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filters]);
+  }, [search, filters, itemsPerPage]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -1656,10 +1657,10 @@ export default function InterviewsPage() {
     else if (label.includes("dropped")) statusCounts.Dropped++;
   });
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedInterviews = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
   );
 
   return (
@@ -2406,8 +2407,8 @@ export default function InterviewsPage() {
               </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-white/60 dark:border-white/[0.07] bg-white/60 dark:bg-white/[0.04] px-4 py-3 sm:px-6">
+            <div className="flex flex-col gap-3 border-t border-white/60 dark:border-white/[0.07] bg-white/60 dark:bg-white/[0.04] px-4 py-3 sm:px-6">
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-1 justify-between sm:hidden">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -2427,67 +2428,100 @@ export default function InterviewsPage() {
                   </button>
                 </div>
                 <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div>
+                  <div className="flex items-center gap-4">
                     <p className="text-sm text-slate-700 dark:text-slate-400">
                       Showing{" "}
                       <span className="font-medium">
-                        {(currentPage - 1) * ITEMS_PER_PAGE + 1}
+                        {(currentPage - 1) * itemsPerPage + 1}
                       </span>{" "}
                       to{" "}
                       <span className="font-medium">
                         {Math.min(
-                          currentPage * ITEMS_PER_PAGE,
+                          currentPage * itemsPerPage,
                           filtered.length,
                         )}
                       </span>{" "}
                       of <span className="font-medium">{filtered.length}</span>{" "}
                       results
                     </p>
-                  </div>
-                  <div>
-                    <nav
-                      className="isolate inline-flex -space-x-px rounded-md shadow-sm"
-                      aria-label="Pagination"
-                    >
-                      <button
-                        onClick={() =>
-                          setCurrentPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                    <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
+                      <span>Per page:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
                       >
-                        <span className="sr-only">Previous</span>
-                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                      {/* Generates page buttons limited to total pages */}
-                      {[...Array(totalPages)].map((_, i) => (
+                        {PAGE_SIZE_OPTIONS.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {totalPages > 1 && (
+                    <div>
+                      <nav
+                        className="isolate inline-flex -space-x-px rounded-md shadow-sm"
+                        aria-label="Pagination"
+                      >
                         <button
-                          key={i + 1}
-                          onClick={() => setCurrentPage(i + 1)}
-                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
-                            currentPage === i + 1
-                              ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                              : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                          }`}
+                          onClick={() =>
+                            setCurrentPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                         >
-                          {i + 1}
+                          <span className="sr-only">Previous</span>
+                          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                         </button>
-                      ))}
-                      <button
-                        onClick={() =>
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
-                        }
-                        disabled={currentPage === totalPages}
-                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                      >
-                        <span className="sr-only">Next</span>
-                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                    </nav>
-                  </div>
+                        {/* Generates page buttons limited to total pages */}
+                        {[...Array(totalPages)].map((_, i) => (
+                          <button
+                            key={i + 1}
+                            onClick={() => setCurrentPage(i + 1)}
+                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
+                              currentPage === i + 1
+                                ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                                : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            {i + 1}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() =>
+                            setCurrentPage((p) => Math.min(totalPages, p + 1))
+                          }
+                          disabled={currentPage === totalPages}
+                          className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                        >
+                          <span className="sr-only">Next</span>
+                          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                      </nav>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+              {/* Mobile: page size selector (desktop version is inline with the "Showing" text above) */}
+              <div className="flex justify-center sm:hidden">
+                <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
+                  <span>Per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
           </div>
       )}
 
