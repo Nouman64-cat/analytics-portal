@@ -96,6 +96,7 @@ import SearchableSelect from "@/components/SearchableSelect";
 import TypeableSelect from "@/components/TypeableSelect";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
+import { getCandidateColor } from "@/lib/candidateColor";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
@@ -693,6 +694,12 @@ export default function InterviewsPage() {
     const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  const candidateColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    candidates.forEach((c) => { map[c.id] = getCandidateColor(c); });
+    return map;
+  }, [candidates]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -2113,7 +2120,15 @@ export default function InterviewsPage() {
                           {truncate(interview.role, 40)}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
-                          {interview.candidate_name}
+                          <span className="inline-flex items-center gap-1.5">
+                            {interview.candidate_id && (
+                              <span
+                                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                style={{ background: candidateColorMap[interview.candidate_id] }}
+                              />
+                            )}
+                            {interview.candidate_name}
+                          </span>
                         </td>
                         <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
                           {(() => {

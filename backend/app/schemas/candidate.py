@@ -8,6 +8,7 @@ class CandidateCreate(BaseModel):
     name: str
     email: Optional[EmailStr] = None
     is_active: bool = True
+    color: Optional[str] = None
     department_id: Optional[uuid.UUID] = None
     department_ids: Optional[list[uuid.UUID]] = None
 
@@ -23,6 +24,7 @@ class CandidateUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     is_active: Optional[bool] = None
+    color: Optional[str] = None
     department_id: Optional[uuid.UUID] = None
     department_ids: Optional[list[uuid.UUID]] = None
 
@@ -39,6 +41,7 @@ class CandidateRead(BaseModel):
     name: str
     email: Optional[str] = None
     is_active: bool = True
+    color: Optional[str] = None
     department_id: Optional[uuid.UUID] = None
     department_name: Optional[str] = None
     # Multi-department support

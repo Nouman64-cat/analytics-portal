@@ -55,6 +55,7 @@ def _build_candidate_read(candidate: Candidate, session: Session) -> CandidateRe
         name=candidate.name,
         email=candidate.email,
         is_active=candidate.is_active,
+        color=candidate.color,
         department_id=candidate.department_id,
         department_name=primary_dept.name if primary_dept else None,
         department_ids=dept_id_list if dept_id_list else None,
@@ -149,6 +150,7 @@ def list_candidates(
             name=c.name,
             email=c.email,
             is_active=c.is_active,
+            color=c.color,
             department_id=c.department_id,
             department_name=primary_dept_name,
             department_ids=dept_id_list if dept_id_list else None,
@@ -202,6 +204,7 @@ def create_candidate(
         name=data.name,
         email=data.email,
         is_active=data.is_active,
+        color=data.color,
         department_id=primary_dept_id,
         department_ids=_serialize_dept_ids(dept_ids),
     )

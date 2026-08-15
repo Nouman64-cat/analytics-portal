@@ -11,6 +11,7 @@ import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/Pag
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
+import { getCandidateColor, CANDIDATE_COLOR_PALETTE } from "@/lib/candidateColor";
 
 function formatMonthLabel(ym: string) {
   const [year, month] = ym.split("-");
@@ -323,7 +324,7 @@ export default function CandidatesPage() {
     setEditingId(null);
     // Pre-select current dept scope when available
     const preSelected = departmentId ? [departmentId] : [];
-    setFormData({ name: "", email: "", department_ids: preSelected });
+    setFormData({ name: "", email: "", color: null, department_ids: preSelected });
     setModalOpen(true);
   };
 
@@ -333,7 +334,7 @@ export default function CandidatesPage() {
     const ids = c.department_ids && c.department_ids.length > 0
       ? c.department_ids
       : (c.department_id ? [c.department_id] : []);
-    setFormData({ name: c.name, email: c.email ?? "", department_ids: ids });
+    setFormData({ name: c.name, email: c.email ?? "", color: c.color, department_ids: ids });
     setModalOpen(true);
   };
 
@@ -344,6 +345,7 @@ export default function CandidatesPage() {
       const payload = {
         name: formData.name,
         email: formData.email?.trim() || null,
+        color: formData.color || null,
         department_ids: formData.department_ids && formData.department_ids.length > 0
           ? formData.department_ids
           : null,
@@ -543,11 +545,14 @@ export default function CandidatesPage() {
 
                   {/* Avatar + interview/lead count */}
                   <div className="flex items-center justify-between">
-                    <div className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
-                      isInactive
-                        ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
-                        : "bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-300"
-                    }`}>
+                    <div
+                      className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
+                        isInactive
+                          ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
+                          : "text-white"
+                      }`}
+                      style={isInactive ? undefined : { background: getCandidateColor(candidate) }}
+                    >
                       {candidate.name[0]}
                     </div>
                     <div className="text-right">
@@ -606,6 +611,24 @@ export default function CandidatesPage() {
             className={inputClass}
             autoComplete="email"
           />
+        </FormField>
+        <FormField label="Color">
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={
+                formData.color ||
+                (editingId
+                  ? getCandidateColor({ id: editingId, color: null })
+                  : CANDIDATE_COLOR_PALETTE[0])
+              }
+              onChange={e => setFormData({ ...formData, color: e.target.value })}
+              className="h-9 w-14 cursor-pointer rounded-lg border border-slate-200 dark:border-white/[0.08] bg-transparent p-1"
+            />
+            <span className="text-sm text-slate-500 dark:text-slate-400">
+              {formData.color || "Auto-assigned until you pick one"}
+            </span>
+          </div>
         </FormField>
         {isSuperadmin && (
           <FormField label="Departments">

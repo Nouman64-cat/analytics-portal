@@ -98,6 +98,8 @@ export interface Candidate {
   /** Used for interview notification emails (SES). */
   email: string | null;
   is_active: boolean;
+  /** Hex color (e.g. "#6366f1") used as a visual identifier across the app. */
+  color: string | null;
   department_id: string | null;
   department_name: string | null;
   /** Multi-department support: list of department UUIDs. */
@@ -578,6 +580,7 @@ export interface BusinessDeveloperFormData {
 export interface CandidateFormData {
   name: string;
   email?: string | null;
+  color?: string | null;
   /** Multi-department: list of department UUIDs. Replaces single department_id. */
   department_ids?: string[] | null;
 }

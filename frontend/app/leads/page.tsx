@@ -75,6 +75,7 @@ import {
 } from "@/lib/utils";
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
+import { getCandidateColor } from "@/lib/candidateColor";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
@@ -447,6 +448,12 @@ Return "all" for fields the user didn't mention.`;
     () => candidates.filter((c) => c.is_active !== false || c.id === form.candidate_id),
     [candidates, form.candidate_id],
   );
+
+  const candidateColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    candidates.forEach((c) => { map[c.id] = getCandidateColor(c); });
+    return map;
+  }, [candidates]);
 
   const bdOptions = useMemo(
     () =>
@@ -1077,7 +1084,15 @@ Return "all" for fields the user didn't mention.`;
                       )}
                     </td>
                     <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
-                      {l.candidate_name ?? "—"}
+                      <span className="inline-flex items-center gap-1.5">
+                        {l.candidate_id && (
+                          <span
+                            className="inline-block h-2 w-2 shrink-0 rounded-full"
+                            style={{ background: candidateColorMap[l.candidate_id] }}
+                          />
+                        )}
+                        {l.candidate_name ?? "—"}
+                      </span>
                     </td>
                     <td className="hidden md:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.primary_role ?? "—"}

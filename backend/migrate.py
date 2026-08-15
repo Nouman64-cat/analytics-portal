@@ -491,6 +491,8 @@ def migrate():
              "Migration successful! 'education_start_year' column added to 'resume_profiles' table."),
             ("ALTER TABLE resume_profiles ADD COLUMN IF NOT EXISTS education_end_year INTEGER;",
              "Migration successful! 'education_end_year' column added to 'resume_profiles' table."),
+            ("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS color VARCHAR(20);",
+             "Migration successful! 'color' column added to 'candidates' table."),
 
         ]
         for sql, msg in migrations:
