@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone, X } from "lucide-react";
+import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { usersService, departmentsService, candidatesService, authService, businessDevelopersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department, BusinessDeveloper } from "@/lib/types";
 import { PageLoader, ErrorState, PageHeader, EmptyState } from "@/components/PageStates";
 import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import SearchableSelect from "@/components/SearchableSelect";
 import { getUserRole, getUserDeptId } from "@/lib/auth";
 
 const ROLE_OPTIONS = [
@@ -22,6 +23,15 @@ const ROLE_OPTIONS = [
   { value: "tech-stack-manager", label: "Tech Stack Manager" },
   { value: "guest", label: "Guest" },
 ];
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All Statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "pending", label: "Pending" },
+];
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 function roleBadgeClass(role: string) {
   switch (role) {
@@ -54,6 +64,11 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [joinedFrom, setJoinedFrom] = useState("");
+  const [joinedTo, setJoinedTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(PAGE_SIZE_OPTIONS[1]);
   const [deleteModal, setDeleteModal] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -101,7 +116,7 @@ export default function UsersPage() {
     return [];
   }, []);
 
-  // Server-side filtered users based on roleFilter and deptFilter
+  // Client-side filtered users based on role, department, status, joined date and search
   const filteredUsers = useMemo(() => {
     let result = users;
     if (roleFilter !== "all") {
@@ -109,6 +124,20 @@ export default function UsersPage() {
     }
     if (deptFilter !== "all") {
       result = result.filter((u) => userDeptIds(u).includes(deptFilter));
+    }
+    if (statusFilter !== "all") {
+      result = result.filter((u) => {
+        if (statusFilter === "inactive") return u.is_active === false;
+        if (statusFilter === "pending")
+          return u.is_active !== false && u.must_change_password;
+        return u.is_active !== false && !u.must_change_password;
+      });
+    }
+    if (joinedFrom) {
+      result = result.filter((u) => u.created_at >= joinedFrom);
+    }
+    if (joinedTo) {
+      result = result.filter((u) => u.created_at <= `${joinedTo}T23:59:59`);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -119,7 +148,23 @@ export default function UsersPage() {
       );
     }
     return result;
-  }, [users, roleFilter, deptFilter, search, userDeptIds]);
+  }, [users, roleFilter, deptFilter, statusFilter, joinedFrom, joinedTo, search, userDeptIds]);
+
+  // Reset to page 1 whenever filters, search, or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter, deptFilter, statusFilter, joinedFrom, joinedTo, search, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage));
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  );
+
+  // Clamp page back into range if a delete/refresh shrinks the result set
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -265,46 +310,98 @@ export default function UsersPage() {
       />
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={`${inputClass} pl-10 pr-9`}
-          />
-          {search && (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${inputClass} pl-10 pr-9`}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className={`${inputClass} sm:max-w-[180px]`}
+          >
+            {ROLE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className={`${inputClass} sm:max-w-[200px]`}
+          >
+            <option value="all">All Departments</option>
+            {deptOptions.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={`${inputClass} sm:max-w-[160px]`}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+            Joined from
+            <input
+              type="date"
+              value={joinedFrom}
+              onChange={(e) => setJoinedFrom(e.target.value)}
+              className={`${inputClass} w-auto`}
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+            to
+            <input
+              type="date"
+              value={joinedTo}
+              onChange={(e) => setJoinedTo(e.target.value)}
+              className={`${inputClass} w-auto`}
+            />
+          </label>
+          {(roleFilter !== "all" ||
+            deptFilter !== "all" ||
+            statusFilter !== "all" ||
+            joinedFrom ||
+            joinedTo ||
+            search) && (
             <button
               type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              aria-label="Clear search"
+              onClick={() => {
+                setSearch("");
+                setRoleFilter("all");
+                setDeptFilter("all");
+                setStatusFilter("all");
+                setJoinedFrom("");
+                setJoinedTo("");
+              }}
+              className="text-sm font-medium text-indigo-500 hover:text-indigo-400"
             >
-              <X size={14} />
+              Clear filters
             </button>
           )}
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className={`${inputClass} sm:max-w-[180px]`}
-        >
-          {ROLE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <select
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
-          className={`${inputClass} sm:max-w-[200px]`}
-        >
-          <option value="all">All Departments</option>
-          {deptOptions.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
       </div>
 
       {users.length === 0 ? (
@@ -327,7 +424,7 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((user) => (
+                {paginatedUsers.map((user) => (
                   <tr
                     key={user.id}
                     className="border-b border-slate-200 dark:border-white/[0.06] last:border-b-0 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.02]"
@@ -435,6 +532,103 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+
+          <div className="flex flex-col gap-3 border-t border-white/60 dark:border-white/[0.07] bg-white/60 dark:bg-white/[0.04] px-4 py-3 sm:px-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="relative ml-3 inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <p className="text-sm text-slate-700 dark:text-slate-400">
+                    Showing{" "}
+                    <span className="font-medium">
+                      {filteredUsers.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-medium">
+                      {Math.min(currentPage * itemsPerPage, filteredUsers.length)}
+                    </span>{" "}
+                    of <span className="font-medium">{filteredUsers.length}</span> results
+                  </p>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
+                    <span>Per page:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                      className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                {totalPages > 1 && (
+                  <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Previous</span>
+                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                      {[...Array(totalPages)].map((_, i) => (
+                        <button
+                          key={i + 1}
+                          onClick={() => setCurrentPage(i + 1)}
+                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
+                            currentPage === i + 1
+                              ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                              : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Next</span>
+                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    </nav>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-center sm:hidden">
+              <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
+                <span>Per page:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
         </div>
       )}
 
@@ -465,21 +659,36 @@ export default function UsersPage() {
             />
           </FormField>
           <FormField label="Role">
-            <select
+            <SearchableSelect
+              options={[
+                { id: "team-member", label: "Team Member" },
+                { id: "bd", label: "Business Developer" },
+                ...(isSuperadmin
+                  ? [
+                      { id: "dept-lead", label: "Dept Lead" },
+                      { id: "bd-team-lead", label: "BD Team Lead" },
+                      { id: "manager", label: "Manager" },
+                      { id: "bd-manager", label: "BD Manager" },
+                      { id: "tech-stack-manager", label: "Tech Stack Manager" },
+                      { id: "superadmin", label: "Superadmin" },
+                      { id: "guest", label: "Guest" },
+                    ]
+                  : []),
+              ]}
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: null, allowed_dept_ids: null, bd_entity_id: null, team_lead_user_id: null })}
-              className={inputClass}
-            >
-              <option value="team-member">Team Member</option>
-              <option value="bd">Business Developer</option>
-              {isSuperadmin && <option value="dept-lead">Dept Lead</option>}
-              {isSuperadmin && <option value="bd-team-lead">BD Team Lead</option>}
-              {isSuperadmin && <option value="manager">Manager</option>}
-              {isSuperadmin && <option value="bd-manager">BD Manager</option>}
-              {isSuperadmin && <option value="tech-stack-manager">Tech Stack Manager</option>}
-              {isSuperadmin && <option value="superadmin">Superadmin</option>}
-              {isSuperadmin && <option value="guest">Guest</option>}
-            </select>
+              onChange={(id) =>
+                setFormData({
+                  ...formData,
+                  role: id,
+                  department_id: null,
+                  allowed_dept_ids: null,
+                  bd_entity_id: null,
+                  team_lead_user_id: null,
+                })
+              }
+              placeholder="Select role…"
+              required
+            />
           </FormField>
 
           {!editingId && formData.role === "team-member" && (
@@ -666,16 +875,17 @@ export default function UsersPage() {
           {/* BD entity assignment — superadmin for all BD roles; BD team lead for BD users they create */}
           {(isSuperadmin || (isBdTeamLead && formData.role === "bd")) && (formData.role === "bd" || formData.role === "bd-team-lead") && (
             <FormField label="Linked BD Entity (optional)">
-              <select
+              <SearchableSelect
+                options={businessDevs
+                  .filter((b) => b.is_active)
+                  .map((b) => ({ id: b.id, label: b.name }))}
                 value={formData.bd_entity_id || ""}
-                onChange={(e) => setFormData({ ...formData, bd_entity_id: e.target.value || null })}
-                className={inputClass}
-              >
-                <option value="">— Not linked —</option>
-                {businessDevs.filter((b) => b.is_active).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+                onChange={(id) =>
+                  setFormData({ ...formData, bd_entity_id: id || null })
+                }
+                placeholder="Select BD entity…"
+                optional
+              />
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                 Connects this user account to a BusinessDeveloper record. Required for scoped lead ownership.
               </p>
@@ -684,16 +894,20 @@ export default function UsersPage() {
 
           {isSuperadmin && formData.role === "bd" && (
             <FormField label="Reports to (BD Team Lead, optional)">
-              <select
+              <SearchableSelect
+                options={users
+                  .filter((u) => u.role === "bd-team-lead" || u.role === "superadmin")
+                  .map((u) => ({
+                    id: u.id,
+                    label: `${u.full_name} (${u.role === "superadmin" ? "Superadmin" : "BD Team Lead"})`,
+                  }))}
                 value={formData.team_lead_user_id || ""}
-                onChange={(e) => setFormData({ ...formData, team_lead_user_id: e.target.value || null })}
-                className={inputClass}
-              >
-                <option value="">— No team lead —</option>
-                {users.filter((u) => u.role === "bd-team-lead" || u.role === "superadmin").map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.role === "superadmin" ? "Superadmin" : "BD Team Lead"})</option>
-                ))}
-              </select>
+                onChange={(id) =>
+                  setFormData({ ...formData, team_lead_user_id: id || null })
+                }
+                placeholder="Select team lead…"
+                optional
+              />
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                 Assigns this BD to a team lead. Linking to a Superadmin grants the BD cross-department read access.
               </p>

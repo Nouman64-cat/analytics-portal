@@ -34,11 +34,11 @@ import {
 import Modal, {
   FormField,
   inputClass,
-  selectClass,
   buttonPrimary,
   buttonSecondary,
 } from "@/components/Modal";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
+import SearchableSelect from "@/components/SearchableSelect";
 
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
@@ -1033,22 +1033,17 @@ export default function ProfilesPage() {
           </FormField>
 
           <FormField label="Assigned BD (optional)">
-            <select
-              value={formData.bd_id || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, bd_id: e.target.value || null })
-              }
-              className={selectClass}
-            >
-              <option value="">— No BD assigned —</option>
-              {businessDevs
+            <SearchableSelect
+              options={businessDevs
                 .filter((b) => b.is_active)
-                .map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-            </select>
+                .map((b) => ({ id: b.id, label: b.name }))}
+              value={formData.bd_id || ""}
+              onChange={(id) =>
+                setFormData({ ...formData, bd_id: id || null })
+              }
+              placeholder="Select BD…"
+              optional
+            />
           </FormField>
 
           {isSuperadmin && (

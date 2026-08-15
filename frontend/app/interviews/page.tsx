@@ -2558,10 +2558,15 @@ export default function InterviewsPage() {
                     })()}
                   </div>
                 ) : (
-                  <select
+                  <SearchableSelect
+                    options={leadsForInterviewPicker.map((l) => ({
+                      id: l.thread_id,
+                      label: `${l.company_name ?? "Company"}${
+                        l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""
+                      }`,
+                    }))}
                     value={selectedLeadThreadId}
-                    onChange={(e) => {
-                      const v = e.target.value;
+                    onChange={(v) => {
                       setSelectedLeadThreadId(v);
                       if (!v) {
                         const defaultCandidate = isTeamMember
@@ -2617,16 +2622,9 @@ export default function InterviewsPage() {
                         parent_interview_id: lead.last_interview_id,
                       });
                     }}
-                    className={selectClass}
-                  >
-                    <option value="">Select a lead…</option>
-                    {leadsForInterviewPicker.map((l) => (
-                      <option key={l.thread_id} value={l.thread_id}>
-                        {l.company_name ?? "Company"}
-                        {l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select a lead…"
+                    optional
+                  />
                 )}
               </FormField>
               {lockLeadPicker && selectedLeadThreadId ? (

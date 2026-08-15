@@ -203,14 +203,31 @@ export default function CandidatesPage() {
     return interviews.filter(i => i.interview_date?.startsWith(selectedMonth));
   }, [interviews, selectedMonth]);
 
-  const interviewCounts = useMemo(() => {
+  const legitInterviewCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     monthFilteredInterviews.forEach(i => {
       if (!i.candidate_id) return;
-      counts[i.candidate_id] = (counts[i.candidate_id] || 0) + 1;
+      if (i.lead_outcome !== "dropped") {
+        counts[i.candidate_id] = (counts[i.candidate_id] || 0) + 1;
+      }
     });
     return counts;
   }, [monthFilteredInterviews]);
+
+  const closedJobCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const activeThreadIds = selectedMonth === "all"
+      ? null
+      : new Set(monthFilteredInterviews.filter(i => i.thread_id).map(i => i.thread_id!));
+    allLeads.forEach(l => {
+      if (!l.candidate_id) return;
+      if (activeThreadIds && !activeThreadIds.has(l.thread_id)) return;
+      if ((l.lead_outcome || "").toLowerCase() === "closed") {
+        counts[l.candidate_id] = (counts[l.candidate_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [allLeads, selectedMonth, monthFilteredInterviews]);
 
   const interviewStatusBreakdown = useMemo(() => {
     const bd: Record<string, Record<string, number>> = {};
@@ -222,60 +239,6 @@ export default function CandidatesPage() {
     });
     return bd;
   }, [monthFilteredInterviews]);
-
-  const leadStatusBreakdown = useMemo(() => {
-    const bd: Record<string, Record<string, number>> = {};
-    const activeThreadIds = selectedMonth === "all"
-      ? null
-      : new Set(monthFilteredInterviews.filter(i => i.thread_id).map(i => i.thread_id!));
-
-    allLeads.forEach(l => {
-      if (!l.candidate_id) return;
-      if (activeThreadIds && !activeThreadIds.has(l.thread_id)) return;
-      const label = l.lead_status_label || l.lead_outcome || "Unknown";
-      if (!bd[l.candidate_id]) bd[l.candidate_id] = {};
-      bd[l.candidate_id][label] = (bd[l.candidate_id][label] || 0) + 1;
-    });
-    return bd;
-  }, [allLeads, selectedMonth, monthFilteredInterviews]);
-
-  const leadCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const [id, statusMap] of Object.entries(leadStatusBreakdown)) {
-      counts[id] = Object.values(statusMap).reduce((a, b) => a + b, 0);
-    }
-    return counts;
-  }, [leadStatusBreakdown]);
-
-  const convertedLeadCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    const activeThreadIds = selectedMonth === "all"
-      ? null
-      : new Set(monthFilteredInterviews.filter(i => i.thread_id).map(i => i.thread_id!));
-    allLeads.forEach(l => {
-      if (!l.candidate_id) return;
-      if (activeThreadIds && !activeThreadIds.has(l.thread_id)) return;
-      if (l.is_converted) {
-        counts[l.candidate_id] = (counts[l.candidate_id] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [allLeads, selectedMonth, monthFilteredInterviews]);
-
-  const legitLeadCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    const activeThreadIds = selectedMonth === "all"
-      ? null
-      : new Set(monthFilteredInterviews.filter(i => i.thread_id).map(i => i.thread_id!));
-    allLeads.forEach(l => {
-      if (!l.candidate_id) return;
-      if (activeThreadIds && !activeThreadIds.has(l.thread_id)) return;
-      if (l.lead_outcome !== "dropped") {
-        counts[l.candidate_id] = (counts[l.candidate_id] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [allLeads, selectedMonth, monthFilteredInterviews]);
 
   const filteredCandidates = useMemo(() => {
     if (!search.trim()) return candidates;
@@ -524,13 +487,8 @@ export default function CandidatesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger-children">
           {filteredCandidates.map(candidate => {
-            const interviewCount = interviewCounts[candidate.id] || 0;
-            const leadCount = leadCounts[candidate.id] || 0;
-            const legitLeadCount = legitLeadCounts[candidate.id] || 0;
-            const breakdown = leadStatusBreakdown[candidate.id] || {};
-            const converted = convertedLeadCounts[candidate.id] || 0;
-            const rejected  = (breakdown["Rejected"]  || 0) + (breakdown["rejected"] || 0) + (breakdown["Dead"] || 0) + (breakdown["dead"] || 0);
-            const dropped   = (breakdown["Dropped"]   || 0) + (breakdown["dropped"] || 0);
+            const legitInterviewCount = legitInterviewCounts[candidate.id] || 0;
+            const closedJobCount = closedJobCounts[candidate.id] || 0;
             const isInactive = !candidate.is_active;
 
             // Department display: prefer multi-dept names, fall back to legacy
@@ -593,15 +551,14 @@ export default function CandidatesPage() {
                       {candidate.name[0]}
                     </div>
                     <div className="text-right">
-                      <p className="text-4xl font-bold tracking-tight tabular-nums">
-                        <span className="text-slate-900 dark:text-white">{interviewCount}</span>
-                        <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
-                        <span className="text-slate-500 dark:text-slate-400">{leadCount}</span>
-                        <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
-                        <span className="text-teal-600 dark:text-teal-400">{legitLeadCount}</span>
+                      <p className="text-4xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">
+                        {legitInterviewCount}
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                        Interviews / Leads / Legit
+                        Interviews
+                      </p>
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        {closedJobCount} Closed
                       </p>
                     </div>
                   </div>
@@ -622,27 +579,6 @@ export default function CandidatesPage() {
                       <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{candidate.email}</p>
                     )}
                     <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">Added {formatDate(candidate.created_at)}</p>
-                  </div>
-
-                  {/* Lead outcome badges */}
-                  <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 dark:border-white/[0.04] pt-3">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                      converted > 0
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                        : "bg-slate-100 dark:bg-white/[0.04] text-slate-400 dark:text-slate-500 border-slate-200 dark:border-white/[0.06]"
-                    }`}>
-                      ✅ {converted} Progressed
-                    </span>
-                    {rejected > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-                        ❌ {rejected} Rejected
-                      </span>
-                    )}
-                    {dropped > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                        🚫 {dropped} Dropped
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
