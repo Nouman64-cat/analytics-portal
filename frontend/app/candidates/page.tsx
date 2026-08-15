@@ -551,14 +551,13 @@ export default function CandidatesPage() {
                       {candidate.name[0]}
                     </div>
                     <div className="text-right">
-                      <p className="text-4xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">
-                        {legitInterviewCount}
+                      <p className="text-4xl font-bold tracking-tight tabular-nums">
+                        <span className="text-slate-900 dark:text-white">{legitInterviewCount}</span>
+                        <span className="mx-1 text-slate-300 dark:text-slate-600 font-light">/</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">{closedJobCount}</span>
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                        Interviews
-                      </p>
-                      <p className="mt-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                        {closedJobCount} Closed
+                        Interviews / Closed
                       </p>
                     </div>
                   </div>
