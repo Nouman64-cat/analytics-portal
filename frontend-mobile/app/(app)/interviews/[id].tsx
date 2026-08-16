@@ -8,7 +8,7 @@ import { TextField, SelectField } from "../../../components/FormField";
 import { useTheme } from "../../../lib/theme";
 import { interviewsService } from "../../../lib/api";
 import type { Interview } from "../../../lib/types";
-import { statusBadge, formatDate, prettify } from "../../../lib/statusMeta";
+import { interviewStatusBadge, formatDate, prettify } from "../../../lib/statusMeta";
 
 const STATUS_OPTIONS = [
   "pending",
@@ -133,7 +133,7 @@ export default function InterviewDetailScreen() {
     );
   }
 
-  const badge = interview ? statusBadge(interview.computed_status) : null;
+  const badge = interview ? interviewStatusBadge(interview.computed_status) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

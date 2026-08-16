@@ -7,7 +7,7 @@ import { TextField, SwitchField } from "../../../components/FormField";
 import { useTheme } from "../../../lib/theme";
 import { companiesService } from "../../../lib/api";
 import type { CompanyWithInterviews } from "../../../lib/types";
-import { prettify, formatDate } from "../../../lib/statusMeta";
+import { interviewStatusBadge, formatDate } from "../../../lib/statusMeta";
 
 export default function CompanyDetailScreen() {
   const t = useTheme();
@@ -114,7 +114,7 @@ export default function CompanyDetailScreen() {
                 <ListRow
                   key={iv.id}
                   title={`${iv.candidate_name ?? "Unassigned"} — ${iv.role}`}
-                  subtitle={`${iv.round} • ${prettify(iv.computed_status)} • ${formatDate(iv.interview_date)}`}
+                  subtitle={`${iv.round} • ${interviewStatusBadge(iv.computed_status).label} • ${formatDate(iv.interview_date)}`}
                   onPress={() => router.push(`/interviews/${iv.id}`)}
                 />
               ))}

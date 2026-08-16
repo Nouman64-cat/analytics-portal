@@ -6,7 +6,7 @@ import { LoadingView, ErrorBanner, EmptyState, ListRow, Fab, SearchBar, Badge } 
 import { useTheme } from "../../../lib/theme";
 import { leadsService } from "../../../lib/api";
 import type { LeadListItem } from "../../../lib/types";
-import { statusBadge } from "../../../lib/statusMeta";
+import { leadOutcomeBadge } from "../../../lib/statusMeta";
 import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function LeadsListScreen() {
@@ -72,7 +72,7 @@ export default function LeadsListScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={t.primary} />}
           ListEmptyComponent={<EmptyState icon="locate-outline" title="No leads found" subtitle="Try a different search or add a new lead." />}
           renderItem={({ item }) => {
-            const badge = statusBadge(item.lead_outcome);
+            const badge = leadOutcomeBadge(item.lead_outcome, item.lead_status_label);
             return (
               <ListRow
                 leftDot={badge.dot}

@@ -7,7 +7,7 @@ import { TextField } from "../../../components/FormField";
 import { useTheme } from "../../../lib/theme";
 import { leadsService, interviewsService } from "../../../lib/api";
 import type { LeadListItem, Interview } from "../../../lib/types";
-import { statusBadge, formatDate, prettify } from "../../../lib/statusMeta";
+import { leadOutcomeBadge, interviewStatusBadge, formatDate, prettify } from "../../../lib/statusMeta";
 
 export default function LeadDetailScreen() {
   const t = useTheme();
@@ -86,7 +86,7 @@ export default function LeadDetailScreen() {
     );
   }
 
-  const badge = lead ? statusBadge(lead.lead_outcome) : null;
+  const badge = lead ? leadOutcomeBadge(lead.lead_outcome, lead.lead_status_label) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -112,7 +112,7 @@ export default function LeadDetailScreen() {
               <InfoRow label="Business Developer" value={lead.primary_bd_name ?? "—"} />
               <InfoRow label="Salary Range" value={lead.salary_range ?? "—"} />
               <InfoRow label="Lead Arrived" value={formatDate(lead.lead_arrival_date)} />
-              <InfoRow label="Status Label" value={prettify(lead.lead_status_label)} />
+              <InfoRow label="Status Label" value={lead.lead_status_label || "—"} />
               <InfoRow label="Source" value={prettify(lead.lead_source)} />
             </Card>
 
@@ -124,7 +124,7 @@ export default function LeadDetailScreen() {
               {rounds.map((r) => (
                 <ListRow
                   key={r.id}
-                  title={`${r.round} — ${prettify(r.computed_status)}`}
+                  title={`${r.round} — ${interviewStatusBadge(r.computed_status).label}`}
                   subtitle={r.interview_date ? formatDate(r.interview_date) : "No date set"}
                   onPress={() => router.push(`/interviews/${r.id}`)}
                 />

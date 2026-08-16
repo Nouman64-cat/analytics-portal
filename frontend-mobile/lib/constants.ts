@@ -59,13 +59,4 @@ export const CHART_COLORS = [
   "#3b82f6",
 ];
 
-export const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  converted: { bg: "#8b5cf626", text: "#7c3aed", dot: "#d946ef" },
-  active: { bg: "#3b82f626", text: "#2563eb", dot: "#3b82f6" },
-  rejected: { bg: "#ef444426", text: "#dc2626", dot: "#f87171" },
-  dropped: { bg: "#f59e0b26", text: "#b45309", dot: "#f59e0b" },
-  closed: { bg: "#10b98126", text: "#047857", dot: "#10b981" },
-  dead: { bg: "#78716c26", text: "#57534e", dot: "#a8a29e" },
-};
-
 export const DEFAULT_PAGE_SIZE = 20;

@@ -6,7 +6,7 @@ import { LoadingView, ErrorBanner, EmptyState, ListRow, Fab, SearchBar, Badge } 
 import { useTheme } from "../../../lib/theme";
 import { interviewsService } from "../../../lib/api";
 import type { Interview } from "../../../lib/types";
-import { statusBadge, formatDate, prettify } from "../../../lib/statusMeta";
+import { interviewStatusBadge, formatDate } from "../../../lib/statusMeta";
 import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function InterviewsListScreen() {
@@ -71,7 +71,7 @@ export default function InterviewsListScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={t.primary} />}
           ListEmptyComponent={<EmptyState icon="checkmark-done-circle-outline" title="No interviews found" />}
           renderItem={({ item }) => {
-            const badge = statusBadge(item.computed_status);
+            const badge = interviewStatusBadge(item.computed_status);
             return (
               <ListRow
                 leftDot={badge.dot}

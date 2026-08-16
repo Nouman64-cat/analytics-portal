@@ -6,7 +6,7 @@ import { Card, StatTile, LoadingView, ErrorBanner, ListRow } from "../../compone
 import { useTheme } from "../../lib/theme";
 import { dashboardService } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
-import { prettify, formatDate } from "../../lib/statusMeta";
+import { interviewStatusBadge, formatDate } from "../../lib/statusMeta";
 import { useDepartmentContext } from "../../lib/DepartmentContext";
 
 export default function DashboardScreen() {
@@ -28,13 +28,13 @@ export default function DashboardScreen() {
           {data && (
             <>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <StatTile label="Total Interviews" value={data.total_interviews} color={t.primary} />
-                <StatTile label="Legit Interviews" value={data.legit_interviews} color="#06b6d4" />
-                <StatTile label="Companies" value={data.total_companies} color="#f97316" />
-                <StatTile label="Candidates" value={data.total_candidates} color="#22c55e" />
-                <StatTile label="Jobs Closed" value={data.total_jobs_closed} color="#10b981" />
+                <StatTile label="Total Interviews" value={data.total_interviews} color={t.primary} icon="checkmark-done-circle" />
+                <StatTile label="Legit Interviews" value={data.legit_interviews} color="#06b6d4" icon="shield-checkmark" />
+                <StatTile label="Companies" value={data.total_companies} color="#f97316" icon="business" />
+                <StatTile label="Candidates" value={data.total_candidates} color="#22c55e" icon="people" />
+                <StatTile label="Jobs Closed" value={data.total_jobs_closed} color="#10b981" icon="trophy" />
                 {data.conversion_rate_percent != null && (
-                  <StatTile label="Conversion Rate" value={`${data.conversion_rate_percent.toFixed(1)}%`} color="#8b5cf6" />
+                  <StatTile label="Conversion Rate" value={`${data.conversion_rate_percent.toFixed(1)}%`} color="#8b5cf6" icon="trending-up" />
                 )}
               </View>
 
@@ -60,7 +60,7 @@ export default function DashboardScreen() {
                   <ListRow
                     key={ri.id}
                     title={`${ri.company ?? "Unknown"} — ${ri.role}`}
-                    subtitle={`${ri.candidate ?? "Unassigned"} • ${prettify(ri.computed_status)} • ${formatDate(ri.date)}`}
+                    subtitle={`${ri.candidate ?? "Unassigned"} • ${interviewStatusBadge(ri.computed_status).label} • ${formatDate(ri.date)}`}
                     onPress={() => router.push(`/interviews/${ri.id}`)}
                   />
                 ))}

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Platform, StatusBar as RNStatusBar } from "react-native";
+import { View, Text, TouchableOpacity, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, router } from "expo-router";
@@ -27,26 +27,39 @@ export function Header({
   return (
     <View
       style={{
-        paddingTop: insets.top + (Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) * 0 : 0) + 10,
-        paddingBottom: 12,
-        paddingHorizontal: 12,
+        paddingTop: insets.top + 10,
+        paddingBottom: 14,
+        paddingHorizontal: 14,
         backgroundColor: t.surface,
         borderBottomWidth: 1,
         borderBottomColor: t.border,
         flexDirection: "row",
         alignItems: "center",
+        shadowColor: t.shadow,
+        shadowOpacity: Platform.OS === "ios" ? 0.04 : 0.1,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
       }}
     >
-      {!hideMenu && (
+      {!hideMenu ? (
         <TouchableOpacity
           onPress={() => (showBack ? router.back() : navigation.dispatch(OPEN_DRAWER))}
-          style={{ padding: 6, marginRight: 6 }}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            backgroundColor: t.surfaceAlt,
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 10,
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name={showBack ? "arrow-back" : "menu"} size={24} color={t.text} />
+          <Ionicons name={showBack ? "arrow-back" : "menu"} size={20} color={t.text} />
         </TouchableOpacity>
-      )}
-      <Text style={{ flex: 1, fontSize: 18, fontWeight: "700", color: t.text }} numberOfLines={1}>
+      ) : null}
+      <Text style={{ flex: 1, fontSize: 19, fontWeight: "800", color: t.text, letterSpacing: -0.3 }} numberOfLines={1}>
         {title}
       </Text>
       {right}

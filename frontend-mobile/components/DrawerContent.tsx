@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import type { DrawerContentComponentProps } from "expo-router/drawer";
 import { useTheme } from "../lib/theme";
 import { useAuth } from "../lib/AuthContext";
@@ -30,38 +31,35 @@ export function DrawerContent(props: DrawerContentComponentProps) {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.surface }}>
-      <View
-        style={{
-          paddingTop: insets.top + 20,
-          paddingBottom: 18,
-          paddingHorizontal: 18,
-          borderBottomWidth: 1,
-          borderBottomColor: t.border,
-        }}
+      <LinearGradient
+        colors={[t.gradientFrom, t.gradientTo]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 22, paddingBottom: 20, paddingHorizontal: 18 }}
       >
         <View
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            backgroundColor: t.primary,
+            width: 46,
+            height: 46,
+            borderRadius: 13,
+            backgroundColor: "#ffffff2a",
             alignItems: "center",
             justifyContent: "center",
-            marginBottom: 10,
+            marginBottom: 12,
           }}
         >
-          <Ionicons name="analytics" size={22} color={t.primaryText} />
+          <Ionicons name="analytics" size={23} color="#fff" />
         </View>
-        <Text style={{ color: t.text, fontWeight: "700", fontSize: 15 }} numberOfLines={1}>
+        <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }} numberOfLines={1}>
           {payload?.email ?? "Signed in"}
         </Text>
-        <Text style={{ color: t.textMuted, fontSize: 12, marginTop: 2, textTransform: "capitalize" }}>
+        <Text style={{ color: "#ffffffb0", fontSize: 12, marginTop: 2, textTransform: "capitalize", fontWeight: "600" }}>
           {role ?? ""}
         </Text>
-      </View>
+      </LinearGradient>
 
       {showSwitcher && (
-        <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
+        <View style={{ paddingHorizontal: 14, paddingTop: 14 }}>
           <SelectField
             label="Department"
             value={departmentId}
@@ -72,7 +70,7 @@ export function DrawerContent(props: DrawerContentComponentProps) {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
+      <ScrollView contentContainerStyle={{ paddingVertical: 6, paddingHorizontal: 10 }} showsVerticalScrollIndicator={false}>
         {items.map((item) => {
           const routeName = item.href === "/" ? "index" : item.href.slice(1);
           const focused = activeRoute === routeName;
@@ -80,17 +78,31 @@ export function DrawerContent(props: DrawerContentComponentProps) {
             <TouchableOpacity
               key={item.href}
               onPress={() => props.navigation.navigate(routeName)}
+              activeOpacity={0.65}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingVertical: 12,
-                paddingHorizontal: 18,
-                gap: 14,
-                backgroundColor: focused ? `${t.primary}1f` : "transparent",
+                paddingVertical: 11,
+                paddingHorizontal: 12,
+                marginVertical: 1.5,
+                borderRadius: 11,
+                gap: 13,
+                backgroundColor: focused ? `${t.primary}1c` : "transparent",
               }}
             >
-              <Ionicons name={item.icon} size={20} color={focused ? t.primary : t.textMuted} />
-              <Text style={{ color: focused ? t.primary : t.text, fontSize: 15, fontWeight: focused ? "700" : "500" }}>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 9,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: focused ? t.primary : "transparent",
+                }}
+              >
+                <Ionicons name={item.icon} size={18} color={focused ? t.primaryText : t.textMuted} />
+              </View>
+              <Text style={{ color: focused ? t.primary : t.text, fontSize: 14.5, fontWeight: focused ? "700" : "500" }}>
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -100,19 +112,21 @@ export function DrawerContent(props: DrawerContentComponentProps) {
 
       <TouchableOpacity
         onPress={confirmLogout}
+        activeOpacity={0.7}
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 14,
-          paddingHorizontal: 18,
-          paddingVertical: 16,
-          paddingBottom: insets.bottom + 16,
-          borderTopWidth: 1,
-          borderTopColor: t.border,
+          gap: 13,
+          marginHorizontal: 14,
+          paddingHorizontal: 12,
+          paddingVertical: 13,
+          marginBottom: insets.bottom + 10,
+          borderRadius: 12,
+          backgroundColor: `${t.danger}12`,
         }}
       >
-        <Ionicons name="log-out-outline" size={20} color={t.danger} />
-        <Text style={{ color: t.danger, fontSize: 15, fontWeight: "600" }}>Log out</Text>
+        <Ionicons name="log-out-outline" size={19} color={t.danger} />
+        <Text style={{ color: t.danger, fontSize: 14.5, fontWeight: "700" }}>Log out</Text>
       </TouchableOpacity>
     </View>
   );
