@@ -8,6 +8,7 @@ import { useTheme } from "../../../lib/theme";
 import { leadsService, companiesService, profilesService, businessDevelopersService, candidatesService } from "../../../lib/api";
 import type { Company, ResumeProfile, BusinessDeveloper, Candidate } from "../../../lib/types";
 import { useDepartmentContext } from "../../../lib/DepartmentContext";
+import type { SelectOption } from "../../../components/FormField";
 
 export default function NewLeadScreen() {
   const t = useTheme();
@@ -49,6 +50,17 @@ export default function NewLeadScreen() {
       }
     })();
   }, []);
+
+  async function handleCreateCompany(name: string): Promise<SelectOption | null> {
+    try {
+      const created = await companiesService.create({ name, is_staffing_firm: false });
+      setCompanies((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      return { label: created.name, value: created.id };
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to create company");
+      return null;
+    }
+  }
 
   async function handleSubmit() {
     if (!companyId || !resumeProfileId || !role.trim()) {
@@ -92,6 +104,9 @@ export default function NewLeadScreen() {
             value={companyId}
             onSelect={setCompanyId}
             options={companies.map((c) => ({ label: c.name, value: c.id }))}
+            placeholder="Select or type to create…"
+            onCreate={handleCreateCompany}
+            createLabel="company"
           />
           <SelectField
             label="Resume Profile *"

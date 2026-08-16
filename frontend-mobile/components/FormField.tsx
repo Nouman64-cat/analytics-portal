@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, Switch, Modal, FlatList, TouchableOpacity, ScrollView } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, TextInput, Switch, Modal, FlatList, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/theme";
 import { Label } from "./ui";
@@ -76,22 +76,95 @@ export interface SelectOption {
   value: string;
 }
 
+/** Search box shown at the top of a select's bottom sheet — lets you type to shortlist options. */
+function ModalSearchBox({ value, onChangeText, autoFocus }: { value: string; onChangeText: (v: string) => void; autoFocus?: boolean }) {
+  const t = useTheme();
+  return (
+    <View
+      style={{
+        margin: 14,
+        marginBottom: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: t.surfaceAlt,
+        borderWidth: 1,
+        borderColor: t.border,
+        borderRadius: 11,
+        paddingHorizontal: 12,
+        gap: 8,
+      }}
+    >
+      <Ionicons name="search" size={16} color={t.textMuted} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="Type to filter…"
+        placeholderTextColor={t.textMuted}
+        autoFocus={autoFocus}
+        style={{ flex: 1, paddingVertical: 10, color: t.text, fontSize: 15 }}
+      />
+      {value.length > 0 && (
+        <TouchableOpacity onPress={() => onChangeText("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="close-circle" size={16} color={t.textMuted} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
 export function SelectField({
   label,
   value,
   options,
   onSelect,
   placeholder = "Select…",
+  onCreate,
+  createLabel = "company",
 }: {
   label?: string;
   value: string | null;
   options: SelectOption[];
   onSelect: (value: string) => void;
   placeholder?: string;
+  /** When provided, typing a name that doesn't match any option shows a "Create …" row that calls this and selects the result. */
+  onCreate?: (query: string) => Promise<SelectOption | null>;
+  /** Noun used in the "Create ..." row, e.g. "company". */
+  createLabel?: string;
 }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [creating, setCreating] = useState(false);
   const selected = options.find((o) => o.value === value);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const trimmed = query.trim();
+  const exactMatch = options.some((o) => o.label.toLowerCase() === trimmed.toLowerCase());
+  const showCreate = !!onCreate && trimmed.length > 0 && !exactMatch;
+
+  function close() {
+    setOpen(false);
+    setQuery("");
+  }
+
+  async function handleCreate() {
+    if (!onCreate || !trimmed || creating) return;
+    setCreating(true);
+    try {
+      const created = await onCreate(trimmed);
+      if (created) {
+        onSelect(created.value);
+        close();
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <View style={{ marginBottom: 14 }}>
@@ -116,24 +189,27 @@ export function SelectField({
         <Ionicons name="chevron-down" size={18} color={t.textMuted} />
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "#00000066", justifyContent: "flex-end" }}
-          activeOpacity={1}
-          onPress={() => setOpen(false)}
-        >
-          <View style={{ backgroundColor: t.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "70%", paddingBottom: 24 }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: t.border }}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: "#00000066", justifyContent: "flex-end" }} activeOpacity={1} onPress={close}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: t.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "78%", paddingBottom: 24 }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={{ color: t.text, fontWeight: "700", fontSize: 16 }}>{label || "Select"}</Text>
+              <TouchableOpacity onPress={close}>
+                <Ionicons name="close" size={22} color={t.textMuted} />
+              </TouchableOpacity>
             </View>
+
+            <ModalSearchBox value={query} onChangeText={setQuery} />
+
             <FlatList
-              data={options}
+              data={filtered}
               keyExtractor={(item) => item.value}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
                   onPress={() => {
                     onSelect(item.value);
-                    setOpen(false);
+                    close();
                   }}
                   style={{
                     paddingVertical: 14,
@@ -148,10 +224,33 @@ export function SelectField({
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
-                <Text style={{ color: t.textMuted, padding: 16 }}>No options available</Text>
+                showCreate ? null : <Text style={{ color: t.textMuted, padding: 16 }}>No options found</Text>
+              }
+              ListFooterComponent={
+                showCreate ? (
+                  <TouchableOpacity
+                    onPress={handleCreate}
+                    disabled={creating}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      paddingVertical: 14,
+                      paddingHorizontal: 16,
+                      borderTopWidth: filtered.length > 0 ? 1 : 0,
+                      borderTopColor: t.border,
+                      opacity: creating ? 0.6 : 1,
+                    }}
+                  >
+                    {creating ? <ActivityIndicator size="small" color={t.primary} /> : <Ionicons name="add-circle" size={18} color={t.primary} />}
+                    <Text style={{ color: t.primary, fontWeight: "700", fontSize: 15 }}>
+                      Create {createLabel} &ldquo;{trimmed}&rdquo;
+                    </Text>
+                  </TouchableOpacity>
+                ) : null
               }
             />
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -173,10 +272,22 @@ export function MultiSelectField({
 }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const selectedLabels = options.filter((o) => values.includes(o.value)).map((o) => o.label);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query]);
 
   function toggle(value: string) {
     onChange(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
+  }
+
+  function close() {
+    setOpen(false);
+    setQuery("");
   }
 
   return (
@@ -202,22 +313,21 @@ export function MultiSelectField({
         <Ionicons name="chevron-down" size={18} color={t.textMuted} />
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "#00000066", justifyContent: "flex-end" }}
-          activeOpacity={1}
-          onPress={() => setOpen(false)}
-        >
-          <View style={{ backgroundColor: t.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "70%", paddingBottom: 24 }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: t.border, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: "#00000066", justifyContent: "flex-end" }} activeOpacity={1} onPress={close}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: t.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "78%", paddingBottom: 24 }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={{ color: t.text, fontWeight: "700", fontSize: 16 }}>{label || "Select"}</Text>
-              <TouchableOpacity onPress={() => setOpen(false)}>
-                <Text style={{ color: t.primary, fontWeight: "600" }}>Done</Text>
+              <TouchableOpacity onPress={close}>
+                <Text style={{ color: t.primary, fontWeight: "700" }}>Done</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              {options.length === 0 && <Text style={{ color: t.textMuted, padding: 16 }}>No options available</Text>}
-              {options.map((item) => (
+
+            <ModalSearchBox value={query} onChangeText={setQuery} />
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {filtered.length === 0 && <Text style={{ color: t.textMuted, padding: 16 }}>No options found</Text>}
+              {filtered.map((item) => (
                 <TouchableOpacity
                   key={item.value}
                   onPress={() => toggle(item.value)}
@@ -234,7 +344,7 @@ export function MultiSelectField({
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>

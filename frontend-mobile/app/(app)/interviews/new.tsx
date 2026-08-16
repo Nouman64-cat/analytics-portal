@@ -3,7 +3,7 @@ import { View, ScrollView, Alert } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Header } from "../../../components/Header";
 import { Button, ErrorBanner, LoadingView } from "../../../components/ui";
-import { TextField, SelectField } from "../../../components/FormField";
+import { TextField, SelectField, SelectOption } from "../../../components/FormField";
 import { useTheme } from "../../../lib/theme";
 import { interviewsService, companiesService, profilesService, candidatesService, businessDevelopersService } from "../../../lib/api";
 import type { Company, ResumeProfile, Candidate, BusinessDeveloper } from "../../../lib/types";
@@ -60,6 +60,17 @@ export default function NewInterviewScreen() {
     })();
   }, []);
 
+  async function handleCreateCompany(name: string): Promise<SelectOption | null> {
+    try {
+      const created = await companiesService.create({ name, is_staffing_firm: false });
+      setCompanies((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      return { label: created.name, value: created.id };
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to create company");
+      return null;
+    }
+  }
+
   async function handleSubmit() {
     if (!companyId || !resumeProfileId || !candidateId || !role.trim() || !round.trim()) {
       Alert.alert("Missing info", "Company, resume profile, candidate, role, and round are required.");
@@ -101,7 +112,15 @@ export default function NewInterviewScreen() {
               <ErrorBanner message={error} />
             </View>
           )}
-          <SelectField label="Company *" value={companyId} onSelect={setCompanyId} options={companies.map((c) => ({ label: c.name, value: c.id }))} />
+          <SelectField
+            label="Company *"
+            value={companyId}
+            onSelect={setCompanyId}
+            options={companies.map((c) => ({ label: c.name, value: c.id }))}
+            placeholder="Select or type to create…"
+            onCreate={handleCreateCompany}
+            createLabel="company"
+          />
           <SelectField label="Resume Profile *" value={resumeProfileId} onSelect={setResumeProfileId} options={profiles.map((p) => ({ label: p.name, value: p.id }))} />
           <SelectField label="Candidate *" value={candidateId} onSelect={setCandidateId} options={candidates.map((c) => ({ label: c.name, value: c.id }))} />
           <TextField label="Role *" value={role} onChangeText={setRole} />
