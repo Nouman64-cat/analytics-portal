@@ -20,6 +20,8 @@ interface Props {
   className?: string;
   required?: boolean;
   optional?: boolean;
+  /** Focus (and open) the dropdown as soon as it mounts — for click-to-edit patterns. */
+  autoFocus?: boolean;
 }
 
 export default function SearchableSelect({
@@ -32,13 +34,19 @@ export default function SearchableSelect({
   className,
   required = false,
   optional = false,
+  autoFocus = false,
 }: Props) {
   const selected = options.find((o) => o.id === value);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoFocus);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     if (!open) { setQuery(""); setActiveIndex(-1); }
@@ -115,6 +123,7 @@ export default function SearchableSelect({
     <div ref={containerRef} className={`relative ${className ?? ""}`}>
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={open ? query : (selected?.label ?? "")}
           placeholder={placeholder}

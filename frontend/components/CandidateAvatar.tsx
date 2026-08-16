@@ -1,4 +1,7 @@
+"use client";
+
 import { getCandidateColor } from "@/lib/candidateColor";
+import { useCachedAvatarUrl } from "@/lib/avatarCache";
 
 interface CandidateLike {
   id: string;
@@ -23,11 +26,13 @@ function getInitials(name: string): string {
 
 /** A candidate's avatar circle: their uploaded photo if set, else colored initials/dot. */
 export default function CandidateAvatar({ candidate, size = 32, className = "" }: Props) {
-  if (candidate.avatar_url) {
+  const imgSrc = useCachedAvatarUrl(candidate.avatar_url);
+
+  if (imgSrc) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static/local asset
+      // eslint-disable-next-line @next/next/no-img-element -- cached blob object URL, not a static/local asset
       <img
-        src={candidate.avatar_url}
+        src={imgSrc}
         alt={candidate.name}
         className={`shrink-0 rounded-full object-cover ${className}`}
         style={{ width: size, height: size }}

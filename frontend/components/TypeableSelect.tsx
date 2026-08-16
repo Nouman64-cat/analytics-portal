@@ -10,6 +10,9 @@ interface Props {
   onChange: (value: string) => void;
   placeholder?: string;
   label?: string;
+  className?: string;
+  /** Focus (and open) the dropdown as soon as it mounts — for click-to-edit patterns. */
+  autoFocus?: boolean;
 }
 
 export default function TypeableSelect({
@@ -17,12 +20,19 @@ export default function TypeableSelect({
   value,
   onChange,
   placeholder = "Type or select…",
+  className,
+  autoFocus = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoFocus);
   const [query, setQuery] = useState(value);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => { setQuery(value); }, [value]);
 
@@ -86,9 +96,10 @@ export default function TypeableSelect({
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative ${className ?? ""}`}>
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           placeholder={placeholder}

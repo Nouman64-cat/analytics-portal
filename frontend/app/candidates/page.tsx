@@ -12,6 +12,7 @@ import Modal, { FormField, inputClass, buttonPrimary, buttonSecondary } from "@/
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { getUserRole } from "@/lib/auth";
 import { getCandidateColor, CANDIDATE_COLOR_PALETTE } from "@/lib/candidateColor";
+import { useCachedAvatarUrl } from "@/lib/avatarCache";
 
 function formatMonthLabel(ym: string) {
   const [year, month] = ym.split("-");
@@ -162,6 +163,29 @@ function CandidateDeptBadges({ names, max = 2 }: { names: string[] | null | unde
           +{overflow} more
         </span>
       )}
+    </div>
+  );
+}
+
+/** Big card avatar visual (photo-or-initials) — a component of its own so the cached-image hook can run per candidate inside the card grid's `.map()`. */
+function CandidateCardAvatarImage({ candidate, isInactive }: { candidate: Candidate; isInactive: boolean }) {
+  const imgSrc = useCachedAvatarUrl(candidate.avatar_url);
+  if (imgSrc) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- cached blob object URL, not a static/local asset
+      <img src={imgSrc} alt={candidate.name} className="h-16 w-16 rounded-2xl object-cover" />
+    );
+  }
+  return (
+    <div
+      className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
+        isInactive
+          ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
+          : "text-white"
+      }`}
+      style={isInactive ? undefined : { background: getCandidateColor(candidate) }}
+    >
+      {candidate.name[0]}
     </div>
   );
 }
@@ -583,25 +607,7 @@ export default function CandidatesPage() {
                           e.target.value = "";
                         }}
                       />
-                      {candidate.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL
-                        <img
-                          src={candidate.avatar_url}
-                          alt={candidate.name}
-                          className="h-16 w-16 rounded-2xl object-cover"
-                        />
-                      ) : (
-                        <div
-                          className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
-                            isInactive
-                              ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
-                              : "text-white"
-                          }`}
-                          style={isInactive ? undefined : { background: getCandidateColor(candidate) }}
-                        >
-                          {candidate.name[0]}
-                        </div>
-                      )}
+                      <CandidateCardAvatarImage candidate={candidate} isInactive={isInactive} />
                       <button
                         type="button"
                         onClick={(e) => {

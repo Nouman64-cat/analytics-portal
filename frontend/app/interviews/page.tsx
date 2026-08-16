@@ -96,9 +96,9 @@ import SearchableSelect from "@/components/SearchableSelect";
 import TypeableSelect from "@/components/TypeableSelect";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
-import CandidateAvatar from "@/components/CandidateAvatar";
 import CandidateFilterMenu from "@/components/CandidateFilterMenu";
-import ProfileAvatar from "@/components/ProfileAvatar";
+import EditableCandidateCell from "@/components/EditableCandidateCell";
+import EditableProfileCell from "@/components/EditableProfileCell";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
@@ -690,18 +690,19 @@ export default function InterviewsPage() {
   const [candidateFilter, setCandidateFilter] = useState<string[]>([]);
   const [showExtraFilters, setShowExtraFilters] = useState(false);
 
+  // Inline table-cell editing for Status / Round / Date / Time — one cell at a time.
+  const [editingCell, setEditingCell] = useState<{
+    id: string;
+    field: "status" | "round" | "date" | "time";
+  } | null>(null);
+  const [savingCell, setSavingCell] = useState(false);
+
   // Ticks every 30 s so countdown badges in the table stay live.
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
-
-  const candidateMap = useMemo(() => {
-    const map: Record<string, Candidate> = {};
-    candidates.forEach((c) => { map[c.id] = c; });
-    return map;
-  }, [candidates]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -1207,6 +1208,84 @@ export default function InterviewsPage() {
       alert(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /** Patches just the one row in local state — avoids a full-list refetch for a single-field edit. */
+  const patchInterviewLocal = (updated: Interview) => {
+    setInterviews((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  };
+
+  const handleInterviewCandidateSave = async (interview: Interview, candidateId: string) => {
+    try {
+      patchInterviewLocal(await interviewsService.update(interview.id, { candidate_id: candidateId }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update candidate");
+    }
+  };
+
+  const handleInterviewProfileSave = async (interview: Interview, profileId: string) => {
+    try {
+      patchInterviewLocal(await interviewsService.update(interview.id, { resume_profile_id: profileId }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update profile");
+    }
+  };
+
+  const handleInterviewStatusSave = async (interview: Interview, status: string | null) => {
+    setSavingCell(true);
+    try {
+      patchInterviewLocal(await interviewsService.update(interview.id, { status }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setSavingCell(false);
+      setEditingCell(null);
+    }
+  };
+
+  const handleInterviewRoundSave = async (interview: Interview, round: string) => {
+    setSavingCell(true);
+    try {
+      patchInterviewLocal(await interviewsService.update(interview.id, { round }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update round");
+    } finally {
+      setSavingCell(false);
+      setEditingCell(null);
+    }
+  };
+
+  const handleInterviewDateSave = async (interview: Interview, date: string) => {
+    setSavingCell(true);
+    try {
+      patchInterviewLocal(
+        await interviewsService.update(interview.id, { interview_date: date || null }),
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update date");
+    } finally {
+      setSavingCell(false);
+      setEditingCell(null);
+    }
+  };
+
+  const handleInterviewTimeSave = async (interview: Interview, timeEst: string) => {
+    setSavingCell(true);
+    try {
+      const offset = estToPktOffset(interview.interview_date);
+      const timePkt = timeEst ? shiftTime(timeEst, offset) : "";
+      patchInterviewLocal(
+        await interviewsService.update(interview.id, {
+          time_est: timeEst || null,
+          time_pkt: timePkt || null,
+        }),
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update time");
+    } finally {
+      setSavingCell(false);
+      setEditingCell(null);
     }
   };
 
@@ -2111,64 +2190,114 @@ export default function InterviewsPage() {
                           {truncate(interview.role, 40)}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
-                          <span className="inline-flex items-center gap-1.5">
-                            {interview.candidate_id && candidateMap[interview.candidate_id] && (
-                              <CandidateAvatar candidate={candidateMap[interview.candidate_id]} size={18} />
-                            )}
-                            {interview.candidate_name}
-                          </span>
+                          <EditableCandidateCell
+                            candidateId={interview.candidate_id}
+                            candidateName={interview.candidate_name}
+                            candidates={candidates}
+                            editable={!cannotCRUD}
+                            onSave={(id) => handleInterviewCandidateSave(interview, id)}
+                          />
                         </td>
                         <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                          {(() => {
-                            if (!interview.resume_profile_name) {
-                              return <span className="text-slate-400 dark:text-slate-600">—</span>;
-                            }
-                            const profileForAvatar = {
-                              id: interview.resume_profile_id,
-                              name: interview.resume_profile_name,
-                            };
-                            const profile = profiles.find(
-                              (p) => p.id === interview.resume_profile_id,
-                            );
-                            if (
-                              !profile?.linkedin_url &&
-                              !profile?.github_url &&
-                              !profile?.portfolio_url &&
-                              !profile?.resume_url
-                            )
-                              return <ProfileAvatar profile={profileForAvatar} size={24} />;
-                            return (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const rect = (
-                                    e.currentTarget as HTMLElement
-                                  ).getBoundingClientRect();
-                                  setCompanyPopover(null);
-                                  setPipelinePopover(null);
-                                  setProfilePopover((prev) =>
-                                    prev?.profile.id === profile.id
-                                      ? null
-                                      : {
-                                          profile,
-                                          x: rect.left,
-                                          y: rect.bottom + 6,
-                                        },
-                                  );
-                                }}
-                                className="cursor-pointer"
-                              >
-                                <ProfileAvatar profile={profileForAvatar} size={24} />
-                              </button>
-                            );
-                          })()}
+                          <EditableProfileCell
+                            profileId={interview.resume_profile_id}
+                            profileName={interview.resume_profile_name}
+                            profiles={profiles}
+                            editable={!cannotCRUD}
+                            onSave={(id) => handleInterviewProfileSave(interview, id)}
+                            extra={(() => {
+                              const profile = profiles.find(
+                                (p) => p.id === interview.resume_profile_id,
+                              );
+                              if (
+                                !profile?.linkedin_url &&
+                                !profile?.github_url &&
+                                !profile?.portfolio_url &&
+                                !profile?.resume_url
+                              )
+                                return null;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const rect = (
+                                      e.currentTarget as HTMLElement
+                                    ).getBoundingClientRect();
+                                    setCompanyPopover(null);
+                                    setPipelinePopover(null);
+                                    setProfilePopover((prev) =>
+                                      prev?.profile.id === profile.id
+                                        ? null
+                                        : {
+                                            profile,
+                                            x: rect.left,
+                                            y: rect.bottom + 6,
+                                          },
+                                    );
+                                  }}
+                                  title="Profile links"
+                                  aria-label="Profile links"
+                                  className="shrink-0 text-slate-400 hover:text-indigo-500 transition-colors"
+                                >
+                                  <ExternalLink size={12} />
+                                </button>
+                              );
+                            })()}
+                          />
                         </td>
                         <td className="px-3 py-2.5">
-                          <span
-                            className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
-                          >
-                            {interview.round}
-                          </span>
+                          {editingCell?.id === interview.id && editingCell.field === "round" ? (
+                            <div
+                              className="w-40"
+                              onBlur={(e) => {
+                                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                  setEditingCell(null);
+                                }
+                              }}
+                            >
+                              <TypeableSelect
+                                options={[
+                                  "Recruiter's Call",
+                                  "Phone Screen",
+                                  "1st",
+                                  "2nd",
+                                  "3rd",
+                                  "4th",
+                                  "5th",
+                                  "6th",
+                                  "Final",
+                                ]}
+                                value={interview.round}
+                                onChange={(val) => handleInterviewRoundSave(interview, val)}
+                                placeholder="Type or select round…"
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <span className="group/cell inline-flex w-40 items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
+                              >
+                                {interview.round}
+                              </span>
+                              {!cannotCRUD && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCell({ id: interview.id, field: "round" });
+                                  }}
+                                  disabled={savingCell}
+                                  title="Change round"
+                                  aria-label="Change round"
+                                  className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              )}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           {(() => {
@@ -2249,92 +2378,209 @@ export default function InterviewsPage() {
                           })()}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                          {(() => {
-                            const dateStr = formatInterviewDateEst(
-                              interview.interview_date,
-                              interview.time_est,
-                              true,
-                            );
-                            const parts = dateStr.split(", ");
-                            const hasDay =
-                              parts.length > 1 && parts[0].length === 3;
-                            const day = hasDay ? parts[0] : "";
-                            // Drop the year — parts[1] is "MMM d" when a day badge is present.
-                            const rest = hasDay ? parts[1] : dateStr;
+                          {editingCell?.id === interview.id && editingCell.field === "date" ? (
+                            <input
+                              type="date"
+                              autoFocus
+                              defaultValue={interview.interview_date ?? ""}
+                              onBlur={(e) => {
+                                if (e.target.value !== (interview.interview_date ?? "")) {
+                                  handleInterviewDateSave(interview, e.target.value);
+                                } else {
+                                  setEditingCell(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditingCell(null);
+                              }}
+                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
+                            />
+                          ) : (
+                            (() => {
+                              const dateStr = formatInterviewDateEst(
+                                interview.interview_date,
+                                interview.time_est,
+                                true,
+                              );
+                              const parts = dateStr.split(", ");
+                              const hasDay =
+                                parts.length > 1 && parts[0].length === 3;
+                              const day = hasDay ? parts[0] : "";
+                              // Drop the year — parts[1] is "MMM d" when a day badge is present.
+                              const rest = hasDay ? parts[1] : dateStr;
 
-                            let badgeColor = "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400";
-                            if (hasDay) {
-                              switch (day.toLowerCase()) {
-                                case "mon": badgeColor = "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"; break;
-                                case "tue": badgeColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"; break;
-                                case "wed": badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"; break;
-                                case "thu": badgeColor = "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"; break;
-                                case "fri": badgeColor = "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"; break;
-                                case "sat": badgeColor = "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"; break;
-                                case "sun": badgeColor = "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"; break;
+                              let badgeColor = "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400";
+                              if (hasDay) {
+                                switch (day.toLowerCase()) {
+                                  case "mon": badgeColor = "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"; break;
+                                  case "tue": badgeColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"; break;
+                                  case "wed": badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"; break;
+                                  case "thu": badgeColor = "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"; break;
+                                  case "fri": badgeColor = "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"; break;
+                                  case "sat": badgeColor = "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"; break;
+                                  case "sun": badgeColor = "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"; break;
+                                }
                               }
-                            }
 
-                            const badge = hasDay ? (
-                              <span
-                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                  !isUpcoming ? "opacity-70" : ""
-                                } ${badgeColor}`}
-                              >
-                                {day}
-                              </span>
-                            ) : null;
+                              const badge = hasDay ? (
+                                <span
+                                  className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                    !isUpcoming ? "opacity-70" : ""
+                                  } ${badgeColor}`}
+                                >
+                                  {day}
+                                </span>
+                              ) : null;
 
-                            if (isUpcoming) {
                               return (
-                                <span className="inline-flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                                <span
+                                  className={`group/cell inline-flex items-center gap-1.5 ${
+                                    isUpcoming ? "font-medium text-slate-800 dark:text-slate-200" : ""
+                                  }`}
+                                >
                                   {badge}
                                   <span>{rest}</span>
+                                  {!cannotCRUD && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingCell({ id: interview.id, field: "date" });
+                                      }}
+                                      disabled={savingCell}
+                                      title="Change date"
+                                      aria-label="Change date"
+                                      className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                  )}
                                 </span>
                               );
-                            }
-
-                            return (
-                              <span className="inline-flex items-center gap-1.5">
-                                {badge}
-                                <span>{rest}</span>
-                              </span>
-                            );
-                          })()}
+                            })()
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                          <div className="flex flex-col gap-1">
-                            <span>
-                              {interview.time_est ? (
-                                formatTime(interview.time_est)
-                              ) : (
-                                <span className="text-slate-400 dark:text-slate-600">
-                                  —
+                          {editingCell?.id === interview.id && editingCell.field === "time" ? (
+                            <input
+                              type="time"
+                              autoFocus
+                              defaultValue={interview.time_est ?? ""}
+                              onBlur={(e) => {
+                                if (e.target.value !== (interview.time_est ?? "")) {
+                                  handleInterviewTimeSave(interview, e.target.value);
+                                } else {
+                                  setEditingCell(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditingCell(null);
+                              }}
+                              title="Sets EST — PKT is calculated automatically"
+                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
+                            />
+                          ) : (
+                            <div className="group/cell flex flex-col gap-1">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span>
+                                  {interview.time_est ? (
+                                    formatTime(interview.time_est)
+                                  ) : (
+                                    <span className="text-slate-400 dark:text-slate-600">
+                                      —
+                                    </span>
+                                  )}
+                                  <span className="text-slate-400 dark:text-slate-600"> / </span>
+                                  {interview.time_pkt ? (
+                                    formatTime(interview.time_pkt)
+                                  ) : (
+                                    <span className="text-slate-400 dark:text-slate-600">
+                                      —
+                                    </span>
+                                  )}
+                                </span>
+                                {!cannotCRUD && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingCell({ id: interview.id, field: "time" });
+                                    }}
+                                    disabled={savingCell}
+                                    title="Change time"
+                                    aria-label="Change time"
+                                    className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                )}
+                              </span>
+                              {isImminent && minsLeft !== null && (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
+                                  🚨 {minsLeft}m
                                 </span>
                               )}
-                              <span className="text-slate-400 dark:text-slate-600"> / </span>
-                              {interview.time_pkt ? (
-                                formatTime(interview.time_pkt)
-                              ) : (
-                                <span className="text-slate-400 dark:text-slate-600">
-                                  —
+                              {isWarning && minsLeft !== null && (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
+                                  ⚠ {minsLeft}m
                                 </span>
                               )}
-                            </span>
-                            {isImminent && minsLeft !== null && (
-                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
-                                🚨 {minsLeft}m
-                              </span>
-                            )}
-                            {isWarning && minsLeft !== null && (
-                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
-                                ⚠ {minsLeft}m
-                              </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
-                          <StatusBadge status={interview.computed_status} />
+                          {editingCell?.id === interview.id && editingCell.field === "status" ? (
+                            <select
+                              autoFocus
+                              defaultValue={interview.status ?? ""}
+                              onBlur={(e) => {
+                                const val = e.target.value || null;
+                                if (val !== (interview.status ?? null)) {
+                                  handleInterviewStatusSave(interview, val);
+                                } else {
+                                  setEditingCell(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditingCell(null);
+                              }}
+                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
+                            >
+                              {(
+                                [
+                                  "",
+                                  "Upcoming",
+                                  "Converted",
+                                  "Closed",
+                                  "Dropped",
+                                  "Rejected",
+                                ] as const
+                              ).map((val) => (
+                                <option key={val} value={val}>
+                                  {val === "" ? "Unresponsed" : val === "Converted" ? "Progressed" : val}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="group/cell inline-flex items-center gap-1.5">
+                              <StatusBadge status={interview.computed_status} />
+                              {!cannotCRUD && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCell({ id: interview.id, field: "status" });
+                                  }}
+                                  disabled={savingCell}
+                                  title="Change status"
+                                  aria-label="Change status"
+                                  className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              )}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-center justify-end gap-1">

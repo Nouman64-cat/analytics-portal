@@ -75,9 +75,9 @@ import {
 } from "@/lib/utils";
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
-import CandidateAvatar from "@/components/CandidateAvatar";
 import CandidateFilterMenu from "@/components/CandidateFilterMenu";
-import ProfileAvatar from "@/components/ProfileAvatar";
+import EditableCandidateCell from "@/components/EditableCandidateCell";
+import EditableProfileCell from "@/components/EditableProfileCell";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
@@ -456,12 +456,6 @@ Return "all" for fields the user didn't mention.`;
     [candidates, form.candidate_id],
   );
 
-  const candidateMap = useMemo(() => {
-    const map: Record<string, Candidate> = {};
-    candidates.forEach((c) => { map[c.id] = c; });
-    return map;
-  }, [candidates]);
-
   const bdOptions = useMemo(
     () =>
       [...businessDevs]
@@ -596,6 +590,13 @@ Return "all" for fields the user didn't mention.`;
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
+  /** Patches just the one row in local state — avoids a full-list refetch for a single-field edit. */
+  const patchLeadLocal = (threadId: string, patch: Partial<LeadListItem>) => {
+    setLeads((prev) =>
+      prev.map((l) => (l.thread_id === threadId ? { ...l, ...patch } : l)),
+    );
+  };
+
   const handleLeadStatusChange = async (
     lead: LeadListItem,
     e: ChangeEvent<HTMLSelectElement>,
@@ -603,22 +604,39 @@ Return "all" for fields the user didn't mention.`;
     const v = e.target.value;
     setSavingLeadThreadId(lead.thread_id);
     try {
-      if (v === "") {
-        await interviewsService.updateLead(lead.thread_id, {
-          clear_override: true,
-        });
-      } else {
-        await interviewsService.updateLead(lead.thread_id, {
-          outcome_override: v,
-        });
-      }
-      await fetchData();
+      const updated = v === ""
+        ? await interviewsService.updateLead(lead.thread_id, { clear_override: true })
+        : await interviewsService.updateLead(lead.thread_id, { outcome_override: v });
+      patchLeadLocal(lead.thread_id, {
+        lead_outcome: updated.lead_outcome,
+        lead_status_label: updated.lead_status_label,
+        lead_source: updated.lead_source,
+        lead_notes: updated.lead_notes,
+      });
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "Failed to update lead status",
       );
     } finally {
       setSavingLeadThreadId(null);
+    }
+  };
+
+  const handleLeadCandidateSave = async (lead: LeadListItem, candidateId: string) => {
+    try {
+      const updated = await leadsService.update(lead.thread_id, { candidate_id: candidateId || null });
+      patchLeadLocal(lead.thread_id, updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update candidate");
+    }
+  };
+
+  const handleLeadProfileSave = async (lead: LeadListItem, profileId: string) => {
+    try {
+      const updated = await leadsService.update(lead.thread_id, { resume_profile_id: profileId });
+      patchLeadLocal(lead.thread_id, updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update profile");
     }
   };
 
@@ -1084,12 +1102,14 @@ Return "all" for fields the user didn't mention.`;
                       )}
                     </td>
                     <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
-                      <span className="inline-flex items-center gap-1.5">
-                        {l.candidate_id && candidateMap[l.candidate_id] && (
-                          <CandidateAvatar candidate={candidateMap[l.candidate_id]} size={18} />
-                        )}
-                        {l.candidate_name ?? "—"}
-                      </span>
+                      <EditableCandidateCell
+                        candidateId={l.candidate_id}
+                        candidateName={l.candidate_name}
+                        candidates={activeCandidates}
+                        editable={canMutateLeads}
+                        optional
+                        onSave={(id) => handleLeadCandidateSave(l, id)}
+                      />
                     </td>
                     <td className="hidden md:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       {l.primary_role ?? "—"}
@@ -1098,14 +1118,13 @@ Return "all" for fields the user didn't mention.`;
                       {l.primary_bd_name ?? "—"}
                     </td>
                     <td className="hidden xl:table-cell py-2.5 pr-3">
-                      {l.resume_profile_name ? (
-                        <ProfileAvatar
-                          profile={{ id: l.resume_profile_id, name: l.resume_profile_name }}
-                          size={24}
-                        />
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
+                      <EditableProfileCell
+                        profileId={l.resume_profile_id}
+                        profileName={l.resume_profile_name}
+                        profiles={activeProfiles}
+                        editable={canMutateLeads}
+                        onSave={(id) => handleLeadProfileSave(l, id)}
+                      />
                     </td>
                     <td className="hidden md:table-cell py-2.5 pr-3">
                       {isSuperAdmin ? (
