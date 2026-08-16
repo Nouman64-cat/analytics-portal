@@ -42,6 +42,7 @@ class CandidateRead(BaseModel):
     email: Optional[str] = None
     is_active: bool = True
     color: Optional[str] = None
+    avatar_url: Optional[str] = None
     department_id: Optional[uuid.UUID] = None
     department_name: Optional[str] = None
     # Multi-department support

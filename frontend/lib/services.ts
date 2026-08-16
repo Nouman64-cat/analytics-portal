@@ -235,6 +235,30 @@ export const candidatesService = {
     apiFetch<Candidate>(`/candidates/${id}/status`, { method: "PATCH" }),
   delete: (id: string) =>
     apiFetch<void>(`/candidates/${id}`, { method: "DELETE" }),
+  uploadAvatar: async (id: string, file: File) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_V1}/candidates/${id}/avatar`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      if (res.status === 401) {
+        clearToken();
+        window.location.href = "/login";
+      }
+      throw new Error(error.detail || `API Error: ${res.status}`);
+    }
+
+    return res.json() as Promise<Candidate>;
+  },
+  deleteAvatar: (id: string) =>
+    apiFetch<Candidate>(`/candidates/${id}/avatar`, { method: "DELETE" }),
 };
 
 // ─── Resume Profiles ────────────────────────────────────────

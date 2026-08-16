@@ -75,7 +75,7 @@ import {
 } from "@/lib/utils";
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
-import { getCandidateColor } from "@/lib/candidateColor";
+import CandidateAvatar from "@/components/CandidateAvatar";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
@@ -449,9 +449,9 @@ Return "all" for fields the user didn't mention.`;
     [candidates, form.candidate_id],
   );
 
-  const candidateColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    candidates.forEach((c) => { map[c.id] = getCandidateColor(c); });
+  const candidateMap = useMemo(() => {
+    const map: Record<string, Candidate> = {};
+    candidates.forEach((c) => { map[c.id] = c; });
     return map;
   }, [candidates]);
 
@@ -1085,11 +1085,8 @@ Return "all" for fields the user didn't mention.`;
                     </td>
                     <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                       <span className="inline-flex items-center gap-1.5">
-                        {l.candidate_id && (
-                          <span
-                            className="inline-block h-2 w-2 shrink-0 rounded-full"
-                            style={{ background: candidateColorMap[l.candidate_id] }}
-                          />
+                        {l.candidate_id && candidateMap[l.candidate_id] && (
+                          <CandidateAvatar candidate={candidateMap[l.candidate_id]} size={18} />
                         )}
                         {l.candidate_name ?? "—"}
                       </span>

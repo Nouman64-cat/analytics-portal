@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
-import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX, X, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, ExternalLink, UserCheck, UserX, X, Building2, Camera } from "lucide-react";
 import { candidatesService, interviewsService, leadsService, departmentsService } from "@/lib/services";
 import { formatDate, formatInterviewDateEst, getStatusStyle, getStatusLabel, getStatusEmoji, getLeadOutcomeBadgeStyle, getLeadOutcomeEmoji } from "@/lib/utils";
 import type { Candidate, CandidateFormData, Interview, LeadListItem, Department } from "@/lib/types";
@@ -185,6 +185,7 @@ export default function CandidatesPage() {
   const [deleteModal, setDeleteModal] = useState<Candidate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [uploadingAvatarId, setUploadingAvatarId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const router = useRouter();
   const { departmentId } = useDepartmentContext();
@@ -389,6 +390,30 @@ export default function CandidatesPage() {
     }
   };
 
+  const handleAvatarUpload = async (candidateId: string, file: File) => {
+    setUploadingAvatarId(candidateId);
+    try {
+      const updated = await candidatesService.uploadAvatar(candidateId, file);
+      setCandidates((prev) => prev.map((c) => (c.id === candidateId ? updated : c)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to upload photo");
+    } finally {
+      setUploadingAvatarId(null);
+    }
+  };
+
+  const handleAvatarRemove = async (candidateId: string) => {
+    setUploadingAvatarId(candidateId);
+    try {
+      const updated = await candidatesService.deleteAvatar(candidateId);
+      setCandidates((prev) => prev.map((c) => (c.id === candidateId ? updated : c)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to remove photo");
+    } finally {
+      setUploadingAvatarId(null);
+    }
+  };
+
   if (loading) return <PageLoader />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
@@ -545,15 +570,67 @@ export default function CandidatesPage() {
 
                   {/* Avatar + interview/lead count */}
                   <div className="flex items-center justify-between">
-                    <div
-                      className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
-                        isInactive
-                          ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
-                          : "text-white"
-                      }`}
-                      style={isInactive ? undefined : { background: getCandidateColor(candidate) }}
-                    >
-                      {candidate.name[0]}
+                    <div className="group/avatar relative h-16 w-16 shrink-0">
+                      <input
+                        id={`avatar-input-${candidate.id}`}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleAvatarUpload(candidate.id, f);
+                          e.target.value = "";
+                        }}
+                      />
+                      {candidate.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL
+                        <img
+                          src={candidate.avatar_url}
+                          alt={candidate.name}
+                          className="h-16 w-16 rounded-2xl object-cover"
+                        />
+                      ) : (
+                        <div
+                          className={`flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold ${
+                            isInactive
+                              ? "bg-slate-200/50 dark:bg-white/[0.05] text-slate-400 dark:text-slate-500"
+                              : "text-white"
+                          }`}
+                          style={isInactive ? undefined : { background: getCandidateColor(candidate) }}
+                        >
+                          {candidate.name[0]}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          document.getElementById(`avatar-input-${candidate.id}`)?.click();
+                        }}
+                        disabled={uploadingAvatarId === candidate.id}
+                        title={candidate.avatar_url ? "Replace photo" : "Upload photo"}
+                        className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/50 opacity-0 transition-opacity group-hover/avatar:opacity-100"
+                      >
+                        {uploadingAvatarId === candidate.id ? (
+                          <Loader2 size={16} className="animate-spin text-white" />
+                        ) : (
+                          <Camera size={16} className="text-white" />
+                        )}
+                      </button>
+                      {candidate.avatar_url && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAvatarRemove(candidate.id);
+                          }}
+                          title="Remove photo"
+                          className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white group-hover/avatar:flex"
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-4xl font-bold tracking-tight tabular-nums">

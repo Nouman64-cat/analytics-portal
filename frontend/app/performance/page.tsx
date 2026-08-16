@@ -6,7 +6,7 @@ import { candidatesService, leadsService, interviewsService } from "@/lib/servic
 import { PageLoader, ErrorState, EmptyState } from "@/components/PageStates";
 import { inputClass } from "@/components/Modal";
 import { getUserRole } from "@/lib/auth";
-import { getCandidateColor } from "@/lib/candidateColor";
+import CandidateAvatar from "@/components/CandidateAvatar";
 import { isNewFeature } from "@/lib/newBadge";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import type { Candidate, LeadListItem, Interview } from "@/lib/types";
@@ -309,10 +309,7 @@ export default function PerformancePage() {
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ background: getCandidateColor(m.candidate) }}
-                          />
+                          <CandidateAvatar candidate={m.candidate} size={20} />
                           <span className="font-medium text-slate-900 dark:text-white truncate">{m.candidate.name}</span>
                         </div>
                       </td>

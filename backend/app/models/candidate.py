@@ -20,6 +20,8 @@ class Candidate(SQLModel, table=True):
     is_active: bool = Field(default=True)
     # Hex color (e.g. "#6366f1") used as a visual identifier across the app.
     color: Optional[str] = Field(default=None, max_length=20)
+    # Raw (unsigned) S3 URL for the candidate's uploaded avatar photo, if any.
+    avatar_url: Optional[str] = Field(default=None, max_length=1000)
     # Primary department FK — kept for backward compat with interviews/filters.
     # Automatically set to the first entry in department_ids on create/update.
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)

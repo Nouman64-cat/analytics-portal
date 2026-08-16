@@ -100,6 +100,8 @@ export interface Candidate {
   is_active: boolean;
   /** Hex color (e.g. "#6366f1") used as a visual identifier across the app. */
   color: string | null;
+  /** Presigned S3 URL for the uploaded profile photo, if any. */
+  avatar_url: string | null;
   department_id: string | null;
   department_name: string | null;
   /** Multi-department support: list of department UUIDs. */

@@ -1,8 +1,11 @@
+import os
 import uuid
 import json
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from botocore.exceptions import BotoCoreError, ClientError
+from app.config import get_settings
 from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from sqlalchemy import or_, cast, String
@@ -10,6 +13,7 @@ from sqlalchemy import false as sql_false
 from app.database import get_session
 from app.activity_log import record_activity
 from app.dept_scope import get_user_allowed_depts
+from app.email_ses import make_presigned_doc_url
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.interview import Interview
@@ -25,6 +29,13 @@ from app.status_utils import computed_status_for_interview_display
 
 router = APIRouter(prefix="/api/v1/candidates", tags=["Candidates"], dependencies=[Depends(get_current_user)])
 
+_AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5MB
+_AVATAR_CONTENT_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+
 
 # ─── Helpers ─────────────────────────────────────────────────
 
@@ -35,7 +46,27 @@ def _serialize_dept_ids(dept_ids: Optional[list[uuid.UUID]]) -> Optional[str]:
     return json.dumps([str(d) for d in dept_ids])
 
 
-def _build_candidate_read(candidate: Candidate, session: Session) -> CandidateRead:
+def _get_s3_client(settings):
+    try:
+        import boto3
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail="boto3 is required for S3 uploads") from e
+
+    aws_access_key_id = settings.effective_aws_access_key_id
+    aws_secret_access_key = settings.effective_aws_secret_access_key
+
+    if not aws_access_key_id or not aws_secret_access_key:
+        raise HTTPException(status_code=500, detail="AWS credentials are not configured")
+
+    return boto3.client(
+        "s3",
+        region_name=settings.AWS_REGION,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+    )
+
+
+def _build_candidate_read(candidate: Candidate, session: Session, settings) -> CandidateRead:
     """Build a CandidateRead response with multi-department data."""
     dept_id_list = candidate.get_department_ids_list()
 
@@ -56,6 +87,7 @@ def _build_candidate_read(candidate: Candidate, session: Session) -> CandidateRe
         email=candidate.email,
         is_active=candidate.is_active,
         color=candidate.color,
+        avatar_url=make_presigned_doc_url(settings, candidate.avatar_url, expiry=3600),
         department_id=candidate.department_id,
         department_name=primary_dept.name if primary_dept else None,
         department_ids=dept_id_list if dept_id_list else None,
@@ -72,6 +104,7 @@ def list_candidates(
     department_id: Optional[uuid.UUID] = Query(None, description="Filter by department (cross-dept roles only)"),
     is_active: Optional[bool] = Query(None, description="Filter by active status. Omit for all, True for active, False for inactive."),
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
     """List candidates. Team members see their own department only; cross-dept roles see all (or filtered by ?department_id=).
@@ -151,6 +184,7 @@ def list_candidates(
             email=c.email,
             is_active=c.is_active,
             color=c.color,
+            avatar_url=make_presigned_doc_url(settings, c.avatar_url, expiry=3600),
             department_id=c.department_id,
             department_name=primary_dept_name,
             department_ids=dept_id_list if dept_id_list else None,
@@ -165,6 +199,7 @@ def list_candidates(
 def create_candidate(
     data: CandidateCreate,
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
     """Create a new candidate. department_ids takes priority; department_id is automatically set to the first entry."""
@@ -220,11 +255,15 @@ def create_candidate(
     )
     session.commit()
     session.refresh(candidate)
-    return _build_candidate_read(candidate, session)
+    return _build_candidate_read(candidate, session, settings)
 
 
 @router.get("/{candidate_id}", response_model=CandidateReadWithInterviews)
-def get_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_session)):
+def get_candidate(
+    candidate_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+):
     """Get a candidate with their interview history."""
     candidate = session.get(Candidate, candidate_id)
     if not candidate:
@@ -246,7 +285,7 @@ def get_candidate(candidate_id: uuid.UUID, session: Session = Depends(get_sessio
             "company_name": interview.company.name if interview.company else None,
         })
 
-    base = _build_candidate_read(candidate, session)
+    base = _build_candidate_read(candidate, session, settings)
     return CandidateReadWithInterviews(
         **base.model_dump(),
         interviews=interview_summaries,
@@ -258,6 +297,7 @@ def update_candidate(
     candidate_id: uuid.UUID,
     data: CandidateUpdate,
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
     """Update a candidate."""
@@ -302,13 +342,14 @@ def update_candidate(
         message=f"Updated candidate '{candidate.name}'",
     )
     session.commit()
-    return _build_candidate_read(candidate, session)
+    return _build_candidate_read(candidate, session, settings)
 
 
 @router.patch("/{candidate_id}/status", response_model=CandidateRead)
 def toggle_candidate_status(
     candidate_id: uuid.UUID,
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
     """Toggle a candidate's active/inactive status."""
@@ -330,7 +371,7 @@ def toggle_candidate_status(
     )
     session.commit()
     session.refresh(candidate)
-    return _build_candidate_read(candidate, session)
+    return _build_candidate_read(candidate, session, settings)
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -364,3 +405,105 @@ def delete_candidate(
         message=f"Deleted candidate '{candidate_name}'",
     )
     session.commit()
+
+
+@router.post("/{candidate_id}/avatar", response_model=CandidateRead)
+def upload_candidate_avatar(
+    candidate_id: uuid.UUID,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a profile photo to S3 and attach it to the candidate."""
+    assert_write_access(current_user)
+    candidate = session.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    ext = _AVATAR_CONTENT_TYPES.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(
+            status_code=400, detail="Only JPEG, PNG, or WEBP images are accepted")
+
+    try:
+        file.file.seek(0, os.SEEK_END)
+        upload_size = file.file.tell()
+        file.file.seek(0)
+    except Exception:
+        upload_size = None
+
+    if upload_size is not None and upload_size > _AVATAR_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Image is too large (limit {_AVATAR_MAX_BYTES // (1024*1024)}MB)",
+        )
+
+    s3_client = _get_s3_client(settings)
+    key = f"candidate_avatars/{candidate_id}/avatar-{uuid.uuid4()}.{ext}"
+
+    try:
+        file.file.seek(0)
+        s3_client.upload_fileobj(
+            file.file,
+            settings.AWS_S3_BUCKET_NAME,
+            key,
+            ExtraArgs={"ContentType": file.content_type, "ACL": "private"},
+        )
+    except (BotoCoreError, ClientError) as e:
+        raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
+
+    candidate.avatar_url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+    candidate.updated_at = datetime.utcnow()
+
+    session.add(candidate)
+    session.commit()
+    session.refresh(candidate)
+    record_activity(
+        session,
+        actor=current_user,
+        action="upload_candidate_avatar",
+        entity_type="candidate",
+        entity_id=candidate.id,
+        message=f"Uploaded avatar for candidate '{candidate.name}'",
+    )
+    session.commit()
+    return _build_candidate_read(candidate, session, settings)
+
+
+@router.delete("/{candidate_id}/avatar", response_model=CandidateRead)
+def delete_candidate_avatar(
+    candidate_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a candidate's uploaded avatar, reverting to the colored-initials fallback."""
+    assert_write_access(current_user)
+    candidate = session.get(Candidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if candidate.avatar_url:
+        try:
+            from urllib.parse import urlparse
+            key = urlparse(candidate.avatar_url).path.lstrip("/")
+            if key:
+                _get_s3_client(settings).delete_object(Bucket=settings.AWS_S3_BUCKET_NAME, Key=key)
+        except (BotoCoreError, ClientError):
+            pass  # best-effort — still clear the DB reference below
+
+    candidate.avatar_url = None
+    candidate.updated_at = datetime.utcnow()
+    session.add(candidate)
+    record_activity(
+        session,
+        actor=current_user,
+        action="delete_candidate_avatar",
+        entity_type="candidate",
+        entity_id=candidate.id,
+        message=f"Removed avatar for candidate '{candidate.name}'",
+    )
+    session.commit()
+    session.refresh(candidate)
+    return _build_candidate_read(candidate, session, settings)

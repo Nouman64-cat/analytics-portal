@@ -20,7 +20,6 @@ import {
   truncate,
 } from "@/lib/utils";
 import { getUserRole, getUserId } from "@/lib/auth";
-import { getCandidateColor } from "@/lib/candidateColor";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
 import CandidateFilterMenu from "@/components/CandidateFilterMenu";
@@ -125,9 +124,9 @@ export default function CalendarPage() {
     setSelectedCandidateIds([]);
   }, [departmentId]);
 
-  const candidateColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    candidates.forEach((c) => { map[c.id] = getCandidateColor(c); });
+  const candidateMap = useMemo(() => {
+    const map: Record<string, Candidate> = {};
+    candidates.forEach((c) => { map[c.id] = c; });
     return map;
   }, [candidates]);
 
@@ -227,7 +226,7 @@ export default function CalendarPage() {
         onBusyBarClick={openDayModal}
         tz={tz}
         onTzChange={setTz}
-        candidateColorMap={candidateColorMap}
+        candidateMap={candidateMap}
       />
 
       {/* Interview preview modal */}
