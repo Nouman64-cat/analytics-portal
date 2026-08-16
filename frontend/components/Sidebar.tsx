@@ -20,11 +20,13 @@ import {
   Settings2,
   Layers,
   BarChart2,
+  PieChart,
   ChevronDown,
   Megaphone,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole, getCanBroadcast } from "@/lib/auth";
+import { isNewFeature } from "@/lib/newBadge";
 import { useRouter } from "next/navigation";
 import { authService, departmentsService } from "@/lib/services";
 import type { User as UserType, Department } from "@/lib/types";
@@ -57,6 +59,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Settings2,
   Layers,
   BarChart2,
+  PieChart,
   Megaphone,
 };
 
@@ -164,15 +167,17 @@ export default function Sidebar({
       "/business-developers",
       "/activities",
       "/users",
+      "/performance",
       "/backup",
       "/departments",
       "/announcements",
     ],
-    bd: ["/activities", "/users", "/backup", "/departments", "/stats", "/business-developers", "/announcements"],
+    bd: ["/activities", "/users", "/performance", "/backup", "/departments", "/stats", "/business-developers", "/announcements"],
     "team-member": [
       "/candidates",
       "/business-developers",
       "/users",
+      "/performance",
       "/backup",
       "/departments",
       "/stats",
@@ -186,7 +191,7 @@ export default function Sidebar({
       "/announcements",
     ],
     "bd-team-lead": ["/activities", "/backup", "/departments", "/announcements"],
-    "bd-manager": ["/activities", "/users", "/backup", "/announcements"],
+    "bd-manager": ["/activities", "/users", "/performance", "/backup", "/announcements"],
     "tech-stack-manager": [
       "/",
       "/stats",
@@ -195,6 +200,7 @@ export default function Sidebar({
       "/candidates",
       "/activities",
       "/users",
+      "/performance",
       "/backup",
       "/announcements",
     ],
@@ -330,6 +336,11 @@ export default function Sidebar({
                   }`}
                 />
                 {!collapsed && <span>{item.label}</span>}
+                {!collapsed && isNewFeature(item.href) && (
+                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                    New
+                  </span>
+                )}
                 {isActive && !collapsed && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
                 )}

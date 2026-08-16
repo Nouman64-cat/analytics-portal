@@ -3,13 +3,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { interviewsService, busyDaysService, departmentsService } from "@/lib/services";
-import type { Interview, BusyDay, Department } from "@/lib/types";
+import { interviewsService, busyDaysService, departmentsService, candidatesService } from "@/lib/services";
+import type { Interview, BusyDay, Department, Candidate } from "@/lib/types";
 import {
   formatInterviewDateEst,
   formatInterviewTimeInZone,
@@ -19,8 +20,10 @@ import {
   truncate,
 } from "@/lib/utils";
 import { getUserRole, getUserId } from "@/lib/auth";
+import { getCandidateColor } from "@/lib/candidateColor";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
+import CandidateFilterMenu from "@/components/CandidateFilterMenu";
 import Modal, { buttonPrimary, buttonSecondary } from "@/components/Modal";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -67,6 +70,8 @@ export default function CalendarPage() {
   const router = useRouter();
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [busyDays, setBusyDays] = useState<BusyDay[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,12 +96,14 @@ export default function CalendarPage() {
     try {
       setLoading(true);
       setError(null);
-      const [interviewData, busyData] = await Promise.all([
+      const [interviewData, busyData, candidateData] = await Promise.all([
         interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
         busyDaysService.list(departmentId ? { department_id: departmentId } : undefined),
+        candidatesService.list({ department_id: departmentId }),
       ]);
       setInterviews(interviewData);
       setBusyDays(busyData);
+      setCandidates(candidateData);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load calendar data",
@@ -112,6 +119,22 @@ export default function CalendarPage() {
       departmentsService.list().then((depts) => setDepartments(depts.filter((d) => d.is_active))).catch(() => {});
     }
   }, [fetchData, isSuperadmin]);
+
+  // Department scope changed — the previously selected candidates may no longer apply.
+  useEffect(() => {
+    setSelectedCandidateIds([]);
+  }, [departmentId]);
+
+  const candidateColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    candidates.forEach((c) => { map[c.id] = getCandidateColor(c); });
+    return map;
+  }, [candidates]);
+
+  const filteredInterviews = useMemo(() => {
+    if (selectedCandidateIds.length === 0) return interviews;
+    return interviews.filter((i) => i.candidate_id && selectedCandidateIds.includes(i.candidate_id));
+  }, [interviews, selectedCandidateIds]);
 
   const openInterviewPreview = useCallback((interview: Interview) => {
     setPreview(interview);
@@ -190,8 +213,13 @@ export default function CalendarPage() {
         title="Interview calendar"
         subtitle="Days follow each interview's scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid can be viewed in Eastern, Central, Mountain, or Pacific time. The preview shows EST, PKT, and the selected timezone."
       />
+      <CandidateFilterMenu
+        candidates={candidates}
+        selected={selectedCandidateIds}
+        onChange={setSelectedCandidateIds}
+      />
       <InterviewsCalendar
-        interviews={interviews}
+        interviews={filteredInterviews}
         onSelectInterview={openInterviewPreview}
         busyDays={busyDays}
         currentUserId={currentUserId ?? undefined}
@@ -199,6 +227,7 @@ export default function CalendarPage() {
         onBusyBarClick={openDayModal}
         tz={tz}
         onTzChange={setTz}
+        candidateColorMap={candidateColorMap}
       />
 
       {/* Interview preview modal */}

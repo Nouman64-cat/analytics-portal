@@ -11,6 +11,7 @@ export const NAV_ITEMS = [
   { label: "Calendar", href: "/calendar", icon: "Calendar" },
   { label: "Companies", href: "/companies", icon: "Building2" },
   { label: "Candidates", href: "/candidates", icon: "Users" },
+  { label: "Performance", href: "/performance", icon: "PieChart" },
   { label: "Resume Profiles", href: "/resume-profiles", icon: "FileUser" },
   { label: "Business Devs", href: "/business-developers", icon: "Briefcase" },
   { label: "Activities", href: "/activities", icon: "History" },

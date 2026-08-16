@@ -55,6 +55,7 @@ export default function InterviewsCalendar({
   onBusyBarClick,
   tz = INTERVIEW_SCHEDULE_TZ,
   onTzChange,
+  candidateColorMap = {},
 }: {
   interviews: Interview[];
   onSelectInterview: (interview: Interview) => void;
@@ -65,6 +66,8 @@ export default function InterviewsCalendar({
   /** IANA zone to display interview times in (see {@link TIMEZONE_OPTIONS}). Defaults to Eastern. */
   tz?: string;
   onTzChange?: (tz: string) => void;
+  /** candidate_id -> hex color, used to accent each interview's block with its candidate's color. */
+  candidateColorMap?: Record<string, string>;
 }) {
   function getCandidateInitials(name?: string | null): string {
     if (!name) return "?";
@@ -302,21 +305,32 @@ export default function InterviewsCalendar({
                   );
                 })()}
                 <ul className="space-y-0.5 sm:space-y-1">
-                  {visible.map((inv) => (
+                  {visible.map((inv) => {
+                    const candColor = inv.candidate_id ? candidateColorMap[inv.candidate_id] : undefined;
+                    return (
                     <li key={inv.id}>
                       <button
                         type="button"
                         onClick={() => onSelectInterview(inv)}
+                        style={candColor ? { borderLeftColor: candColor, borderLeftWidth: 3 } : undefined}
                         className="group w-full rounded border border-slate-200/80 bg-slate-50 px-0.5 py-0.5 text-left text-[8px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-1 sm:text-[10px]"
                       >
                         {/* Full-width horizontal bar: [initials · round] ··· [company · time] */}
                         <span className="flex w-full items-center justify-between gap-1 min-w-0">
                           {/* LEFT: initials + round */}
                           <span className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-                            <span className="hidden sm:inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[8px] font-bold text-indigo-700 dark:text-indigo-300">
+                            <span
+                              className={`hidden sm:inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold ${
+                                candColor ? "text-white" : "bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
+                              }`}
+                              style={candColor ? { background: candColor } : undefined}
+                            >
                               {getCandidateInitials(inv.candidate_name)}
                             </span>
-                            <span className="sm:hidden text-[7px] font-bold text-indigo-600 dark:text-indigo-400">
+                            <span
+                              className="sm:hidden text-[7px] font-bold text-indigo-600 dark:text-indigo-400"
+                              style={candColor ? { color: candColor } : undefined}
+                            >
                               {getCandidateInitials(inv.candidate_name)}
                             </span>
                             <span className="font-semibold text-indigo-700 dark:text-indigo-300">
@@ -337,7 +351,8 @@ export default function InterviewsCalendar({
                         </span>
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
                 {rest > 0 && (
                   <button
@@ -375,7 +390,9 @@ export default function InterviewsCalendar({
               open one for details.
             </p>
             <ul className="max-h-[min(60vh,20rem)] space-y-2 overflow-y-auto">
-              {dayListModal.interviews.map((inv) => (
+              {dayListModal.interviews.map((inv) => {
+                const candColor = inv.candidate_id ? candidateColorMap[inv.candidate_id] : undefined;
+                return (
                 <li key={inv.id}>
                   <button
                     type="button"
@@ -383,11 +400,17 @@ export default function InterviewsCalendar({
                       onSelectInterview(inv);
                       setDayListModal(null);
                     }}
+                    style={candColor ? { borderLeftColor: candColor, borderLeftWidth: 3 } : undefined}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-900 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/80 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15"
                   >
                     <div className="flex items-center gap-2">
                       {/* Candidate initials */}
-                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                      <span
+                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                          candColor ? "text-white" : "bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
+                        }`}
+                        style={candColor ? { background: candColor } : undefined}
+                      >
                         {getCandidateInitials(inv.candidate_name)}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -409,7 +432,8 @@ export default function InterviewsCalendar({
                     </div>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         )}
@@ -425,14 +449,19 @@ export default function InterviewsCalendar({
             add or edit dates.
           </p>
           <ul className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {undated.map((inv) => (
+            {undated.map((inv) => {
+              const candColor = inv.candidate_id ? candidateColorMap[inv.candidate_id] : undefined;
+              return (
               <li key={inv.id} className="min-w-0 sm:max-w-none">
                 <button
                   type="button"
                   onClick={() => onSelectInterview(inv)}
                   className="flex w-full max-w-full flex-col items-stretch gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-2 text-left text-xs font-medium text-amber-950 hover:bg-amber-50 sm:inline-flex sm:w-auto sm:flex-row sm:items-center sm:gap-2 dark:border-amber-500/30 dark:bg-[#1a1d2a] dark:text-amber-50 dark:hover:bg-amber-500/10"
                 >
-                  <span className="line-clamp-2 min-w-0 break-words sm:line-clamp-1 sm:max-w-[12rem]">
+                  <span className="line-clamp-2 min-w-0 break-words sm:line-clamp-1 sm:max-w-[12rem] inline-flex items-center gap-1.5">
+                    {candColor && (
+                      <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: candColor }} />
+                    )}
                     {inv.candidate_name} · {inv.company_name}
                   </span>
                   <span className="shrink-0 self-start sm:self-center">
@@ -440,7 +469,8 @@ export default function InterviewsCalendar({
                   </span>
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
