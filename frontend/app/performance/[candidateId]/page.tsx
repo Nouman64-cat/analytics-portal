@@ -11,6 +11,7 @@ import {
   Award,
   AlertTriangle,
   Activity,
+  Trophy,
 } from "lucide-react";
 import {
   PieChart,
@@ -239,7 +240,8 @@ export default function CandidatePerformancePage() {
     ).length;
     const unresponsive = leads.filter((l) => l.lead_outcome === "unresponsive").length;
     const progressed = leads.filter((l) => l.lead_outcome === "active").length;
-    return { total, legit, closed, rejected, unresponsive, progressed, dropped };
+    const finalRounds = leads.filter((l) => l.last_round?.toLowerCase().includes("final")).length;
+    return { total, legit, closed, rejected, unresponsive, progressed, dropped, finalRounds };
   }, [leads]);
 
   // ── Interviews Metrics ───────────────────────────────────
@@ -260,7 +262,8 @@ export default function CandidatePerformancePage() {
       else if (label === "dead") rejected++;
       else if (label.includes("closed")) closed++;
     });
-    return { total, legit, closed, rejected, unresponsive, progressed, dropped };
+    const finalRounds = interviews.filter((i) => i.round?.toLowerCase().includes("final")).length;
+    return { total, legit, closed, rejected, unresponsive, progressed, dropped, finalRounds };
   }, [interviews]);
 
   const m = activeTab === "leads" ? leadsMetrics : interviewsMetrics;
@@ -418,13 +421,14 @@ export default function CandidatePerformancePage() {
       </div>
 
       {/* ── KPI Stat Cards ──────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <StatCard label="Total" value={m.total} sub={`${m.legit} legit`} color="#6366f1" icon={<Target size={14} />} />
         <StatCard label="Closed" value={m.closed} sub={`${pct(m.closed, m.legit)}% rate`} color="#10b981" icon={<Award size={14} />} />
         <StatCard label="Progressed" value={m.progressed} sub={`${pct(m.progressed, m.legit)}% rate`} color="#8b5cf6" icon={<TrendingUp size={14} />} />
         <StatCard label="Rejected" value={m.rejected} sub={`${pct(m.rejected, m.legit)}% rate`} color="#ef4444" icon={<AlertTriangle size={14} />} />
         <StatCard label="Unresponsive" value={m.unresponsive} sub={`${pct(m.unresponsive, m.legit)}% rate`} color="#f59e0b" icon={<Users size={14} />} />
         <StatCard label="Dropped" value={m.dropped} sub={`${pct(m.dropped, m.total)}% of total`} color="#3b82f6" icon={<Activity size={14} />} />
+        <StatCard label="Final Rounds" value={m.finalRounds} sub="reached final" color="#14b8a6" icon={<Trophy size={14} />} />
       </div>
 
       {/* ── Charts Row 1: Donut + Rate Bars ─────────────── */}

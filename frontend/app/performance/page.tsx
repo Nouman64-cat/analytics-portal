@@ -23,6 +23,7 @@ interface CandidateMetrics {
   progressed: number;
   unresponsive: number;
   dropped: number;
+  finalRounds: number;
   closingPct: number;
   rejectionPct: number;
   progressedPct: number;
@@ -117,6 +118,7 @@ export default function PerformancePage() {
         const rejected = rows.filter((l) => l.lead_outcome === "rejected" || l.lead_outcome === "dead").length;
         const unresponsive = rows.filter((l) => l.lead_outcome === "unresponsive").length;
         const progressed = rows.filter((l) => l.lead_outcome === "active").length;
+        const finalRounds = rows.filter((l) => l.last_round?.toLowerCase().includes("final")).length;
         return {
           candidate,
           total,
@@ -126,6 +128,7 @@ export default function PerformancePage() {
           progressed,
           unresponsive,
           dropped,
+          finalRounds,
           closingPct: pct(closed, legit),
           rejectionPct: pct(rejected, legit),
           progressedPct: pct(progressed, legit),
@@ -161,6 +164,7 @@ export default function PerformancePage() {
           else if (label.includes("closed")) closed++;
           // "dropped" computed_status rows are already captured via lead_outcome above
         });
+        const finalRounds = rows.filter((i) => i.round?.toLowerCase().includes("final")).length;
         return {
           candidate,
           total,
@@ -170,6 +174,7 @@ export default function PerformancePage() {
           progressed,
           unresponsive,
           dropped,
+          finalRounds,
           closingPct: pct(closed, legit),
           rejectionPct: pct(rejected, legit),
           progressedPct: pct(progressed, legit),
@@ -294,6 +299,7 @@ export default function PerformancePage() {
                   <th className={`px-4 py-3 font-semibold text-right ${METRIC_STYLE.rejected.text}`}>Rejection</th>
                   <th className={`px-4 py-3 font-semibold text-right ${METRIC_STYLE.unresponsive.text}`}>Unresponsed</th>
                   <th className={`px-4 py-3 font-semibold text-right ${DROPPED_STYLE.text}`} title="% of all leads/interviews, not just legit">Dropped</th>
+                  <th className="px-4 py-3 font-semibold text-right text-teal-600 dark:text-teal-400" title="Interviews/leads that reached a round containing 'Final'">Final Rounds</th>
                 </tr>
               </thead>
               <tbody>
@@ -343,6 +349,16 @@ export default function PerformancePage() {
                       ))}
                       <td className={`px-4 py-3 text-right font-semibold tabular-nums ${DROPPED_STYLE.text}`}>
                         {m.droppedPct}%
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-teal-600 dark:text-teal-400">
+                        {m.finalRounds > 0 ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-500" />
+                            {m.finalRounds}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>
+                        )}
                       </td>
                     </tr>
                   );
