@@ -8,6 +8,7 @@ import { useTheme } from "../../../lib/theme";
 import { leadsService, companiesService, profilesService, businessDevelopersService, candidatesService } from "../../../lib/api";
 import type { Company, ResumeProfile, BusinessDeveloper, Candidate } from "../../../lib/types";
 import { useDepartmentContext } from "../../../lib/DepartmentContext";
+import { isInDepartmentScope } from "../../../lib/deptScope";
 import type { SelectOption } from "../../../components/FormField";
 
 export default function NewLeadScreen() {
@@ -35,21 +36,21 @@ export default function NewLeadScreen() {
       try {
         const [c, p, b, cd] = await Promise.all([
           companiesService.list(),
-          profilesService.list(),
+          profilesService.list({ department_id: departmentId }),
           businessDevelopersService.list(),
-          candidatesService.list(),
+          candidatesService.list({ department_id: departmentId }),
         ]);
         setCompanies(c);
         setProfiles(p);
-        setBds(b);
-        setCandidates(cd);
+        setBds(b.filter((bd) => bd.is_active && isInDepartmentScope(bd.department_ids, departmentId)));
+        setCandidates(cd.filter((c2) => c2.is_active));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load form data");
       } finally {
         setLoadingOptions(false);
       }
     })();
-  }, []);
+  }, [departmentId]);
 
   async function handleCreateCompany(name: string): Promise<SelectOption | null> {
     try {

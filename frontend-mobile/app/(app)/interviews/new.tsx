@@ -7,9 +7,12 @@ import { TextField, SelectField, SelectOption } from "../../../components/FormFi
 import { useTheme } from "../../../lib/theme";
 import { interviewsService, companiesService, profilesService, candidatesService, businessDevelopersService } from "../../../lib/api";
 import type { Company, ResumeProfile, Candidate, BusinessDeveloper } from "../../../lib/types";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
+import { isInDepartmentScope } from "../../../lib/deptScope";
 
 export default function NewInterviewScreen() {
   const t = useTheme();
+  const { departmentId } = useDepartmentContext();
   const params = useLocalSearchParams<{
     threadId?: string;
     parentInterviewId?: string;
@@ -44,21 +47,22 @@ export default function NewInterviewScreen() {
       try {
         const [c, p, cd, b] = await Promise.all([
           companiesService.list(),
-          profilesService.list(),
-          candidatesService.list(),
+          profilesService.list({ department_id: departmentId }),
+          candidatesService.list({ department_id: departmentId }),
           businessDevelopersService.list(),
         ]);
         setCompanies(c);
         setProfiles(p);
-        setCandidates(cd);
-        setBds(b);
+        setCandidates(cd.filter((c2) => c2.is_active || c2.id === params.candidateId));
+        setBds(b.filter((bd) => bd.is_active && isInDepartmentScope(bd.department_ids, departmentId)));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load form data");
       } finally {
         setLoadingOptions(false);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     })();
-  }, []);
+  }, [departmentId]);
 
   async function handleCreateCompany(name: string): Promise<SelectOption | null> {
     try {
