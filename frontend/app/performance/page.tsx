@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Search, X, Shield } from "lucide-react";
+import { Search, X, Shield, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { candidatesService, leadsService, interviewsService } from "@/lib/services";
 import { PageLoader, ErrorState, EmptyState } from "@/components/PageStates";
 import { inputClass } from "@/components/Modal";
@@ -52,6 +53,7 @@ function pct(count: number, denom: number): number {
 
 export default function PerformancePage() {
   const { departmentId } = useDepartmentContext();
+  const router = useRouter();
   const role = getUserRole();
   const isSuperadmin = role === "superadmin";
   const isDeptLead = role === "dept-lead";
@@ -305,12 +307,14 @@ export default function PerformancePage() {
                   return (
                     <tr
                       key={m.candidate.id}
-                      className="border-b border-slate-100 dark:border-white/[0.04] last:border-b-0 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors"
+                      onClick={() => router.push(`/performance/${m.candidate.id}`)}
+                      className="border-b border-slate-100 dark:border-white/[0.04] last:border-b-0 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer group"
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <CandidateAvatar candidate={m.candidate} size={20} />
-                          <span className="font-medium text-slate-900 dark:text-white truncate">{m.candidate.name}</span>
+                          <span className="font-medium text-slate-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{m.candidate.name}</span>
+                          <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-slate-500 dark:text-slate-400 tabular-nums">
