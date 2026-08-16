@@ -97,6 +97,7 @@ import TypeableSelect from "@/components/TypeableSelect";
 import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
 import CandidateAvatar from "@/components/CandidateAvatar";
+import CandidateFilterMenu from "@/components/CandidateFilterMenu";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
@@ -677,7 +678,6 @@ export default function InterviewsPage() {
   const [filters, setFilters] = useState({
     status: "All",
     company_id: "All",
-    candidate_id: "All",
     resume_profile_id: "All",
     round: "All",
     bd_id: "All",
@@ -686,6 +686,7 @@ export default function InterviewsPage() {
     date_from: "",
     date_to: "",
   });
+  const [candidateFilter, setCandidateFilter] = useState<string[]>([]);
   const [showExtraFilters, setShowExtraFilters] = useState(false);
 
   // Ticks every 30 s so countdown badges in the table stay live.
@@ -732,7 +733,7 @@ export default function InterviewsPage() {
   // Reset page to 1 when search, filters, or page size change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filters, itemsPerPage]);
+  }, [search, filters, candidateFilter, itemsPerPage]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -850,6 +851,12 @@ export default function InterviewsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const { departmentId } = useDepartmentContext();
+
+  // Department scope changed — previously selected candidates may no longer apply.
+  useEffect(() => {
+    setCandidateFilter([]);
+  }, [departmentId]);
+
   const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest";
   const isTeamMember = role === "team-member";
   const canEditLeadThreadPanel =
@@ -1548,7 +1555,8 @@ export default function InterviewsPage() {
         interviewCompany?.is_staffing_firm === false) ||
       i.company_id === filters.company_id;
     const matchCandidate =
-      filters.candidate_id === "All" || i.candidate_id === filters.candidate_id;
+      candidateFilter.length === 0 ||
+      (!!i.candidate_id && candidateFilter.includes(i.candidate_id));
     const matchProfile =
       filters.resume_profile_id === "All" ||
       i.resume_profile_id === filters.resume_profile_id;
@@ -1767,7 +1775,7 @@ export default function InterviewsPage() {
         const anyFilter =
           filters.status !== "All" ||
           filters.company_id !== "All" ||
-          filters.candidate_id !== "All" ||
+          candidateFilter.length > 0 ||
           filters.resume_profile_id !== "All" ||
           filters.round !== "All" ||
           filters.bd_id !== "All" ||
@@ -1819,20 +1827,11 @@ export default function InterviewsPage() {
                 <option value="Dropped">Dropped</option>
               </select>
               {!isTeamMember && (
-                <select
-                  value={filters.candidate_id}
-                  onChange={(e) =>
-                    setFilters({ ...filters, candidate_id: e.target.value })
-                  }
-                  className={iSel}
-                >
-                  <option value="All">All candidates</option>
-                  {candidates.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <CandidateFilterMenu
+                  candidates={candidates}
+                  selected={candidateFilter}
+                  onChange={setCandidateFilter}
+                />
               )}
               <button
                 onClick={() =>
@@ -1869,11 +1868,10 @@ export default function InterviewsPage() {
               </button>
               {anyFilter && (
                 <button
-                  onClick={() =>
+                  onClick={() => {
                     setFilters({
                       status: "All",
                       company_id: "All",
-                      candidate_id: "All",
                       resume_profile_id: "All",
                       round: "All",
                       bd_id: "All",
@@ -1881,8 +1879,9 @@ export default function InterviewsPage() {
                       is_today: false,
                       date_from: "",
                       date_to: "",
-                    })
-                  }
+                    });
+                    setCandidateFilter([]);
+                  }}
                   className="text-xs font-medium text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
                 >
                   Clear all
@@ -2030,9 +2029,6 @@ export default function InterviewsPage() {
                       title="Wall-clock time in Pakistan (same instant as EST column)"
                     >
                       PKT
-                    </th>
-                    <th className="hidden xl:table-cell px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                      BD
                     </th>
                     <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                       Status
@@ -2336,13 +2332,6 @@ export default function InterviewsPage() {
                           {interview.time_pkt ? (
                             formatTime(interview.time_pkt)
                           ) : (
-                            <span className="text-slate-400 dark:text-slate-600">
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                          {interview.bd_name || (
                             <span className="text-slate-400 dark:text-slate-600">
                               —
                             </span>

@@ -172,7 +172,7 @@ def _filter_merged_leads(
     status: Literal["all", "open", "terminal"],
     bd_id: Optional[uuid.UUID],
     resume_profile_id: Optional[uuid.UUID],
-    candidate_id: Optional[uuid.UUID],
+    candidate_ids: Optional[list[uuid.UUID]],
     outcome: Optional[str],
     lead_source: Literal["all", "explicit", "derived"],
     date_from: Optional[date] = None,
@@ -201,8 +201,9 @@ def _filter_merged_leads(
         rows = [l for l in rows if l.primary_bd_id == bd_id]
     if resume_profile_id is not None:
         rows = [l for l in rows if l.resume_profile_id == resume_profile_id]
-    if candidate_id is not None:
-        rows = [l for l in rows if l.candidate_id == candidate_id]
+    if candidate_ids:
+        candidate_id_set = set(candidate_ids)
+        rows = [l for l in rows if l.candidate_id in candidate_id_set]
     if outcome and outcome.strip():
         o = outcome.strip().lower()
         rows = [l for l in rows if (l.lead_outcome or "").lower() == o]
@@ -315,6 +316,7 @@ def list_leads(
     bd_id: Annotated[Optional[uuid.UUID], Query()] = None,
     resume_profile_id: Annotated[Optional[uuid.UUID], Query()] = None,
     candidate_id: Annotated[Optional[uuid.UUID], Query()] = None,
+    candidate_ids: Annotated[Optional[list[uuid.UUID]], Query()] = None,
     outcome: Annotated[Optional[str], Query()] = None,
     lead_source: Annotated[Literal["all",
                                    "explicit", "derived"], Query()] = "all",
@@ -486,13 +488,15 @@ def list_leads(
         reverse=True,
     )
 
+    effective_candidate_ids = candidate_ids if candidate_ids else ([candidate_id] if candidate_id else None)
+
     filtered = _filter_merged_leads(
         out,
         search,
         status,
         bd_id,
         resume_profile_id,
-        candidate_id,
+        effective_candidate_ids,
         outcome,
         lead_source,
         date_from,

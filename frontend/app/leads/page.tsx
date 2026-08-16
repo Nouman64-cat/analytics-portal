@@ -76,6 +76,7 @@ import {
 import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
 import CandidateAvatar from "@/components/CandidateAvatar";
+import CandidateFilterMenu from "@/components/CandidateFilterMenu";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
@@ -195,7 +196,7 @@ export default function LeadsPage() {
   const comboboxRef = useRef<CompanyComboboxHandle>(null);
   const [bdFilter, setBdFilter] = useState<string>("all");
   const [profileFilter, setProfileFilter] = useState<string>("all");
-  const [candidateFilter, setCandidateFilter] = useState<string>("all");
+  const [candidateFilter, setCandidateFilter] = useState<string[]>([]);
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [convertedFilter, setConvertedFilter] = useState<string>("all");
   const [sortFilter, setSortFilter] =
@@ -269,7 +270,7 @@ export default function LeadsPage() {
           bd_id: bdFilter !== "all" ? bdFilter : undefined,
           resume_profile_id:
             profileFilter !== "all" ? profileFilter : undefined,
-          candidate_id: candidateFilter !== "all" ? candidateFilter : undefined,
+          candidate_ids: candidateFilter.length > 0 ? candidateFilter : undefined,
           outcome: outcomeFilter !== "all" ? outcomeFilter : undefined,
           is_converted: convertedFilter === "all" ? undefined : convertedFilter === "true",
           sort: sortFilter,
@@ -323,6 +324,11 @@ export default function LeadsPage() {
     dateTo,
     page,
   ]);
+
+  // Department scope changed — previously selected candidates may no longer apply.
+  useEffect(() => {
+    setCandidateFilter([]);
+  }, [departmentId]);
 
   const voiceCtx = useVoiceContext();
 
@@ -384,7 +390,7 @@ Return "all" for fields the user didn't mention.`;
           const parsed = JSON.parse(data.choices[0].message.content);
           if (parsed.outcomeFilter) setOutcomeFilter(parsed.outcomeFilter);
           if (parsed.bdFilter) setBdFilter(parsed.bdFilter);
-          if (parsed.candidateFilter) setCandidateFilter(parsed.candidateFilter);
+          if (parsed.candidateFilter && parsed.candidateFilter !== "all") setCandidateFilter([parsed.candidateFilter]);
           if (parsed.profileFilter) setProfileFilter(parsed.profileFilter);
           setPage(1);
         }
@@ -526,7 +532,7 @@ Return "all" for fields the user didn't mention.`;
       !debouncedSearch.trim() &&
       bdFilter === "all" &&
       profileFilter === "all" &&
-      candidateFilter === "all" &&
+      candidateFilter.length === 0 &&
       outcomeFilter === "all" &&
       convertedFilter === "all" &&
       sortFilter === "last_activity_desc" &&
@@ -576,7 +582,7 @@ Return "all" for fields the user didn't mention.`;
     setSearchResetKey((k) => k + 1);
     setBdFilter("all");
     setProfileFilter("all");
-    setCandidateFilter("all");
+    setCandidateFilter([]);
     setOutcomeFilter("all");
     setConvertedFilter("all");
     setSortFilter("last_activity_desc");
@@ -873,21 +879,14 @@ Return "all" for fields the user didn't mention.`;
                   <option value="true">Progressed</option>
                   <option value="false">Not Progressed</option>
                 </select>
-                <select
-                  value={candidateFilter}
-                  onChange={(e) => {
-                    setCandidateFilter(e.target.value);
+                <CandidateFilterMenu
+                  candidates={candidateOptions}
+                  selected={candidateFilter}
+                  onChange={(ids) => {
+                    setCandidateFilter(ids);
                     setPage(1);
                   }}
-                  className={lSel}
-                >
-                  <option value="all">All candidates</option>
-                  {candidateOptions.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                />
                 <select
                   value={bdFilter}
                   onChange={(e) => {

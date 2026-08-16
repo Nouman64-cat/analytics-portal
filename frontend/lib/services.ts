@@ -161,6 +161,9 @@ export const leadsService = {
     if (params?.resume_profile_id)
       sp.set("resume_profile_id", params.resume_profile_id);
     if (params?.candidate_id) sp.set("candidate_id", params.candidate_id);
+    if (params?.candidate_ids?.length) {
+      params.candidate_ids.forEach((id) => sp.append("candidate_ids", id));
+    }
     if (params?.outcome?.trim()) sp.set("outcome", params.outcome.trim());
     if (params?.lead_source && params.lead_source !== "all")
       sp.set("lead_source", params.lead_source);

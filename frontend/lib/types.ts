@@ -347,6 +347,8 @@ export interface LeadListParams {
   bd_id?: string;
   resume_profile_id?: string;
   candidate_id?: string;
+  /** Multiple candidate IDs (OR'd together). Preferred over `candidate_id` for multi-select filters. */
+  candidate_ids?: string[];
   /** Exact `lead_outcome` slug (e.g. rejected, active). */
   outcome?: string;
   lead_source?: "all" | "explicit" | "derived";
