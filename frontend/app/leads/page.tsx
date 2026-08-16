@@ -77,6 +77,7 @@ import { LEAD_STAT_CARD_GRADIENT } from "@/lib/constants";
 import { getUserRole } from "@/lib/auth";
 import CandidateAvatar from "@/components/CandidateAvatar";
 import CandidateFilterMenu from "@/components/CandidateFilterMenu";
+import ProfileAvatar from "@/components/ProfileAvatar";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
@@ -1098,9 +1099,10 @@ Return "all" for fields the user didn't mention.`;
                     </td>
                     <td className="hidden xl:table-cell py-2.5 pr-3">
                       {l.resume_profile_name ? (
-                        <span className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 ring-1 ring-inset ring-indigo-500/20 dark:ring-indigo-500/20 max-w-[160px] truncate">
-                          {l.resume_profile_name}
-                        </span>
+                        <ProfileAvatar
+                          profile={{ id: l.resume_profile_id, name: l.resume_profile_name }}
+                          size={24}
+                        />
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}

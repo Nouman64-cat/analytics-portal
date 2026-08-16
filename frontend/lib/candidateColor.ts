@@ -16,6 +16,15 @@ export const CANDIDATE_COLOR_PALETTE = [
   "#d946ef", // fuchsia
 ] as const;
 
+function hashToColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % CANDIDATE_COLOR_PALETTE.length;
+  return CANDIDATE_COLOR_PALETTE[index];
+}
+
 /**
  * A candidate's color: their own `color` if set, otherwise a deterministic pick
  * from the palette based on their id, so every candidate reads as visually
@@ -23,10 +32,10 @@ export const CANDIDATE_COLOR_PALETTE = [
  */
 export function getCandidateColor(candidate: { id: string; color?: string | null }): string {
   if (candidate.color) return candidate.color;
-  let hash = 0;
-  for (let i = 0; i < candidate.id.length; i++) {
-    hash = (hash * 31 + candidate.id.charCodeAt(i)) | 0;
-  }
-  const index = Math.abs(hash) % CANDIDATE_COLOR_PALETTE.length;
-  return CANDIDATE_COLOR_PALETTE[index];
+  return hashToColor(candidate.id);
+}
+
+/** Same deterministic palette pick, for resume profiles (which have no `color` field). */
+export function getProfileColor(profile: { id: string }): string {
+  return hashToColor(profile.id);
 }

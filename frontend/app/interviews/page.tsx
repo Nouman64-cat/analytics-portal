@@ -98,6 +98,7 @@ import { InterviewChainTimeline } from "@/components/InterviewChainTimeline";
 import { getUserRole } from "@/lib/auth";
 import CandidateAvatar from "@/components/CandidateAvatar";
 import CandidateFilterMenu from "@/components/CandidateFilterMenu";
+import ProfileAvatar from "@/components/ProfileAvatar";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { FaLinkedin } from "react-icons/fa";
 import { FaGithub } from "react-icons/fa";
@@ -1995,7 +1996,7 @@ export default function InterviewsPage() {
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-white/[0.06]">
                     <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                      Company
+                      Lead
                     </th>
                     <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                       Role
@@ -2020,15 +2021,9 @@ export default function InterviewsPage() {
                     </th>
                     <th
                       className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
-                      title="Wall-clock time in US Eastern (same instant as PKT column)"
+                      title="Wall-clock time in US Eastern and Pakistan (same instant, two time zones)"
                     >
-                      EST
-                    </th>
-                    <th
-                      className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
-                      title="Wall-clock time in Pakistan (same instant as EST column)"
-                    >
-                      PKT
+                      EST / PKT
                     </th>
                     <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                       Status
@@ -2125,6 +2120,13 @@ export default function InterviewsPage() {
                         </td>
                         <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
                           {(() => {
+                            if (!interview.resume_profile_name) {
+                              return <span className="text-slate-400 dark:text-slate-600">—</span>;
+                            }
+                            const profileForAvatar = {
+                              id: interview.resume_profile_id,
+                              name: interview.resume_profile_name,
+                            };
                             const profile = profiles.find(
                               (p) => p.id === interview.resume_profile_id,
                             );
@@ -2134,15 +2136,13 @@ export default function InterviewsPage() {
                               !profile?.portfolio_url &&
                               !profile?.resume_url
                             )
-                              return (
-                                <span>{interview.resume_profile_name}</span>
-                              );
+                              return <ProfileAvatar profile={profileForAvatar} size={24} />;
                             return (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const rect = (
-                                    e.target as HTMLElement
+                                    e.currentTarget as HTMLElement
                                   ).getBoundingClientRect();
                                   setCompanyPopover(null);
                                   setPipelinePopover(null);
@@ -2156,9 +2156,9 @@ export default function InterviewsPage() {
                                         },
                                   );
                                 }}
-                                className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                                className="cursor-pointer"
                               >
-                                {interview.resume_profile_name}
+                                <ProfileAvatar profile={profileForAvatar} size={24} />
                               </button>
                             );
                           })()}
@@ -2259,9 +2259,8 @@ export default function InterviewsPage() {
                             const hasDay =
                               parts.length > 1 && parts[0].length === 3;
                             const day = hasDay ? parts[0] : "";
-                            const rest = hasDay
-                              ? parts.slice(1).join(", ")
-                              : dateStr;
+                            // Drop the year — parts[1] is "MMM d" when a day badge is present.
+                            const rest = hasDay ? parts[1] : dateStr;
 
                             let badgeColor = "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400";
                             if (hasDay) {
@@ -2309,13 +2308,23 @@ export default function InterviewsPage() {
                         </td>
                         <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
                           <div className="flex flex-col gap-1">
-                            {interview.time_est ? (
-                              formatTime(interview.time_est)
-                            ) : (
-                              <span className="text-slate-400 dark:text-slate-600">
-                                —
-                              </span>
-                            )}
+                            <span>
+                              {interview.time_est ? (
+                                formatTime(interview.time_est)
+                              ) : (
+                                <span className="text-slate-400 dark:text-slate-600">
+                                  —
+                                </span>
+                              )}
+                              <span className="text-slate-400 dark:text-slate-600"> / </span>
+                              {interview.time_pkt ? (
+                                formatTime(interview.time_pkt)
+                              ) : (
+                                <span className="text-slate-400 dark:text-slate-600">
+                                  —
+                                </span>
+                              )}
+                            </span>
                             {isImminent && minsLeft !== null && (
                               <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
                                 🚨 {minsLeft}m
@@ -2327,15 +2336,6 @@ export default function InterviewsPage() {
                               </span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                          {interview.time_pkt ? (
-                            formatTime(interview.time_pkt)
-                          ) : (
-                            <span className="text-slate-400 dark:text-slate-600">
-                              —
-                            </span>
-                          )}
                         </td>
                         <td className="px-3 py-2.5">
                           <StatusBadge status={interview.computed_status} />
