@@ -6,9 +6,11 @@ import { LoadingView, ErrorBanner, EmptyState, ListRow, Fab, SearchBar, Badge } 
 import { useTheme } from "../../../lib/theme";
 import { candidatesService } from "../../../lib/api";
 import type { Candidate } from "../../../lib/types";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function CandidatesListScreen() {
   const t = useTheme();
+  const { departmentId } = useDepartmentContext();
   const [items, setItems] = useState<Candidate[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,14 +21,14 @@ export default function CandidatesListScreen() {
     isRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
-      setItems(await candidatesService.list());
+      setItems(await candidatesService.list({ department_id: departmentId }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load candidates");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useFocusEffect(
     useCallback(() => {

@@ -7,9 +7,11 @@ import { useTheme } from "../../../lib/theme";
 import { leadsService } from "../../../lib/api";
 import type { LeadListItem } from "../../../lib/types";
 import { statusBadge } from "../../../lib/statusMeta";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function LeadsListScreen() {
   const t = useTheme();
+  const { departmentId } = useDepartmentContext();
   const [items, setItems] = useState<LeadListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
@@ -22,7 +24,13 @@ export default function LeadsListScreen() {
     else setLoading(true);
     setError(null);
     try {
-      const page = await leadsService.list({ page: 1, page_size: 50, search: searchValue, sort: "last_activity_desc" });
+      const page = await leadsService.list({
+        page: 1,
+        page_size: 50,
+        search: searchValue,
+        sort: "last_activity_desc",
+        department_id: departmentId ?? undefined,
+      });
       setItems(page.items);
       setTotal(page.total);
     } catch (e) {
@@ -32,13 +40,13 @@ export default function LeadsListScreen() {
       setRefreshing(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [departmentId]);
 
   useFocusEffect(
     useCallback(() => {
       load();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []),
+    }, [load]),
   );
 
   return (

@@ -6,6 +6,8 @@ import type { DrawerContentComponentProps } from "expo-router/drawer";
 import { useTheme } from "../lib/theme";
 import { useAuth } from "../lib/AuthContext";
 import { NAV_ITEMS } from "../lib/constants";
+import { useDepartmentOptions } from "../lib/useDepartmentOptions";
+import { SelectField } from "./FormField";
 
 const SUPERADMIN_ONLY = new Set(["/departments", "/users", "/backup", "/announcements"]);
 
@@ -17,6 +19,7 @@ export function DrawerContent(props: DrawerContentComponentProps) {
   const activeRoute = props.state.routeNames[props.state.index];
 
   const items = NAV_ITEMS.filter((item) => role === "superadmin" || !SUPERADMIN_ONLY.has(item.href));
+  const { departments, showSwitcher, departmentId, setDepartmentId } = useDepartmentOptions();
 
   function confirmLogout() {
     Alert.alert("Log out", "Are you sure you want to log out?", [
@@ -56,6 +59,18 @@ export function DrawerContent(props: DrawerContentComponentProps) {
           {role ?? ""}
         </Text>
       </View>
+
+      {showSwitcher && (
+        <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
+          <SelectField
+            label="Department"
+            value={departmentId}
+            onSelect={setDepartmentId}
+            options={departments.map((d) => ({ label: d.name, value: d.id }))}
+            placeholder="Select department"
+          />
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
         {items.map((item) => {

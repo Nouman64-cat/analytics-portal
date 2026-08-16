@@ -6,10 +6,12 @@ import { BarList } from "../../components/BarList";
 import { useTheme } from "../../lib/theme";
 import { dashboardService } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
+import { useDepartmentContext } from "../../lib/DepartmentContext";
 
 export default function StatsScreen() {
   const t = useTheme();
-  const { data, loading, refreshing, error, refresh } = useApi(() => dashboardService.getStats());
+  const { departmentId } = useDepartmentContext();
+  const { data, loading, refreshing, error, refresh } = useApi(() => dashboardService.getStats(departmentId), [departmentId]);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

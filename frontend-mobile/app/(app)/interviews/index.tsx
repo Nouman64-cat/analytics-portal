@@ -7,9 +7,11 @@ import { useTheme } from "../../../lib/theme";
 import { interviewsService } from "../../../lib/api";
 import type { Interview } from "../../../lib/types";
 import { statusBadge, formatDate, prettify } from "../../../lib/statusMeta";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function InterviewsListScreen() {
   const t = useTheme();
+  const { departmentId } = useDepartmentContext();
   const [items, setItems] = useState<Interview[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function InterviewsListScreen() {
     isRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
-      const data = await interviewsService.list();
+      const data = await interviewsService.list(departmentId ? { department_id: departmentId } : undefined);
       setItems(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load interviews");
@@ -28,7 +30,7 @@ export default function InterviewsListScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useFocusEffect(
     useCallback(() => {

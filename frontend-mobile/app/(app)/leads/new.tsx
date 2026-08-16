@@ -7,9 +7,11 @@ import { TextField, SelectField } from "../../../components/FormField";
 import { useTheme } from "../../../lib/theme";
 import { leadsService, companiesService, profilesService, businessDevelopersService, candidatesService } from "../../../lib/api";
 import type { Company, ResumeProfile, BusinessDeveloper, Candidate } from "../../../lib/types";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function NewLeadScreen() {
   const t = useTheme();
+  const { departmentId } = useDepartmentContext();
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,6 +65,7 @@ export default function NewLeadScreen() {
         bd_id: bdId,
         candidate_id: candidateId,
         notes: notes.trim() || null,
+        active_department_id: departmentId,
       });
       router.replace(`/leads/${created.thread_id}`);
     } catch (e) {

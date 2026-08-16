@@ -5,6 +5,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "react-native";
 import { AuthProvider, useAuth } from "../lib/AuthContext";
+import { DepartmentProvider } from "../lib/DepartmentContext";
 import { LoadingView } from "../components/ui";
 
 function RootNavigator() {
@@ -41,8 +42,10 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <RootNavigator />
-        <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        <DepartmentProvider>
+          <RootNavigator />
+          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        </DepartmentProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

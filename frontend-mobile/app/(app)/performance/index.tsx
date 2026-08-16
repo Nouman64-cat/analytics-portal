@@ -5,6 +5,7 @@ import { Card, LoadingView, ErrorBanner, EmptyState } from "../../../components/
 import { useTheme, Theme } from "../../../lib/theme";
 import { dashboardService } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 function sumFor(periods: Record<string, Record<string, number>>, candidate: string): number {
   const bucket = periods[candidate];
@@ -14,7 +15,11 @@ function sumFor(periods: Record<string, Record<string, number>>, candidate: stri
 
 export default function PerformanceScreen() {
   const t = useTheme();
-  const { data, loading, refreshing, error, refresh } = useApi(() => dashboardService.getLeadOutcomesByCandidate());
+  const { departmentId } = useDepartmentContext();
+  const { data, loading, refreshing, error, refresh } = useApi(
+    () => dashboardService.getLeadOutcomesByCandidate(departmentId),
+    [departmentId],
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

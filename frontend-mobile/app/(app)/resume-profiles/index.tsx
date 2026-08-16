@@ -6,9 +6,11 @@ import { LoadingView, ErrorBanner, EmptyState, ListRow, Fab, SearchBar, Badge } 
 import { useTheme } from "../../../lib/theme";
 import { profilesService } from "../../../lib/api";
 import type { ResumeProfile } from "../../../lib/types";
+import { useDepartmentContext } from "../../../lib/DepartmentContext";
 
 export default function ResumeProfilesListScreen() {
   const t = useTheme();
+  const { departmentId } = useDepartmentContext();
   const [items, setItems] = useState<ResumeProfile[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,14 +21,14 @@ export default function ResumeProfilesListScreen() {
     isRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
-      setItems(await profilesService.list());
+      setItems(await profilesService.list({ department_id: departmentId }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load resume profiles");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [departmentId]);
 
   useFocusEffect(
     useCallback(() => {
