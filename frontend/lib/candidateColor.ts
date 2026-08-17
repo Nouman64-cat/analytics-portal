@@ -39,3 +39,8 @@ export function getCandidateColor(candidate: { id: string; color?: string | null
 export function getProfileColor(profile: { id: string }): string {
   return hashToColor(profile.id);
 }
+
+/** Same deterministic palette pick, for business developers (which have no `color` field). */
+export function getBdColor(bd: { id: string }): string {
+  return hashToColor(bd.id);
+}

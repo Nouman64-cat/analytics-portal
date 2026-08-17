@@ -78,6 +78,7 @@ import { getUserRole } from "@/lib/auth";
 import CandidateFilterMenu from "@/components/CandidateFilterMenu";
 import EditableCandidateCell from "@/components/EditableCandidateCell";
 import EditableProfileCell from "@/components/EditableProfileCell";
+import BdAvatar from "@/components/BdAvatar";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
 
@@ -1115,7 +1116,14 @@ Return "all" for fields the user didn't mention.`;
                       {l.primary_role ?? "—"}
                     </td>
                     <td className="hidden xl:table-cell py-2.5 pr-3 text-slate-800 dark:text-slate-200">
-                      {l.primary_bd_name ?? "—"}
+                      {l.primary_bd_name ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <BdAvatar bd={{ id: l.primary_bd_id ?? l.primary_bd_name, name: l.primary_bd_name }} size={20} />
+                          {l.primary_bd_name}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="hidden xl:table-cell py-2.5 pr-3">
                       <EditableProfileCell
@@ -1547,7 +1555,14 @@ Return "all" for fields the user didn't mention.`;
                   BD
                 </dt>
                 <dd className="mt-0.5 text-slate-900 dark:text-slate-100">
-                  {detailLead.primary_bd_name ?? "—"}
+                  {detailLead.primary_bd_name ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <BdAvatar bd={{ id: detailLead.primary_bd_id ?? detailLead.primary_bd_name, name: detailLead.primary_bd_name }} size={20} />
+                      {detailLead.primary_bd_name}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </dd>
               </div>
               <div>
