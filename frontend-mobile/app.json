@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.analyticsportal.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -27,6 +28,13 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-status-bar"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3c1f96db-b574-4d3f-8c11-36272c602b1b"
+      }
+    },
+    "owner": "nouman64"
   }
 }
