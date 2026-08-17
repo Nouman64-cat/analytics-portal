@@ -48,6 +48,7 @@ class Interview(SQLModel, table=True):
     is_phone_call: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     created_by_user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)
+    room_id: Optional[uuid.UUID] = Field(default=None, foreign_key="interview_rooms.id", index=True)
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -60,6 +61,7 @@ class Interview(SQLModel, table=True):
     resume_profile: Optional["ResumeProfile"] = Relationship(
         back_populates="interviews")
     business_developer: Optional["BusinessDeveloper"] = Relationship()
+    room: Optional["InterviewRoom"] = Relationship()
 
 
 # Import here to avoid circular imports — these are needed for relationship resolution
@@ -67,3 +69,4 @@ from app.models.company import Company  # noqa: E402, F811
 from app.models.candidate import Candidate  # noqa: E402, F811
 from app.models.resume_profile import ResumeProfile  # noqa: E402, F811
 from app.models.business_developer import BusinessDeveloper  # noqa: E402, F811
+from app.models.interview_room import InterviewRoom  # noqa: E402, F811

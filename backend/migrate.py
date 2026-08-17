@@ -496,6 +496,23 @@ def migrate():
             ("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(1000);",
              "Migration successful! 'avatar_url' column added to 'candidates' table."),
 
+            # ── Interview Rooms + coordinator room assignment ───────────────────────
+            ("""
+            CREATE TABLE IF NOT EXISTS interview_rooms (
+                id UUID PRIMARY KEY,
+                room_no VARCHAR(50) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+             "Migration successful! 'interview_rooms' table ensured."),
+            ("CREATE UNIQUE INDEX IF NOT EXISTS uq_interview_rooms_room_no ON interview_rooms (room_no);",
+             "Migration successful! Unique index on interview_rooms.room_no ensured."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS room_id UUID REFERENCES interview_rooms(id) ON DELETE SET NULL;",
+             "Migration successful! 'room_id' column added to 'interviews' table."),
+            ("CREATE INDEX IF NOT EXISTS ix_interviews_room_id ON interviews (room_id);",
+             "Migration successful! Index on interviews.room_id ensured."),
+
         ]
         for sql, msg in migrations:
             try:

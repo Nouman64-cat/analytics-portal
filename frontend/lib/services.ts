@@ -28,6 +28,8 @@ import type {
   UserFormData,
   Department,
   DepartmentFormData,
+  InterviewRoom,
+  InterviewRoomFormData,
   DatabaseBackupResult,
   DatabaseBackupListResponse,
   BusyDay,
@@ -367,6 +369,12 @@ export const interviewsService = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  /** Assign or clear an interview's room — coordinator's primary action. */
+  assignRoom: (id: string, roomId: string | null) =>
+    apiFetch<Interview>(`/interviews/${id}/room`, {
+      method: "PATCH",
+      body: JSON.stringify({ room_id: roomId }),
+    }),
   uploadInterviewDoc: (id: string, file: File, onProgress?: (pct: number) => void) =>
     interviewsService._presignAndUpload(id, "document", file, onProgress),
 
@@ -558,6 +566,24 @@ export const departmentsService = {
     }),
   deactivate: (id: string) =>
     apiFetch<void>(`/departments/${id}`, { method: "DELETE" }),
+};
+
+// ─── Interview Rooms ─────────────────────────────────────────
+
+export const interviewRoomsService = {
+  list: () => apiFetch<InterviewRoom[]>("/interview-rooms/"),
+  create: (data: InterviewRoomFormData) =>
+    apiFetch<InterviewRoom>("/interview-rooms/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: Partial<InterviewRoomFormData>) =>
+    apiFetch<InterviewRoom>(`/interview-rooms/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deactivate: (id: string) =>
+    apiFetch<void>(`/interview-rooms/${id}`, { method: "DELETE" }),
 };
 
 // ─── Busy Days (team-member & superadmin) ────────────────────

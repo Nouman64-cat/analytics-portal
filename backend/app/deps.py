@@ -58,8 +58,12 @@ def require_broadcast_access(
 
 
 def assert_write_access(user: User) -> None:
-    """Raise 403 for roles that have read-only access (e.g. BD Manager, Guest)."""
-    if user.role in (UserRole.BD_MANAGER, UserRole.GUEST):
+    """Raise 403 for roles that have read-only access (e.g. BD Manager, Guest).
+
+    Coordinators are also excluded here: their only write capability is assigning
+    rooms to interviews (see /interviews/{id}/room), not general CRUD.
+    """
+    if user.role in (UserRole.BD_MANAGER, UserRole.GUEST, UserRole.COORDINATOR):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You have read-only access",

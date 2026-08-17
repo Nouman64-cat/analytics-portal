@@ -46,6 +46,7 @@ import {
   authService,
   leadsService,
   jobRolesService,
+  interviewRoomsService,
 } from "@/lib/services";
 import {
   formatInterviewDateEst,
@@ -72,6 +73,7 @@ import type {
   InterviewFormData,
   LeadListItem,
   JobRole,
+  InterviewRoom,
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -670,6 +672,7 @@ export default function InterviewsPage() {
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
+  const [rooms, setRooms] = useState<InterviewRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -693,7 +696,7 @@ export default function InterviewsPage() {
   // Inline table-cell editing for Status / Round / Date / Time — one cell at a time.
   const [editingCell, setEditingCell] = useState<{
     id: string;
-    field: "status" | "round" | "date" | "time";
+    field: "status" | "round" | "date" | "time" | "room";
   } | null>(null);
   const [savingCell, setSavingCell] = useState(false);
 
@@ -859,7 +862,9 @@ export default function InterviewsPage() {
     setCandidateFilter([]);
   }, [departmentId]);
 
-  const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest";
+  const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest" || role === "coordinator";
+  /** Coordinators' whole job is assigning rooms; superadmin can too. */
+  const canAssignRoom = role === "superadmin" || role === "coordinator";
   const isTeamMember = role === "team-member";
   const canEditLeadThreadPanel =
     role === "superadmin" ||
@@ -897,6 +902,7 @@ export default function InterviewsPage() {
         leadsData,
         me,
         rolesData,
+        roomsData,
       ] = await Promise.all([
         interviewsService.list(
           departmentId ? { department_id: departmentId } : undefined,
@@ -912,6 +918,7 @@ export default function InterviewsPage() {
         }),
         authService.getMe(),
         jobRolesService.list(),
+        interviewRoomsService.list(),
       ]);
 
       let pipelineChains: Record<string, Interview[]> = {};
@@ -948,6 +955,7 @@ export default function InterviewsPage() {
       setLeadsList(leadsData.items);
       setMeCandidateId(me.candidate_id ?? null);
       setJobRoles(rolesData);
+      setRooms(roomsData);
 
       // Handle deep-linked interview from Dashboard
       if (typeof window !== "undefined") {
@@ -999,6 +1007,7 @@ export default function InterviewsPage() {
       feedback: "",
       recruiter_feedback: "",
       parent_interview_id: undefined,
+      room_id: "",
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -1033,6 +1042,7 @@ export default function InterviewsPage() {
       interview_link: "",
       is_phone_call: false,
       parent_interview_id: parent.id,
+      room_id: "",
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -1065,6 +1075,7 @@ export default function InterviewsPage() {
       interview_link: interview.interview_link || "",
       is_phone_call: interview.is_phone_call || false,
       parent_interview_id: interview.parent_interview_id ?? undefined,
+      room_id: interview.room_id || "",
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -1134,6 +1145,7 @@ export default function InterviewsPage() {
         interview_link?: string | null;
         is_phone_call?: boolean;
         salary_range?: string | null;
+        room_id?: string | null;
         [key: string]: string | boolean | null | undefined;
       };
 
@@ -1146,6 +1158,7 @@ export default function InterviewsPage() {
       if (!payload.feedback) payload.feedback = null;
       if (!payload.recruiter_feedback) payload.recruiter_feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
+      if (!payload.room_id) payload.room_id = null;
 
       delete (payload as { thread_id?: string }).thread_id;
       if (editingId) {
@@ -1238,6 +1251,18 @@ export default function InterviewsPage() {
       patchInterviewLocal(await interviewsService.update(interview.id, { status }));
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setSavingCell(false);
+      setEditingCell(null);
+    }
+  };
+
+  const handleInterviewRoomSave = async (interview: Interview, roomId: string | null) => {
+    setSavingCell(true);
+    try {
+      patchInterviewLocal(await interviewsService.assignRoom(interview.id, roomId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update room");
     } finally {
       setSavingCell(false);
       setEditingCell(null);
@@ -2107,6 +2132,9 @@ export default function InterviewsPage() {
                     <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                       Status
                     </th>
+                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                      Room
+                    </th>
                     <th className="px-3 py-2.5 text-right text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
                       Actions
                     </th>
@@ -2574,6 +2602,60 @@ export default function InterviewsPage() {
                                   disabled={savingCell}
                                   title="Change status"
                                   aria-label="Change status"
+                                  className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              )}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {editingCell?.id === interview.id && editingCell.field === "room" ? (
+                            <select
+                              autoFocus
+                              defaultValue={interview.room_id ?? ""}
+                              onBlur={(e) => {
+                                const val = e.target.value || null;
+                                if (val !== (interview.room_id ?? null)) {
+                                  handleInterviewRoomSave(interview, val);
+                                } else {
+                                  setEditingCell(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditingCell(null);
+                              }}
+                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
+                            >
+                              <option value="">No room</option>
+                              {rooms
+                                .filter((r) => r.is_active || r.id === interview.room_id)
+                                .map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.room_no}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : (
+                            <span className="group/cell inline-flex items-center gap-1.5">
+                              {interview.room_no ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-white/[0.06] px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                  {interview.room_no}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 dark:text-slate-600">—</span>
+                              )}
+                              {canAssignRoom && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCell({ id: interview.id, field: "room" });
+                                  }}
+                                  disabled={savingCell}
+                                  title="Assign room"
+                                  aria-label="Assign room"
                                   className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
                                 >
                                   <Pencil size={12} />
@@ -3053,6 +3135,24 @@ export default function InterviewsPage() {
               placeholder="e.g., John Smith"
               className={inputClass}
             />
+          </FormField>
+          <FormField label="Room">
+            <select
+              value={formData.room_id || ""}
+              onChange={(e) =>
+                setFormData({ ...formData, room_id: e.target.value })
+              }
+              className={selectClass}
+            >
+              <option value="">No room</option>
+              {rooms
+                .filter((r) => r.is_active || r.id === formData.room_id)
+                .map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.room_no}
+                  </option>
+                ))}
+            </select>
           </FormField>
           <div className="col-span-1 sm:col-span-2">
             <div className="flex items-center gap-3 mb-2">
@@ -3919,6 +4019,16 @@ export default function InterviewsPage() {
                         </p>
                         <p className="mt-1 text-sm text-slate-900 dark:text-white">
                           {detailModal.interviewer}
+                        </p>
+                      </div>
+                    )}
+                    {detailModal.room_no && (
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                          Room
+                        </p>
+                        <p className="mt-1 text-sm text-slate-900 dark:text-white">
+                          {detailModal.room_no}
                         </p>
                       </div>
                     )}

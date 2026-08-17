@@ -18,6 +18,7 @@ from app.models.company import Company
 from app.models.candidate import Candidate
 from app.models.resume_profile import ResumeProfile
 from app.models.business_developer import BusinessDeveloper
+from app.models.interview_room import InterviewRoom
 from app.models.interview_reminder_log import InterviewReminderLog
 from app.models.lead_thread import LeadThread
 from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
@@ -127,6 +128,7 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "resume_url": interview.resume_url,
         "ai_introduction": interview.ai_introduction,
         "is_phone_call": interview.is_phone_call,
+        "room_id": interview.room_id,
         "computed_status": computed_status_for_interview_display(
             interview.status, interview.interview_date, interview.created_at
         ),
@@ -136,6 +138,7 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "candidate_name": interview.candidate.name if interview.candidate else None,
         "resume_profile_name": interview.resume_profile.name if interview.resume_profile else None,
         "bd_name": interview.business_developer.name if interview.business_developer else None,
+        "room_no": interview.room.room_no if interview.room else None,
         "bd_dept_only": bd_dept_only,
     }
     return data
@@ -242,6 +245,7 @@ def _get_interview_for_enrichment(
             selectinload(Interview.candidate),
             selectinload(Interview.resume_profile),
             selectinload(Interview.business_developer),
+            selectinload(Interview.room),
         )
     )
     return session.exec(stmt).first()
@@ -315,6 +319,7 @@ def list_interviews(
         joinedload(Interview.candidate),
         joinedload(Interview.resume_profile),
         joinedload(Interview.business_developer),
+        joinedload(Interview.room),
     )
 
     query = apply_team_member_interview_list_filter(
@@ -614,6 +619,7 @@ def list_interviews_by_thread(
             joinedload(Interview.candidate),
             joinedload(Interview.resume_profile),
             joinedload(Interview.business_developer),
+            joinedload(Interview.room),
         )
     )
     rows = session.exec(query).all()
@@ -662,6 +668,8 @@ def create_interview(
     if payload.get("bd_id") and not session.get(BusinessDeveloper, payload["bd_id"]):
         raise HTTPException(
             status_code=404, detail="Business developer not found")
+    if payload.get("room_id") and not session.get(InterviewRoom, payload["room_id"]):
+        raise HTTPException(status_code=404, detail="Interview room not found")
 
     parent_id = payload.pop("parent_interview_id", None)
     explicit_thread = payload.pop("thread_id", None)
@@ -1214,6 +1222,53 @@ Rules:
     return IntroductionResponse(introduction=introduction)
 
 
+class AssignRoomRequest(BaseModel):
+    room_id: Optional[uuid.UUID] = None
+
+
+def _assert_room_assign_access(user: User) -> None:
+    """Coordinators may always assign rooms (it's their whole job); everyone else
+    needs the usual write access (blocks BD Manager / Guest)."""
+    if user.role == UserRole.COORDINATOR:
+        return
+    assert_write_access(user)
+
+
+@router.patch("/{interview_id}/room", response_model=InterviewReadWithDetails)
+def assign_interview_room(
+    interview_id: uuid.UUID,
+    body: AssignRoomRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign or clear the room for an interview. Primary action for coordinators."""
+    _assert_room_assign_access(current_user)
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    if body.room_id is not None and not session.get(InterviewRoom, body.room_id):
+        raise HTTPException(status_code=404, detail="Interview room not found")
+
+    interview.room_id = body.room_id
+    interview.updated_at = datetime.utcnow()
+    session.add(interview)
+    session.commit()
+    loaded = _get_interview_for_enrichment(session, interview_id)
+    if not loaded:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    record_activity(
+        session,
+        actor=current_user,
+        action="assign_interview_room",
+        entity_type="interview",
+        entity_id=loaded.id,
+        message=f"Assigned room '{loaded.room.room_no if loaded.room else 'none'}' to interview '{loaded.role}' at '{loaded.company.name if loaded.company else 'Unknown company'}'",
+    )
+    session.commit()
+    return _finalize_interview_response(session, loaded, current_user)
+
+
 @router.put("/{interview_id}", response_model=InterviewReadWithDetails)
 def update_interview(
     interview_id: uuid.UUID,
@@ -1249,6 +1304,8 @@ def update_interview(
     if "bd_id" in update_data and update_data["bd_id"] and not session.get(BusinessDeveloper, update_data["bd_id"]):
         raise HTTPException(
             status_code=404, detail="Business developer not found")
+    if "room_id" in update_data and update_data["room_id"] and not session.get(InterviewRoom, update_data["room_id"]):
+        raise HTTPException(status_code=404, detail="Interview room not found")
 
     if "parent_interview_id" in update_data:
         new_parent = update_data["parent_interview_id"]

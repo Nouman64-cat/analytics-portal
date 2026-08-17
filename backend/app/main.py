@@ -39,6 +39,7 @@ from app.routers import (
     notifications,
 )
 from app.routers import departments
+from app.routers import interview_rooms
 from app.routers import debug
 from app.routers import job_roles
 from app.routers import broadcast_modals
@@ -151,6 +152,7 @@ app.include_router(candidates.router)
 app.include_router(resume_profiles.router)
 app.include_router(companies.router)
 app.include_router(interviews.router)
+app.include_router(interview_rooms.router)
 app.include_router(leads.router)
 app.include_router(business_developers.router)
 app.include_router(activities.router)

@@ -160,6 +160,18 @@ export interface JobRole {
   name: string;
 }
 
+export interface InterviewRoom {
+  id: string;
+  room_no: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface InterviewRoomFormData {
+  room_no: string;
+  is_active?: boolean;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -202,6 +214,9 @@ export interface Interview {
   resume_url?: string | null;
   ai_introduction?: string | null;
   is_phone_call: boolean;
+  /** Interview room assignment — coordinators (and superadmin) assign this. */
+  room_id?: string | null;
+  room_no?: string | null;
   computed_status: string;
   created_at: string;
   updated_at: string;
@@ -549,6 +564,7 @@ export interface InterviewFormData {
   /** Set when creating a follow-up round (next step in the pipeline). */
   parent_interview_id?: string | null;
   thread_id?: string | null;
+  room_id?: string | null;
 }
 
 /** Superadmin: POST /api/v1/admin/backup/ */

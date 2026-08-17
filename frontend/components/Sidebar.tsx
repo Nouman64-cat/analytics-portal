@@ -23,6 +23,7 @@ import {
   PieChart,
   ChevronDown,
   Megaphone,
+  DoorOpen,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { clearToken, getUserRole, getCanBroadcast } from "@/lib/auth";
@@ -40,8 +41,8 @@ interface SidebarProps {
   onMobileClose: () => void;
 }
 
-const CROSS_DEPT_ROLES = new Set(["superadmin", "manager", "guest"]);
-const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "guest", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead", "tech-stack-manager"]);
+const CROSS_DEPT_ROLES = new Set(["superadmin", "manager", "guest", "coordinator"]);
+const MULTI_DEPT_CAPABLE_ROLES = new Set(["superadmin", "manager", "guest", "bd", "bd-team-lead", "bd-manager", "team-member", "dept-lead", "tech-stack-manager", "coordinator"]);
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
@@ -61,6 +62,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   BarChart2,
   PieChart,
   Megaphone,
+  DoorOpen,
 };
 
 export default function Sidebar({
@@ -171,8 +173,9 @@ export default function Sidebar({
       "/backup",
       "/departments",
       "/announcements",
+      "/interview-rooms",
     ],
-    bd: ["/activities", "/users", "/performance", "/backup", "/departments", "/stats", "/business-developers", "/announcements"],
+    bd: ["/activities", "/users", "/performance", "/backup", "/departments", "/stats", "/business-developers", "/announcements", "/interview-rooms"],
     "team-member": [
       "/candidates",
       "/business-developers",
@@ -182,6 +185,7 @@ export default function Sidebar({
       "/departments",
       "/stats",
       "/announcements",
+      "/interview-rooms",
     ],
     "dept-lead": [
       "/business-developers",
@@ -189,9 +193,10 @@ export default function Sidebar({
       "/backup",
       "/departments",
       "/announcements",
+      "/interview-rooms",
     ],
-    "bd-team-lead": ["/activities", "/backup", "/departments", "/announcements"],
-    "bd-manager": ["/activities", "/users", "/performance", "/backup", "/announcements"],
+    "bd-team-lead": ["/activities", "/backup", "/departments", "/announcements", "/interview-rooms"],
+    "bd-manager": ["/activities", "/users", "/performance", "/backup", "/announcements", "/interview-rooms"],
     "tech-stack-manager": [
       "/",
       "/stats",
@@ -201,6 +206,22 @@ export default function Sidebar({
       "/activities",
       "/users",
       "/performance",
+      "/backup",
+      "/announcements",
+      "/interview-rooms",
+    ],
+    guest: ["/interview-rooms"],
+    coordinator: [
+      "/leads",
+      "/stats",
+      "/companies",
+      "/candidates",
+      "/performance",
+      "/resume-profiles",
+      "/business-developers",
+      "/activities",
+      "/departments",
+      "/users",
       "/backup",
       "/announcements",
     ],

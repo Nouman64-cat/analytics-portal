@@ -27,6 +27,7 @@ class InterviewCreate(BaseModel):
     interview_doc_url: Optional[str] = None
     resume_url: Optional[str] = None
     is_phone_call: bool = False
+    room_id: Optional[uuid.UUID] = None
 
 
 class InterviewUpdate(BaseModel):
@@ -50,6 +51,7 @@ class InterviewUpdate(BaseModel):
     interview_doc_url: Optional[str] = None
     resume_url: Optional[str] = None
     is_phone_call: Optional[bool] = None
+    room_id: Optional[uuid.UUID] = None
 
 
 class InterviewRead(BaseModel):
@@ -75,6 +77,7 @@ class InterviewRead(BaseModel):
     interview_doc_url: Optional[str] = None
     resume_url: Optional[str] = None
     ai_introduction: Optional[str] = None
+    room_id: Optional[uuid.UUID] = None
     created_at: datetime
     updated_at: datetime
 
@@ -87,6 +90,7 @@ class InterviewReadWithDetails(InterviewRead):
     candidate_name: Optional[str] = None
     resume_profile_name: Optional[str] = None
     bd_name: Optional[str] = None
+    room_no: Optional[str] = None
     computed_status: str = "Unresponsed"
     # 1-based position in the full thread (all rounds); set when API scopes list per user
     pipeline_thread_step: Optional[int] = None

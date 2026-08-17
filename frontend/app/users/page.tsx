@@ -21,6 +21,7 @@ const ROLE_OPTIONS = [
   { value: "bd", label: "Business Developer" },
   { value: "team-member", label: "Team Member" },
   { value: "tech-stack-manager", label: "Tech Stack Manager" },
+  { value: "coordinator", label: "Coordinator" },
   { value: "guest", label: "Guest" },
 ];
 
@@ -42,6 +43,7 @@ function roleBadgeClass(role: string) {
     case "bd-manager": return "bg-rose-500/10 text-rose-400 border border-rose-500/20";
     case "bd": return "bg-blue-500/10 text-blue-400 border border-blue-500/20";
     case "tech-stack-manager": return "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
+    case "coordinator": return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
     case "guest": return "bg-slate-500/10 text-slate-400 border border-slate-500/20";
     default: return "bg-gray-500/10 text-gray-400 border border-gray-500/20";
   }
@@ -670,6 +672,7 @@ export default function UsersPage() {
                       { id: "manager", label: "Manager" },
                       { id: "bd-manager", label: "BD Manager" },
                       { id: "tech-stack-manager", label: "Tech Stack Manager" },
+                      { id: "coordinator", label: "Coordinator" },
                       { id: "superadmin", label: "Superadmin" },
                       { id: "guest", label: "Guest" },
                     ]
