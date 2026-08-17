@@ -8,9 +8,15 @@ import { TextField, SwitchField } from "../../../components/FormField";
 import { useTheme } from "../../../lib/theme";
 import { departmentsService } from "../../../lib/api";
 import type { Department } from "../../../lib/types";
+import { useAuth } from "../../../lib/AuthContext";
+import { canManageDepartments, canViewDepartments } from "../../../lib/permissions";
 
 export default function DepartmentsScreen() {
   const t = useTheme();
+  const { payload } = useAuth();
+  const role = payload?.role ?? null;
+  const canView = canViewDepartments(role);
+  const canManage = canManageDepartments(role);
   const [items, setItems] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,6 +30,10 @@ export default function DepartmentsScreen() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     isRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
@@ -34,7 +44,8 @@ export default function DepartmentsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canView]);
 
   useFocusEffect(
     useCallback(() => {
@@ -97,6 +108,15 @@ export default function DepartmentsScreen() {
     ]);
   }
 
+  if (!canView) {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <Header title="Departments" />
+        <EmptyState icon="lock-closed-outline" title="Access denied" subtitle="You don't have permission to view departments." />
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <Header title={`Departments (${items.length})`} />
@@ -118,20 +138,22 @@ export default function DepartmentsScreen() {
             <ListRow
               title={item.name}
               subtitle={`${item.slug} • ${item.user_count} user${item.user_count === 1 ? "" : "s"}`}
-              onPress={() => openEdit(item)}
+              onPress={canManage ? () => openEdit(item) : undefined}
               right={
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   {!item.is_active && <Badge label="Inactive" bg="#94a3b826" color="#64748b" />}
-                  <TouchableOpacity onPress={() => confirmDeactivate(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="trash-outline" size={18} color={t.danger} />
-                  </TouchableOpacity>
+                  {canManage && (
+                    <TouchableOpacity onPress={() => confirmDeactivate(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="trash-outline" size={18} color={t.danger} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               }
             />
           )}
         />
       )}
-      <Fab onPress={openCreate} />
+      {canManage && <Fab onPress={openCreate} />}
 
       <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: t.bg }}>

@@ -8,9 +8,13 @@ import { useTheme } from "../../../lib/theme";
 import { businessDevelopersService, departmentsService } from "../../../lib/api";
 import type { BusinessDeveloper, Department } from "../../../lib/types";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../../lib/AuthContext";
+import { canMutateBusinessDevs } from "../../../lib/permissions";
 
 export default function BusinessDevelopersScreen() {
   const t = useTheme();
+  const { payload } = useAuth();
+  const canManage = canMutateBusinessDevs(payload?.role ?? null);
   const [items, setItems] = useState<BusinessDeveloper[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,20 +125,22 @@ export default function BusinessDevelopersScreen() {
             <ListRow
               title={item.name}
               subtitle={item.email || undefined}
-              onPress={() => openEdit(item)}
+              onPress={canManage ? () => openEdit(item) : undefined}
               right={
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   {!item.is_active && <Badge label="Inactive" bg="#94a3b826" color="#64748b" />}
-                  <TouchableOpacity onPress={() => confirmDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="trash-outline" size={18} color={t.danger} />
-                  </TouchableOpacity>
+                  {canManage && (
+                    <TouchableOpacity onPress={() => confirmDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="trash-outline" size={18} color={t.danger} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               }
             />
           )}
         />
       )}
-      <Fab onPress={openCreate} />
+      {canManage && <Fab onPress={openCreate} />}
 
       <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: t.bg }}>

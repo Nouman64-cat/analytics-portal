@@ -7,6 +7,8 @@ import { useTheme } from "../../lib/theme";
 import { backupService } from "../../lib/api";
 import type { DatabaseBackupListResponse } from "../../lib/types";
 import { formatDateTime } from "../../lib/statusMeta";
+import { useAuth } from "../../lib/AuthContext";
+import { isSuperadmin } from "../../lib/permissions";
 
 function formatBytes(n: number | null): string {
   if (!n) return "—";
@@ -16,6 +18,8 @@ function formatBytes(n: number | null): string {
 
 export default function BackupScreen() {
   const t = useTheme();
+  const { payload } = useAuth();
+  const canAccess = isSuperadmin(payload?.role ?? null);
   const [data, setData] = useState<DatabaseBackupListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,6 +27,10 @@ export default function BackupScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
+    if (!canAccess) {
+      setLoading(false);
+      return;
+    }
     isRefresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
@@ -33,7 +41,8 @@ export default function BackupScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess]);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,6 +61,15 @@ export default function BackupScreen() {
     } finally {
       setCreating(false);
     }
+  }
+
+  if (!canAccess) {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <Header title="Database Backup" />
+        <EmptyState icon="lock-closed-outline" title="Access denied" subtitle="Only superadmins can create backups and view stored files." />
+      </View>
+    );
   }
 
   return (

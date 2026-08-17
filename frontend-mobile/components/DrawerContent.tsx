@@ -9,8 +9,9 @@ import { useAuth } from "../lib/AuthContext";
 import { NAV_ITEMS } from "../lib/constants";
 import { useDepartmentOptions } from "../lib/useDepartmentOptions";
 import { SelectField } from "./FormField";
+import { canViewDepartments } from "../lib/permissions";
 
-const SUPERADMIN_ONLY = new Set(["/departments", "/users", "/backup", "/announcements"]);
+const SUPERADMIN_ONLY = new Set(["/users", "/backup", "/announcements"]);
 
 export function DrawerContent(props: DrawerContentComponentProps) {
   const t = useTheme();
@@ -19,7 +20,10 @@ export function DrawerContent(props: DrawerContentComponentProps) {
   const role = payload?.role ?? null;
   const activeRoute = props.state.routeNames[props.state.index];
 
-  const items = NAV_ITEMS.filter((item) => role === "superadmin" || !SUPERADMIN_ONLY.has(item.href));
+  const items = NAV_ITEMS.filter((item) => {
+    if (item.href === "/departments") return canViewDepartments(role);
+    return role === "superadmin" || !SUPERADMIN_ONLY.has(item.href);
+  });
   const { departments, showSwitcher, departmentId, setDepartmentId } = useDepartmentOptions();
 
   function confirmLogout() {
