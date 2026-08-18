@@ -3827,9 +3827,8 @@ export default function InterviewsPage() {
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
                           Business Developer
                         </p>
-                        <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-900 dark:text-white">
+                        <p className="mt-1">
                           <BdAvatar bd={{ id: detailModal.bd_id ?? detailModal.bd_name, name: detailModal.bd_name }} size={20} />
-                          {detailModal.bd_name}
                         </p>
                       </div>
                     )}
