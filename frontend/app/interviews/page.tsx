@@ -1797,11 +1797,7 @@ export default function InterviewsPage() {
     Dropped: 0,
   };
 
-  let legitInterviewsCount = 0;
-
   filtered.forEach((i) => {
-    if (i.lead_outcome !== "dropped") legitInterviewsCount++;
-
     const label = i.computed_status.toLowerCase();
     if (label === "upcoming") statusCounts.Upcoming++;
     else if (label === "unresponsed") statusCounts.Unresponsed++;
@@ -1811,6 +1807,9 @@ export default function InterviewsPage() {
     else if (label.includes("closed")) statusCounts.Closed++;
     else if (label.includes("dropped")) statusCounts.Dropped++;
   });
+
+  // Legit = total − dropped (same "Dropped" definition as the stat card below).
+  const legitInterviewsCount = filtered.length - statusCounts.Dropped;
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedInterviews = filtered.slice(
