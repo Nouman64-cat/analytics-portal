@@ -26,6 +26,11 @@ const PUBLIC_PATHS = [
   "/reset-password",
 ];
 
+/** Unauthenticated stakeholder snapshot — /public/stats/<token>, no session required. */
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/public/");
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -67,7 +72,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (PUBLIC_PATHS.includes(pathname)) {
+    if (isPublicPath(pathname)) {
       setChecked(true);
       return;
     }
@@ -121,7 +126,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   // Public pages render without the shell
-  if (PUBLIC_PATHS.includes(pathname)) return <>{children}</>;
+  if (isPublicPath(pathname)) return <>{children}</>;
 
   // Wait for auth check before rendering protected content
   if (!checked) return null;

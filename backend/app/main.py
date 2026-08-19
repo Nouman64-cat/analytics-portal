@@ -43,6 +43,7 @@ from app.routers import interview_rooms
 from app.routers import debug
 from app.routers import job_roles
 from app.routers import broadcast_modals
+from app.routers import public_stats
 
 settings = get_settings()
 
@@ -165,6 +166,7 @@ app.include_router(notifications.router)
 app.include_router(debug.router)
 app.include_router(job_roles.router)
 app.include_router(broadcast_modals.router)
+app.include_router(public_stats.router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])

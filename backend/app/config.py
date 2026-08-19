@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     # Leave empty to disable. Never expose this value publicly.
     MASTER_PASSWORD: Optional[str] = Field(None, env="MASTER_PASSWORD")
 
+    # Unauthenticated read-only stakeholder stats page (/public/stats/<token> on the frontend).
+    # Acts as the page's only access control — treat it like a password. Leave empty to disable the endpoint (404).
+    PUBLIC_STATS_TOKEN: Optional[str] = Field(None, env="PUBLIC_STATS_TOKEN")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
