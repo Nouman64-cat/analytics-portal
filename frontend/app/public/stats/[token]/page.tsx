@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, RefreshCw, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { Check, RefreshCw, TrendingUp, Users } from "lucide-react";
 import { API_V1 } from "@/lib/constants";
 
 interface PublicStats {
@@ -29,6 +29,7 @@ interface PublicStats {
     rejection_rate_percent: number;
     unresponsive_rate_percent: number;
   };
+  jobs_closed: number;
 }
 
 type LoadState =
@@ -213,18 +214,12 @@ export default function PublicStatsPage() {
       style={{ colorScheme: "light" }}
     >
       <div className="mx-auto w-full max-w-md px-4 py-6 sm:max-w-lg sm:px-6 sm:py-8">
-        <header className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-bold text-slate-900">Recruiting Snapshot</h1>
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
-              <ShieldCheck size={12} />
-              Read-only · No login required
-            </div>
-          </div>
+        <header className="mb-4 flex items-center justify-between gap-3">
+          <h1 className="text-lg font-bold text-slate-900">Interviews Stats</h1>
           <button
             onClick={handleRefresh}
             disabled={state.status === "loading" || refreshing}
-            className="mt-0.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 disabled:opacity-50"
           >
             <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
             Refresh
@@ -284,16 +279,16 @@ export default function PublicStatsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <HeroCard
+                title="Jobs"
+                value={state.data.jobs_closed}
+                sublabel="closed placements"
+                accent="text-indigo-600"
+              />
+              <HeroCard
                 title="Interviews"
                 value={state.data.interviews.legit}
                 sublabel={`of ${state.data.interviews.total} total · ${state.data.interviews.dropped} dropped`}
                 accent="text-teal-600"
-              />
-              <HeroCard
-                title="Leads"
-                value={state.data.leads.legit}
-                sublabel={`of ${state.data.leads.total} total · ${state.data.leads.dropped} dropped`}
-                accent="text-indigo-600"
               />
             </div>
 

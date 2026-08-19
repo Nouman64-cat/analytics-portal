@@ -191,6 +191,7 @@ def get_public_stats(
             "conversion_rate_percent": conversion_rate_percent,
             "by_status": leads_status_counts,
         },
+        "jobs_closed": leads_status_counts["closed"],
         "candidates": {
             "active_count": active_candidates,
             "closing_rate_percent": closing_rate_percent,
