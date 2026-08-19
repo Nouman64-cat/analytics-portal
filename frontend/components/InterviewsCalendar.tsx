@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Sparkles } from "lucide-react";
 import type { Interview, BusyDay, Candidate } from "@/lib/types";
 import {
   formatDate,
@@ -12,7 +12,7 @@ import {
 import { getCandidateColor } from "@/lib/candidateColor";
 import StatusBadge from "@/components/StatusBadge";
 import CandidateAvatar from "@/components/CandidateAvatar";
-import Modal from "@/components/Modal";
+import Modal, { buttonPrimary, textareaClass } from "@/components/Modal";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 /** Narrow screens: short labels so columns stay readable */
@@ -46,6 +46,37 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
   for (let d = 1; d <= dim; d++) cells.push(new Date(year, month, d));
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
+}
+
+/** Compact round label for the generated message, e.g. "1st" -> "R1". Final/other rounds pass through as-is. */
+function formatRoundLabel(round: string): string {
+  const trimmed = (round || "").trim();
+  const m = trimmed.match(/^(\d+)(st|nd|rd|th)$/i);
+  return m ? `R${m[1]}` : trimmed || "Round";
+}
+
+/** Higher = more advanced round, so Final/late rounds sort first in the generated message. */
+function roundRank(round: string): number {
+  const key = (round || "").trim().toLowerCase();
+  if (key === "final") return 1000;
+  const m = key.match(/^(\d+)(st|nd|rd|th)?$/);
+  if (m) return parseInt(m[1], 10);
+  if (key.includes("phone")) return 0;
+  if (key.includes("recruiter")) return -1;
+  return -2;
+}
+
+/** "Interviews - August 29 / 1. Final for Acme - Backend Dev: Jane Doe / ..." — most advanced round first. */
+function buildDayInterviewsMessage(date: Date, dayInterviews: Interview[]): string {
+  const header = `Interviews - ${date.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`;
+  const ordered = [...dayInterviews].sort((a, b) => roundRank(b.round) - roundRank(a.round));
+  const lines = ordered.map((inv, idx) => {
+    const roundLabel = formatRoundLabel(inv.round);
+    const company = inv.company_name || "—";
+    const candidate = inv.candidate_name || "—";
+    return `${idx + 1}. ${roundLabel} for ${company} - Developer name: ${candidate}`;
+  });
+  return [header, ...lines].join("\n");
 }
 
 export default function InterviewsCalendar({
@@ -135,6 +166,21 @@ export default function InterviewsCalendar({
     date: Date;
     interviews: Interview[];
   } | null>(null);
+
+  /** AI-magic day-message generator (sparkle icon on each day cell) */
+  const [messageModal, setMessageModal] = useState<{ date: Date; text: string } | null>(null);
+  const [messageCopied, setMessageCopied] = useState(false);
+
+  const handleCopyMessage = async () => {
+    if (!messageModal) return;
+    try {
+      await navigator.clipboard.writeText(messageModal.text);
+      setMessageCopied(true);
+      setTimeout(() => setMessageCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
 
   const goPrev = () => setCursor(new Date(year, month - 1, 1));
   const goNext = () => setCursor(new Date(year, month + 1, 1));
@@ -271,6 +317,24 @@ export default function InterviewsCalendar({
                     >
                       {day.getDate()}
                     </span>
+                  )}
+                  {dayInterviews.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMessageCopied(false);
+                        setMessageModal({
+                          date: day,
+                          text: buildDayInterviewsMessage(day, dayInterviews),
+                        });
+                      }}
+                      title="Generate interviews message for this day"
+                      aria-label="Generate interviews message for this day"
+                      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-500/20 sm:h-5 sm:w-5"
+                    >
+                      <Sparkles size={11} />
+                    </button>
                   )}
                 </div>
                 {/* Busy Day label + names */}
@@ -439,6 +503,40 @@ export default function InterviewsCalendar({
                 );
               })}
             </ul>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!messageModal}
+        onClose={() => setMessageModal(null)}
+        title={
+          messageModal
+            ? `Interviews message — ${formatDate(toISODate(messageModal.date))}`
+            : "Interviews message"
+        }
+        size="sm"
+      >
+        {messageModal && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Most advanced round first. Edit before copying if needed.
+            </p>
+            <textarea
+              className={`${textareaClass} min-h-[220px] font-mono text-xs`}
+              value={messageModal.text}
+              onChange={(e) =>
+                setMessageModal((prev) => (prev ? { ...prev, text: e.target.value } : prev))
+              }
+            />
+            <button
+              type="button"
+              onClick={handleCopyMessage}
+              className={`${buttonPrimary} w-full justify-center`}
+            >
+              {messageCopied ? <Check size={16} /> : <Copy size={16} />}
+              {messageCopied ? "Copied!" : "Copy message"}
+            </button>
           </div>
         )}
       </Modal>
