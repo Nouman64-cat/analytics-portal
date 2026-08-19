@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ChevronDown, RefreshCw, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { Check, RefreshCw, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { API_V1 } from "@/lib/constants";
 
 interface PublicStats {
   generated_at: string;
   departments: { id: string; name: string }[];
-  selected_department: { id: string; name: string } | null;
+  selected_departments: { id: string; name: string }[];
   interviews: {
     legit: number;
     total: number;
@@ -61,6 +61,10 @@ const LEAD_STATUS_META: Record<
   dead: { label: "Dead", emoji: "💀", text: "text-stone-700", bar: "bg-stone-500" },
   dropped: { label: "Dropped", emoji: "🙁", text: "text-orange-700", bar: "bg-orange-500" },
 };
+
+// Only the outcomes stakeholders care about at a glance — pending/dead-end statuses are omitted.
+const VISIBLE_INTERVIEW_STATUSES = new Set(["Progressed", "Rejected", "Closed"]);
+const VISIBLE_LEAD_STATUSES = new Set(["rejected", "closed"]);
 
 function StatusBar({
   count,
@@ -151,12 +155,21 @@ export default function PublicStatsPage() {
   const token = params?.token as string;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
-  const [departmentId, setDepartmentId] = useState<string>("");
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
+
+  const toggleDepartment = (id: string) => {
+    setSelectedDeptIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const qs = departmentId ? `?department_id=${encodeURIComponent(departmentId)}` : "";
+      const qs = selectedDeptIds.length
+        ? "?" +
+          selectedDeptIds.map((id) => `department_ids=${encodeURIComponent(id)}`).join("&")
+        : "";
       const res = await fetch(`${API_V1}/public/stats/${encodeURIComponent(token)}${qs}`, {
         cache: "no-store",
       });
@@ -178,7 +191,7 @@ export default function PublicStatsPage() {
         message: "Couldn't reach the server. Check your connection and try again.",
       });
     }
-  }, [token, departmentId]);
+  }, [token, selectedDeptIds]);
 
   useEffect(() => {
     // Standard fetch-on-mount pattern used throughout this app (e.g. interviews/page.tsx
@@ -219,23 +232,37 @@ export default function PublicStatsPage() {
         </header>
 
         {state.status === "ready" && state.data.departments.length > 0 && (
-          <div className="relative mb-4">
-            <select
-              value={departmentId}
-              onChange={(e) => setDepartmentId(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-9 text-sm font-medium text-slate-800 shadow-[0_2px_20px_rgba(0,0,0,0.05)]"
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedDeptIds([])}
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                selectedDeptIds.length === 0
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
             >
-              <option value="">All departments</option>
-              {state.data.departments.map((d) => (
-                <option key={d.id} value={d.id}>
+              {selectedDeptIds.length === 0 && <Check size={12} />}
+              All
+            </button>
+            {state.data.departments.map((d) => {
+              const active = selectedDeptIds.includes(d.id);
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => toggleDepartment(d.id)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    active
+                      ? "border-indigo-600 bg-indigo-600 text-white"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                >
+                  {active && <Check size={12} />}
                   {d.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={16}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -272,7 +299,7 @@ export default function PublicStatsPage() {
 
             <SectionCard title="Interview outcomes" icon={<TrendingUp size={16} />}>
               {Object.entries(state.data.interviews.by_status)
-                .filter(([, count]) => count > 0)
+                .filter(([key, count]) => count > 0 && VISIBLE_INTERVIEW_STATUSES.has(key))
                 .sort(([, a], [, b]) => b - a)
                 .map(([key, count]) => (
                   <StatusBar
@@ -291,7 +318,7 @@ export default function PublicStatsPage() {
                 ))}
             </SectionCard>
 
-            {!state.data.selected_department && state.data.interviews.by_department.length > 1 && (
+            {state.data.interviews.by_department.length > 1 && (
               <SectionCard title="By department" icon={<Users size={16} />}>
                 {state.data.interviews.by_department.map((d) => {
                   const pct =
@@ -326,7 +353,7 @@ export default function PublicStatsPage() {
                 </span>
               </div>
               {Object.entries(state.data.leads.by_status)
-                .filter(([, count]) => count > 0)
+                .filter(([key, count]) => count > 0 && VISIBLE_LEAD_STATUSES.has(key))
                 .sort(([, a], [, b]) => b - a)
                 .map(([key, count]) => (
                   <StatusBar

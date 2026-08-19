@@ -9,7 +9,7 @@ link to see: aggregate counts only, no candidate/company/BD names, emails, salar
 import hmac
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, func, select
@@ -49,7 +49,7 @@ def get_public_stats(
     token: str,
     response: Response,
     session: Session = Depends(get_session),
-    department_id: Optional[uuid.UUID] = Query(default=None),
+    department_ids: Optional[List[uuid.UUID]] = Query(default=None),
 ):
     _require_valid_token(token)
     response.headers["Cache-Control"] = "no-store"
@@ -60,15 +60,15 @@ def get_public_stats(
     dept_name_by_id = {d.id: d.name for d in visible_departments}
     visible_dept_ids = set(dept_name_by_id.keys())
 
-    # Selected department must be one of the visible (non-excluded) departments; anything else
-    # (unknown id, or the excluded department's id) is treated as "no filter" — never leaks
-    # excluded-department data back in through a crafted query param.
-    selected_dept_id = department_id if department_id in visible_dept_ids else None
+    # Selected departments must be a subset of the visible (non-excluded) ones; unknown ids or
+    # the excluded department's id are dropped silently — never leaks excluded-department data
+    # back in through a crafted query param. Empty selection == "All departments".
+    selected_dept_ids = {d for d in (department_ids or []) if d in visible_dept_ids}
 
     interviews = session.exec(select(Interview)).all()
     interviews = [i for i in interviews if i.department_id in visible_dept_ids]
-    if selected_dept_id is not None:
-        interviews = [i for i in interviews if i.department_id == selected_dept_id]
+    if selected_dept_ids:
+        interviews = [i for i in interviews if i.department_id in selected_dept_ids]
 
     status_counts = {
         "Upcoming": 0,
@@ -159,14 +159,9 @@ def get_public_stats(
     active_candidates_query = (
         select(func.count()).select_from(Candidate).where(Candidate.is_active == True)  # noqa: E712
     )
-    if selected_dept_id is not None:
-        active_candidates_query = active_candidates_query.where(
-            Candidate.department_id == selected_dept_id
-        )
-    else:
-        active_candidates_query = active_candidates_query.where(
-            Candidate.department_id.in_(visible_dept_ids)
-        )
+    active_candidates_query = active_candidates_query.where(
+        Candidate.department_id.in_(selected_dept_ids or visible_dept_ids)
+    )
     active_candidates = session.exec(active_candidates_query).one()
 
     legit_den = legit_leads or 1
@@ -179,11 +174,9 @@ def get_public_stats(
         "departments": [
             {"id": str(d.id), "name": d.name} for d in visible_departments
         ],
-        "selected_department": (
-            {"id": str(selected_dept_id), "name": dept_name_by_id[selected_dept_id]}
-            if selected_dept_id is not None
-            else None
-        ),
+        "selected_departments": [
+            {"id": str(d_id), "name": dept_name_by_id[d_id]} for d_id in selected_dept_ids
+        ],
         "interviews": {
             "legit": legit_interviews,
             "total": total_interviews,
