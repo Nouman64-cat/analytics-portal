@@ -1222,6 +1222,81 @@ Rules:
     return IntroductionResponse(introduction=introduction)
 
 
+class ProgressSummaryItem(BaseModel):
+    round: str
+    company: str
+    candidate: str
+    date: str
+    time: Optional[str] = None
+
+
+class ProgressSummaryRequest(BaseModel):
+    range_label: str
+    items: list[ProgressSummaryItem]
+
+
+class ProgressSummaryResponse(BaseModel):
+    summary: str
+
+
+@router.post("/generate-progress-summary", response_model=ProgressSummaryResponse)
+def generate_progress_summary(
+    payload: ProgressSummaryRequest,
+    current_user: User = Depends(get_current_user),
+    settings=Depends(get_settings),
+):
+    """Turn a raw list of interviews that progressed to a next round into a short, readable
+    stakeholder update (calendar page's "Weekly progress" button)."""
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
+
+    if not payload.items:
+        return ProgressSummaryResponse(
+            summary=f"No interviews progressed to the next round during {payload.range_label}."
+        )
+
+    raw_lines = "\n".join(
+        f"- {item.round} for {item.company} — {item.candidate}"
+        f" ({item.date}{', ' + item.time if item.time else ''})"
+        for item in payload.items
+    )
+
+    system_prompt = """You are a recruiting operations assistant who writes short, clear status updates for internal stakeholders (BDs, managers) about which candidates progressed to a next interview round this week.
+
+Rules:
+- Group by company where that makes the update clearer, but keep the whole thing skimmable in a few seconds
+- Lead with the most advanced rounds (Final, then higher-numbered rounds) first, earliest rounds last
+- Use short bullet points, not paragraphs
+- Every item in the input must be mentioned — don't drop or merge distinct candidates/rounds
+- Include the candidate name, company, and round for every item
+- Only mention dates/times where they add real value; don't repeat the same date on every line if it's obvious from grouping
+- No fluff, no buzzwords, no generic encouragement ("great progress!", "keep it up!") — just clear facts
+- Output plain text bullets only — no markdown headers, no emojis, no closing summary sentence"""
+
+    user_msg = f"""Week: {payload.range_label}
+
+Raw progressed-interview data (round, company, candidate, date/time):
+{raw_lines}
+
+Write a short, clear bullet-point summary of this week's progress for a stakeholder update."""
+
+    from openai import OpenAI
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg},
+        ],
+        temperature=0.4,
+        max_tokens=650,
+    )
+
+    summary = response.choices[0].message.content.strip()
+    return ProgressSummaryResponse(summary=summary)
+
+
 class AssignRoomRequest(BaseModel):
     room_id: Optional[uuid.UUID] = None
 

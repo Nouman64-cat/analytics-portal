@@ -480,6 +480,20 @@ export const interviewsService = {
     apiFetch<{ introduction: string }>(`/interviews/${id}/generate-introduction`, {
       method: "POST",
     }),
+  generateProgressSummary: (payload: {
+    range_label: string;
+    items: {
+      round: string;
+      company: string;
+      candidate: string;
+      date: string;
+      time?: string | null;
+    }[];
+  }) =>
+    apiFetch<{ summary: string }>(`/interviews/generate-progress-summary`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   delete: (id: string) =>
     apiFetch<void>(`/interviews/${id}`, { method: "DELETE" }),
 };

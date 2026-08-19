@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, Sparkles } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Loader2, Sparkles } from "lucide-react";
 import type { Interview, BusyDay, Candidate } from "@/lib/types";
 import {
   formatDate,
@@ -10,6 +10,7 @@ import {
   TIMEZONE_OPTIONS,
 } from "@/lib/utils";
 import { getCandidateColor } from "@/lib/candidateColor";
+import { interviewsService } from "@/lib/services";
 import StatusBadge from "@/components/StatusBadge";
 import CandidateAvatar from "@/components/CandidateAvatar";
 import Modal, { buttonPrimary, textareaClass } from "@/components/Modal";
@@ -79,6 +80,73 @@ function buildDayInterviewsMessage(date: Date, dayInterviews: Interview[]): stri
     return `${idx + 1}. ${roundLabel} for ${company} - Dev name: ${candidate}${timeSuffix}`;
   });
   return [header, ...lines].join("\n");
+}
+
+/** Monday-start calendar week containing `d` — { start: Monday 00:00, end: Sunday 23:59 }. */
+function getCalendarWeekRange(d: Date): { start: Date; end: Date } {
+  const day = d.getDay(); // 0 = Sun .. 6 = Sat
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  return { start, end };
+}
+
+/** Interviews whose latest status shows real forward movement — same "Progressed" bucket used on the Interviews page. */
+function isProgressedInterview(inv: Interview): boolean {
+  const label = (inv.computed_status || "").toLowerCase();
+  return label.includes("converted") || label.includes("progressed");
+}
+
+interface ProgressItem {
+  round: string;
+  company: string;
+  candidate: string;
+  date: string;
+  time?: string;
+}
+
+/** Raw (round, company, candidate, date/time) rows for interviews that progressed to a next
+ * round across this week + last week (Mon–Sun each) — fed to the LLM to turn into a readable
+ * summary, since a flat sorted list reads as noise once there are more than a handful of rows. */
+function getWeeklyProgressPayload(interviews: Interview[]): {
+  rangeLabel: string;
+  items: ProgressItem[];
+} {
+  const { start: thisMonday, end: thisSunday } = getCalendarWeekRange(new Date());
+  const lastMonday = new Date(
+    thisMonday.getFullYear(),
+    thisMonday.getMonth(),
+    thisMonday.getDate() - 7,
+  );
+  const startIso = toISODate(lastMonday);
+  const endIso = toISODate(thisSunday);
+
+  const progressed = interviews.filter((inv) => {
+    if (!inv.interview_date) return false;
+    const iso = inv.interview_date.split("T")[0];
+    return iso >= startIso && iso <= endIso && isProgressedInterview(inv);
+  });
+
+  const rangeLabel = `${lastMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${thisSunday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+
+  const ordered = [...progressed].sort((a, b) => roundRank(b.round) - roundRank(a.round));
+  const items: ProgressItem[] = ordered.map((inv) => {
+    const dateIso = inv.interview_date!.split("T")[0];
+    const dateLabel = new Date(`${dateIso}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+    const time = formatInterviewTimeInZone(inv.interview_date, inv.time_est, INTERVIEW_SCHEDULE_TZ);
+    return {
+      round: formatRoundLabel(inv.round),
+      company: inv.company_name || "—",
+      candidate: inv.candidate_name || "—",
+      date: dateLabel,
+      time: time !== "—" ? time : undefined,
+    };
+  });
+
+  return { rangeLabel, items };
 }
 
 export default function InterviewsCalendar({
@@ -169,9 +237,10 @@ export default function InterviewsCalendar({
     interviews: Interview[];
   } | null>(null);
 
-  /** AI-magic day-message generator (sparkle icon on each day cell) */
-  const [messageModal, setMessageModal] = useState<{ date: Date; text: string } | null>(null);
+  /** AI-magic message generator — per-day (sparkle icon) and weekly progress (header button) */
+  const [messageModal, setMessageModal] = useState<{ title: string; text: string } | null>(null);
   const [messageCopied, setMessageCopied] = useState(false);
+  const [weeklyProgressLoading, setWeeklyProgressLoading] = useState(false);
 
   const handleCopyMessage = async () => {
     if (!messageModal) return;
@@ -181,6 +250,36 @@ export default function InterviewsCalendar({
       setTimeout(() => setMessageCopied(false), 2000);
     } catch {
       // ignore
+    }
+  };
+
+  const handleWeeklyProgress = async () => {
+    const { rangeLabel, items } = getWeeklyProgressPayload(interviews);
+    setMessageCopied(false);
+    if (items.length === 0) {
+      setMessageModal({
+        title: `Weekly progress (${rangeLabel})`,
+        text: "No interviews progressed to the next round this period.",
+      });
+      return;
+    }
+    setWeeklyProgressLoading(true);
+    try {
+      const res = await interviewsService.generateProgressSummary({
+        range_label: rangeLabel,
+        items,
+      });
+      setMessageModal({ title: `Weekly progress (${rangeLabel})`, text: res.summary });
+    } catch (err) {
+      setMessageModal({
+        title: `Weekly progress (${rangeLabel})`,
+        text:
+          err instanceof Error
+            ? `Couldn't generate the summary: ${err.message}`
+            : "Couldn't generate the summary. Try again.",
+      });
+    } finally {
+      setWeeklyProgressLoading(false);
     }
   };
 
@@ -215,13 +314,29 @@ export default function InterviewsCalendar({
             <ChevronRight size={18} />
           </button>
         </div>
-        <button
-          type="button"
-          onClick={goToday}
-          className="inline-flex w-full items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20 sm:w-auto"
-        >
-          Today
-        </button>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <button
+            type="button"
+            onClick={goToday}
+            className="inline-flex flex-1 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20 sm:flex-none"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={handleWeeklyProgress}
+            disabled={weeklyProgressLoading}
+            title="Generate an AI summary of interviews that progressed to the next round this week and last week"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/20 sm:flex-none"
+          >
+            {weeklyProgressLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            Weekly progress
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -327,7 +442,7 @@ export default function InterviewsCalendar({
                         e.stopPropagation();
                         setMessageCopied(false);
                         setMessageModal({
-                          date: day,
+                          title: `Interviews message — ${formatDate(iso)}`,
                           text: buildDayInterviewsMessage(day, dayInterviews),
                         });
                       }}
@@ -512,11 +627,7 @@ export default function InterviewsCalendar({
       <Modal
         open={!!messageModal}
         onClose={() => setMessageModal(null)}
-        title={
-          messageModal
-            ? `Interviews message — ${formatDate(toISODate(messageModal.date))}`
-            : "Interviews message"
-        }
+        title={messageModal?.title ?? "Interviews message"}
         size="sm"
       >
         {messageModal && (
