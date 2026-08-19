@@ -16,7 +16,7 @@ from sqlmodel import Session, func, select
 
 from app.config import get_settings
 from app.database import get_session
-from app.lead_thread_utils import effective_lead_fields, load_lead_map
+from app.lead_thread_utils import _derive_lead_outcome, effective_lead_fields, load_lead_map
 from app.models.candidate import Candidate
 from app.models.department import Department
 from app.models.interview import Interview
@@ -137,6 +137,7 @@ def get_public_stats(
     success_leads = 0
     failure_leads = 0
     dropped_leads = 0
+    jobs_closed_count = 0
 
     for thread_id, rows in by_thread.items():
         eff = effective_lead_fields(session, thread_id, lead_map.get(thread_id), rows=rows)
@@ -149,6 +150,13 @@ def get_public_stats(
             success_leads += 1
         elif outcome in ("rejected", "dead"):
             failure_leads += 1
+
+        # "Jobs closed" (hero card) counts only placements evidenced by an interview round's
+        # own status — a manual lead-outcome override alone (no round ever marked Closed)
+        # doesn't count here, even though it does count toward leads.by_status.closed above.
+        derived_outcome = (_derive_lead_outcome(rows).get("lead_outcome") or "").lower()
+        if derived_outcome == "closed":
+            jobs_closed_count += 1
 
     total_leads = len(by_thread)
     legit_leads = total_leads - dropped_leads
@@ -191,7 +199,7 @@ def get_public_stats(
             "conversion_rate_percent": conversion_rate_percent,
             "by_status": leads_status_counts,
         },
-        "jobs_closed": leads_status_counts["closed"],
+        "jobs_closed": jobs_closed_count,
         "candidates": {
             "active_count": active_candidates,
             "closing_rate_percent": closing_rate_percent,
