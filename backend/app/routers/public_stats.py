@@ -9,8 +9,9 @@ link to see: aggregate counts only, no candidate/company/BD names, emails, salar
 import hmac
 import uuid
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, func, select
 
 from app.config import get_settings
@@ -22,6 +23,17 @@ from app.models.interview import Interview
 from app.status_utils import computed_status_for_interview_display
 
 router = APIRouter(prefix="/api/v1/public", tags=["Public Stats"])
+
+# Always hidden from the public snapshot, regardless of department selection — matched by slug
+# (stable identifier) with a name fallback in case the slug ever drifts.
+EXCLUDED_DEPARTMENT_SLUGS = {"service-now"}
+EXCLUDED_DEPARTMENT_NAMES = {"servicenow"}
+
+
+def _is_excluded_department(dept: Department) -> bool:
+    if dept.slug in EXCLUDED_DEPARTMENT_SLUGS:
+        return True
+    return dept.name.strip().lower().replace(" ", "") in EXCLUDED_DEPARTMENT_NAMES
 
 
 def _require_valid_token(token: str) -> None:
@@ -37,14 +49,26 @@ def get_public_stats(
     token: str,
     response: Response,
     session: Session = Depends(get_session),
+    department_id: Optional[uuid.UUID] = Query(default=None),
 ):
     _require_valid_token(token)
     response.headers["Cache-Control"] = "no-store"
 
-    departments = session.exec(select(Department)).all()
-    dept_name_by_id = {d.id: d.name for d in departments}
+    all_departments = session.exec(select(Department)).all()
+    visible_departments = [d for d in all_departments if not _is_excluded_department(d)]
+    visible_departments.sort(key=lambda d: d.name)
+    dept_name_by_id = {d.id: d.name for d in visible_departments}
+    visible_dept_ids = set(dept_name_by_id.keys())
+
+    # Selected department must be one of the visible (non-excluded) departments; anything else
+    # (unknown id, or the excluded department's id) is treated as "no filter" — never leaks
+    # excluded-department data back in through a crafted query param.
+    selected_dept_id = department_id if department_id in visible_dept_ids else None
 
     interviews = session.exec(select(Interview)).all()
+    interviews = [i for i in interviews if i.department_id in visible_dept_ids]
+    if selected_dept_id is not None:
+        interviews = [i for i in interviews if i.department_id == selected_dept_id]
 
     status_counts = {
         "Upcoming": 0,
@@ -132,9 +156,18 @@ def get_public_stats(
     conversion_rate_percent = round((success_leads / conv_den) * 100) if conv_den else 0
 
     # ---- Candidate performance (aggregate only — no names) ----
-    active_candidates = session.exec(
+    active_candidates_query = (
         select(func.count()).select_from(Candidate).where(Candidate.is_active == True)  # noqa: E712
-    ).one()
+    )
+    if selected_dept_id is not None:
+        active_candidates_query = active_candidates_query.where(
+            Candidate.department_id == selected_dept_id
+        )
+    else:
+        active_candidates_query = active_candidates_query.where(
+            Candidate.department_id.in_(visible_dept_ids)
+        )
+    active_candidates = session.exec(active_candidates_query).one()
 
     legit_den = legit_leads or 1
     closing_rate_percent = round((leads_status_counts["closed"] / legit_den) * 100)
@@ -143,6 +176,14 @@ def get_public_stats(
 
     return {
         "generated_at": datetime.utcnow().isoformat() + "Z",
+        "departments": [
+            {"id": str(d.id), "name": d.name} for d in visible_departments
+        ],
+        "selected_department": (
+            {"id": str(selected_dept_id), "name": dept_name_by_id[selected_dept_id]}
+            if selected_dept_id is not None
+            else None
+        ),
         "interviews": {
             "legit": legit_interviews,
             "total": total_interviews,

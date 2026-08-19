@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { RefreshCw, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { ChevronDown, RefreshCw, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { API_V1 } from "@/lib/constants";
 
 interface PublicStats {
   generated_at: string;
+  departments: { id: string; name: string }[];
+  selected_department: { id: string; name: string } | null;
   interviews: {
     legit: number;
     total: number;
@@ -38,26 +40,26 @@ const INTERVIEW_STATUS_META: Record<
   string,
   { label: string; emoji: string; text: string; bar: string }
 > = {
-  Upcoming: { label: "Upcoming", emoji: "🙂", text: "text-blue-700 dark:text-blue-300", bar: "bg-blue-500" },
-  Progressed: { label: "Progressed", emoji: "😄", text: "text-violet-700 dark:text-violet-300", bar: "bg-violet-500" },
-  Closed: { label: "Closed", emoji: "😌", text: "text-emerald-700 dark:text-emerald-300", bar: "bg-emerald-500" },
-  Unresponsed: { label: "Unresponsed", emoji: "😐", text: "text-amber-700 dark:text-amber-300", bar: "bg-amber-500" },
-  Rejected: { label: "Rejected", emoji: "😞", text: "text-red-700 dark:text-red-300", bar: "bg-red-500" },
-  Dead: { label: "Dead", emoji: "💀", text: "text-stone-700 dark:text-stone-300", bar: "bg-stone-500" },
-  Dropped: { label: "Dropped", emoji: "🙁", text: "text-orange-700 dark:text-orange-300", bar: "bg-orange-500" },
+  Upcoming: { label: "Upcoming", emoji: "🙂", text: "text-blue-700", bar: "bg-blue-500" },
+  Progressed: { label: "Progressed", emoji: "😄", text: "text-violet-700", bar: "bg-violet-500" },
+  Closed: { label: "Closed", emoji: "😌", text: "text-emerald-700", bar: "bg-emerald-500" },
+  Unresponsed: { label: "Unresponsed", emoji: "😐", text: "text-amber-700", bar: "bg-amber-500" },
+  Rejected: { label: "Rejected", emoji: "😞", text: "text-red-700", bar: "bg-red-500" },
+  Dead: { label: "Dead", emoji: "💀", text: "text-stone-700", bar: "bg-stone-500" },
+  Dropped: { label: "Dropped", emoji: "🙁", text: "text-orange-700", bar: "bg-orange-500" },
 };
 
 const LEAD_STATUS_META: Record<
   string,
   { label: string; emoji: string; text: string; bar: string }
 > = {
-  active: { label: "Active", emoji: "🟢", text: "text-blue-700 dark:text-blue-300", bar: "bg-blue-500" },
-  in_pipeline: { label: "In pipeline", emoji: "🔄", text: "text-violet-700 dark:text-violet-300", bar: "bg-violet-500" },
-  closed: { label: "Closed", emoji: "😌", text: "text-emerald-700 dark:text-emerald-300", bar: "bg-emerald-500" },
-  unresponsive: { label: "Unresponsive", emoji: "😐", text: "text-amber-700 dark:text-amber-300", bar: "bg-amber-500" },
-  rejected: { label: "Rejected", emoji: "😞", text: "text-red-700 dark:text-red-300", bar: "bg-red-500" },
-  dead: { label: "Dead", emoji: "💀", text: "text-stone-700 dark:text-stone-300", bar: "bg-stone-500" },
-  dropped: { label: "Dropped", emoji: "🙁", text: "text-orange-700 dark:text-orange-300", bar: "bg-orange-500" },
+  active: { label: "Active", emoji: "🟢", text: "text-blue-700", bar: "bg-blue-500" },
+  in_pipeline: { label: "In pipeline", emoji: "🔄", text: "text-violet-700", bar: "bg-violet-500" },
+  closed: { label: "Closed", emoji: "😌", text: "text-emerald-700", bar: "bg-emerald-500" },
+  unresponsive: { label: "Unresponsive", emoji: "😐", text: "text-amber-700", bar: "bg-amber-500" },
+  rejected: { label: "Rejected", emoji: "😞", text: "text-red-700", bar: "bg-red-500" },
+  dead: { label: "Dead", emoji: "💀", text: "text-stone-700", bar: "bg-stone-500" },
+  dropped: { label: "Dropped", emoji: "🙁", text: "text-orange-700", bar: "bg-orange-500" },
 };
 
 function StatusBar({
@@ -78,11 +80,11 @@ function StatusBar({
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-baseline justify-between gap-2">
           <span className={`text-[13px] font-medium ${meta.text}`}>{meta.label}</span>
-          <span className="text-[13px] tabular-nums text-slate-500 dark:text-slate-400">
-            {count} <span className="text-slate-400 dark:text-slate-500">({pct}%)</span>
+          <span className="text-[13px] tabular-nums text-slate-500">
+            {count} <span className="text-slate-400">({pct}%)</span>
           </span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
           <div
             className={`h-full rounded-full ${meta.bar}`}
             style={{ width: `${Math.max(pct, count > 0 ? 2 : 0)}%` }}
@@ -105,14 +107,12 @@ function HeroCard({
   accent: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl p-5 shadow-[0_2px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        {title}
-      </p>
+    <div className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-5 shadow-[0_2px_20px_rgba(0,0,0,0.05)]">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
       <p className={`mt-1.5 text-[40px] font-bold leading-none tabular-nums ${accent}`}>
         {value.toLocaleString()}
       </p>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{sublabel}</p>
+      <p className="mt-2 text-xs text-slate-500">{sublabel}</p>
     </div>
   );
 }
@@ -127,10 +127,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl p-5 shadow-[0_2px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
+    <div className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-5 shadow-[0_2px_20px_rgba(0,0,0,0.05)]">
       <div className="mb-4 flex items-center gap-2">
-        <span className="text-indigo-600 dark:text-indigo-400">{icon}</span>
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h2>
+        <span className="text-indigo-600">{icon}</span>
+        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
       </div>
       <div className="space-y-3">{children}</div>
     </div>
@@ -139,9 +139,9 @@ function SectionCard({
 
 function MetricTile({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div className="rounded-xl bg-slate-50 dark:bg-white/[0.05] px-3 py-3 text-center">
+    <div className="rounded-xl bg-slate-50 px-3 py-3 text-center">
       <p className={`text-xl font-bold tabular-nums ${accent}`}>{value}</p>
-      <p className="mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-0.5 text-[11px] leading-tight text-slate-500">{label}</p>
     </div>
   );
 }
@@ -151,11 +151,13 @@ export default function PublicStatsPage() {
   const token = params?.token as string;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
+  const [departmentId, setDepartmentId] = useState<string>("");
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_V1}/public/stats/${encodeURIComponent(token)}`, {
+      const qs = departmentId ? `?department_id=${encodeURIComponent(departmentId)}` : "";
+      const res = await fetch(`${API_V1}/public/stats/${encodeURIComponent(token)}${qs}`, {
         cache: "no-store",
       });
       if (!res.ok) {
@@ -176,7 +178,7 @@ export default function PublicStatsPage() {
         message: "Couldn't reach the server. Check your connection and try again.",
       });
     }
-  }, [token]);
+  }, [token, departmentId]);
 
   useEffect(() => {
     // Standard fetch-on-mount pattern used throughout this app (e.g. interviews/page.tsx
@@ -192,14 +194,16 @@ export default function PublicStatsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0d14]">
+    <div
+      className="min-h-screen bg-slate-50 [color-scheme:light]"
+      data-theme="light"
+      style={{ colorScheme: "light" }}
+    >
       <div className="mx-auto w-full max-w-md px-4 py-6 sm:max-w-lg sm:px-6 sm:py-8">
-        <header className="mb-5 flex items-start justify-between gap-3">
+        <header className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white">
-              Recruiting Snapshot
-            </h1>
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+            <h1 className="text-lg font-bold text-slate-900">Recruiting Snapshot</h1>
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
               <ShieldCheck size={12} />
               Read-only · No login required
             </div>
@@ -207,29 +211,45 @@ export default function PublicStatsPage() {
           <button
             onClick={handleRefresh}
             disabled={state.status === "loading" || refreshing}
-            className="mt-0.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.05] px-2.5 py-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50"
+            className="mt-0.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 disabled:opacity-50"
           >
             <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
             Refresh
           </button>
         </header>
 
+        {state.status === "ready" && state.data.departments.length > 0 && (
+          <div className="relative mb-4">
+            <select
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-9 text-sm font-medium text-slate-800 shadow-[0_2px_20px_rgba(0,0,0,0.05)]"
+            >
+              <option value="">All departments</option>
+              {state.data.departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+          </div>
+        )}
+
         {state.status === "loading" && (
           <div className="space-y-4">
             {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-32 animate-pulse rounded-2xl bg-white/60 dark:bg-white/[0.04]"
-              />
+              <div key={i} className="h-32 animate-pulse rounded-2xl bg-white/60" />
             ))}
           </div>
         )}
 
         {state.status === "error" && (
-          <div className="rounded-2xl border border-red-200 dark:border-red-500/25 bg-red-50 dark:bg-red-500/10 p-5 text-center">
-            <p className="text-sm font-medium text-red-800 dark:text-red-300">
-              {state.message}
-            </p>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+            <p className="text-sm font-medium text-red-800">{state.message}</p>
           </div>
         )}
 
@@ -240,13 +260,13 @@ export default function PublicStatsPage() {
                 title="Interviews"
                 value={state.data.interviews.legit}
                 sublabel={`of ${state.data.interviews.total} total · ${state.data.interviews.dropped} dropped`}
-                accent="text-teal-600 dark:text-teal-400"
+                accent="text-teal-600"
               />
               <HeroCard
                 title="Leads"
                 value={state.data.leads.legit}
                 sublabel={`of ${state.data.leads.total} total · ${state.data.leads.dropped} dropped`}
-                accent="text-indigo-600 dark:text-indigo-400"
+                accent="text-indigo-600"
               />
             </div>
 
@@ -259,17 +279,19 @@ export default function PublicStatsPage() {
                     key={key}
                     count={count}
                     denom={state.data.interviews.total}
-                    meta={INTERVIEW_STATUS_META[key] ?? {
-                      label: key,
-                      emoji: "•",
-                      text: "text-slate-600 dark:text-slate-300",
-                      bar: "bg-slate-400",
-                    }}
+                    meta={
+                      INTERVIEW_STATUS_META[key] ?? {
+                        label: key,
+                        emoji: "•",
+                        text: "text-slate-600",
+                        bar: "bg-slate-400",
+                      }
+                    }
                   />
                 ))}
             </SectionCard>
 
-            {state.data.interviews.by_department.length > 0 && (
+            {!state.data.selected_department && state.data.interviews.by_department.length > 1 && (
               <SectionCard title="By department" icon={<Users size={16} />}>
                 {state.data.interviews.by_department.map((d) => {
                   const pct =
@@ -279,14 +301,12 @@ export default function PublicStatsPage() {
                   return (
                     <div key={d.name}>
                       <div className="mb-1 flex items-baseline justify-between gap-2">
-                        <span className="text-[13px] font-medium text-slate-700 dark:text-slate-200">
-                          {d.name}
-                        </span>
-                        <span className="text-[13px] tabular-nums text-slate-500 dark:text-slate-400">
+                        <span className="text-[13px] font-medium text-slate-700">{d.name}</span>
+                        <span className="text-[13px] tabular-nums text-slate-500">
                           {d.legit} legit / {d.total} total
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full rounded-full bg-indigo-500"
                           style={{ width: `${Math.max(pct, d.total > 0 ? 2 : 0)}%` }}
@@ -299,11 +319,9 @@ export default function PublicStatsPage() {
             )}
 
             <SectionCard title="Lead outcomes" icon={<TrendingUp size={16} />}>
-              <div className="mb-1 flex items-center justify-between rounded-lg bg-indigo-50 dark:bg-indigo-500/10 px-3 py-2">
-                <span className="text-[12px] font-medium text-indigo-700 dark:text-indigo-300">
-                  Conversion rate
-                </span>
-                <span className="text-base font-bold text-indigo-700 dark:text-indigo-300">
+              <div className="mb-1 flex items-center justify-between rounded-lg bg-indigo-50 px-3 py-2">
+                <span className="text-[12px] font-medium text-indigo-700">Conversion rate</span>
+                <span className="text-base font-bold text-indigo-700">
                   {state.data.leads.conversion_rate_percent}%
                 </span>
               </div>
@@ -315,12 +333,14 @@ export default function PublicStatsPage() {
                     key={key}
                     count={count}
                     denom={state.data.leads.total}
-                    meta={LEAD_STATUS_META[key] ?? {
-                      label: key,
-                      emoji: "•",
-                      text: "text-slate-600 dark:text-slate-300",
-                      bar: "bg-slate-400",
-                    }}
+                    meta={
+                      LEAD_STATUS_META[key] ?? {
+                        label: key,
+                        emoji: "•",
+                        text: "text-slate-600",
+                        bar: "bg-slate-400",
+                      }
+                    }
                   />
                 ))}
             </SectionCard>
@@ -330,30 +350,30 @@ export default function PublicStatsPage() {
                 <MetricTile
                   label="Active candidates"
                   value={String(state.data.candidates.active_count)}
-                  accent="text-slate-900 dark:text-white"
+                  accent="text-slate-900"
                 />
                 <MetricTile
                   label="Closing rate"
                   value={`${state.data.candidates.closing_rate_percent}%`}
-                  accent="text-emerald-600 dark:text-emerald-400"
+                  accent="text-emerald-600"
                 />
                 <MetricTile
                   label="Rejection rate"
                   value={`${state.data.candidates.rejection_rate_percent}%`}
-                  accent="text-red-600 dark:text-red-400"
+                  accent="text-red-600"
                 />
                 <MetricTile
                   label="Unresponsive rate"
                   value={`${state.data.candidates.unresponsive_rate_percent}%`}
-                  accent="text-amber-600 dark:text-amber-400"
+                  accent="text-amber-600"
                 />
               </div>
-              <p className="pt-1 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+              <p className="pt-1 text-[11px] leading-snug text-slate-400">
                 Rates are of legit (non-dropped) leads.
               </p>
             </SectionCard>
 
-            <p className="pt-1 text-center text-[11px] text-slate-400 dark:text-slate-600">
+            <p className="pt-1 text-center text-[11px] text-slate-400">
               Generated{" "}
               {new Date(state.data.generated_at).toLocaleString(undefined, {
                 dateStyle: "medium",
