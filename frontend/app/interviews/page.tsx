@@ -854,6 +854,40 @@ export default function InterviewsPage() {
     };
   }, []);
 
+  /** Hover preview for feedback (eye icon) */
+  const [feedbackPopover, setFeedbackPopover] = useState<{
+    interview: Interview;
+    x: number;
+    y: number;
+    flipAbove: boolean;
+  } | null>(null);
+  const feedbackPopoverRef = useRef<HTMLDivElement>(null);
+  const feedbackHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!feedbackPopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        feedbackPopoverRef.current &&
+        !feedbackPopoverRef.current.contains(e.target as Node)
+      ) {
+        setFeedbackPopover(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [feedbackPopover]);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackHoverTimerRef.current) {
+        clearTimeout(feedbackHoverTimerRef.current);
+      }
+    };
+  }, []);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const role = getUserRole();
   const { departmentId } = useDepartmentContext();
@@ -2684,7 +2718,51 @@ export default function InterviewsPage() {
                                 <button
                                   onClick={() => setDetailModal(interview)}
                                   className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                                  title="View details"
+                                  title="View details (hover for feedback)"
+                                  onMouseEnter={(e) => {
+                                    if (feedbackHoverTimerRef.current) {
+                                      clearTimeout(feedbackHoverTimerRef.current);
+                                      feedbackHoverTimerRef.current = null;
+                                    }
+                                    const rect =
+                                      e.currentTarget.getBoundingClientRect();
+                                    const layout =
+                                      getPipelinePopoverLayout(rect);
+                                    setFeedbackPopover({
+                                      interview,
+                                      x: layout.x,
+                                      y: layout.y,
+                                      flipAbove: layout.flipAbove,
+                                    });
+                                  }}
+                                  onMouseLeave={() => {
+                                    feedbackHoverTimerRef.current = setTimeout(
+                                      () => setFeedbackPopover(null),
+                                      200,
+                                    );
+                                  }}
+                                  onFocus={(e) => {
+                                    if (feedbackHoverTimerRef.current) {
+                                      clearTimeout(feedbackHoverTimerRef.current);
+                                      feedbackHoverTimerRef.current = null;
+                                    }
+                                    const rect =
+                                      e.currentTarget.getBoundingClientRect();
+                                    const layout =
+                                      getPipelinePopoverLayout(rect);
+                                    setFeedbackPopover({
+                                      interview,
+                                      x: layout.x,
+                                      y: layout.y,
+                                      flipAbove: layout.flipAbove,
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    feedbackHoverTimerRef.current = setTimeout(
+                                      () => setFeedbackPopover(null),
+                                      150,
+                                    );
+                                  }}
                                 >
                                   <Eye size={14} />
                                 </button>
@@ -4292,6 +4370,75 @@ export default function InterviewsPage() {
           <p className="mt-2 text-[10px] leading-tight text-slate-500 dark:text-slate-500">
             Linked rounds · status = outcome at each step.
           </p>
+        </div>
+      )}
+
+      {/* Feedback preview (hover on eye icon) */}
+      {feedbackPopover && (
+        <div
+          ref={feedbackPopoverRef}
+          style={{
+            position: "fixed",
+            top: feedbackPopover.y,
+            left: feedbackPopover.x,
+            transform: feedbackPopover.flipAbove
+              ? "translateY(-100%)"
+              : undefined,
+            zIndex: 10000,
+          }}
+          className="w-[min(calc(100vw-1.25rem),16.5rem)] max-h-[min(52vh,17.5rem)] overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-2xl px-2.5 py-2 sm:px-3 sm:py-2.5"
+          onMouseEnter={() => {
+            if (feedbackHoverTimerRef.current) {
+              clearTimeout(feedbackHoverTimerRef.current);
+              feedbackHoverTimerRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            feedbackHoverTimerRef.current = setTimeout(
+              () => setFeedbackPopover(null),
+              200,
+            );
+          }}
+        >
+          <header className="mb-2 border-b border-slate-100 dark:border-white/[0.06] pb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+              Feedback
+            </p>
+            <p
+              className="mt-0.5 text-[11px] leading-snug text-slate-700 dark:text-slate-200 line-clamp-2"
+              title={`${feedbackPopover.interview.candidate_name} · ${feedbackPopover.interview.company_name} — ${feedbackPopover.interview.role}`}
+            >
+              {feedbackPopover.interview.candidate_name} ·{" "}
+              {feedbackPopover.interview.company_name} —{" "}
+              {feedbackPopover.interview.role}
+            </p>
+          </header>
+          {feedbackPopover.interview.feedback && (
+            <div className="mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 mb-0.5">
+                Our notes (after presentation)
+              </p>
+              <p className="text-[11px] leading-snug text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                {feedbackPopover.interview.feedback}
+              </p>
+            </div>
+          )}
+          {feedbackPopover.interview.recruiter_feedback && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 mb-0.5">
+                Recruiter update
+              </p>
+              <p className="text-[11px] leading-snug text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                {feedbackPopover.interview.recruiter_feedback}
+              </p>
+            </div>
+          )}
+          {!feedbackPopover.interview.feedback &&
+            !feedbackPopover.interview.recruiter_feedback && (
+              <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-500 italic">
+                No feedback available
+              </p>
+            )}
         </div>
       )}
 
