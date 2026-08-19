@@ -74,7 +74,9 @@ function buildDayInterviewsMessage(date: Date, dayInterviews: Interview[]): stri
     const roundLabel = formatRoundLabel(inv.round);
     const company = inv.company_name || "—";
     const candidate = inv.candidate_name || "—";
-    return `${idx + 1}. ${roundLabel} for ${company} - Developer name: ${candidate}`;
+    const time = formatInterviewTimeInZone(inv.interview_date, inv.time_est, INTERVIEW_SCHEDULE_TZ);
+    const timeSuffix = time !== "—" ? ` (${time})` : "";
+    return `${idx + 1}. ${roundLabel} for ${company} - Dev name: ${candidate}${timeSuffix}`;
   });
   return [header, ...lines].join("\n");
 }
