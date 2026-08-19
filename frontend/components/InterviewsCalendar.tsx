@@ -91,12 +91,6 @@ function getCalendarWeekRange(d: Date): { start: Date; end: Date } {
   return { start, end };
 }
 
-/** Interviews whose latest status shows real forward movement — same "Progressed" bucket used on the Interviews page. */
-function isProgressedInterview(inv: Interview): boolean {
-  const label = (inv.computed_status || "").toLowerCase();
-  return label.includes("converted") || label.includes("progressed");
-}
-
 interface ProgressItem {
   round: string;
   company: string;
@@ -106,28 +100,41 @@ interface ProgressItem {
 }
 
 /** Raw (round, company, candidate, date/time) rows for interviews that progressed to a next
- * round across this week + last week (Mon–Sun each) — fed to the LLM to turn into a readable
- * summary, since a flat sorted list reads as noise once there are more than a handful of rows. */
+ * round across this week (Monday through today, not the rest of the week) + last week (full
+ * Mon–Sun) — fed to the LLM to turn into a readable summary, since a flat sorted list reads as
+ * noise once there are more than a handful of rows. */
 function getWeeklyProgressPayload(interviews: Interview[]): {
   rangeLabel: string;
   items: ProgressItem[];
 } {
-  const { start: thisMonday, end: thisSunday } = getCalendarWeekRange(new Date());
+  const today = new Date();
+  const { start: thisMonday } = getCalendarWeekRange(today);
   const lastMonday = new Date(
     thisMonday.getFullYear(),
     thisMonday.getMonth(),
     thisMonday.getDate() - 7,
   );
   const startIso = toISODate(lastMonday);
-  const endIso = toISODate(thisSunday);
+  const endIso = toISODate(today);
+
+  // A round represents real progress if its thread has more than one round — i.e. the pipeline
+  // has actually advanced at some point. Checking only a round's OWN status misses the newest
+  // round in the chain: creating round N+1 auto-flips round N's status to "Converted", but round
+  // N+1 itself (the round the candidate is now actually in) has no status of its own yet.
+  const roundCountByThread = new Map<string, number>();
+  for (const inv of interviews) {
+    if (!inv.thread_id) continue;
+    roundCountByThread.set(inv.thread_id, (roundCountByThread.get(inv.thread_id) ?? 0) + 1);
+  }
 
   const progressed = interviews.filter((inv) => {
-    if (!inv.interview_date) return false;
+    if (!inv.interview_date || !inv.thread_id) return false;
     const iso = inv.interview_date.split("T")[0];
-    return iso >= startIso && iso <= endIso && isProgressedInterview(inv);
+    if (iso < startIso || iso > endIso) return false;
+    return (roundCountByThread.get(inv.thread_id) ?? 0) > 1;
   });
 
-  const rangeLabel = `${lastMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${thisSunday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  const rangeLabel = `${lastMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${today.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
   const ordered = [...progressed].sort((a, b) => roundRank(b.round) - roundRank(a.round));
   const items: ProgressItem[] = ordered.map((inv) => {
