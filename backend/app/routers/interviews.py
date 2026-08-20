@@ -1,9 +1,10 @@
 import uuid
 import os
+import logging
 from datetime import datetime, date
 from typing import Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.deps import get_current_user, assert_write_access
@@ -50,6 +51,8 @@ from app.status_utils import (
     compute_status,
 )
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/interviews",
                    tags=["Interviews"], dependencies=[Depends(get_current_user)])
@@ -857,6 +860,7 @@ def get_interview(
 @router.post("/{interview_id}/document", response_model=InterviewReadWithDetails)
 def upload_interview_document(
     interview_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     settings=Depends(get_settings),
@@ -908,9 +912,13 @@ def upload_interview_document(
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
 
     interview.interview_doc_url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+    # Clear any highlighted copy from a previous document — it no longer matches this upload.
+    interview.interview_doc_highlighted_url = None
+    interview.interview_doc_keywords = None
     interview.updated_at = datetime.utcnow()
     session.add(interview)
     session.commit()
+    background_tasks.add_task(_highlight_interview_document_in_background, interview_id)
     loaded = _get_interview_for_enrichment(session, interview_id)
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
@@ -1057,6 +1065,7 @@ def presign_upload(
 @router.post("/{interview_id}/confirm-upload", response_model=InterviewReadWithDetails)
 def confirm_upload(
     interview_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     body: ConfirmUploadRequest,
     session: Session = Depends(get_session),
     settings=Depends(get_settings),
@@ -1082,6 +1091,10 @@ def confirm_upload(
                 status_code=400, detail="Invalid s3_key for this interview")
         url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{body.s3_key}"
         interview.interview_doc_url = url
+        # Clear any highlighted copy from a previous document — it no longer matches this upload.
+        interview.interview_doc_highlighted_url = None
+        interview.interview_doc_keywords = None
+        background_tasks.add_task(_highlight_interview_document_in_background, interview_id)
     elif body.upload_type == "resume":
         if not body.s3_key.startswith(expected_prefix_resume):
             raise HTTPException(
@@ -1117,21 +1130,14 @@ def _download_s3_object_bytes(settings, url: str) -> bytes:
             status_code=500, detail=f"Failed to fetch document from S3: {e}")
 
 
-@router.post("/{interview_id}/document/highlight-keywords", response_model=InterviewReadWithDetails)
-def highlight_interview_document_keywords(
-    interview_id: uuid.UUID,
-    session: Session = Depends(get_session),
-    settings=Depends(get_settings),
-    current_user: User = Depends(get_current_user),
-):
+def _generate_highlighted_interview_document(
+    session: Session, settings, interview: Interview
+) -> Optional[list[str]]:
     """Detect frameworks/languages/tools/concepts mentioned in the interview document (job
-    description) and produce a copy of the PDF with those keywords highlighted."""
-    assert_write_access(current_user)
-    interview = session.get(Interview, interview_id)
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
-    team_member_must_own_interview(session, current_user, interview)
-
+    description) via AI, and produce a copy of the PDF with those keywords highlighted on S3.
+    Persists the result onto `interview` and commits. Returns the keywords found + highlighted,
+    or None if none were found (the document is left as-is — not treated as an error, since some
+    documents simply have no matching technical content)."""
     if not interview.interview_doc_url:
         raise HTTPException(
             status_code=400, detail="Upload an interview document first")
@@ -1151,13 +1157,12 @@ def highlight_interview_document_keywords(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}")
 
-    doc_text = "\n".join(page.get_text() for page in doc).strip()
-    if not doc_text:
-        doc.close()
-        raise HTTPException(
-            status_code=400, detail="No extractable text found in this document")
+    try:
+        doc_text = "\n".join(page.get_text() for page in doc).strip()
+        if not doc_text:
+            return None
 
-    system_prompt = """You extract technical keywords from job description / interview documents.
+        system_prompt = """You extract technical keywords from job description / interview documents.
 
 Identify every distinct framework, programming language, tool, technology, and technical concept mentioned in the text (for example: React, Python, Docker, AWS, microservices, REST API, CI/CD, Agile, machine learning).
 
@@ -1168,52 +1173,51 @@ Rules:
 - Do not include generic soft-skill words (e.g. "communication", "teamwork") or company/role/person names
 - Deduplicate; each keyword should appear once in the array"""
 
-    from openai import OpenAI
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": doc_text[:6000]},
-        ],
-        temperature=0.1,
-        max_tokens=650,
-    )
+        from openai import OpenAI
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": doc_text[:6000]},
+            ],
+            temperature=0.1,
+            max_tokens=650,
+        )
 
-    import json
-    raw = response.choices[0].message.content.strip()
-    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-    try:
-        candidate_keywords = json.loads(raw)
-        if not isinstance(candidate_keywords, list):
+        import json
+        raw = response.choices[0].message.content.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            candidate_keywords = json.loads(raw)
+            if not isinstance(candidate_keywords, list):
+                candidate_keywords = []
+        except Exception:
             candidate_keywords = []
-    except Exception:
-        candidate_keywords = []
-    candidate_keywords = [str(k).strip() for k in candidate_keywords if str(k).strip()]
+        candidate_keywords = [str(k).strip() for k in candidate_keywords if str(k).strip()]
 
-    found_keywords: list[str] = []
-    seen_lower: set[str] = set()
-    for keyword in candidate_keywords:
-        if keyword.lower() in seen_lower:
-            continue
-        hit_on_any_page = False
-        for page in doc:
-            for quad in page.search_for(keyword, quads=True):
-                page.add_highlight_annot(quad)
-                hit_on_any_page = True
-        if hit_on_any_page:
-            found_keywords.append(keyword)
-            seen_lower.add(keyword.lower())
+        found_keywords: list[str] = []
+        seen_lower: set[str] = set()
+        for keyword in candidate_keywords:
+            if keyword.lower() in seen_lower:
+                continue
+            hit_on_any_page = False
+            for page in doc:
+                for quad in page.search_for(keyword, quads=True):
+                    page.add_highlight_annot(quad)
+                    hit_on_any_page = True
+            if hit_on_any_page:
+                found_keywords.append(keyword)
+                seen_lower.add(keyword.lower())
 
-    if not found_keywords:
+        if not found_keywords:
+            return None
+
+        highlighted_bytes = doc.tobytes(deflate=True, garbage=3)
+    finally:
         doc.close()
-        raise HTTPException(
-            status_code=422, detail="No matching keywords could be located in the document")
 
-    highlighted_bytes = doc.tobytes(deflate=True, garbage=3)
-    doc.close()
-
-    key = f"interview_docs/{interview_id}/interview_doc_highlighted-{uuid.uuid4()}.pdf"
+    key = f"interview_docs/{interview.id}/interview_doc_highlighted-{uuid.uuid4()}.pdf"
     s3_client = _get_s3_client(settings)
     try:
         s3_client.put_object(
@@ -1231,6 +1235,51 @@ Rules:
     interview.updated_at = datetime.utcnow()
     session.add(interview)
     session.commit()
+    return found_keywords
+
+
+def _highlight_interview_document_in_background(interview_id: uuid.UUID) -> None:
+    """BackgroundTasks entrypoint, run after the upload response is already sent. Opens its own
+    DB session (the request-scoped one is gone by then). Failures are only logged — there's no
+    client left waiting on this, and the original (un-highlighted) document remains downloadable
+    either way."""
+    from app.database import engine
+
+    settings = get_settings()
+    with Session(engine) as session:
+        interview = session.get(Interview, interview_id)
+        if not interview:
+            return
+        try:
+            _generate_highlighted_interview_document(session, settings, interview)
+        except Exception:
+            logger.exception(
+                "Background interview document keyword highlighting failed for interview %s",
+                interview_id,
+            )
+
+
+@router.post("/{interview_id}/document/highlight-keywords", response_model=InterviewReadWithDetails)
+def highlight_interview_document_keywords(
+    interview_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Manually (re)run keyword highlighting for an interview document. This normally happens
+    automatically in the background right after the document is uploaded; this endpoint exists
+    to retry it (e.g. after a transient failure) without re-uploading."""
+    assert_write_access(current_user)
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
+
+    found = _generate_highlighted_interview_document(session, settings, interview)
+    if found is None:
+        raise HTTPException(
+            status_code=422, detail="No matching keywords could be located in the document")
+
     loaded = _get_interview_for_enrichment(session, interview_id)
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
