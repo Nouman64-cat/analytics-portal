@@ -480,6 +480,10 @@ export const interviewsService = {
     apiFetch<{ introduction: string }>(`/interviews/${id}/generate-introduction`, {
       method: "POST",
     }),
+  highlightDocumentKeywords: (id: string) =>
+    apiFetch<Interview>(`/interviews/${id}/document/highlight-keywords`, {
+      method: "POST",
+    }),
   generateProgressSummary: (payload: {
     range_label: string;
     items: {

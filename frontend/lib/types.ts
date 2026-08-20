@@ -213,6 +213,10 @@ export interface Interview {
   interview_doc_url?: string | null;
   resume_url?: string | null;
   ai_introduction?: string | null;
+  /** Copy of interview_doc_url with detected keywords highlighted (regenerated each run). */
+  interview_doc_highlighted_url?: string | null;
+  /** Comma-separated list of keywords found + highlighted in the interview document. */
+  interview_doc_keywords?: string | null;
   is_phone_call: boolean;
   /** Interview room assignment — coordinators (and superadmin) assign this. */
   room_id?: string | null;

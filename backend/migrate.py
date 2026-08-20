@@ -513,6 +513,12 @@ def migrate():
             ("CREATE INDEX IF NOT EXISTS ix_interviews_room_id ON interviews (room_id);",
              "Migration successful! Index on interviews.room_id ensured."),
 
+            # ── Interview document keyword highlighting ──────────────────────────────
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_doc_highlighted_url VARCHAR(1000);",
+             "Migration successful! 'interview_doc_highlighted_url' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_doc_keywords TEXT;",
+             "Migration successful! 'interview_doc_keywords' column added to 'interviews' table."),
+
         ]
         for sql, msg in migrations:
             try:

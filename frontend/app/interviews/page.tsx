@@ -774,6 +774,10 @@ export default function InterviewsPage() {
   const [introErrorId, setIntroErrorId] = useState<string | null>(null);
   const [docDragOver, setDocDragOver] = useState(false);
   const [resumeDragOver, setResumeDragOver] = useState(false);
+  const [highlightingKeywordsId, setHighlightingKeywordsId] = useState<
+    string | null
+  >(null);
+  const [highlightError, setHighlightError] = useState<string | null>(null);
 
   // Company popover
   const [companyPopover, setCompanyPopover] = useState<{
@@ -1447,6 +1451,26 @@ export default function InterviewsPage() {
       );
     } finally {
       setUploadingInterviewId(null);
+    }
+  };
+
+  const handleHighlightDocumentKeywords = async (interviewId: string) => {
+    if (highlightingKeywordsId) return;
+    setHighlightError(null);
+    setHighlightingKeywordsId(interviewId);
+    try {
+      const updated =
+        await interviewsService.highlightDocumentKeywords(interviewId);
+      setDetailModal(updated);
+      await fetchData();
+    } catch (err) {
+      setHighlightError(
+        err instanceof Error
+          ? err.message
+          : "Failed to highlight document keywords",
+      );
+    } finally {
+      setHighlightingKeywordsId(null);
     }
   };
 
@@ -4218,6 +4242,65 @@ export default function InterviewsPage() {
                             </>
                           )}
                         </div>
+                        {!cannotCRUD && detailModal.interview_doc_url && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleHighlightDocumentKeywords(
+                                  detailModal.id,
+                                )
+                              }
+                              disabled={
+                                highlightingKeywordsId === detailModal.id
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors disabled:opacity-60"
+                            >
+                              <Sparkles size={13} />
+                              {highlightingKeywordsId === detailModal.id
+                                ? "Highlighting..."
+                                : detailModal.interview_doc_highlighted_url
+                                  ? "Re-highlight Keywords"
+                                  : "Highlight Keywords"}
+                            </button>
+                            {highlightError && (
+                              <p className="mt-1 text-xs text-red-500">
+                                {highlightError}
+                              </p>
+                            )}
+                            {detailModal.interview_doc_highlighted_url && (
+                              <div className="mt-2">
+                                <a
+                                  href={
+                                    detailModal.interview_doc_highlighted_url
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:text-amber-500"
+                                >
+                                  <Download size={13} /> Download Highlighted
+                                  Doc
+                                </a>
+                                {detailModal.interview_doc_keywords && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {detailModal.interview_doc_keywords
+                                      .split(",")
+                                      .map((kw) => kw.trim())
+                                      .filter(Boolean)
+                                      .map((kw) => (
+                                        <span
+                                          key={kw}
+                                          className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-400"
+                                        >
+                                          {kw}
+                                        </span>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {uploadError &&
                           uploadingInterviewId === detailModal.id && (
                             <p className="mt-1 text-xs text-red-500">

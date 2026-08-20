@@ -127,6 +127,8 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "interview_doc_url": interview.interview_doc_url,
         "resume_url": interview.resume_url,
         "ai_introduction": interview.ai_introduction,
+        "interview_doc_highlighted_url": interview.interview_doc_highlighted_url,
+        "interview_doc_keywords": interview.interview_doc_keywords,
         "is_phone_call": interview.is_phone_call,
         "room_id": interview.room_id,
         "computed_status": computed_status_for_interview_display(
@@ -171,6 +173,8 @@ def _enrich_interview_for_reader(
     data["resume_url"] = None
     data["interview_link"] = None
     data["salary_range"] = None
+    data["interview_doc_highlighted_url"] = None
+    data["interview_doc_keywords"] = None
     return data
 
 
@@ -1094,6 +1098,143 @@ def confirm_upload(
     loaded = _get_interview_for_enrichment(session, interview_id)
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
+    return _finalize_interview_response(session, loaded, current_user)
+
+
+def _download_s3_object_bytes(settings, url: str) -> bytes:
+    """Download an S3 object's raw bytes given its stored URL."""
+    from urllib.parse import urlparse
+
+    key = urlparse(url).path.lstrip("/")
+    if not key or not settings.AWS_S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="Document not available")
+    s3 = _get_s3_client(settings)
+    try:
+        obj = s3.get_object(Bucket=settings.AWS_S3_BUCKET_NAME, Key=key)
+        return obj["Body"].read()
+    except (BotoCoreError, ClientError) as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch document from S3: {e}")
+
+
+@router.post("/{interview_id}/document/highlight-keywords", response_model=InterviewReadWithDetails)
+def highlight_interview_document_keywords(
+    interview_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Detect frameworks/languages/tools/concepts mentioned in the interview document (job
+    description) and produce a copy of the PDF with those keywords highlighted."""
+    assert_write_access(current_user)
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    team_member_must_own_interview(session, current_user, interview)
+
+    if not interview.interview_doc_url:
+        raise HTTPException(
+            status_code=400, detail="Upload an interview document first")
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=500, detail="OpenAI API key is not configured.")
+    if not settings.AWS_S3_BUCKET_NAME:
+        raise HTTPException(
+            status_code=500, detail="AWS S3 bucket not configured")
+
+    pdf_bytes = _download_s3_object_bytes(settings, interview.interview_doc_url)
+
+    import pymupdf
+
+    try:
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}")
+
+    doc_text = "\n".join(page.get_text() for page in doc).strip()
+    if not doc_text:
+        doc.close()
+        raise HTTPException(
+            status_code=400, detail="No extractable text found in this document")
+
+    system_prompt = """You extract technical keywords from job description / interview documents.
+
+Identify every distinct framework, programming language, tool, technology, and technical concept mentioned in the text (for example: React, Python, Docker, AWS, microservices, REST API, CI/CD, Agile, machine learning).
+
+Rules:
+- Return ONLY a JSON array of strings, nothing else — no markdown, no explanation
+- Copy each keyword EXACTLY as it appears in the source text (same casing, same spelling) so it can be located verbatim
+- Do not invent keywords that are not present in the text
+- Do not include generic soft-skill words (e.g. "communication", "teamwork") or company/role/person names
+- Deduplicate; each keyword should appear once in the array"""
+
+    from openai import OpenAI
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": doc_text[:6000]},
+        ],
+        temperature=0.1,
+        max_tokens=650,
+    )
+
+    import json
+    raw = response.choices[0].message.content.strip()
+    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        candidate_keywords = json.loads(raw)
+        if not isinstance(candidate_keywords, list):
+            candidate_keywords = []
+    except Exception:
+        candidate_keywords = []
+    candidate_keywords = [str(k).strip() for k in candidate_keywords if str(k).strip()]
+
+    found_keywords: list[str] = []
+    seen_lower: set[str] = set()
+    for keyword in candidate_keywords:
+        if keyword.lower() in seen_lower:
+            continue
+        hit_on_any_page = False
+        for page in doc:
+            for quad in page.search_for(keyword, quads=True):
+                page.add_highlight_annot(quad)
+                hit_on_any_page = True
+        if hit_on_any_page:
+            found_keywords.append(keyword)
+            seen_lower.add(keyword.lower())
+
+    if not found_keywords:
+        doc.close()
+        raise HTTPException(
+            status_code=422, detail="No matching keywords could be located in the document")
+
+    highlighted_bytes = doc.tobytes(deflate=True, garbage=3)
+    doc.close()
+
+    key = f"interview_docs/{interview_id}/interview_doc_highlighted-{uuid.uuid4()}.pdf"
+    s3_client = _get_s3_client(settings)
+    try:
+        s3_client.put_object(
+            Bucket=settings.AWS_S3_BUCKET_NAME,
+            Key=key,
+            Body=highlighted_bytes,
+            ContentType="application/pdf",
+            ACL="private",
+        )
+    except (BotoCoreError, ClientError) as e:
+        raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
+
+    interview.interview_doc_highlighted_url = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+    interview.interview_doc_keywords = ", ".join(found_keywords)
+    interview.updated_at = datetime.utcnow()
+    session.add(interview)
+    session.commit()
+    loaded = _get_interview_for_enrichment(session, interview_id)
+    if not loaded:
+        raise HTTPException(status_code=500, detail="Interview reload failed")
+
     return _finalize_interview_response(session, loaded, current_user)
 
 
