@@ -650,6 +650,7 @@ def list_interviews_by_thread(
 @router.post("/", response_model=InterviewReadWithDetails, status_code=status.HTTP_201_CREATED)
 def create_interview(
     data: InterviewCreate,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -766,6 +767,11 @@ def create_interview(
         parent_for_followup.updated_at = datetime.utcnow()
         session.add(parent_for_followup)
     session.commit()
+    if interview.interview_doc_url:
+        # Defensive: the UI always attaches documents via the dedicated upload endpoints
+        # (which already trigger this), but any client sending interview_doc_url directly
+        # at creation time should still get highlighting.
+        background_tasks.add_task(_highlight_interview_document_in_background, interview.id)
     loaded = _get_interview_for_enrichment(session, interview.id)
     if not loaded:
         raise HTTPException(status_code=500, detail="Interview reload failed")
@@ -1538,6 +1544,7 @@ def assign_interview_room(
 def update_interview(
     interview_id: uuid.UUID,
     data: InterviewUpdate,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -1623,12 +1630,26 @@ def update_interview(
             lt.updated_at = datetime.utcnow()
             session.add(lt)
 
+    # Defensive: the UI always attaches/replaces documents via the dedicated upload
+    # endpoints (which already trigger highlighting), but any client sending
+    # interview_doc_url directly through this generic update should still get a
+    # freshly-highlighted copy — and never keep serving a stale one from the old doc.
+    doc_url_changed = (
+        "interview_doc_url" in update_data
+        and update_data["interview_doc_url"] != interview.interview_doc_url
+    )
+    if doc_url_changed:
+        interview.interview_doc_highlighted_url = None
+        interview.interview_doc_keywords = None
+
     for key, value in update_data.items():
         setattr(interview, key, value)
     interview.updated_at = datetime.utcnow()
 
     session.add(interview)
     session.commit()
+    if doc_url_changed and interview.interview_doc_url:
+        background_tasks.add_task(_highlight_interview_document_in_background, interview_id)
     loaded = _get_interview_for_enrichment(session, interview_id)
     if not loaded:
         raise HTTPException(status_code=404, detail="Interview not found")
