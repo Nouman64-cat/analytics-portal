@@ -774,6 +774,9 @@ export default function InterviewsPage() {
   const [introErrorId, setIntroErrorId] = useState<string | null>(null);
   const [docDragOver, setDocDragOver] = useState(false);
   const [resumeDragOver, setResumeDragOver] = useState(false);
+  const [docToasts, setDocToasts] = useState<
+    { id: string; text: string; tone: "info" | "success" }[]
+  >([]);
 
   // Company popover
   const [companyPopover, setCompanyPopover] = useState<{
@@ -1244,6 +1247,7 @@ export default function InterviewsPage() {
             : Promise.resolve(),
         ]);
         setUploadingInterviewId(null);
+        if (interviewDocFile) notifyDocumentHighlighting(savedInterview.id);
       }
 
       closeInterviewModal();
@@ -1439,9 +1443,7 @@ export default function InterviewsPage() {
       const updated = await interviewsService.get(interviewId);
       setDetailModal(updated);
       await fetchData();
-      // Keyword highlighting runs server-side in the background; quietly poll so the
-      // Download button starts serving the highlighted copy without a page refresh.
-      pollForHighlightedDoc(interviewId);
+      notifyDocumentHighlighting(interviewId);
     } catch (err) {
       setUploadError(
         err instanceof Error
@@ -1451,6 +1453,22 @@ export default function InterviewsPage() {
     } finally {
       setUploadingInterviewId(null);
     }
+  };
+
+  const pushDocToast = (text: string, tone: "info" | "success" = "info") => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setDocToasts((prev) => [...prev, { id, text, tone }]);
+    setTimeout(() => {
+      setDocToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  // Keyword highlighting runs server-side in the background right after upload. Let the
+  // user know it started, then quietly poll so the Download button starts serving the
+  // highlighted copy (and the user is told it's ready) without a page refresh.
+  const notifyDocumentHighlighting = (interviewId: string) => {
+    pushDocToast("Highlighting keywords in the interview document…", "info");
+    pollForHighlightedDoc(interviewId);
   };
 
   const pollForHighlightedDoc = async (interviewId: string) => {
@@ -1463,6 +1481,10 @@ export default function InterviewsPage() {
             prev && prev.id === interviewId ? latest : prev,
           );
           fetchData();
+          pushDocToast(
+            "Interview document keywords highlighted — download is ready.",
+            "success",
+          );
           return;
         }
       } catch {
@@ -4554,6 +4576,31 @@ export default function InterviewsPage() {
           <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
             {companyPopover.company.detail}
           </p>
+        </div>
+      )}
+
+      {/* Interview document keyword-highlighting toasts (background job progress/completion) */}
+      {docToasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 w-80">
+          {docToasts.map((t) => (
+            <div
+              key={t.id}
+              className="flex items-start gap-2 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-xl px-3.5 py-3 text-sm text-slate-700 dark:text-slate-200"
+            >
+              {t.tone === "success" ? (
+                <CheckCircle2
+                  size={16}
+                  className="mt-0.5 shrink-0 text-emerald-500"
+                />
+              ) : (
+                <Loader2
+                  size={16}
+                  className="mt-0.5 shrink-0 animate-spin text-indigo-500"
+                />
+              )}
+              <span>{t.text}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
