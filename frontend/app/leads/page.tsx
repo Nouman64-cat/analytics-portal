@@ -558,10 +558,10 @@ Return "all" for fields the user didn't mention.`;
       // we'd need to store the override state in the list item.
       // Since LeadListItem only has the final 'is_converted' boolean,
       // we'll just toggle it.
-      await leadsService.update(lead.thread_id, {
+      const updated = await leadsService.update(lead.thread_id, {
         is_converted_override: !lead.is_converted,
       });
-      await fetchData();
+      patchLeadLocal(lead.thread_id, updated);
     } catch (e) {
       alert(
         e instanceof Error ? e.message : "Failed to update conversion status",
@@ -743,7 +743,7 @@ Return "all" for fields the user didn't mention.`;
     }
     setSubmitting(true);
     try {
-      await leadsService.update(editingThreadId, {
+      const updated = await leadsService.update(editingThreadId, {
         company_id: editCompanyId,
         resume_profile_id: form.resume_profile_id,
         role: form.role.trim(),
@@ -758,7 +758,9 @@ Return "all" for fields the user didn't mention.`;
           : undefined,
       });
       resetLeadFormModal();
-      await fetchData();
+      // A single-lead edit doesn't need the full multi-endpoint fetchData() — patch this
+      // row locally instead.
+      patchLeadLocal(editingThreadId, updated);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to update lead");
     } finally {

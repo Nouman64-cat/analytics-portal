@@ -1211,6 +1211,11 @@ export default function InterviewsPage() {
       if (payload.is_phone_call || !payload.interview_link)
         payload.interview_link = null;
 
+      const priorThreadId = editingId
+        ? interviews.find((i) => i.id === editingId)?.thread_id
+        : undefined;
+      const filesAttached = Boolean(interviewDocFile || interviewResumeFile);
+
       let savedInterview;
       if (editingId) {
         savedInterview = await interviewsService.update(editingId, payload);
@@ -1218,7 +1223,7 @@ export default function InterviewsPage() {
         savedInterview = await interviewsService.create(payload);
       }
 
-      if ((interviewDocFile || interviewResumeFile) && savedInterview?.id) {
+      if (filesAttached && savedInterview?.id) {
         if (interviewDocFile && interviewDocFile.type !== "application/pdf")
           throw new Error(
             "Only PDF files are allowed for interview documents.",
@@ -1255,7 +1260,18 @@ export default function InterviewsPage() {
       setInterviewDocError(null);
       setInterviewResumeFile(null);
       setInterviewResumeError(null);
-      fetchData();
+
+      if (editingId && savedInterview) {
+        // A single-row edit doesn't need the full multi-endpoint fetchData() — patch this
+        // row locally instead. If a doc/resume was just uploaded, the update response above
+        // predates that, so re-fetch this one interview (cheap) rather than everything.
+        const finalInterview = filesAttached
+          ? await interviewsService.get(savedInterview.id)
+          : savedInterview;
+        patchInterviewLocal(finalInterview, [priorThreadId]);
+      } else {
+        fetchData();
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -1263,9 +1279,49 @@ export default function InterviewsPage() {
     }
   };
 
+  /** Mirrors the backend's pipeline_thread_step ordering (interview_date asc, nulls last,
+   * then created_at) so sibling rows in the same thread stay correct after a local patch —
+   * without needing a full refetch just because one round's date moved it in the order. */
+  const recomputePipelineSteps = (
+    list: Interview[],
+    threadIds: Set<string>,
+  ): Interview[] => {
+    if (threadIds.size === 0) return list;
+    const byThread = new Map<string, Interview[]>();
+    for (const iv of list) {
+      if (!iv.thread_id || !threadIds.has(iv.thread_id)) continue;
+      const arr = byThread.get(iv.thread_id) ?? [];
+      arr.push(iv);
+      byThread.set(iv.thread_id, arr);
+    }
+    const stepById = new Map<string, { step: number; total: number }>();
+    for (const arr of byThread.values()) {
+      const ordered = [...arr].sort((a, b) => {
+        const ad = a.interview_date ?? "9999-12-31";
+        const bd = b.interview_date ?? "9999-12-31";
+        if (ad !== bd) return ad < bd ? -1 : 1;
+        return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+      });
+      ordered.forEach((iv, idx) => {
+        stepById.set(iv.id, { step: idx + 1, total: ordered.length });
+      });
+    }
+    return list.map((iv) => {
+      const s = stepById.get(iv.id);
+      if (!s) return iv;
+      return { ...iv, pipeline_thread_step: s.step, pipeline_thread_total: s.total };
+    });
+  };
+
   /** Patches just the one row in local state — avoids a full-list refetch for a single-field edit. */
-  const patchInterviewLocal = (updated: Interview) => {
-    setInterviews((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  const patchInterviewLocal = (updated: Interview, extraThreadIds?: (string | null | undefined)[]) => {
+    setInterviews((prev) => {
+      const next = prev.map((i) => (i.id === updated.id ? updated : i));
+      const threadIds = new Set(
+        [updated.thread_id, ...(extraThreadIds ?? [])].filter(Boolean) as string[],
+      );
+      return recomputePipelineSteps(next, threadIds);
+    });
   };
 
   const handleInterviewCandidateSave = async (interview: Interview, candidateId: string) => {
@@ -1384,8 +1440,17 @@ export default function InterviewsPage() {
     setIsDeleting(true);
     try {
       await interviewsService.delete(deleteModal.id);
+      const threadId = deleteModal.thread_id;
       setDeleteModal(null);
-      fetchData();
+      // Remove the row locally instead of refetching everything; recompute sibling
+      // pipeline step numbers for the thread it belonged to.
+      setInterviews((prev) => {
+        const next = prev.filter((i) => i.id !== deleteModal.id);
+        return recomputePipelineSteps(
+          next,
+          new Set(threadId ? [threadId] : []),
+        );
+      });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete");
     } finally {
@@ -1411,7 +1476,7 @@ export default function InterviewsPage() {
       await interviewsService.uploadInterviewResume(interviewId, file);
       const updated = await interviewsService.get(interviewId);
       setDetailModal(updated);
-      await fetchData();
+      patchInterviewLocal(updated);
     } catch (err) {
       setUploadError(
         err instanceof Error ? err.message : "Failed to upload resume",
@@ -1442,7 +1507,7 @@ export default function InterviewsPage() {
       await interviewsService.uploadInterviewDoc(interviewId, file);
       const updated = await interviewsService.get(interviewId);
       setDetailModal(updated);
-      await fetchData();
+      patchInterviewLocal(updated);
       notifyDocumentHighlighting(interviewId);
     } catch (err) {
       setUploadError(
@@ -1480,7 +1545,7 @@ export default function InterviewsPage() {
           setDetailModal((prev) =>
             prev && prev.id === interviewId ? latest : prev,
           );
-          fetchData();
+          patchInterviewLocal(latest);
           pushDocToast(
             "Interview document keywords highlighted — download is ready.",
             "success",
