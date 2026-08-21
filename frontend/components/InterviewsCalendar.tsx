@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, Loader2, Sparkles } from "lucide-react";
-import type { Interview, BusyDay, Candidate } from "@/lib/types";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, Sparkles } from "lucide-react";
+import type { BusyDay, Candidate, Engagement, Interview } from "@/lib/types";
 import {
   formatDate,
   formatInterviewTimeInZone,
   INTERVIEW_SCHEDULE_TZ,
+  parseUtcDatetime,
   TIMEZONE_OPTIONS,
 } from "@/lib/utils";
 import { getCandidateColor } from "@/lib/candidateColor";
@@ -14,6 +15,8 @@ import { interviewsService } from "@/lib/services";
 import StatusBadge from "@/components/StatusBadge";
 import CandidateAvatar from "@/components/CandidateAvatar";
 import Modal, { buttonPrimary, textareaClass } from "@/components/Modal";
+import { addDays, startOfDay, toISODateLocal } from "@/components/TimeGridCalendar";
+import { toZonedTime } from "date-fns-tz";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 /** Narrow screens: short labels so columns stay readable */
@@ -160,9 +163,12 @@ export default function InterviewsCalendar({
   interviews,
   onSelectInterview,
   busyDays = [],
+  engagements = [],
   currentUserId,
   onDayClick,
   onBusyBarClick,
+  onExpandDay,
+  onVisibleRangeChange,
   tz = INTERVIEW_SCHEDULE_TZ,
   onTzChange,
   candidateMap = {},
@@ -170,9 +176,15 @@ export default function InterviewsCalendar({
   interviews: Interview[];
   onSelectInterview: (interview: Interview, anchorRect?: DOMRect) => void;
   busyDays?: BusyDay[];
+  /** Engagements touching the visible month — used only to flag days that have one (see {@link onVisibleRangeChange}). */
+  engagements?: Engagement[];
   currentUserId?: string;
   onDayClick?: (date: string) => void;
   onBusyBarClick?: (date: string) => void;
+  /** Click anywhere on a day cell (outside its interactive controls) to open that day's full hourly agenda. */
+  onExpandDay?: (date: string) => void;
+  /** Fired whenever the visible month changes, so the caller can (re)fetch `engagements` for it. */
+  onVisibleRangeChange?: (start: Date, end: Date) => void;
   /** IANA zone to display interview times in (see {@link TIMEZONE_OPTIONS}). Defaults to Eastern. */
   tz?: string;
   onTzChange?: (tz: string) => void;
@@ -198,6 +210,10 @@ export default function InterviewsCalendar({
   });
 
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
+
+  useEffect(() => {
+    onVisibleRangeChange?.(new Date(year, month, 1), new Date(year, month + 1, 0));
+  }, [year, month, onVisibleRangeChange]);
 
   const todayIso = useMemo(() => toISODate(new Date()), []);
 
@@ -229,6 +245,28 @@ export default function InterviewsCalendar({
     }
     return m;
   }, [busyDays]);
+
+  /** Every calendar day an engagement touches (spans multiple days for multi-day all-day items),
+   * in `tz` wall-clock terms — used only to flag day cells that have one. */
+  const engagementsByDate = useMemo(() => {
+    const m = new Map<string, Engagement[]>();
+    for (const eng of engagements) {
+      const start = parseUtcDatetime(eng.start_time);
+      const end = parseUtcDatetime(eng.end_time);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+      let cur = startOfDay(toZonedTime(start, tz));
+      const last = startOfDay(toZonedTime(end, tz));
+      let guard = 0;
+      while (cur <= last && guard < 60) {
+        const key = toISODateLocal(cur);
+        if (!m.has(key)) m.set(key, []);
+        m.get(key)!.push(eng);
+        cur = addDays(cur, 1);
+        guard += 1;
+      }
+    }
+    return m;
+  }, [engagements, tz]);
 
   const undated = useMemo(
     () => interviews.filter((i) => !i.interview_date),
@@ -343,35 +381,37 @@ export default function InterviewsCalendar({
             )}
             Weekly progress
           </button>
+          {onTzChange && (
+            <div className="relative flex-1 sm:flex-none">
+              <select
+                value={tz}
+                onChange={(e) => onTzChange(e.target.value)}
+                aria-label="Timezone"
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm outline-none transition-colors hover:bg-slate-50 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200 dark:hover:bg-white/[0.04]"
+              >
+                {TIMEZONE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-left">
-          <span className="font-medium text-slate-600 dark:text-slate-300">
-            Times shown in {TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz}
-          </span>{" "}
-          — day cells use each row&apos;s interview date (aligned with Date
-          (EST) on the list); within a day, entries sort by scheduled EST
-          time.
-        </p>
-        {onTzChange && (
-          <label className="flex shrink-0 items-center justify-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 sm:justify-start">
-            <span className="font-medium">Timezone:</span>
-            <select
-              value={tz}
-              onChange={(e) => onTzChange(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none transition-colors focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200"
-            >
-              {TIMEZONE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
+      <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-left">
+        <span className="font-medium text-slate-600 dark:text-slate-300">
+          Times shown in {TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz}
+        </span>{" "}
+        — day cells use each row&apos;s interview date (aligned with Date
+        (EST) on the list); within a day, entries sort by scheduled EST
+        time.
+      </p>
 
       <div className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/[0.08] dark:bg-[#12141c]">
         <div
@@ -401,6 +441,7 @@ export default function InterviewsCalendar({
             const iso = toISODate(day);
             const dayInterviews = byDate.get(iso) ?? [];
             const dayBusy = busyByDate.get(iso) ?? [];
+            const dayEngagements = engagementsByDate.get(iso) ?? [];
             const isToday = iso === todayIso;
             const isMyBusy = dayBusy.some((b) => b.user_id === currentUserId);
             const visible = dayInterviews.slice(0, maxPerDay);
@@ -415,13 +456,18 @@ export default function InterviewsCalendar({
             return (
               <div
                 key={iso}
-                className={`min-h-[4.5rem] border-b border-r border-slate-100 p-0.5 sm:min-h-[7.5rem] sm:p-1.5 dark:border-white/[0.06] last:border-r-0 ${cellBg}`}
+                onClick={onExpandDay ? () => onExpandDay(iso) : undefined}
+                title={onExpandDay ? "Click to view this day's full agenda" : undefined}
+                className={`min-h-[4.5rem] border-b border-r border-slate-100 p-0.5 sm:min-h-[7.5rem] sm:p-1.5 dark:border-white/[0.06] last:border-r-0 ${cellBg} ${onExpandDay ? "cursor-pointer" : ""}`}
               >
                 <div className="mb-0.5 flex items-center justify-between gap-0.5 sm:mb-1">
                   {onDayClick ? (
                     <button
                       type="button"
-                      onClick={() => onDayClick(iso)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDayClick(iso);
+                      }}
                       title="Manage availability for this day"
                       className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-0.5 text-[10px] font-medium transition-shadow hover:ring-2 hover:ring-red-400 hover:ring-offset-1 sm:h-6 sm:min-w-[1.5rem] sm:text-xs ${
                         isToday
@@ -484,7 +530,10 @@ export default function InterviewsCalendar({
                   return onBusyBarClick ? (
                     <button
                       type="button"
-                      onClick={() => onBusyBarClick(iso)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onBusyBarClick(iso);
+                      }}
                       className="mb-0.5 w-full text-left transition-opacity hover:opacity-75 sm:mb-1"
                       title="Click to see details"
                     >
@@ -494,6 +543,24 @@ export default function InterviewsCalendar({
                     <div className="mb-0.5 sm:mb-1">{inner}</div>
                   );
                 })()}
+                {/* Engagement indicator — shown even when the day has no interviews, so the
+                    cell doesn't read as empty when a meeting is actually scheduled. */}
+                {dayEngagements.length > 0 && (
+                  <div
+                    title={dayEngagements
+                      .slice(0, 3)
+                      .map((e) => e.title)
+                      .join(", ")}
+                    className="mb-0.5 flex w-full items-center gap-0.5 rounded bg-violet-100 px-0.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 sm:mb-1 sm:text-[8px]"
+                  >
+                    <CalendarClock size={9} className="shrink-0" />
+                    <span className="truncate">
+                      {dayEngagements.length === 1
+                        ? dayEngagements[0].title
+                        : `${dayEngagements.length} Engagements`}
+                    </span>
+                  </div>
+                )}
                 <ul className="space-y-0.5 sm:space-y-1 min-w-0">
                   {visible.map((inv) => {
                     const cand = inv.candidate_id ? candidateMap[inv.candidate_id] : undefined;
@@ -502,7 +569,10 @@ export default function InterviewsCalendar({
                     <li key={inv.id} className="min-w-0">
                       <button
                         type="button"
-                        onClick={(e) => onSelectInterview(inv, e.currentTarget.getBoundingClientRect())}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectInterview(inv, e.currentTarget.getBoundingClientRect());
+                        }}
                         style={candColor ? { borderLeftColor: candColor, borderLeftWidth: 3 } : undefined}
                         title={`${inv.round} — ${inv.company_name || "Interview"}${inv.candidate_name ? ` (${inv.candidate_name})` : ""}`}
                         className="group flex w-full items-center gap-1 min-w-0 overflow-hidden rounded border border-slate-200/80 bg-slate-50 px-1 py-0.5 text-left text-[8px] sm:text-[10px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-1"
@@ -537,9 +607,10 @@ export default function InterviewsCalendar({
                 {rest > 0 && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setDayListModal({ date: day, interviews: dayInterviews })
-                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDayListModal({ date: day, interviews: dayInterviews });
+                    }}
                     className="mt-0.5 w-full rounded px-0.5 py-0.5 text-left text-[8px] font-semibold text-indigo-600 underline decoration-indigo-500/50 underline-offset-2 hover:bg-indigo-500/10 hover:text-indigo-700 sm:mt-1 sm:px-0.5 sm:text-[10px] dark:text-indigo-400 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
                     aria-label={`Show ${rest} more interview${rest === 1 ? "" : "s"} for this day`}
                   >

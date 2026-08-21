@@ -41,7 +41,15 @@ import {
   companiesService,
   businessDevelopersService,
 } from "@/lib/services";
-import type { Interview, BusyDay, Department, Candidate, Engagement, Company, BusinessDeveloper } from "@/lib/types";
+import type {
+  Interview,
+  BusyDay,
+  Department,
+  Candidate,
+  Engagement,
+  Company,
+  BusinessDeveloper,
+} from "@/lib/types";
 import {
   formatInterviewDateEst,
   formatInterviewTimeInZone,
@@ -53,17 +61,14 @@ import {
 import { getUserRole, getUserId } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
-import TimeGridCalendar, { addDays, getCalendarDays, type CalendarGridView } from "@/components/TimeGridCalendar";
-import CalendarSidebar from "@/components/CalendarSidebar";
+import TimeGridCalendar, {
+  addDays,
+  toISODateLocal,
+} from "@/components/TimeGridCalendar";
 import EngagementModal from "@/components/EngagementModal";
-import CandidateFilterMenu from "@/components/CandidateFilterMenu";
 import Modal, { buttonPrimary, buttonSecondary } from "@/components/Modal";
 import StatusBadge from "@/components/StatusBadge";
-import {
-  PageLoader,
-  ErrorState,
-  PageHeader,
-} from "@/components/PageStates";
+import { PageLoader, ErrorState, PageHeader } from "@/components/PageStates";
 
 function PreviewField({
   label,
@@ -77,7 +82,9 @@ function PreviewField({
       <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
         {label}
       </p>
-      <div className="mt-0.5 text-sm text-slate-900 dark:text-white">{children}</div>
+      <div className="mt-0.5 text-sm text-slate-900 dark:text-white">
+        {children}
+      </div>
     </div>
   );
 }
@@ -99,25 +106,27 @@ function formatDayTitle(iso: string): string {
 
 const CAN_MARK_BUSY_ROLES = new Set(["superadmin", "team-member"]);
 /** Same read-only roles the backend's assert_write_access rejects for engagement writes. */
-const ENGAGEMENT_READ_ONLY_ROLES = new Set(["bd-manager", "guest", "coordinator"]);
+const ENGAGEMENT_READ_ONLY_ROLES = new Set([
+  "bd-manager",
+  "guest",
+  "coordinator",
+]);
 
 export default function CalendarPage() {
   const router = useRouter();
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [busyDays, setBusyDays] = useState<BusyDay[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [tz, setTz] = useState<string>(INTERVIEW_SCHEDULE_TZ);
 
-  // Week/Day Teams-style grid + Engagements
-  const [view, setView] = useState<"month" | CalendarGridView>("month");
-  const [gridCursor, setGridCursor] = useState(() => new Date());
-  const [engagements, setEngagements] = useState<Engagement[]>([]);
-  const [showInterviews, setShowInterviews] = useState(true);
-  const [showEngagements, setShowEngagements] = useState(true);
+  // Clicking a day cell expands it into a full hourly agenda (Engagements + Interviews)
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [dayEngagements, setDayEngagements] = useState<Engagement[]>([]);
+  // Engagements touching the visible month — just enough to flag day cells that have one.
+  const [monthEngagements, setMonthEngagements] = useState<Engagement[]>([]);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyLink = useCallback((link: string) => {
@@ -127,7 +136,9 @@ export default function CalendarPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   }, []);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [businessDevelopers, setBusinessDevelopers] = useState<BusinessDeveloper[]>([]);
+  const [businessDevelopers, setBusinessDevelopers] = useState<
+    BusinessDeveloper[]
+  >([]);
   const [engagementModal, setEngagementModal] = useState<{
     engagement: Engagement | null;
     initialRange: { start: Date; end: Date } | null;
@@ -144,7 +155,8 @@ export default function CalendarPage() {
   const role = getUserRole();
   const currentUserId = getUserId();
   const canMarkBusy = role !== null && CAN_MARK_BUSY_ROLES.has(role);
-  const canWriteEngagements = role !== null && !ENGAGEMENT_READ_ONLY_ROLES.has(role);
+  const canWriteEngagements =
+    role !== null && !ENGAGEMENT_READ_ONLY_ROLES.has(role);
   const isSuperadmin = role === "superadmin";
   const { departmentId } = useDepartmentContext();
 
@@ -152,13 +164,18 @@ export default function CalendarPage() {
     try {
       setLoading(true);
       setError(null);
-      const [interviewData, busyData, candidateData, companyData, bdData] = await Promise.all([
-        interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
-        busyDaysService.list(departmentId ? { department_id: departmentId } : undefined),
-        candidatesService.list({ department_id: departmentId }),
-        companiesService.list(),
-        businessDevelopersService.list(),
-      ]);
+      const [interviewData, busyData, candidateData, companyData, bdData] =
+        await Promise.all([
+          interviewsService.list(
+            departmentId ? { department_id: departmentId } : undefined,
+          ),
+          busyDaysService.list(
+            departmentId ? { department_id: departmentId } : undefined,
+          ),
+          candidatesService.list({ department_id: departmentId }),
+          companiesService.list(),
+          businessDevelopersService.list(),
+        ]);
       setInterviews(interviewData);
       setBusyDays(busyData);
       setCandidates(candidateData);
@@ -176,26 +193,41 @@ export default function CalendarPage() {
   useEffect(() => {
     void fetchData();
     if (isSuperadmin) {
-      departmentsService.list().then((depts) => setDepartments(depts.filter((d) => d.is_active))).catch(() => {});
+      departmentsService
+        .list()
+        .then((depts) => setDepartments(depts.filter((d) => d.is_active)))
+        .catch(() => {});
     }
   }, [fetchData, isSuperadmin]);
 
-  // Engagements are fetched separately, scoped to the visible Week/Day range (padded a bit so
-  // navigating a step or two doesn't need a refetch), rather than loaded in full up front.
-  const fetchEngagements = useCallback(
-    async (center: Date, currentView: CalendarGridView) => {
-      const pad = currentView === "day" ? 2 : 9;
-      const start = new Date(center);
-      start.setDate(start.getDate() - pad);
-      const end = new Date(center);
-      end.setDate(end.getDate() + pad);
+  // Engagements for the expanded day are fetched on demand, scoped to just that day, rather
+  // than loaded in full up front.
+  const fetchDayEngagements = useCallback(
+    async (iso: string) => {
+      const day = parseDateLocal(iso);
+      const start = new Date(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+        0,
+        0,
+        0,
+      );
+      const end = new Date(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+        23,
+        59,
+        59,
+      );
       try {
         const data = await engagementsService.list({
           start_date: start.toISOString(),
           end_date: end.toISOString(),
           ...(departmentId ? { department_id: departmentId } : {}),
         });
-        setEngagements(data);
+        setDayEngagements(data);
       } catch {
         // surfaced via the modal's own error state on the next create/edit attempt
       }
@@ -204,13 +236,42 @@ export default function CalendarPage() {
   );
 
   useEffect(() => {
-    if (view === "month") return;
-    void fetchEngagements(gridCursor, view);
-  }, [view, gridCursor, fetchEngagements]);
+    if (!expandedDay) {
+      setDayEngagements([]);
+      return;
+    }
+    void fetchDayEngagements(expandedDay);
+  }, [expandedDay, fetchDayEngagements]);
+
+  // Engagements for the visible month grid — just enough to flag day cells that have one.
+  const [monthRange, setMonthRange] = useState<{ start: Date; end: Date } | null>(null);
+  const fetchMonthEngagements = useCallback(
+    async (start: Date, end: Date) => {
+      try {
+        const data = await engagementsService.list({
+          start_date: start.toISOString(),
+          end_date: end.toISOString(),
+          ...(departmentId ? { department_id: departmentId } : {}),
+        });
+        setMonthEngagements(data);
+      } catch {
+        // indicator-only data; non-critical if it fails
+      }
+    },
+    [departmentId],
+  );
+  const handleVisibleRangeChange = useCallback(
+    (start: Date, end: Date) => {
+      setMonthRange({ start, end });
+      void fetchMonthEngagements(start, end);
+    },
+    [fetchMonthEngagements],
+  );
 
   const refreshEngagements = useCallback(() => {
-    if (view !== "month") void fetchEngagements(gridCursor, view);
-  }, [view, gridCursor, fetchEngagements]);
+    if (expandedDay) void fetchDayEngagements(expandedDay);
+    if (monthRange) void fetchMonthEngagements(monthRange.start, monthRange.end);
+  }, [expandedDay, fetchDayEngagements, monthRange, fetchMonthEngagements]);
 
   const openCreateEngagement = useCallback((start: Date, end: Date) => {
     setEngagementModal({ engagement: null, initialRange: { start, end } });
@@ -222,55 +283,39 @@ export default function CalendarPage() {
 
   const closeEngagementModal = useCallback(() => setEngagementModal(null), []);
 
-  const isGridView = view !== "month";
-  const gridDays = useMemo(
-    () => (isGridView ? getCalendarDays(view as CalendarGridView, gridCursor) : []),
-    [isGridView, view, gridCursor],
-  );
-  const gridRangeLabel = useMemo(() => {
-    if (!isGridView) return "";
-    if (view === "day") {
-      return gridCursor.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-    }
-    const first = gridDays[0];
-    const last = gridDays[gridDays.length - 1];
-    if (!first || !last) return "";
-    const sameMonth = first.getMonth() === last.getMonth();
-    const startLabel = first.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const endLabel = last.toLocaleDateString(
-      "en-US",
-      sameMonth ? { day: "numeric", year: "numeric" } : { month: "short", day: "numeric", year: "numeric" },
+  const goPrevExpandedDay = useCallback(() => {
+    setExpandedDay((prev) =>
+      prev ? toISODateLocal(addDays(parseDateLocal(prev), -1)) : prev,
     );
-    return `${startLabel} – ${endLabel}`;
-  }, [isGridView, view, gridCursor, gridDays]);
+  }, []);
+  const goNextExpandedDay = useCallback(() => {
+    setExpandedDay((prev) =>
+      prev ? toISODateLocal(addDays(parseDateLocal(prev), 1)) : prev,
+    );
+  }, []);
 
-  const goPrevGrid = useCallback(() => {
-    setGridCursor((prev) => addDays(prev, view === "day" ? -1 : -7));
-  }, [view]);
-  const goNextGrid = useCallback(() => {
-    setGridCursor((prev) => addDays(prev, view === "day" ? 1 : 7));
-  }, [view]);
-  const goTodayGrid = useCallback(() => setGridCursor(new Date()), []);
-
-  /** "New" toolbar button — quick-add starting from the next half hour; grid click still lets
-   * you pick an exact slot. */
+  /** "New" toolbar button — quick-add starting from the next half hour; expanded-day double-click
+   * still lets you pick an exact slot. */
   const openNewEngagement = useCallback(() => {
     const now = new Date();
     const minutes = now.getMinutes();
     const roundedUp = minutes < 30 ? 30 : 60;
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), roundedUp === 60 ? 0 : roundedUp);
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      roundedUp === 60 ? 0 : roundedUp,
+    );
     if (roundedUp === 60) start.setHours(start.getHours() + 1);
     openCreateEngagement(start, new Date(start.getTime() + 30 * 60_000));
   }, [openCreateEngagement]);
 
-  // Department scope changed — the previously selected candidates may no longer apply.
-  useEffect(() => {
-    setSelectedCandidateIds([]);
-  }, [departmentId]);
-
   const candidateMap = useMemo(() => {
     const map: Record<string, Candidate> = {};
-    candidates.forEach((c) => { map[c.id] = c; });
+    candidates.forEach((c) => {
+      map[c.id] = c;
+    });
     return map;
   }, [candidates]);
 
@@ -279,14 +324,12 @@ export default function CalendarPage() {
     anchorRect?: DOMRect | null;
   } | null>(null);
 
-  const filteredInterviews = useMemo(() => {
-    if (selectedCandidateIds.length === 0) return interviews;
-    return interviews.filter((i) => i.candidate_id && selectedCandidateIds.includes(i.candidate_id));
-  }, [interviews, selectedCandidateIds]);
-
-  const openInterviewPreview = useCallback((interview: Interview, anchorRect?: DOMRect) => {
-    setPreview({ interview, anchorRect: anchorRect || null });
-  }, []);
+  const openInterviewPreview = useCallback(
+    (interview: Interview, anchorRect?: DOMRect) => {
+      setPreview({ interview, anchorRect: anchorRect || null });
+    },
+    [],
+  );
 
   const goToFullInterview = useCallback(() => {
     if (!preview) return;
@@ -299,7 +342,10 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!preview) return;
     const dismiss = () => setPreview(null);
-    window.addEventListener("scroll", dismiss, { capture: true, passive: true });
+    window.addEventListener("scroll", dismiss, {
+      capture: true,
+      passive: true,
+    });
     window.addEventListener("resize", dismiss, { passive: true });
     return () => {
       window.removeEventListener("scroll", dismiss, { capture: true });
@@ -342,12 +388,15 @@ export default function CalendarPage() {
     };
   }, [preview?.anchorRect]);
 
-  const openDayModal = useCallback((date: string) => {
-    setBusyReason("");
-    setBusyError(null);
-    setBusyDeptId(departmentId ?? null);
-    setDayModal({ date });
-  }, [departmentId]);
+  const openDayModal = useCallback(
+    (date: string) => {
+      setBusyReason("");
+      setBusyError(null);
+      setBusyDeptId(departmentId ?? null);
+      setDayModal({ date });
+    },
+    [departmentId],
+  );
 
   const closeDayModal = useCallback(() => {
     setDayModal(null);
@@ -356,23 +405,28 @@ export default function CalendarPage() {
     setBusyDeptId(null);
   }, []);
 
-  const handleMarkBusy = useCallback(async (date: string) => {
-    setBusyLoading(true);
-    setBusyError(null);
-    try {
-      const created = await busyDaysService.create({
-        date,
-        reason: busyReason.trim() || null,
-        department_id: busyDeptId,
-      });
-      setBusyDays((prev) => [...prev, created]);
-      setBusyReason("");
-    } catch (err) {
-      setBusyError(err instanceof Error ? err.message : "Failed to mark busy");
-    } finally {
-      setBusyLoading(false);
-    }
-  }, [busyReason, busyDeptId]);
+  const handleMarkBusy = useCallback(
+    async (date: string) => {
+      setBusyLoading(true);
+      setBusyError(null);
+      try {
+        const created = await busyDaysService.create({
+          date,
+          reason: busyReason.trim() || null,
+          department_id: busyDeptId,
+        });
+        setBusyDays((prev) => [...prev, created]);
+        setBusyReason("");
+      } catch (err) {
+        setBusyError(
+          err instanceof Error ? err.message : "Failed to mark busy",
+        );
+      } finally {
+        setBusyLoading(false);
+      }
+    },
+    [busyReason, busyDeptId],
+  );
 
   const handleRemoveBusy = useCallback(async (id: string) => {
     setBusyLoading(true);
@@ -381,7 +435,9 @@ export default function CalendarPage() {
       await busyDaysService.delete(id);
       setBusyDays((prev) => prev.filter((b) => b.id !== id));
     } catch (err) {
-      setBusyError(err instanceof Error ? err.message : "Failed to remove busy marker");
+      setBusyError(
+        err instanceof Error ? err.message : "Failed to remove busy marker",
+      );
     } finally {
       setBusyLoading(false);
     }
@@ -389,9 +445,7 @@ export default function CalendarPage() {
 
   if (loading) return <PageLoader />;
   if (error) {
-    return (
-      <ErrorState message={error} onRetry={() => void fetchData()} />
-    );
+    return <ErrorState message={error} onRetry={() => void fetchData()} />;
   }
 
   const dayBusyList = dayModal
@@ -404,132 +458,94 @@ export default function CalendarPage() {
 
   return (
     <div className="mx-auto min-w-0 max-w-full space-y-6 sm:space-y-8">
-      <PageHeader
+      {/* <PageHeader
         title="Interview calendar"
-        subtitle={
-          view === "month"
-            ? "Days follow each interview's scheduled date (same calendar cell as Date (EST) on the interviews page). Times on the grid can be viewed in Eastern, Central, Mountain, or Pacific time. The preview shows EST, PKT, and the selected timezone."
-            : `Interviews are read-only here — open one for full details. Double-click an empty slot to schedule a meeting. Times are shown in ${TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz}.`
-        }
+        subtitle="Days follow each interview's scheduled date (same calendar cell as Date (EST) on the interviews page). Click a day to expand its full hourly agenda, including Engagements. The preview shows EST, PKT, and the selected timezone."
+      /> */}
+
+      {/* {canWriteEngagements && (
+        <div className="flex items-center justify-end rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-white/[0.08] dark:bg-[#12141c]">
+          <button
+            type="button"
+            onClick={openNewEngagement}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+          >
+            <Plus size={16} />
+            New
+          </button>
+        </div>
+      )} */}
+
+      <InterviewsCalendar
+        interviews={interviews}
+        onSelectInterview={openInterviewPreview}
+        busyDays={busyDays}
+        currentUserId={currentUserId ?? undefined}
+        onDayClick={canMarkBusy ? openDayModal : undefined}
+        onBusyBarClick={openDayModal}
+        onExpandDay={setExpandedDay}
+        onVisibleRangeChange={handleVisibleRangeChange}
+        engagements={monthEngagements}
+        tz={tz}
+        onTzChange={setTz}
+        candidateMap={candidateMap}
       />
 
-      {/* Outlook/Teams-style toolbar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-white/[0.08] dark:bg-[#12141c]">
-        {isGridView && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={goTodayGrid}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-white/[0.1] dark:text-slate-200 dark:hover:bg-white/[0.04]"
-            >
-              Today
-            </button>
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={goPrevGrid}
-                aria-label="Previous"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={goNextGrid}
-                aria-label="Next"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
-              >
-                <ChevronRight size={16} />
-              </button>
+      {/* Expanded day — full hourly agenda (Engagements + Interviews), replaces the old Day/Week toolbar */}
+      <Modal
+        open={!!expandedDay}
+        onClose={() => setExpandedDay(null)}
+        title={expandedDay ? formatDayTitle(expandedDay) : ""}
+        size="xl"
+      >
+        {expandedDay && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={goPrevExpandedDay}
+                  aria-label="Previous day"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={goNextExpandedDay}
+                  aria-label="Next day"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {canWriteEngagements
+                  ? "Double-click an empty slot to schedule a meeting. "
+                  : ""}
+                Times shown in{" "}
+                {TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz}.
+              </span>
             </div>
-            <span className="px-1 text-base font-semibold text-slate-900 dark:text-white">
-              {gridRangeLabel}
-            </span>
-          </div>
-        )}
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <span className="hidden font-medium sm:inline">Timezone:</span>
-            <select
-              value={tz}
-              onChange={(e) => setTz(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200"
-            >
-              {TIMEZONE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <select
-            value={view}
-            onChange={(e) => setView(e.target.value as "month" | CalendarGridView)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200"
-          >
-            <option value="day">Day</option>
-            <option value="week">Week (Mon – Fri)</option>
-            <option value="month">Month</option>
-          </select>
-          <CandidateFilterMenu
-            candidates={candidates}
-            selected={selectedCandidateIds}
-            onChange={setSelectedCandidateIds}
-          />
-          {canWriteEngagements && (
-            <button
-              type="button"
-              onClick={openNewEngagement}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
-            >
-              <Plus size={16} />
-              New
-            </button>
-          )}
-        </div>
-      </div>
-
-      {view === "month" ? (
-        <InterviewsCalendar
-          interviews={filteredInterviews}
-          onSelectInterview={openInterviewPreview}
-          busyDays={busyDays}
-          currentUserId={currentUserId ?? undefined}
-          onDayClick={canMarkBusy ? openDayModal : undefined}
-          onBusyBarClick={openDayModal}
-          tz={tz}
-          candidateMap={candidateMap}
-        />
-      ) : (
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-          <CalendarSidebar
-            cursorDate={gridCursor}
-            view={view}
-            onNavigate={setGridCursor}
-            showInterviews={showInterviews}
-            onToggleInterviews={setShowInterviews}
-            showEngagements={showEngagements}
-            onToggleEngagements={setShowEngagements}
-          />
-          <div className="min-w-0 flex-1">
             <TimeGridCalendar
-              view={view}
-              cursorDate={gridCursor}
+              view="day"
+              cursorDate={parseDateLocal(expandedDay)}
               tz={tz}
-              interviews={showInterviews ? filteredInterviews : []}
-              engagements={showEngagements ? engagements : []}
+              interviews={interviews}
+              engagements={dayEngagements}
               busyDays={busyDays}
               candidateMap={candidateMap}
               currentUserId={currentUserId ?? undefined}
               onSelectInterview={openInterviewPreview}
               onSelectEngagement={openEditEngagement}
-              onCreateSlot={canWriteEngagements ? openCreateEngagement : undefined}
+              onCreateSlot={
+                canWriteEngagements ? openCreateEngagement : undefined
+              }
               onDayHeaderClick={openDayModal}
             />
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* ── Interview Floating Quick Peek Popover (Teams / Outlook Style) ── */}
       {preview && (
@@ -553,7 +569,8 @@ export default function CalendarPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">
-                    {preview.interview.round || "Interview"} - {preview.interview.company_name || "Company"}
+                    {preview.interview.round || "Interview"} -{" "}
+                    {preview.interview.company_name || "Company"}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                     {preview.interview.role}
@@ -603,18 +620,29 @@ export default function CalendarPage() {
                   {preview.interview.interview_link && (
                     <button
                       type="button"
-                      onClick={() => handleCopyLink(preview.interview.interview_link!)}
+                      onClick={() =>
+                        handleCopyLink(preview.interview.interview_link!)
+                      }
                       className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors"
                       title="Copy meeting link"
                     >
-                      {copiedLink ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                      {copiedLink ? (
+                        <Check size={12} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
                       <span>{copiedLink ? "Copied" : "Copy link"}</span>
                     </button>
                   )}
 
-                  {(preview.interview.interview_doc_url || preview.interview.resume_url) && (
+                  {(preview.interview.interview_doc_url ||
+                    preview.interview.resume_url) && (
                     <a
-                      href={preview.interview.interview_doc_url || preview.interview.resume_url || "#"}
+                      href={
+                        preview.interview.interview_doc_url ||
+                        preview.interview.resume_url ||
+                        "#"
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors"
@@ -635,9 +663,14 @@ export default function CalendarPage() {
                     <span>Lead Thread</span>
                   </button>
 
-                  {(preview.interview.interview_doc_url || preview.interview.resume_url) && (
+                  {(preview.interview.interview_doc_url ||
+                    preview.interview.resume_url) && (
                     <a
-                      href={preview.interview.interview_doc_url || preview.interview.resume_url || "#"}
+                      href={
+                        preview.interview.interview_doc_url ||
+                        preview.interview.resume_url ||
+                        "#"
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors"
@@ -650,11 +683,17 @@ export default function CalendarPage() {
                   {preview.interview.interview_link && (
                     <button
                       type="button"
-                      onClick={() => handleCopyLink(preview.interview.interview_link!)}
+                      onClick={() =>
+                        handleCopyLink(preview.interview.interview_link!)
+                      }
                       className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors"
                       title="Copy meeting link"
                     >
-                      {copiedLink ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                      {copiedLink ? (
+                        <Check size={12} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
                       <span>{copiedLink ? "Copied" : "Copy link"}</span>
                     </button>
                   )}
@@ -668,20 +707,32 @@ export default function CalendarPage() {
                   <Clock size={14} className="text-slate-400 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="font-medium text-slate-900 dark:text-white">
-                      {formatInterviewDateEst(preview.interview.interview_date, preview.interview.time_est)}
+                      {formatInterviewDateEst(
+                        preview.interview.interview_date,
+                        preview.interview.time_est,
+                      )}
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {preview.interview.time_est ? `${formatTime(preview.interview.time_est)} EST` : "Time TBD"}
-                      {preview.interview.time_pkt ? ` • ${formatTime(preview.interview.time_pkt)} PKT` : ""}
+                      {preview.interview.time_est
+                        ? `${formatTime(preview.interview.time_est)} EST`
+                        : "Time TBD"}
+                      {preview.interview.time_pkt
+                        ? ` • ${formatTime(preview.interview.time_pkt)} PKT`
+                        : ""}
                     </p>
                   </div>
                 </div>
 
                 {/* 📍 Location / Video */}
                 <div className="flex items-start gap-2.5 text-slate-700 dark:text-slate-300">
-                  <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                  <MapPin
+                    size={14}
+                    className="text-slate-400 mt-0.5 shrink-0"
+                  />
                   <p className="text-slate-600 dark:text-slate-400 truncate">
-                    {preview.interview.interview_link ? "Virtual Online Video Meeting" : "No location added"}
+                    {preview.interview.interview_link
+                      ? "Virtual Online Video Meeting"
+                      : "No location added"}
                   </p>
                 </div>
 
@@ -701,7 +752,10 @@ export default function CalendarPage() {
                       {preview.interview.candidate_name || "Candidate"}
                     </span>
                     {preview.interview.resume_profile_name && (
-                      <span className="text-slate-400 text-[11px]"> ({preview.interview.resume_profile_name})</span>
+                      <span className="text-slate-400 text-[11px]">
+                        {" "}
+                        ({preview.interview.resume_profile_name})
+                      </span>
                     )}
                   </div>
                 </div>
@@ -709,7 +763,10 @@ export default function CalendarPage() {
                 {/* 🏢 Compensation & Role */}
                 {preview.interview.salary_range && (
                   <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
-                    <DollarSign size={14} className="text-emerald-500 shrink-0" />
+                    <DollarSign
+                      size={14}
+                      className="text-emerald-500 shrink-0"
+                    />
                     <span className="text-emerald-700 dark:text-emerald-400 font-medium">
                       {preview.interview.salary_range}
                     </span>
@@ -718,13 +775,20 @@ export default function CalendarPage() {
 
                 {/* 📝 Remarks, Agenda & Notes (Teams-style) */}
                 <div className="flex items-start gap-2.5 text-slate-700 dark:text-slate-300 pt-0.5">
-                  <AlignLeft size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                  <AlignLeft
+                    size={14}
+                    className="text-slate-400 mt-0.5 shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
-                      {preview.interview.computed_status === "Upcoming" ? "Preparation Brief & Notes" : "Interview Remarks & Outcome"}
+                      {preview.interview.computed_status === "Upcoming"
+                        ? "Preparation Brief & Notes"
+                        : "Interview Remarks & Outcome"}
                     </p>
                     <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                      {preview.interview.feedback || preview.interview.recruiter_feedback || "Interview completed. Candidate attended the technical evaluation."}
+                      {preview.interview.feedback ||
+                        preview.interview.recruiter_feedback ||
+                        "Interview completed. Candidate attended the technical evaluation."}
                     </p>
                   </div>
                 </div>
@@ -781,12 +845,13 @@ export default function CalendarPage() {
       >
         {dayModal && (
           <div className="space-y-5">
-
             {/* ── Who is busy ── */}
             {dayBusyList.length > 0 ? (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {dayBusyList.length === 1 ? "1 person is busy" : `${dayBusyList.length} people are busy`}
+                  {dayBusyList.length === 1
+                    ? "1 person is busy"
+                    : `${dayBusyList.length} people are busy`}
                 </p>
                 <ul className="mt-2 space-y-2">
                   {dayBusyList.map((bd) => {
@@ -805,7 +870,9 @@ export default function CalendarPage() {
                               </p>
                               {bd.department_id ? (
                                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
-                                  {departments.find((d) => d.id === bd.department_id)?.name ?? "Dept"}
+                                  {departments.find(
+                                    (d) => d.id === bd.department_id,
+                                  )?.name ?? "Dept"}
                                 </span>
                               ) : (
                                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400">
@@ -913,7 +980,9 @@ export default function CalendarPage() {
             )}
 
             {busyError && (
-              <p className="text-xs text-red-600 dark:text-red-400">{busyError}</p>
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {busyError}
+              </p>
             )}
 
             <div className="flex justify-end border-t border-slate-100 pt-3 dark:border-white/[0.06]">
@@ -942,7 +1011,7 @@ export default function CalendarPage() {
         currentUserId={currentUserId}
         isSuperadmin={isSuperadmin}
         defaultDepartmentId={departmentId}
-        existingEngagements={engagements}
+        existingEngagements={dayEngagements}
         existingInterviews={interviews}
         onCreated={refreshEngagements}
         onUpdated={refreshEngagements}
