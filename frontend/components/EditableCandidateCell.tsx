@@ -56,7 +56,7 @@ export default function EditableCandidateCell({
   }
 
   return (
-    <span className="group/cell inline-flex w-44 items-center gap-1.5">
+    <span className="group/cell inline-flex items-center gap-1.5">
       {candidate && <CandidateAvatar candidate={candidate} size={18} />}
       <span className="truncate">{candidateName ?? "—"}</span>
       {editable && (

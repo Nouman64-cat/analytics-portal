@@ -15,6 +15,7 @@ from app.models.unresponsive_followup_log import UnresponsiveFollowUpLog
 from app.models.notification_read import NotificationRead
 from app.models.job_role import JobRole
 from app.models.broadcast_modal import BroadcastModal
+from app.models.engagement import Engagement
 
 __all__ = [
     "Department",
@@ -33,4 +34,5 @@ __all__ = [
     "NotificationRead",
     "JobRole",
     "BroadcastModal",
+    "Engagement",
 ]

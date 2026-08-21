@@ -35,6 +35,7 @@ import {
   Sparkles,
   Check,
   X,
+  MoreVertical,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -201,6 +202,110 @@ function WeatherCard({ location }: { location: string }) {
             src={`https://www.openstreetmap.org/export/embed.html?bbox=${weather.longitude - 0.05},${weather.latitude - 0.05},${weather.longitude + 0.05},${weather.latitude + 0.05}&layer=mapnik&marker=${weather.latitude},${weather.longitude}`}
             className="w-full h-full"
           />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Row Actions 3-Dots Dropdown ─────────────────────────────
+
+function RowActionsDropdown({
+  interview,
+  canAddPipelineRound,
+  isRejected,
+  onAddNextRound,
+  onEdit,
+  onDelete,
+}: {
+  interview: Interview;
+  canAddPipelineRound: boolean;
+  isRejected: boolean;
+  onAddNextRound: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+        className="rounded-lg p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/80 dark:hover:bg-white/10 transition-colors"
+        title="More options"
+        aria-label="More options"
+        aria-expanded={open}
+      >
+        <MoreVertical size={16} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-[#161926] p-1.5 shadow-xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100">
+          {!isRejected && canAddPipelineRound && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onAddNextRound();
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            >
+              <ArrowRight size={14} className="text-indigo-500 shrink-0" />
+              <span>Add Next Round</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              onEdit();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
+            <Pencil size={14} className="text-slate-400 shrink-0" />
+            <span>Edit</span>
+          </button>
+
+          <div className="my-1 border-t border-slate-100 dark:border-white/[0.06]" />
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              onDelete();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+          >
+            <Trash2 size={14} className="shrink-0" />
+            <span>Delete</span>
+          </button>
         </div>
       )}
     </div>
@@ -693,6 +798,7 @@ export default function InterviewsPage() {
   });
   const [candidateFilter, setCandidateFilter] = useState<string[]>([]);
   const [showExtraFilters, setShowExtraFilters] = useState(false);
+  const [statsExpanded, setStatsExpanded] = useState(false);
 
   // Inline table-cell editing for Status / Round / Date / Time — one cell at a time.
   const [editingCell, setEditingCell] = useState<{
@@ -1978,32 +2084,72 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2 w-full">
-        {[
-          { title: "Legit", value: legitInterviewsCount, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
-          { title: "Total", value: filtered.length, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
-          { title: "Upcoming", value: statusCounts.Upcoming, emoji: "🙂", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 dark:bg-blue-500/20" },
-          { title: "Unresponsed", value: statusCounts.Unresponsed, emoji: "😐", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
-          { title: "Dead", value: statusCounts.Dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
-          { title: "Rejected", value: statusCounts.Rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
-          { title: "Progressed", value: statusCounts.Progressed, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
-          { title: "Closed", value: statusCounts.Closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
-          { title: "Dropped", value: statusCounts.Dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
-        ].map((s, i) => (
-          <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
-              <span className="text-base leading-none" aria-hidden="true">{s.emoji}</span>
-            </div>
-            <div>
-              <p className={`text-[10px] font-bold uppercase tracking-wider leading-none mb-1.5 opacity-80 ${s.color}`}>
-                {s.title}
-              </p>
-              <p className="text-lg font-bold leading-none text-slate-900 dark:text-white">
-                {s.value}
-              </p>
-            </div>
+      <div className="rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2.5 w-full flex flex-col gap-2.5">
+        {/* Row 1 + Toggle Button */}
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2.5 w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 flex-1 gap-2 sm:gap-2.5">
+            {[
+              { title: "Total", value: legitInterviewsCount, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
+              { title: "Closed", value: statusCounts.Closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+              { title: "Upcoming", value: statusCounts.Upcoming, emoji: "🙂", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 dark:bg-blue-500/20" },
+              { title: "Rejected", value: statusCounts.Rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
+              { title: "Progressed", value: statusCounts.Progressed, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+            ].map((s, i) => (
+              <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
+                <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+                  <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
+                </div>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
+                    {s.title}
+                  </p>
+                  <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
+                    {s.value}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+
+          <button
+            type="button"
+            onClick={() => setStatsExpanded(!statsExpanded)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.04] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-all shrink-0 min-h-[44px] xl:min-h-0 cursor-pointer shadow-sm hover:shadow-md"
+            aria-expanded={statsExpanded}
+          >
+            <span>{statsExpanded ? "Hide Outcomes" : "Show Outcomes"}</span>
+            <ChevronDown
+              size={15}
+              className={`transform transition-transform duration-200 ${statsExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
+
+        {/* Row 2 (Expandable outcomes) */}
+        {statsExpanded && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-2.5 border-t border-slate-200/50 dark:border-white/[0.06] pt-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+            {[
+              { title: "Unresponsed", value: statusCounts.Unresponsed, emoji: "😐", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+              { title: "Dead", value: statusCounts.Dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
+              { title: "Total + Dropped", value: filtered.length, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+              { title: "Dropped", value: statusCounts.Dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+            ].map((s, i) => (
+              <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
+                <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+                  <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
+                </div>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
+                    {s.title}
+                  </p>
+                  <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
+                    {s.value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filters Row */}
@@ -2241,43 +2387,40 @@ export default function InterviewsPage() {
               <table className="w-full min-w-full table-auto">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-white/[0.06]">
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Lead
                     </th>
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Role
                     </th>
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Candidate
                     </th>
-                    <th className="hidden xl:table-cell px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="hidden xl:table-cell px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Profile
                     </th>
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Round
                     </th>
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Pipeline
                     </th>
                     <th
-                      className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                      className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap"
                       title="Calendar day in US Eastern (from interview date + EST time)"
                     >
                       Date (EST)
                     </th>
                     <th
-                      className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500"
+                      className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap"
                       title="Wall-clock time in US Eastern and Pakistan (same instant, two time zones)"
                     >
                       EST / PKT
                     </th>
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Status
                     </th>
-                    <th className="px-3 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                      Room
-                    </th>
-                    <th className="px-3 py-2.5 text-right text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                    <th className="px-3 py-2 text-center text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
                       Actions
                     </th>
                   </tr>
@@ -2321,7 +2464,8 @@ export default function InterviewsPage() {
                     return (
                       <tr
                         key={interview.id}
-                        className={`transition-colors ${rowSep} ${rowBg}`}
+                        onClick={() => setDetailModal(interview)}
+                        className={`transition-colors cursor-pointer ${rowSep} ${rowBg}`}
                       >
                         <td className="px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-white">
                           {(() => {
@@ -2416,10 +2560,10 @@ export default function InterviewsPage() {
                             })()}
                           />
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2">
                           {editingCell?.id === interview.id && editingCell.field === "round" ? (
                             <div
-                              className="w-40"
+                              className="w-36"
                               onBlur={(e) => {
                                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                                   setEditingCell(null);
@@ -2445,7 +2589,7 @@ export default function InterviewsPage() {
                               />
                             </div>
                           ) : (
-                            <span className="group/cell inline-flex w-40 items-center gap-1.5">
+                            <span className="group/cell inline-flex items-center gap-1.5">
                               <span
                                 className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
                               >
@@ -2630,7 +2774,7 @@ export default function InterviewsPage() {
                             })()
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                        <td className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           {editingCell?.id === interview.id && editingCell.field === "time" ? (
                             <input
                               type="time"
@@ -2698,7 +2842,7 @@ export default function InterviewsPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           {editingCell?.id === interview.id && editingCell.field === "status" ? (
                             <select
                               autoFocus
@@ -2752,62 +2896,9 @@ export default function InterviewsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2.5">
-                          {editingCell?.id === interview.id && editingCell.field === "room" ? (
-                            <select
-                              autoFocus
-                              defaultValue={interview.room_id ?? ""}
-                              onBlur={(e) => {
-                                const val = e.target.value || null;
-                                if (val !== (interview.room_id ?? null)) {
-                                  handleInterviewRoomSave(interview, val);
-                                } else {
-                                  setEditingCell(null);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") setEditingCell(null);
-                              }}
-                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
-                            >
-                              <option value="">No room</option>
-                              {rooms
-                                .filter((r) => r.is_active || r.id === interview.room_id)
-                                .map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {r.room_no}
-                                  </option>
-                                ))}
-                            </select>
-                          ) : (
-                            <span className="group/cell inline-flex items-center gap-1.5">
-                              {interview.room_no ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-white/[0.06] px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                                  {interview.room_no}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 dark:text-slate-600">—</span>
-                              )}
-                              {canAssignRoom && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingCell({ id: interview.id, field: "room" });
-                                  }}
-                                  disabled={savingCell}
-                                  title="Assign room"
-                                  aria-label="Assign room"
-                                  className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                              )}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center justify-end gap-1">
+
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
                             {isDeptOnly ? (
                               /* BD dept-only: show a locked badge instead of action buttons */
                               <span
@@ -2822,90 +2913,15 @@ export default function InterviewsPage() {
                               </span>
                             ) : (
                               <>
-                                <button
-                                  onClick={() => setDetailModal(interview)}
-                                  className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                                  title="View details (hover for feedback)"
-                                  onMouseEnter={(e) => {
-                                    if (feedbackHoverTimerRef.current) {
-                                      clearTimeout(feedbackHoverTimerRef.current);
-                                      feedbackHoverTimerRef.current = null;
-                                    }
-                                    const rect =
-                                      e.currentTarget.getBoundingClientRect();
-                                    const layout =
-                                      getPipelinePopoverLayout(rect);
-                                    setFeedbackPopover({
-                                      interview,
-                                      x: layout.x,
-                                      y: layout.y,
-                                      flipAbove: layout.flipAbove,
-                                    });
-                                  }}
-                                  onMouseLeave={() => {
-                                    feedbackHoverTimerRef.current = setTimeout(
-                                      () => setFeedbackPopover(null),
-                                      200,
-                                    );
-                                  }}
-                                  onFocus={(e) => {
-                                    if (feedbackHoverTimerRef.current) {
-                                      clearTimeout(feedbackHoverTimerRef.current);
-                                      feedbackHoverTimerRef.current = null;
-                                    }
-                                    const rect =
-                                      e.currentTarget.getBoundingClientRect();
-                                    const layout =
-                                      getPipelinePopoverLayout(rect);
-                                    setFeedbackPopover({
-                                      interview,
-                                      x: layout.x,
-                                      y: layout.y,
-                                      flipAbove: layout.flipAbove,
-                                    });
-                                  }}
-                                  onBlur={() => {
-                                    feedbackHoverTimerRef.current = setTimeout(
-                                      () => setFeedbackPopover(null),
-                                      150,
-                                    );
-                                  }}
-                                >
-                                  <Eye size={14} />
-                                </button>
                                 {!cannotCRUD && (
-                                  <>
-                                    {!isRejectedInterview(interview) &&
-                                      canAddPipelineRound && (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openCreateNextRound(interview)
-                                          }
-                                          className="rounded-lg p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
-                                          title="Add next round (same pipeline)"
-                                        >
-                                          <ArrowRight size={14} aria-hidden />
-                                          <span className="sr-only">
-                                            Add next round
-                                          </span>
-                                        </button>
-                                      )}
-                                    <button
-                                      onClick={() => openEditModal(interview)}
-                                      className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:text-white transition-colors"
-                                      title="Edit"
-                                    >
-                                      <Pencil size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => setDeleteModal(interview)}
-                                      className="rounded-lg p-2 text-slate-500 dark:text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                                      title="Delete"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </>
+                                  <RowActionsDropdown
+                                    interview={interview}
+                                    canAddPipelineRound={canAddPipelineRound}
+                                    isRejected={isRejectedInterview(interview)}
+                                    onAddNextRound={() => openCreateNextRound(interview)}
+                                    onEdit={() => openEditModal(interview)}
+                                    onDelete={() => setDeleteModal(interview)}
+                                  />
                                 )}
                               </>
                             )}

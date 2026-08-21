@@ -6,6 +6,7 @@ import { Menu } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
+import EngagementAlertMonitor from "@/components/EngagementAlertMonitor";
 import ChatWidget from "@/components/ChatWidget";
 import BroadcastModalViewer from "@/components/BroadcastModalViewer";
 import { useVoiceCommand, useVoiceContext } from "react-voice-action-router";
@@ -154,6 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="px-4 py-8 md:px-8 md:py-10">{children}</div>
       </main>
       <InterviewAlertMonitor />
+      <EngagementAlertMonitor />
       <ChatWidget />
       <BroadcastModalViewer />
     </DepartmentProvider>

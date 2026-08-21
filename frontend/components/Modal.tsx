@@ -54,7 +54,7 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
 
       {/* Drawer panel — slides in from the right, full height */}
       <div
-        className={`absolute right-0 top-0 h-full w-full ${WIDTH_MAP[size]} flex flex-col rounded-l-[2.5rem] bg-white/[0.94] dark:bg-[#14161f]/[0.96] backdrop-blur-2xl backdrop-saturate-150 border-l border-white/40 dark:border-white/[0.08] shadow-[-8px_0_40px_rgba(0,0,0,0.12)] dark:shadow-[-8px_0_40px_rgba(0,0,0,0.5)] entrance-slide-right`}
+        className={`absolute right-0 top-0 h-full w-full max-w-full ${WIDTH_MAP[size]} flex flex-col rounded-l-[2.5rem] bg-white/[0.94] dark:bg-[#14161f]/[0.96] backdrop-blur-2xl backdrop-saturate-150 border-l border-white/40 dark:border-white/[0.08] shadow-[-8px_0_40px_rgba(0,0,0,0.12)] dark:shadow-[-8px_0_40px_rgba(0,0,0,0.5)] entrance-slide-right`}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/70 dark:border-white/[0.07] px-5 py-4 sm:px-6">

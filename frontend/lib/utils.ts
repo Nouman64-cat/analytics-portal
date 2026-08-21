@@ -103,6 +103,30 @@ export function minutesUntilInterview(
 }
 
 /**
+ * The interview's scheduled instant (`interview_date` + `time_est`, interpreted in
+ * {@link INTERVIEW_SCHEDULE_TZ}), as a real `Date` — usable for local-time positioning
+ * (e.g. the Week/Day calendar grid). Returns null when no date/time is set.
+ */
+export function interviewInstant(interview: Interview): Date | null {
+  if (!interview.interview_date || !interview.time_est) return null;
+  const ymd = interview.interview_date.split("T")[0]!;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const { h, m, s } = parseTimePartsForEst(interview.time_est);
+  const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const utc = fromZonedTime(`${ymd} ${timeStr}`, INTERVIEW_SCHEDULE_TZ);
+  return Number.isNaN(utc.getTime()) ? null : utc;
+}
+
+/**
+ * Parse a backend datetime string as UTC. The API may return naive datetimes (no `Z` /
+ * offset suffix) for the `Engagement.start_time` / `end_time` columns — without this, the
+ * `Date` constructor would (per spec) interpret those as browser-local time instead of UTC.
+ */
+export function parseUtcDatetime(s: string): Date {
+  return new Date(/[Zz]|[+-]\d\d:\d\d$/.test(s) ? s : `${s}Z`);
+}
+
+/**
  * Convert an interview's EST wall-clock time (`interview_date` + `time_est`) into
  * another IANA timezone (see {@link TIMEZONE_OPTIONS}) for display, e.g. "2:30 PM CDT".
  */

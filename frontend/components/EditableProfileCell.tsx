@@ -62,7 +62,7 @@ export default function EditableProfileCell({
   }
 
   return (
-    <span className="group/cell inline-flex w-44 items-center gap-1.5">
+    <span className="group/cell inline-flex items-center gap-1.5">
       <ProfileAvatar profile={{ id: profileId ?? profileName, name: profileName }} size={24} />
       {extra}
       {editable && (

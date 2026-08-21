@@ -281,7 +281,7 @@ export default function DashboardPage() {
       />
 
       {/* Stats Cards */}
-      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2.5 w-full">
         {[
           { title: "Legit Interviews", value: stats.legit_interviews, emoji: "😎", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-500/10 dark:bg-cyan-500/20" },
           { title: "Total Interviews", value: stats.total_interviews, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
@@ -295,15 +295,15 @@ export default function DashboardPage() {
           { title: "Jobs Closed", value: stats.total_jobs_closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
           { title: "Conv. Rate", value: `${globalConversionRate}%`, emoji: "🤩", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" }
         ].map((s, i) => (
-          <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
-              <span className="text-base leading-none" aria-hidden="true">{s.emoji}</span>
+          <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
+            <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+              <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
             </div>
-            <div>
-              <p className={`text-[10px] font-bold uppercase tracking-wider leading-none mb-1.5 opacity-80 ${s.color}`}>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
                 {s.title}
               </p>
-              <p className="text-lg font-bold leading-none text-slate-900 dark:text-white">
+              <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
                 {s.value}
               </p>
             </div>

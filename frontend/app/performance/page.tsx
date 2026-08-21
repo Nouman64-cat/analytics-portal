@@ -66,7 +66,7 @@ export default function PerformancePage() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>("leads");
+  const [mode, setMode] = useState<Mode>("interviews");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("active");
   const fetchGenRef = useRef(0);
@@ -227,6 +227,7 @@ export default function PerformancePage() {
             {filteredMetrics.length} candidate{filteredMetrics.length !== 1 ? "s" : ""} with {mode} data
           </p>
         </div>
+        {/* Commented out to restrict page to interviews only:
         <div className="flex gap-1.5 rounded-full bg-slate-100 dark:bg-white/[0.06] p-1 shrink-0">
           {(["leads", "interviews"] as Mode[]).map((m) => (
             <button
@@ -242,6 +243,7 @@ export default function PerformancePage() {
             </button>
           ))}
         </div>
+        */}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

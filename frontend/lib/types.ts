@@ -627,6 +627,64 @@ export interface BusyDay {
   created_at: string;
 }
 
+// ─── Engagements (Teams-like calendar events) ────────────────
+
+export type EngagementStatus = "scheduled" | "completed" | "cancelled" | "tentative";
+export type EngagementShowAs = "busy" | "free" | "tentative" | "oof";
+
+export interface Engagement {
+  id: string;
+  title: string;
+  description: string | null;
+  /** ISO datetime, UTC. */
+  start_time: string;
+  /** ISO datetime, UTC. */
+  end_time: string;
+  is_all_day: boolean;
+  location: string | null;
+  meeting_link: string | null;
+  recurrence_rule: string | null;
+  status: string;
+  show_as: string;
+  /** Minutes before start_time to alert the organizer; null = no reminder. */
+  reminder_minutes: number | null;
+  organizer_id: string;
+  organizer_name: string | null;
+  organizer_email: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  company_id: string | null;
+  company_name: string | null;
+  candidate_id: string | null;
+  candidate_name: string | null;
+  resume_profile_id: string | null;
+  resume_profile_name: string | null;
+  bd_id: string | null;
+  bd_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EngagementFormData {
+  title: string;
+  description?: string | null;
+  /** ISO datetime, UTC — use `.toISOString()`. */
+  start_time: string;
+  /** ISO datetime, UTC — use `.toISOString()`. */
+  end_time: string;
+  is_all_day?: boolean;
+  location?: string | null;
+  meeting_link?: string | null;
+  status?: string;
+  show_as?: string;
+  reminder_minutes?: number | null;
+  department_id?: string | null;
+  company_id?: string | null;
+  candidate_id?: string | null;
+  resume_profile_id?: string | null;
+  bd_id?: string | null;
+}
+
 export interface BusyDayCreate {
   /** YYYY-MM-DD */
   date: string;

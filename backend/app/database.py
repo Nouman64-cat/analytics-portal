@@ -96,6 +96,15 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.engagements "
+                    f"ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT 15"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

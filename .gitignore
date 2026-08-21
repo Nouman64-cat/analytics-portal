@@ -1,8 +1,21 @@
 .venv
 *.pyc
+__pycache__/
 *.xlsx
 .env
 
 data-structures
 
 *.sql.gz
+
+# Seed data and generators
+seed/
+seeds/
+*.seed.json
+*seeds*.json
+leads_interviews.json
+seeds.json
+
+# Scratch and temporary test files
+scratch_*
+*.scratch.*

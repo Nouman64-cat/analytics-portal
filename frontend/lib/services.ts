@@ -37,6 +37,8 @@ import type {
   BroadcastModal,
   BroadcastModalCreate,
   BroadcastModalUpdate,
+  Engagement,
+  EngagementFormData,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -617,6 +619,41 @@ export const busyDaysService = {
     }),
   delete: (id: string) =>
     apiFetch<void>(`/busy-days/${id}`, { method: "DELETE" }),
+};
+
+// ─── Engagements (Teams-like calendar events) ────────────────
+
+export const engagementsService = {
+  list: (params?: {
+    start_date?: string;
+    end_date?: string;
+    department_id?: string;
+    candidate_id?: string;
+    company_id?: string;
+    organizer_id?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value) sp.set(key, value);
+      }
+    }
+    const q = sp.toString();
+    return apiFetch<Engagement[]>(`/engagements/${q ? `?${q}` : ""}`);
+  },
+  get: (id: string) => apiFetch<Engagement>(`/engagements/${id}`),
+  create: (data: EngagementFormData) =>
+    apiFetch<Engagement>("/engagements/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: Partial<EngagementFormData>) =>
+    apiFetch<Engagement>(`/engagements/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(`/engagements/${id}`, { method: "DELETE" }),
 };
 
 // ─── Notifications (BD + superadmin) ─────────────────────────

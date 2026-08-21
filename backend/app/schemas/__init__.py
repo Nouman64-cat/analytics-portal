@@ -3,10 +3,12 @@ from app.schemas.candidate import CandidateCreate, CandidateRead, CandidateUpdat
 from app.schemas.resume_profile import ResumeProfileCreate, ResumeProfileRead, ResumeProfileUpdate
 from app.schemas.company import CompanyCreate, CompanyRead, CompanyUpdate, CompanyReadWithInterviews
 from app.schemas.interview import InterviewCreate, InterviewRead, InterviewUpdate, InterviewReadWithDetails
+from app.schemas.engagement import EngagementCreate, EngagementRead, EngagementUpdate, EngagementReadWithDetails
 
 __all__ = [
     "CandidateCreate", "CandidateRead", "CandidateUpdate", "CandidateReadWithInterviews",
     "ResumeProfileCreate", "ResumeProfileRead", "ResumeProfileUpdate",
     "CompanyCreate", "CompanyRead", "CompanyUpdate", "CompanyReadWithInterviews",
     "InterviewCreate", "InterviewRead", "InterviewUpdate", "InterviewReadWithDetails",
+    "EngagementCreate", "EngagementRead", "EngagementUpdate", "EngagementReadWithDetails",
 ]

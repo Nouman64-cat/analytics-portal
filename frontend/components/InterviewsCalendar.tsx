@@ -168,7 +168,7 @@ export default function InterviewsCalendar({
   candidateMap = {},
 }: {
   interviews: Interview[];
-  onSelectInterview: (interview: Interview) => void;
+  onSelectInterview: (interview: Interview, anchorRect?: DOMRect) => void;
   busyDays?: BusyDay[];
   currentUserId?: string;
   onDayClick?: (date: string) => void;
@@ -494,52 +494,40 @@ export default function InterviewsCalendar({
                     <div className="mb-0.5 sm:mb-1">{inner}</div>
                   );
                 })()}
-                <ul className="space-y-0.5 sm:space-y-1">
+                <ul className="space-y-0.5 sm:space-y-1 min-w-0">
                   {visible.map((inv) => {
                     const cand = inv.candidate_id ? candidateMap[inv.candidate_id] : undefined;
                     const candColor = cand ? getCandidateColor(cand) : undefined;
                     return (
-                    <li key={inv.id}>
+                    <li key={inv.id} className="min-w-0">
                       <button
                         type="button"
-                        onClick={() => onSelectInterview(inv)}
+                        onClick={(e) => onSelectInterview(inv, e.currentTarget.getBoundingClientRect())}
                         style={candColor ? { borderLeftColor: candColor, borderLeftWidth: 3 } : undefined}
-                        className="group w-full rounded border border-slate-200/80 bg-slate-50 px-0.5 py-0.5 text-left text-[8px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-1 sm:text-[10px]"
+                        title={`${inv.round} — ${inv.company_name || "Interview"}${inv.candidate_name ? ` (${inv.candidate_name})` : ""}`}
+                        className="group flex w-full items-center gap-1 min-w-0 overflow-hidden rounded border border-slate-200/80 bg-slate-50 px-1 py-0.5 text-left text-[8px] sm:text-[10px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-1"
                       >
-                        {/* Full-width horizontal bar: [initials · round] ··· [company · time] */}
-                        <span className="flex w-full items-center justify-between gap-1 min-w-0">
-                          {/* LEFT: initials + round */}
-                          <span className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-                            {cand ? (
-                              <span className="hidden sm:inline-flex">
-                                <CandidateAvatar candidate={cand} size={16} />
-                              </span>
-                            ) : (
-                              <span className="hidden sm:inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[8px] font-bold text-indigo-700 dark:text-indigo-300">
-                                {getCandidateInitials(inv.candidate_name)}
-                              </span>
-                            )}
-                            <span
-                              className="sm:hidden text-[7px] font-bold text-indigo-600 dark:text-indigo-400"
-                              style={candColor ? { color: candColor } : undefined}
-                            >
+                        {/* Initials Avatar */}
+                        <span className="shrink-0 flex items-center">
+                          {cand ? (
+                            <CandidateAvatar candidate={cand} size={15} />
+                          ) : (
+                            <span className="flex h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[7px] sm:text-[8px] font-bold text-indigo-700 dark:text-indigo-300">
                               {getCandidateInitials(inv.candidate_name)}
                             </span>
-                            <span className="font-semibold text-indigo-700 dark:text-indigo-300">
-                              {inv.round}
-                            </span>
+                          )}
+                        </span>
+
+                        {/* Content text - strictly truncated with ellipsis */}
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {inv.round || "Interview"}
                           </span>
-                          {/* RIGHT: company + time */}
-                          <span className="min-w-0 flex-1 text-right overflow-hidden">
-                            <span className="block truncate text-slate-600 dark:text-slate-300">
-                              {inv.company_name || "—"}
+                          {inv.company_name && (
+                            <span className="text-slate-500 dark:text-slate-400 font-normal">
+                              {" · "}{inv.company_name}
                             </span>
-                            {inv.time_est && (
-                              <span className="hidden sm:block text-[8px] text-slate-400 dark:text-slate-500 tabular-nums">
-                                {formatInterviewTimeInZone(inv.interview_date, inv.time_est, tz)}
-                              </span>
-                            )}
-                          </span>
+                          )}
                         </span>
                       </button>
                     </li>
@@ -677,7 +665,7 @@ export default function InterviewsCalendar({
               <li key={inv.id} className="min-w-0 sm:max-w-none">
                 <button
                   type="button"
-                  onClick={() => onSelectInterview(inv)}
+                  onClick={(e) => onSelectInterview(inv, e.currentTarget.getBoundingClientRect())}
                   className="flex w-full max-w-full flex-col items-stretch gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-2 text-left text-xs font-medium text-amber-950 hover:bg-amber-50 sm:inline-flex sm:w-auto sm:flex-row sm:items-center sm:gap-2 dark:border-amber-500/30 dark:bg-[#1a1d2a] dark:text-amber-50 dark:hover:bg-amber-500/10"
                 >
                   <span className="line-clamp-2 min-w-0 break-words sm:line-clamp-1 sm:max-w-[12rem] inline-flex items-center gap-1.5">

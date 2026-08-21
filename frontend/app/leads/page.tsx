@@ -822,7 +822,7 @@ Return "all" for fields the user didn't mention.`;
       />
 
 
-      <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2.5 w-full">
         {[
           { title: "Legit Leads", value: Math.max(0, displayStats.total_leads - displayStats.dropped), emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
           { title: "Total", value: total, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
@@ -832,15 +832,15 @@ Return "all" for fields the user didn't mention.`;
           { title: "Closed", value: displayStats.closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
           { title: "Dead", value: displayStats.dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
         ].map((s, i) => (
-          <div key={i} className={`flex items-center gap-3 px-3 xl:px-4 py-2 shrink-0 flex-1 min-w-[130px] xl:min-w-0 rounded-xl ${s.bg}`}>
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
-              <span className="text-base leading-none" aria-hidden="true">{s.emoji}</span>
+          <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
+            <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+              <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
             </div>
-            <div>
-              <p className={`text-[10px] font-bold uppercase tracking-wider leading-none mb-1.5 opacity-80 ${s.color}`}>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
                 {s.title}
               </p>
-              <p className="text-lg font-bold leading-none text-slate-900 dark:text-white">
+              <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
                 {s.value}
               </p>
             </div>

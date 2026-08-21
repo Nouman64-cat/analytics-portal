@@ -225,11 +225,27 @@ export default function InterviewAlertMonitor() {
 
         for (const threshold of THRESHOLDS_MIN) {
           const thresholdTime = ivMs - threshold * 60_000;
-          const inWindow = now >= thresholdTime - WINDOW_MS && now <= thresholdTime + WINDOW_MS;
           const key = alertKey(iv.id, ivMs, threshold);
-          if (inWindow && !queuedThisLoad.current.has(key) && !wasDismissed(key)) {
-            queuedThisLoad.current.add(key);
-            newAlerts.push({ interview: iv, threshold, key });
+          
+          if (!queuedThisLoad.current.has(key) && !wasDismissed(key)) {
+            if (now >= thresholdTime) {
+               // We only process it in the loop if it's within a reasonable window, 
+               // otherwise the catch-up logic handles it below.
+               if (now <= thresholdTime + 60_000) {
+                 queuedThisLoad.current.add(key);
+                 newAlerts.push({ interview: iv, threshold, key });
+               }
+            } else {
+               const delay = thresholdTime - now;
+               if (delay <= POLL_MS + 5000) {
+                 queuedThisLoad.current.add(key);
+                 setTimeout(() => {
+                   if (!wasDismissed(key)) {
+                     setQueue((prev) => [...prev, { interview: iv, threshold, key }]);
+                   }
+                 }, delay);
+               }
+            }
           }
         }
 
@@ -239,6 +255,7 @@ export default function InterviewAlertMonitor() {
             queuedThisLoad.current.has(alertKey(iv.id, ivMs, t)),
           );
           if (!anyThresholdQueued && !queuedThisLoad.current.has(catchUpKey) && !wasDismissed(catchUpKey)) {
+            // Only fire catch up if it's actually past the 60 min mark (or if the meeting was created within 60 mins)
             queuedThisLoad.current.add(catchUpKey);
             newAlerts.push({ interview: iv, threshold: Math.max(minsLeft, 1), key: catchUpKey });
           }

@@ -59,9 +59,8 @@ function ActionCard({ action }: { action: ChatAction }) {
   };
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${
-        colorMap[action.type] ?? "bg-slate-500/10 text-slate-600 border-slate-500/20"
-      }`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${colorMap[action.type] ?? "bg-slate-500/10 text-slate-600 border-slate-500/20"
+        }`}
     >
       {iconMap[action.type]}
       {action.description}
@@ -236,11 +235,10 @@ export default function ChatWidget() {
                 )}
                 <div className={`max-w-[85%] space-y-1.5 flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
                   <div
-                    className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                      msg.role === "user"
+                    className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${msg.role === "user"
                         ? "bg-indigo-600 text-white rounded-tr-sm"
                         : "bg-white dark:bg-[#12141c] border border-slate-200 dark:border-white/[0.06] text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm"
-                    }`}
+                      }`}
                   >
                     <MarkdownContent text={msg.content} />
                   </div>
@@ -329,13 +327,13 @@ export default function ChatWidget() {
       )}
 
       {/* Floating trigger button */}
-      <button
+      {/* <button
         onClick={() => setOpen((v) => !v)}
         className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform"
         aria-label="Toggle AI assistant"
       >
         {open ? <X size={22} className="text-white" /> : <Bot size={22} className="text-white" />}
-      </button>
+      </button> */}
     </>
   );
 }
