@@ -49,19 +49,22 @@ function hourLabel(hour: number): string {
   return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
 }
 
-/** The days a given grid view shows for `d` — Monday-to-Friday week (5 business days). */
+/** The days a given grid view shows for `d`. "week" is the full Sun–Sat week (Google Calendar
+ * style); "workweek" is just the 5 business days Monday–Friday. */
 export function getCalendarDays(view: CalendarGridView, d: Date): Date[] {
   if (view === "day") return [startOfDay(d)];
-  // Calculate Monday of the current week (Sunday = 0 -> -6, Monday = 1 -> 0, etc.)
-  const day = d.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = addDays(startOfDay(d), diffToMonday);
 
-  // Both week and workweek show Monday through Friday (5 days)
-  if (view === "workweek" || view === "week") {
+  if (view === "workweek") {
+    // Calculate Monday of the current week (Sunday = 0 -> -6, Monday = 1 -> 0, etc.)
+    const day = d.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = addDays(startOfDay(d), diffToMonday);
     return Array.from({ length: 5 }, (_, i) => addDays(monday, i));
   }
-  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+
+  // "week": Sunday through Saturday (7 days)
+  const sunday = addDays(startOfDay(d), -d.getDay());
+  return Array.from({ length: 7 }, (_, i) => addDays(sunday, i));
 }
 
 interface LaidOutBlock<T> {

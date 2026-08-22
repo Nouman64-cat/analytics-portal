@@ -63,6 +63,7 @@ import { useDepartmentContext } from "@/lib/DepartmentContext";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
 import TimeGridCalendar, {
   addDays,
+  getCalendarDays,
   toISODateLocal,
 } from "@/components/TimeGridCalendar";
 import EngagementModal from "@/components/EngagementModal";
@@ -104,6 +105,18 @@ function formatDayTitle(iso: string): string {
   });
 }
 
+/** "Aug 17 – 23, 2026" / "Aug 31 – Sep 6, 2026" for the week header label. */
+function formatWeekRangeLabel(start: Date, end: Date): string {
+  const sameMonth = start.getMonth() === end.getMonth();
+  const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const endLabel = end.toLocaleDateString("en-US", {
+    month: sameMonth ? undefined : "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${startLabel} – ${endLabel}`;
+}
+
 const CAN_MARK_BUSY_ROLES = new Set(["superadmin", "team-member"]);
 /** Same read-only roles the backend's assert_write_access rejects for engagement writes. */
 const ENGAGEMENT_READ_ONLY_ROLES = new Set([
@@ -121,6 +134,10 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [tz, setTz] = useState<string>(INTERVIEW_SCHEDULE_TZ);
+
+  // Google Calendar-style default: open on the current week, not the full month.
+  const [calendarView, setCalendarView] = useState<"week" | "month">("week");
+  const [weekCursor, setWeekCursor] = useState<Date>(() => new Date());
 
   // Clicking a day cell expands it into a full hourly agenda (Engagements + Interviews)
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -267,6 +284,42 @@ export default function CalendarPage() {
     },
     [fetchMonthEngagements],
   );
+
+  const weekDays = useMemo(
+    () => getCalendarDays("week", weekCursor),
+    [weekCursor],
+  );
+  const weekStart = weekDays[0];
+  const weekEnd = weekDays[weekDays.length - 1];
+
+  // Fetch engagements for the visible week, same on-demand pattern as the month grid.
+  useEffect(() => {
+    if (calendarView !== "week") return;
+    const start = new Date(
+      weekStart.getFullYear(),
+      weekStart.getMonth(),
+      weekStart.getDate(),
+      0,
+      0,
+      0,
+    );
+    const end = new Date(
+      weekEnd.getFullYear(),
+      weekEnd.getMonth(),
+      weekEnd.getDate(),
+      23,
+      59,
+      59,
+    );
+    handleVisibleRangeChange(start, end);
+    // weekStart/weekEnd are derived from weekCursor each render; keying on their time values
+    // avoids re-fetching on every render from a new-but-equal Date object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarView, weekStart.getTime(), weekEnd.getTime(), handleVisibleRangeChange]);
+
+  const goPrevWeek = useCallback(() => setWeekCursor((prev) => addDays(prev, -7)), []);
+  const goNextWeek = useCallback(() => setWeekCursor((prev) => addDays(prev, 7)), []);
+  const goTodayWeek = useCallback(() => setWeekCursor(new Date()), []);
 
   const refreshEngagements = useCallback(() => {
     if (expandedDay) void fetchDayEngagements(expandedDay);
@@ -476,20 +529,112 @@ export default function CalendarPage() {
         </div>
       )} */}
 
-      <InterviewsCalendar
-        interviews={interviews}
-        onSelectInterview={openInterviewPreview}
-        busyDays={busyDays}
-        currentUserId={currentUserId ?? undefined}
-        onDayClick={canMarkBusy ? openDayModal : undefined}
-        onBusyBarClick={openDayModal}
-        onExpandDay={setExpandedDay}
-        onVisibleRangeChange={handleVisibleRangeChange}
-        engagements={monthEngagements}
-        tz={tz}
-        onTzChange={setTz}
-        candidateMap={candidateMap}
-      />
+      <div className="flex justify-center sm:justify-end">
+        <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 dark:border-white/[0.08] dark:bg-[#12141c]">
+          {(["week", "month"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setCalendarView(v)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                calendarView === v
+                  ? "bg-indigo-500 text-white"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              {v.charAt(0).toUpperCase() + v.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {calendarView === "week" ? (
+        <div className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:justify-start sm:gap-2">
+              <button
+                type="button"
+                onClick={goPrevWeek}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200 dark:hover:bg-white/[0.04]"
+                aria-label="Previous week"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <h2 className="min-w-0 flex-1 text-center text-base font-semibold text-slate-900 sm:min-w-[12rem] sm:flex-none sm:text-lg dark:text-white">
+                {formatWeekRangeLabel(weekStart, weekEnd)}
+              </h2>
+              <button
+                type="button"
+                onClick={goNextWeek}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200 dark:hover:bg-white/[0.04]"
+                aria-label="Next week"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <button
+                type="button"
+                onClick={goTodayWeek}
+                className="inline-flex flex-1 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20 sm:flex-none"
+              >
+                Today
+              </button>
+              <div className="relative flex-1 sm:flex-none">
+                <select
+                  value={tz}
+                  onChange={(e) => setTz(e.target.value)}
+                  aria-label="Timezone"
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm outline-none transition-colors hover:bg-slate-50 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 dark:border-white/[0.1] dark:bg-[#12141c] dark:text-slate-200 dark:hover:bg-white/[0.04]"
+                >
+                  {TIMEZONE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-left">
+            {canWriteEngagements ? "Double-click an empty slot to schedule a meeting. " : ""}
+            Times shown in {TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz}.
+          </p>
+          <TimeGridCalendar
+            view="week"
+            cursorDate={weekCursor}
+            tz={tz}
+            interviews={interviews}
+            engagements={monthEngagements}
+            busyDays={busyDays}
+            candidateMap={candidateMap}
+            currentUserId={currentUserId ?? undefined}
+            onSelectInterview={openInterviewPreview}
+            onSelectEngagement={openEditEngagement}
+            onCreateSlot={canWriteEngagements ? openCreateEngagement : undefined}
+            onDayHeaderClick={canMarkBusy ? openDayModal : undefined}
+          />
+        </div>
+      ) : (
+        <InterviewsCalendar
+          interviews={interviews}
+          onSelectInterview={openInterviewPreview}
+          busyDays={busyDays}
+          currentUserId={currentUserId ?? undefined}
+          onDayClick={canMarkBusy ? openDayModal : undefined}
+          onBusyBarClick={openDayModal}
+          onExpandDay={setExpandedDay}
+          onVisibleRangeChange={handleVisibleRangeChange}
+          engagements={monthEngagements}
+          tz={tz}
+          onTzChange={setTz}
+          candidateMap={candidateMap}
+        />
+      )}
 
       {/* Expanded day — full hourly agenda (Engagements + Interviews), replaces the old Day/Week toolbar */}
       <Modal
