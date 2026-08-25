@@ -1552,6 +1552,38 @@ Return "all" for fields the user didn't mention.`;
         onClose={() => !detailLoading && setDetailLead(null)}
         title="Lead details"
         size="lg"
+        headerActions={
+          detailLead && canMutateLeads ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const l = detailLead;
+                  setDetailLead(null);
+                  openEditModal(l);
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                title="Edit lead"
+                aria-label="Edit lead"
+              >
+                <Pencil size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const l = detailLead;
+                  setDetailLead(null);
+                  setDeleteLead(l);
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                title="Delete lead"
+                aria-label="Delete lead"
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          ) : undefined
+        }
       >
         {detailLead ? (
           <div className="space-y-4">
