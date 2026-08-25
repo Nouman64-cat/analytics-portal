@@ -9,6 +9,8 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
+  /** Extra controls (e.g. edit/delete icon buttons) rendered in the header, before the close button. */
+  headerActions?: React.ReactNode;
 }
 
 const WIDTH_MAP = {
@@ -18,7 +20,7 @@ const WIDTH_MAP = {
   xl: "sm:w-[900px]",
 };
 
-export default function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
+export default function Modal({ open, onClose, title, children, size = "md", headerActions }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,6 +63,9 @@ export default function Modal({ open, onClose, title, children, size = "md" }: M
           <h2 className="min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 dark:text-white sm:text-base">
             <span className="line-clamp-2">{title}</span>
           </h2>
+          {headerActions && (
+            <div className="flex shrink-0 items-center gap-1">{headerActions}</div>
+          )}
           <button
             onClick={onClose}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-900 dark:hover:text-white transition-colors"

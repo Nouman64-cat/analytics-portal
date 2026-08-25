@@ -2529,7 +2529,8 @@ export default function InterviewsPage() {
                                   "Final",
                                 ]}
                                 value={interview.round}
-                                onChange={(val) => handleInterviewRoundSave(interview, val)}
+                                onChange={() => {}}
+                                onCommit={(val) => handleInterviewRoundSave(interview, val)}
                                 placeholder="Type or select round…"
                                 autoFocus
                               />
@@ -3717,6 +3718,40 @@ export default function InterviewsPage() {
         }}
         title="Interview Details"
         size="xl"
+        headerActions={
+          detailModal && !cannotCRUD && !detailModal.bd_dept_only ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const iv = detailModal;
+                  setDetailModal(null);
+                  setLinkCopied(false);
+                  openEditModal(iv);
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                title="Edit interview"
+                aria-label="Edit interview"
+              >
+                <Pencil size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const iv = detailModal;
+                  setDetailModal(null);
+                  setLinkCopied(false);
+                  setDeleteModal(iv);
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                title="Delete interview"
+                aria-label="Delete interview"
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          ) : undefined
+        }
       >
         {detailModal && (
           <div className="space-y-5 lg:h-full lg:overflow-y-auto lg:pb-4">

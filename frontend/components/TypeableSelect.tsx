@@ -8,6 +8,8 @@ interface Props {
   options: string[];
   value: string;
   onChange: (value: string) => void;
+  /** Fires only when a value is actually committed — an option is picked, or Enter confirms typed text. Use this (instead of onChange) to trigger a save, so clearing the field mid-edit never persists. */
+  onCommit?: (value: string) => void;
   placeholder?: string;
   label?: string;
   className?: string;
@@ -19,6 +21,7 @@ export default function TypeableSelect({
   options,
   value,
   onChange,
+  onCommit,
   placeholder = "Type or select…",
   className,
   autoFocus = false,
@@ -60,6 +63,7 @@ export default function TypeableSelect({
 
   const handleSelect = (val: string) => {
     onChange(val);
+    onCommit?.(val);
     setQuery(val);
     setOpen(false);
   };
@@ -83,12 +87,15 @@ export default function TypeableSelect({
       e.preventDefault();
       if (activeIndex >= 0 && activeIndex < filtered.length) {
         handleSelect(filtered[activeIndex]);
-      } else {
+      } else if (query.trim()) {
         // Confirm the typed value as-is and close
+        handleSelect(query.trim());
+      } else {
         setOpen(false);
       }
     } else if (e.key === "Escape") {
       e.preventDefault();
+      setQuery(value);
       setOpen(false);
     } else if (e.key === "Tab") {
       setOpen(false);
