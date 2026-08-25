@@ -44,7 +44,6 @@ class Interview(SQLModel, table=True):
     interview_link: Optional[str] = Field(default=None, max_length=1000)
     interview_doc_url: Optional[str] = Field(default=None, max_length=1000)
     resume_url: Optional[str] = Field(default=None, max_length=1000)
-    ai_introduction: Optional[str] = Field(default=None)
     # Copy of interview_doc_url with detected keywords highlighted (regenerated each run)
     interview_doc_highlighted_url: Optional[str] = Field(default=None, max_length=1000)
     # Comma-separated list of keywords found + highlighted in the interview document

@@ -76,7 +76,6 @@ class InterviewRead(BaseModel):
     is_phone_call: bool = False
     interview_doc_url: Optional[str] = None
     resume_url: Optional[str] = None
-    ai_introduction: Optional[str] = None
     interview_doc_highlighted_url: Optional[str] = None
     interview_doc_keywords: Optional[str] = None
     room_id: Optional[uuid.UUID] = None

@@ -8,7 +8,6 @@ export const NAV_ITEMS = [
   { label: "Leads", href: "/leads", icon: "Target" },
   { label: "Stats", href: "/stats", icon: "BarChart2" },
   { label: "Interviews", href: "/interviews", icon: "CalendarCheck" },
-  { label: "Interview Rooms", href: "/interview-rooms", icon: "DoorOpen" },
   { label: "Calendar", href: "/calendar", icon: "Calendar" },
   { label: "Companies", href: "/companies", icon: "Building2" },
   { label: "Candidates", href: "/candidates", icon: "Users" },

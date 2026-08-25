@@ -252,6 +252,7 @@ export default function LeadsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [deleteLead, setDeleteLead] = useState<LeadListItem | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [statsExpanded, setStatsExpanded] = useState(false);
   useEffect(() => {
     if (isFirstDebouncedPageEffect.current) {
       isFirstDebouncedPageEffect.current = false;
@@ -822,30 +823,68 @@ Return "all" for fields the user didn't mention.`;
       />
 
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2.5 w-full">
-        {[
-          { title: "Legit Leads", value: Math.max(0, displayStats.total_leads - displayStats.dropped), emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
-          { title: "Total", value: total, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
-          { title: "Progressed", value: displayStats.converted, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
-          { title: "Rejected", value: displayStats.rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
-          { title: "Dropped", value: displayStats.dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
-          { title: "Closed", value: displayStats.closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
-          { title: "Dead", value: displayStats.dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
-        ].map((s, i) => (
-          <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
-            <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
-              <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
-            </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
-                {s.title}
-              </p>
-              <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
-                {s.value}
-              </p>
-            </div>
+      <div className="rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2.5 w-full flex flex-col gap-2.5">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2.5 w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 flex-1 gap-2 sm:gap-2.5">
+            {[
+              { title: "Total", value: Math.max(0, displayStats.total_leads - displayStats.dropped), emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
+              { title: "Progressed", value: displayStats.converted, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
+              { title: "Rejected", value: displayStats.rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
+              { title: "Dropped", value: displayStats.dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
+              { title: "Closed", value: displayStats.closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+            ].map((s, i) => (
+              <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
+                <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+                  <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
+                </div>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
+                    {s.title}
+                  </p>
+                  <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
+                    {s.value}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+
+          <button
+            type="button"
+            onClick={() => setStatsExpanded(!statsExpanded)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.04] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-all shrink-0 min-h-[44px] xl:min-h-0 cursor-pointer shadow-sm hover:shadow-md"
+            aria-expanded={statsExpanded}
+          >
+            <span>{statsExpanded ? "Hide More" : "Show More"}</span>
+            <ChevronDown
+              size={15}
+              className={`transform transition-transform duration-200 ${statsExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
+
+        {statsExpanded && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 border-t border-slate-200/50 dark:border-white/[0.06] pt-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+            {[
+              { title: "Dead", value: displayStats.dead, emoji: "💀", color: "text-stone-700 dark:text-stone-300", bg: "bg-stone-500/10 dark:bg-stone-500/20" },
+              { title: "Legit Leads + Dropped", value: total, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+            ].map((s, i) => (
+              <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
+                <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
+                  <span className="text-xs sm:text-sm leading-none" aria-hidden="true">{s.emoji}</span>
+                </div>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight mb-0.5 truncate opacity-85 ${s.color}`} title={s.title}>
+                    {s.title}
+                  </p>
+                  <p className="text-base sm:text-lg font-extrabold leading-none text-slate-900 dark:text-white truncate">
+                    {s.value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {displayStats.other > 0 && (
         <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">

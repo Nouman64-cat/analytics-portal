@@ -478,10 +478,6 @@ export const interviewsService = {
     }
     return confirmRes.json() as Promise<Interview>;
   },
-  generateIntroduction: (id: string) =>
-    apiFetch<{ introduction: string }>(`/interviews/${id}/generate-introduction`, {
-      method: "POST",
-    }),
   generateProgressSummary: (payload: {
     range_label: string;
     items: {
