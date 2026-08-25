@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarCheck2, ChevronLeft, Loader2, Search, Send, User as UserIcon, X } from "lucide-react";
+import { CalendarCheck2, ChevronLeft, Loader2, Search, Send, Smile, User as UserIcon, X } from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
 import { subscribeToMessages, setActiveThreadId } from "@/lib/messagesSocket";
@@ -10,6 +10,7 @@ import ThreadAvatar from "./ThreadAvatar";
 import MentionText from "./MentionText";
 import { dayKey, formatDateDivider, formatMessageTime } from "./format";
 import { QUICK_ACTIONS, QuickActionKey, buildQuickMessage } from "./quickMessages";
+import { EMOJI_GROUPS } from "./EMOJI_LIST";
 
 // Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
 const POLL_INTERVAL_MS = 30 * 1000;
@@ -58,6 +59,10 @@ export default function ConversationPane({
   // Contacts tagged via the @ dropdown while composing — sent alongside the message so the
   // backend/other clients know exactly who was mentioned (not re-parsed from the text).
   const [taggedContacts, setTaggedContacts] = useState<MessageContact[]>([]);
+
+  // Emoji picker in the composer
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = useCallback(async (threadId: string, showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
@@ -186,6 +191,35 @@ export default function ConversationPane({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [composerText]);
+
+  // Close the emoji picker on an outside click.
+  useEffect(() => {
+    if (!emojiPickerOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setEmojiPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [emojiPickerOpen]);
+
+  /** Inserts an emoji at the composer's current cursor position (or appends it if unfocused). */
+  const handleInsertEmoji = (emoji: string) => {
+    const el = composerRef.current;
+    const cursor = el?.selectionStart ?? composerText.length;
+    const end = el?.selectionEnd ?? composerText.length;
+    const before = composerText.slice(0, cursor);
+    const after = composerText.slice(end);
+    const next = before + emoji + after;
+    setComposerText(next);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const pos = before.length + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
 
   /** Re-derive the active "@" mention (if any) from the textarea's current text + cursor. */
   const syncMentionFromComposer = useCallback((text: string, cursor: number) => {
@@ -508,6 +542,36 @@ export default function ConversationPane({
             )}
           </div>
         )}
+        {emojiPickerOpen && (
+          <div
+            ref={emojiPickerRef}
+            className="absolute bottom-full right-4 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl z-20 p-2"
+          >
+            {EMOJI_GROUPS.map((group) => (
+              <div key={group.label} className="mb-2 last:mb-0">
+                <p className="px-1.5 pb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  {group.label}
+                </p>
+                <div className="grid grid-cols-8 gap-0.5">
+                  {group.emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleInsertEmoji(emoji);
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-lg hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+                      title={emoji}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={composerRef}
           value={composerText}
@@ -553,6 +617,19 @@ export default function ConversationPane({
           rows={1}
           className="min-h-[38px] max-h-56 flex-1 resize-none overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-indigo-500/50"
         />
+        <button
+          type="button"
+          onClick={() => setEmojiPickerOpen((v) => !v)}
+          className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl border transition-colors ${
+            emojiPickerOpen
+              ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-500"
+              : "border-slate-200 dark:border-white/[0.08] text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06]"
+          }`}
+          title="Emoji"
+          aria-label="Insert emoji"
+        >
+          <Smile size={17} />
+        </button>
         <button
           type="button"
           onClick={handleSend}
