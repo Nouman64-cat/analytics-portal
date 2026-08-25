@@ -2509,6 +2509,7 @@ export default function InterviewsPage() {
                           {editingCell?.id === interview.id && editingCell.field === "round" ? (
                             <div
                               className="w-36"
+                              onClick={(e) => e.stopPropagation()}
                               onBlur={(e) => {
                                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                                   setEditingCell(null);
@@ -2642,6 +2643,7 @@ export default function InterviewsPage() {
                               type="date"
                               autoFocus
                               defaultValue={interview.interview_date ?? ""}
+                              onClick={(e) => e.stopPropagation()}
                               onBlur={(e) => {
                                 if (e.target.value !== (interview.interview_date ?? "")) {
                                   handleInterviewDateSave(interview, e.target.value);
@@ -2725,6 +2727,7 @@ export default function InterviewsPage() {
                               type="time"
                               autoFocus
                               defaultValue={interview.time_est ?? ""}
+                              onClick={(e) => e.stopPropagation()}
                               onBlur={(e) => {
                                 if (e.target.value !== (interview.time_est ?? "")) {
                                   handleInterviewTimeSave(interview, e.target.value);
@@ -2792,6 +2795,7 @@ export default function InterviewsPage() {
                             <select
                               autoFocus
                               defaultValue={interview.status ?? ""}
+                              onClick={(e) => e.stopPropagation()}
                               onBlur={(e) => {
                                 const val = e.target.value || null;
                                 if (val !== (interview.status ?? null)) {
