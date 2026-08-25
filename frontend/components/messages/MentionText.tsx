@@ -13,10 +13,12 @@ export default function MentionText({
   mine,
 }: {
   body: string;
-  mentions: MessageContact[];
+  // Defensive: an older/not-yet-migrated backend response (e.g. mid-deploy) may not include
+  // this field at all — never assume it's present just because the type says so.
+  mentions: MessageContact[] | null | undefined;
   mine: boolean;
 }) {
-  if (mentions.length === 0) return <>{body}</>;
+  if (!mentions || mentions.length === 0) return <>{body}</>;
 
   const names = [...new Set(mentions.map((m) => m.full_name))].sort((a, b) => b.length - a.length);
   const pattern = new RegExp(`@(?:${names.map(escapeRegExp).join("|")})`, "g");
