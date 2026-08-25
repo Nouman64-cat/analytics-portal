@@ -396,19 +396,41 @@ def create_group(
 def get_thread_messages(
     thread_id: uuid.UUID,
     before: Optional[datetime] = None,
+    around: Optional[uuid.UUID] = None,
     limit: int = 50,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> list[MessageOut]:
-    """Cursor-paginated history, newest-first internally, returned oldest-first for display."""
+    """Cursor-paginated history, newest-first internally, returned oldest-first for display.
+    Pass `around` (a message id, e.g. from a search result) instead of `before` to fetch a
+    window of context centered on that message rather than the most recent page."""
     _authorize_thread(session, current_user, thread_id)
     limit = max(1, min(limit, 100))
 
-    stmt = select(Message).where(Message.thread_id == thread_id)
-    if before:
-        stmt = stmt.where(Message.created_at < before)
-    stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
-    rows = session.exec(stmt).all()
+    if around:
+        target = session.get(Message, around)
+        if not target or target.thread_id != thread_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        half = max(1, limit // 2)
+        older = session.exec(
+            select(Message)
+            .where(Message.thread_id == thread_id, Message.created_at < target.created_at)
+            .order_by(Message.created_at.desc())
+            .limit(half)
+        ).all()
+        newer = session.exec(
+            select(Message)
+            .where(Message.thread_id == thread_id, Message.created_at > target.created_at)
+            .order_by(Message.created_at.asc())
+            .limit(half)
+        ).all()
+        rows = list(reversed(newer)) + [target] + older  # descending order, matches the branch below
+    else:
+        stmt = select(Message).where(Message.thread_id == thread_id)
+        if before:
+            stmt = stmt.where(Message.created_at < before)
+        stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
+        rows = session.exec(stmt).all()
 
     sender_map = _user_map(session, [m.sender_id for m in rows])
     out = [
@@ -424,6 +446,49 @@ def get_thread_messages(
     ]
     out.reverse()
     return out
+
+
+def _escape_like(needle: str) -> str:
+    """Escape LIKE/ILIKE wildcards so a literal '%' or '_' in the search text is matched
+    literally instead of acting as a wildcard."""
+    return needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@router.get("/threads/{thread_id}/search", response_model=list[MessageOut])
+def search_thread_messages(
+    thread_id: uuid.UUID,
+    q: str = "",
+    limit: int = 30,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[MessageOut]:
+    """Search this thread's message history by body text. Newest match first."""
+    _authorize_thread(session, current_user, thread_id)
+    needle = q.strip()
+    if not needle:
+        return []
+    limit = max(1, min(limit, 50))
+
+    stmt = (
+        select(Message)
+        .where(Message.thread_id == thread_id, Message.body.ilike(f"%{_escape_like(needle)}%", escape="\\"))
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+    )
+    rows = session.exec(stmt).all()
+
+    sender_map = _user_map(session, [m.sender_id for m in rows])
+    return [
+        MessageOut(
+            id=m.id,
+            thread_id=m.thread_id,
+            sender_id=m.sender_id,
+            sender_name=sender_map[m.sender_id].full_name if m.sender_id in sender_map else "Unknown",
+            body=m.body,
+            created_at=m.created_at,
+        )
+        for m in rows
+    ]
 
 
 def _send_message_sync(

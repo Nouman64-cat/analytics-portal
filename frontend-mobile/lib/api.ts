@@ -420,10 +420,15 @@ export const messagesService = {
       method: "POST",
       body: JSON.stringify({ title, participant_user_ids: participantUserIds }),
     }),
-  getMessages: (threadId: string, before?: string) => {
-    const qs = before ? `?before=${encodeURIComponent(before)}` : "";
-    return apiFetch<TeamMessage[]>(`/messages/threads/${threadId}/messages${qs}`);
+  getMessages: (threadId: string, opts?: { before?: string; around?: string }) => {
+    const sp = new URLSearchParams();
+    if (opts?.before) sp.set("before", opts.before);
+    if (opts?.around) sp.set("around", opts.around);
+    const qs = sp.toString();
+    return apiFetch<TeamMessage[]>(`/messages/threads/${threadId}/messages${qs ? `?${qs}` : ""}`);
   },
+  searchMessages: (threadId: string, q: string) =>
+    apiFetch<TeamMessage[]>(`/messages/threads/${threadId}/search?q=${encodeURIComponent(q)}`),
   sendMessage: (threadId: string, body: string) =>
     apiFetch<TeamMessage>(`/messages/threads/${threadId}/messages`, {
       method: "POST",

@@ -1,5 +1,14 @@
-import React, { useCallback, useRef, useState } from "react";
-import { View, Text, FlatList, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Header } from "../../../components/Header";
@@ -9,10 +18,13 @@ import { useAuth } from "../../../lib/AuthContext";
 import { messagesService } from "../../../lib/api";
 import { subscribeToMessages } from "../../../lib/messagesSocket";
 import type { MessageThreadKind, TeamMessage } from "../../../lib/types";
-import { formatMessageTime } from "../../../components/messages/format";
+import { dayKey, formatDateDivider, formatMessageTime } from "../../../components/messages/format";
 
 // Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
 const POLL_MS = 30000;
+const SEARCH_DEBOUNCE_MS = 250;
+
+type Row = { kind: "divider"; key: string; label: string } | { kind: "message"; key: string; message: TeamMessage };
 
 export default function ConversationScreen() {
   const t = useTheme();
@@ -24,7 +36,17 @@ export default function ConversationScreen() {
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const listRef = useRef<FlatList>(null);
+  const listRef = useRef<FlatList<Row>>(null);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<TeamMessage[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [historyMode, setHistoryMode] = useState(false);
+  const historyModeRef = useRef(false);
+  historyModeRef.current = historyMode;
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const pendingScrollIdRef = useRef<string | null>(null);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -43,11 +65,19 @@ export default function ConversationScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setHistoryMode(false);
+      setSearchOpen(false);
+      setSearchQuery("");
+      setSearchResults([]);
       load();
       messagesService.markRead(params.id).catch(() => {});
-      const interval = setInterval(() => load({ silent: true }), POLL_MS);
+      const interval = setInterval(() => {
+        if (historyModeRef.current) return;
+        load({ silent: true });
+      }, POLL_MS);
       const unsubscribe = subscribeToMessages((evt) => {
         if (evt.thread_id !== params.id) return;
+        if (historyModeRef.current) return;
         setMessages((prev) => (prev.some((m) => m.id === evt.message.id) ? prev : [...prev, evt.message]));
         messagesService.markRead(params.id).catch(() => {});
       });
@@ -59,13 +89,91 @@ export default function ConversationScreen() {
     }, [load, params.id]),
   );
 
+  useEffect(() => {
+    if (!searchOpen) return;
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await messagesService.searchMessages(params.id, q);
+        setSearchResults(data);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchOpen, searchQuery, params.id]);
+
+  const rows = useMemo<Row[]>(() => {
+    const out: Row[] = [];
+    let lastDay = "";
+    for (const m of messages) {
+      const key = dayKey(m.created_at);
+      if (key !== lastDay) {
+        out.push({ kind: "divider", key: `d-${key}`, label: formatDateDivider(m.created_at) });
+        lastDay = key;
+      }
+      out.push({ kind: "message", key: m.id, message: m });
+    }
+    return out;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!pendingScrollIdRef.current) return;
+    const targetId = pendingScrollIdRef.current;
+    const index = rows.findIndex((r) => r.kind === "message" && r.message.id === targetId);
+    if (index >= 0) {
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      });
+      setHighlightedId(targetId);
+      pendingScrollIdRef.current = null;
+      const timer = setTimeout(() => setHighlightedId(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [rows]);
+
+  async function handleJumpToResult(result: TeamMessage) {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+    setLoading(true);
+    try {
+      const window = await messagesService.getMessages(params.id, { around: result.id });
+      setMessages(window);
+      setHistoryMode(true);
+      pendingScrollIdRef.current = result.id;
+    } catch {
+      // leave the current view as-is on failure
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleJumpToLatest() {
+    setHistoryMode(false);
+    load();
+  }
+
   async function handleSend() {
     const body = input.trim();
     if (!body || sending) return;
     setSending(true);
     try {
       const sent = await messagesService.sendMessage(params.id, body);
-      setMessages((prev) => [...prev, sent]);
+      if (historyModeRef.current) {
+        setHistoryMode(false);
+        await load();
+      } else {
+        setMessages((prev) => [...prev, sent]);
+      }
       setInput("");
     } catch {
       // leave the composer text in place so the user can retry
@@ -81,27 +189,132 @@ export default function ConversationScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={90}
     >
-      <Header title={params.title ?? "Conversation"} showBack />
+      <Header
+        title={params.title ?? "Conversation"}
+        showBack
+        right={
+          <TouchableOpacity
+            onPress={() => setSearchOpen((v) => !v)}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: searchOpen ? `${t.primary}20` : "transparent",
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="search" size={19} color={searchOpen ? t.primary : t.text} />
+          </TouchableOpacity>
+        }
+      />
+
+      {searchOpen && (
+        <View style={{ borderBottomWidth: 1, borderBottomColor: t.border, backgroundColor: t.surface }}>
+          <View style={{ padding: 12 }}>
+            <TextInput
+              autoFocus
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search this conversation…"
+              placeholderTextColor={t.textMuted}
+              style={{
+                backgroundColor: t.surfaceAlt,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 9,
+                color: t.text,
+                fontSize: 14,
+              }}
+            />
+          </View>
+          <View style={{ maxHeight: 260 }}>
+            {searching ? (
+              <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                <ActivityIndicator color={t.primary} />
+              </View>
+            ) : searchQuery.trim() && searchResults.length === 0 ? (
+              <Text style={{ color: t.textMuted, fontSize: 13, textAlign: "center", paddingBottom: 16 }}>
+                No matches
+              </Text>
+            ) : (
+              searchResults.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  onPress={() => handleJumpToResult(r)}
+                  style={{ paddingHorizontal: 16, paddingVertical: 9 }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                    <Text style={{ color: t.text, fontSize: 13, fontWeight: "600" }}>{r.sender_name}</Text>
+                    <Text style={{ color: t.textMuted, fontSize: 11 }}>{formatMessageTime(r.created_at)}</Text>
+                  </View>
+                  <Text style={{ color: t.textMuted, fontSize: 13, marginTop: 1 }} numberOfLines={1}>
+                    {r.body}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </View>
+      )}
+
+      {historyMode && (
+        <TouchableOpacity
+          onPress={handleJumpToLatest}
+          style={{
+            alignSelf: "center",
+            marginTop: 8,
+            paddingHorizontal: 14,
+            paddingVertical: 6,
+            borderRadius: 999,
+            backgroundColor: t.text,
+          }}
+        >
+          <Text style={{ color: t.bg, fontSize: 12, fontWeight: "600" }}>Jump to latest</Text>
+        </TouchableOpacity>
+      )}
+
       {loading ? (
         <LoadingView />
       ) : (
         <FlatList
           ref={listRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
+          data={rows}
+          keyExtractor={(r) => r.key}
           contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => {
+            if (!historyModeRef.current) listRef.current?.scrollToEnd({ animated: false });
+          }}
+          onScrollToIndexFailed={(info) => {
+            setTimeout(() => {
+              listRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+            }, 150);
+          }}
           ListEmptyComponent={
             <EmptyState icon="chatbubble-ellipses-outline" title="No messages yet" subtitle="Say hello." />
           }
           renderItem={({ item }) => {
-            const mine = item.sender_id === myId;
+            if (item.kind === "divider") {
+              return (
+                <View style={{ alignItems: "center", paddingVertical: 4 }}>
+                  <View style={{ backgroundColor: t.surfaceAlt, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
+                    <Text style={{ color: t.textMuted, fontSize: 10.5, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                      {item.label}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+            const message = item.message;
+            const mine = message.sender_id === myId;
             const showSender = !mine && params.kind !== "dm";
+            const highlighted = highlightedId === message.id;
             return (
               <View style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "85%" }}>
                 {showSender && (
                   <Text style={{ color: t.textMuted, fontSize: 11.5, fontWeight: "600", marginBottom: 2, marginLeft: 2 }}>
-                    {item.sender_name}
+                    {message.sender_name}
                   </Text>
                 )}
                 <View
@@ -110,9 +323,11 @@ export default function ConversationScreen() {
                     borderRadius: 14,
                     paddingHorizontal: 14,
                     paddingVertical: 10,
+                    borderWidth: highlighted ? 2 : 0,
+                    borderColor: highlighted ? "#f59e0b" : "transparent",
                   }}
                 >
-                  <Text style={{ color: mine ? t.primaryText : t.text, fontSize: 15 }}>{item.body}</Text>
+                  <Text style={{ color: mine ? t.primaryText : t.text, fontSize: 15 }}>{message.body}</Text>
                 </View>
                 <Text
                   style={{
@@ -124,7 +339,7 @@ export default function ConversationScreen() {
                     alignSelf: mine ? "flex-end" : "flex-start",
                   }}
                 >
-                  {formatMessageTime(item.created_at)}
+                  {formatMessageTime(message.created_at)}
                 </Text>
               </View>
             );
