@@ -52,6 +52,10 @@ class Message(SQLModel, table=True):
     # parse of the body text — the client sends exactly which contacts it inserted).
     mentioned_user_ids: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    edited_at: Optional[datetime] = Field(default=None)
+    # Body/mentions are cleared in place when a message is deleted — `deleted_at` is the only
+    # trace left, letting clients render a "Message deleted" placeholder at the right spot.
+    deleted_at: Optional[datetime] = Field(default=None)
 
 
 class MessageRead(SQLModel, table=True):

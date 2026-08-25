@@ -98,6 +98,9 @@ export interface TeamMessage {
   /** Contacts explicitly @-tagged via the composer — used to color mentions and notify. */
   mentions: MessageContact[];
   created_at: string;
+  edited_at?: string | null;
+  /** Set once the message is deleted — `body` is blanked server-side; render a placeholder. */
+  deleted_at?: string | null;
 }
 
 export interface MessageThreadSummary {

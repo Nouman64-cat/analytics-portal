@@ -105,6 +105,24 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.messages "
+                    f"ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP"
+                )
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.messages "
+                    f"ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

@@ -69,6 +69,8 @@ class MessageOut(BaseModel):
     # mentions in a distinct color and to notify a mentioned user.
     mentions: list[ContactOut] = []
     created_at: datetime
+    edited_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
 
 
 class ThreadSummaryOut(BaseModel):
@@ -94,6 +96,10 @@ class SendMessageRequest(BaseModel):
 class CreateGroupRequest(BaseModel):
     title: str
     participant_user_ids: list[uuid.UUID]
+
+
+class EditMessageRequest(BaseModel):
+    body: str
 
 
 def _user_map(session: Session, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, User]:
@@ -127,6 +133,8 @@ def _message_out(m: Message, people: dict[uuid.UUID, User]) -> MessageOut:
         body=m.body,
         mentions=mentions,
         created_at=m.created_at,
+        edited_at=m.edited_at,
+        deleted_at=m.deleted_at,
     )
 
 
@@ -255,17 +263,7 @@ def _build_thread_summaries(session: Session, current_user: User) -> list[Thread
             title = t.title or "Group"
 
         last_msg = last_message_by_thread.get(t.id)
-        last_message_out = None
-        if last_msg:
-            sender = people.get(last_msg.sender_id)
-            last_message_out = MessageOut(
-                id=last_msg.id,
-                thread_id=last_msg.thread_id,
-                sender_id=last_msg.sender_id,
-                sender_name=sender.full_name if sender else "Unknown",
-                body=last_msg.body,
-                created_at=last_msg.created_at,
-            )
+        last_message_out = _message_out(last_msg, people) if last_msg else None
 
         results.append(
             ThreadSummaryOut(
@@ -506,6 +504,20 @@ def search_thread_messages(
 MAX_MENTIONS_PER_MESSAGE = 20
 
 
+def _recipients_for_thread(session: Session, thread: MessageThread, thread_id: uuid.UUID) -> set[uuid.UUID]:
+    """Who should receive a WS push for an event in this thread — every connected member of
+    the department for a channel, or every participant (including the actor, so their other
+    open tabs/devices stay in sync) for a dm/group."""
+    if thread.kind == MessageThreadKind.CHANNEL:
+        return manager.connected_users_in_department(thread.department_id)
+    return {
+        p.user_id
+        for p in session.exec(
+            select(MessageThreadParticipant).where(MessageThreadParticipant.thread_id == thread_id)
+        ).all()
+    }
+
+
 def _send_message_sync(
     session: Session, thread_id: uuid.UUID, current_user: User, body: str, mentioned_user_ids: list[uuid.UUID]
 ) -> tuple[MessageOut, set[uuid.UUID]]:
@@ -538,18 +550,7 @@ def _send_message_sync(
     people = _user_map(session, mention_ids)
     people[current_user.id] = current_user
     out = _message_out(message, people)
-
-    if thread.kind == MessageThreadKind.CHANNEL:
-        recipient_ids = manager.connected_users_in_department(thread.department_id)
-    else:
-        recipient_ids = {
-            p.user_id
-            for p in session.exec(
-                select(MessageThreadParticipant).where(MessageThreadParticipant.thread_id == thread_id)
-            ).all()
-        }  # includes the sender deliberately, so their other open tabs/devices stay in sync
-
-    return out, recipient_ids
+    return out, _recipients_for_thread(session, thread, thread_id)
 
 
 @router.post("/threads/{thread_id}/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
@@ -570,6 +571,85 @@ async def send_message(
         recipient_ids, {"type": "message", "thread_id": str(thread_id), "message": out.model_dump(mode="json")}
     )
 
+    return out
+
+
+def _get_owned_message(session: Session, thread_id: uuid.UUID, message_id: uuid.UUID) -> Message:
+    message = session.get(Message, message_id)
+    if not message or message.thread_id != thread_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    if message.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message was deleted")
+    return message
+
+
+@router.patch("/threads/{thread_id}/messages/{message_id}", response_model=MessageOut)
+async def edit_message(
+    thread_id: uuid.UUID,
+    message_id: uuid.UUID,
+    payload: EditMessageRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> MessageOut:
+    thread = _authorize_thread(session, current_user, thread_id)
+    message = _get_owned_message(session, thread_id, message_id)
+    if message.sender_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit your own messages")
+
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message body is required")
+    if len(body) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Message too long (max {MAX_MESSAGE_LENGTH} characters)",
+        )
+
+    message.body = body
+    message.edited_at = datetime.utcnow()
+    session.add(message)
+    session.commit()
+    session.refresh(message)
+
+    people = _user_map(session, _parse_mention_ids(message.mentioned_user_ids))
+    people[current_user.id] = current_user
+    out = _message_out(message, people)
+
+    await manager.broadcast(
+        _recipients_for_thread(session, thread, thread_id),
+        {"type": "message_edited", "thread_id": str(thread_id), "message": out.model_dump(mode="json")},
+    )
+    return out
+
+
+@router.delete("/threads/{thread_id}/messages/{message_id}", response_model=MessageOut)
+async def delete_message(
+    thread_id: uuid.UUID,
+    message_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> MessageOut:
+    thread = _authorize_thread(session, current_user, thread_id)
+    message = _get_owned_message(session, thread_id, message_id)
+    if message.sender_id != current_user.id and current_user.role != UserRole.SUPERADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own messages")
+
+    # Clear the body/mentions in place rather than removing the row — keeps the message's
+    # position in the timeline (and unread-count math) intact, with `deleted_at` as the only
+    # trace so clients can render a "Message deleted" placeholder where it used to be.
+    message.body = ""
+    message.mentioned_user_ids = None
+    message.deleted_at = datetime.utcnow()
+    session.add(message)
+    session.commit()
+    session.refresh(message)
+
+    out = _message_out(message, {current_user.id: current_user})
+
+    await manager.broadcast(
+        _recipients_for_thread(session, thread, thread_id),
+        {"type": "message_deleted", "thread_id": str(thread_id), "message": out.model_dump(mode="json")},
+    )
     return out
 
 

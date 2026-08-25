@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarCheck2, ChevronLeft, Loader2, Search, Send, Smile, User as UserIcon, X } from "lucide-react";
+import {
+  CalendarCheck2,
+  Check,
+  ChevronLeft,
+  Loader2,
+  Pencil,
+  Search,
+  Send,
+  Smile,
+  Trash2,
+  User as UserIcon,
+  X,
+} from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
 import { subscribeToMessages, setActiveThreadId } from "@/lib/messagesSocket";
@@ -64,6 +76,12 @@ export default function ConversationPane({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
+  // Editing one of my own messages in place
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const fetchMessages = useCallback(async (threadId: string, showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
     try {
@@ -98,6 +116,10 @@ export default function ConversationPane({
     const unsubscribe = subscribeToMessages((evt) => {
       if (evt.thread_id !== thread.id) return;
       if (historyModeRef.current) return; // live pushes don't belong in a historical view
+      if (evt.type === "message_edited" || evt.type === "message_deleted") {
+        setMessages((prev) => prev.map((m) => (m.id === evt.message.id ? evt.message : m)));
+        return;
+      }
       setMessages((prev) => (prev.some((m) => m.id === evt.message.id) ? prev : [...prev, evt.message]));
       messagesService.markRead(thread.id).catch(() => {});
     });
@@ -262,6 +284,47 @@ export default function ConversationPane({
     if (!thread) return;
     setHistoryMode(false);
     fetchMessages(thread.id, true);
+  };
+
+  const handleStartEdit = (m: TeamMessage) => {
+    setEditingId(m.id);
+    setEditingText(m.body);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!thread || !editingId) return;
+    const body = editingText.trim();
+    if (!body) return;
+    setEditSaving(true);
+    try {
+      const updated = await messagesService.editMessage(thread.id, editingId, body);
+      setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      setEditingId(null);
+      setEditingText("");
+    } catch {
+      setError("Failed to save changes");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteMessage = async (m: TeamMessage) => {
+    if (!thread) return;
+    setDeletingId(m.id);
+    try {
+      const updated = await messagesService.deleteMessage(thread.id, m.id);
+      setMessages((prev) => prev.map((msg) => (msg.id === updated.id ? updated : msg)));
+      if (editingId === m.id) handleCancelEdit();
+    } catch {
+      setError("Failed to delete message");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   /** Replaces the active "@...query" span in the composer with the picked item's text — a
@@ -455,26 +518,104 @@ export default function ConversationPane({
                     if (el) messageRefs.current.set(m.id, el);
                     else messageRefs.current.delete(m.id);
                   }}
-                  className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                  className={`group flex items-end gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
+                  {mine && !m.deleted_at && editingId !== m.id && (
+                    <div className="mb-4 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(m)}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                        title="Edit message"
+                        aria-label="Edit message"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMessage(m)}
+                        disabled={deletingId === m.id}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 transition-colors"
+                        title="Delete message"
+                        aria-label="Delete message"
+                      >
+                        {deletingId === m.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={12} />
+                        )}
+                      </button>
+                    </div>
+                  )}
                   <div className={`max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                     {!mine && thread.kind !== "dm" && (
                       <span className="px-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                         {m.sender_name}
                       </span>
                     )}
-                    <div
-                      className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words transition-colors ${
-                        mine
-                          ? "bg-indigo-600 text-white rounded-br-sm"
-                          : "bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 rounded-bl-sm"
-                      } ${highlightedId === m.id ? "ring-2 ring-offset-2 ring-amber-400 dark:ring-offset-[#14161f]" : ""}`}
-                    >
-                      <MentionText body={m.body} mentions={m.mentions} mine={mine} />
-                    </div>
-                    <span className="px-1 text-[10px] text-slate-400 dark:text-slate-500">
-                      {formatMessageTime(m.created_at)}
-                    </span>
+                    {editingId === m.id ? (
+                      <div className="flex flex-col gap-1.5 w-full min-w-[240px]">
+                        <textarea
+                          autoFocus
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit();
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              handleCancelEdit();
+                            }
+                          }}
+                          rows={2}
+                          className="w-full resize-none rounded-xl border border-indigo-500/50 bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] transition-colors"
+                            title="Cancel"
+                            aria-label="Cancel edit"
+                          >
+                            <X size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={editSaving || !editingText.trim()}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                            title="Save"
+                            aria-label="Save edit"
+                          >
+                            {editSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words transition-colors ${
+                          m.deleted_at
+                            ? "italic text-slate-400 dark:text-slate-500 bg-transparent border border-dashed border-slate-300 dark:border-white/10"
+                            : mine
+                              ? "bg-indigo-600 text-white rounded-br-sm"
+                              : "bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 rounded-bl-sm"
+                        } ${highlightedId === m.id ? "ring-2 ring-offset-2 ring-amber-400 dark:ring-offset-[#14161f]" : ""}`}
+                      >
+                        {m.deleted_at ? (
+                          "Message deleted"
+                        ) : (
+                          <MentionText body={m.body} mentions={m.mentions} mine={mine} />
+                        )}
+                      </div>
+                    )}
+                    {editingId !== m.id && (
+                      <span className="px-1 text-[10px] text-slate-400 dark:text-slate-500">
+                        {formatMessageTime(m.created_at)}
+                        {m.edited_at && !m.deleted_at && " · edited"}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -5,7 +5,7 @@ import { getToken, getUserId } from "@/lib/auth";
 import type { TeamMessage } from "@/lib/types";
 
 export interface MessageEvent {
-  type: "message";
+  type: "message" | "message_edited" | "message_deleted";
   thread_id: string;
   message: TeamMessage;
 }
@@ -119,9 +119,11 @@ function connect() {
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
-      if (data?.type === "message") {
-        notifyIfMentioned(data as MessageEvent);
-        notifyIncomingSound(data as MessageEvent);
+      if (data?.type === "message" || data?.type === "message_edited" || data?.type === "message_deleted") {
+        if (data.type === "message") {
+          notifyIfMentioned(data as MessageEvent);
+          notifyIncomingSound(data as MessageEvent);
+        }
         listeners.forEach((fn) => fn(data as MessageEvent));
       }
     } catch {

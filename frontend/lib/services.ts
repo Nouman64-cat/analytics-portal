@@ -706,6 +706,15 @@ export const messagesService = {
     }),
   markRead: (threadId: string) =>
     apiFetch<void>(`/messages/threads/${threadId}/read`, { method: "POST" }),
+  editMessage: (threadId: string, messageId: string, body: string) =>
+    apiFetch<import("./types").TeamMessage>(`/messages/threads/${threadId}/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body }),
+    }),
+  deleteMessage: (threadId: string, messageId: string) =>
+    apiFetch<import("./types").TeamMessage>(`/messages/threads/${threadId}/messages/${messageId}`, {
+      method: "DELETE",
+    }),
 };
 
 // ─── Broadcast Modals ─────────────────────────────────────────
