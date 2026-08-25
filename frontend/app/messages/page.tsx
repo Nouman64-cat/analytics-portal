@@ -16,6 +16,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "conversation">("list");
 
   const fetchThreads = useCallback(async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
@@ -39,6 +40,7 @@ export default function MessagesPage() {
   const handleSelect = (thread: MessageThreadSummary) => {
     setActiveThreadId(thread.id);
     setThreads((prev) => prev.map((t) => (t.id === thread.id ? { ...t, unread_count: 0 } : t)));
+    setMobileView("conversation");
   };
 
   const handleThreadReady = (thread: MessageThreadSummary) => {
@@ -48,6 +50,7 @@ export default function MessagesPage() {
         : [thread, ...prev],
     );
     setActiveThreadId(thread.id);
+    setMobileView("conversation");
   };
 
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
@@ -57,7 +60,11 @@ export default function MessagesPage() {
 
   return (
     <div className="h-[calc(100vh-9rem)] min-h-[520px] overflow-hidden rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] flex">
-      <div className="w-[300px] shrink-0 border-r border-slate-200/70 dark:border-white/[0.07]">
+      <div
+        className={`w-full md:w-[300px] md:shrink-0 border-r border-slate-200/70 dark:border-white/[0.07] ${
+          mobileView === "conversation" ? "hidden md:block" : "block"
+        }`}
+      >
         <ThreadList
           threads={threads}
           activeThreadId={activeThreadId}
@@ -65,8 +72,12 @@ export default function MessagesPage() {
           onNewMessage={() => setPickerOpen(true)}
         />
       </div>
-      <div className="min-w-0 flex-1">
-        <ConversationPane thread={activeThread} onMessageSent={() => fetchThreads(false)} />
+      <div className={`min-w-0 flex-1 ${mobileView === "list" ? "hidden md:block" : "block"}`}>
+        <ConversationPane
+          thread={activeThread}
+          onMessageSent={() => fetchThreads(false)}
+          onBack={() => setMobileView("list")}
+        />
       </div>
 
       <ContactPicker

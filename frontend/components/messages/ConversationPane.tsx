@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { ChevronLeft, Loader2, Send } from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
 import type { TeamMessage, MessageThreadSummary } from "@/lib/types";
@@ -13,10 +13,13 @@ const POLL_INTERVAL_MS = 4 * 1000;
 export default function ConversationPane({
   thread,
   onMessageSent,
+  onBack,
 }: {
   thread: MessageThreadSummary | null;
   /** Called after a message is successfully sent, so the parent can refresh the thread list. */
   onMessageSent?: () => void;
+  /** Mobile-only: returns to the thread list pane. Omit in desktop-only contexts. */
+  onBack?: () => void;
 }) {
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,6 +85,16 @@ export default function ConversationPane({
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 px-4 py-3.5 border-b border-slate-200/70 dark:border-white/[0.07]">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="md:hidden -ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
+            aria-label="Back to conversations"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
         <ThreadAvatar title={thread.title} kind={thread.kind} size={32} />
         <span className="text-sm font-semibold text-slate-900 dark:text-white">{thread.title}</span>
       </div>
