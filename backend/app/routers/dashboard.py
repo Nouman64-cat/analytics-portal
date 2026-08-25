@@ -419,10 +419,16 @@ def get_interviews_by_day(
                 "round": iv.round,
                 "time_est": iv.time_est.strftime("%H:%M") if iv.time_est else None,
                 "bd_name": iv.business_developer.name if iv.business_developer else None,
+                "is_closed": (iv.status or "").strip().lower() == "closed",
             })
 
     days = [
-        {"date": d, "count": len(interviews), "interviews": interviews}
+        {
+            "date": d,
+            "count": len(interviews),
+            "interviews": interviews,
+            "has_closed": any(iv["is_closed"] for iv in interviews),
+        }
         for d, interviews in sorted(day_interviews.items())
     ]
 
