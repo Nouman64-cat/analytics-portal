@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, Sparkles } from "lucide-react";
+import { CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Sparkles } from "lucide-react";
 import type { BusyDay, Candidate, Engagement, Interview } from "@/lib/types";
 import {
   formatDate,
@@ -11,10 +11,10 @@ import {
   TIMEZONE_OPTIONS,
 } from "@/lib/utils";
 import { getCandidateColor } from "@/lib/candidateColor";
-import { interviewsService } from "@/lib/services";
 import StatusBadge from "@/components/StatusBadge";
 import CandidateAvatar from "@/components/CandidateAvatar";
 import Modal, { buttonPrimary, textareaClass } from "@/components/Modal";
+import WeeklyProgressButton from "@/components/WeeklyProgressButton";
 import { addDays, startOfDay, toISODateLocal } from "@/components/TimeGridCalendar";
 import { toZonedTime } from "date-fns-tz";
 
@@ -208,10 +208,9 @@ export default function InterviewsCalendar({
     interviews: Interview[];
   } | null>(null);
 
-  /** AI-magic message generator — per-day (sparkle icon) and weekly progress (header button) */
+  /** AI-magic message generator for the per-day (sparkle icon) message */
   const [messageModal, setMessageModal] = useState<{ title: string; text: string } | null>(null);
   const [messageCopied, setMessageCopied] = useState(false);
-  const [weeklyProgressLoading, setWeeklyProgressLoading] = useState(false);
 
   const handleCopyMessage = async () => {
     if (!messageModal) return;
@@ -221,36 +220,6 @@ export default function InterviewsCalendar({
       setTimeout(() => setMessageCopied(false), 2000);
     } catch {
       // ignore
-    }
-  };
-
-  const handleWeeklyProgress = async () => {
-    const { rangeLabel, items } = getWeeklyProgressPayload(interviews);
-    setMessageCopied(false);
-    if (items.length === 0) {
-      setMessageModal({
-        title: `Weekly progress (${rangeLabel})`,
-        text: "No interviews progressed to the next round this period.",
-      });
-      return;
-    }
-    setWeeklyProgressLoading(true);
-    try {
-      const res = await interviewsService.generateProgressSummary({
-        range_label: rangeLabel,
-        items,
-      });
-      setMessageModal({ title: `Weekly progress (${rangeLabel})`, text: res.summary });
-    } catch (err) {
-      setMessageModal({
-        title: `Weekly progress (${rangeLabel})`,
-        text:
-          err instanceof Error
-            ? `Couldn't generate the summary: ${err.message}`
-            : "Couldn't generate the summary. Try again.",
-      });
-    } finally {
-      setWeeklyProgressLoading(false);
     }
   };
 
@@ -293,20 +262,7 @@ export default function InterviewsCalendar({
           >
             Today
           </button>
-          <button
-            type="button"
-            onClick={handleWeeklyProgress}
-            disabled={weeklyProgressLoading}
-            title="Generate an AI summary of interviews that progressed to the next round this week and last week"
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/20 sm:flex-none"
-          >
-            {weeklyProgressLoading ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Sparkles size={14} />
-            )}
-            Weekly progress
-          </button>
+          <WeeklyProgressButton interviews={interviews} />
           {onTzChange && (
             <div className="relative flex-1 sm:flex-none">
               <select

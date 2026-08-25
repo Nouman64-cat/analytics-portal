@@ -61,6 +61,7 @@ import {
 import { getUserRole, getUserId } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import InterviewsCalendar from "@/components/InterviewsCalendar";
+import WeeklyProgressButton from "@/components/WeeklyProgressButton";
 import TimeGridCalendar, {
   addDays,
   getCalendarDays,
@@ -580,6 +581,7 @@ export default function CalendarPage() {
               >
                 Today
               </button>
+              <WeeklyProgressButton interviews={interviews} />
               <div className="relative flex-1 sm:flex-none">
                 <select
                   value={tz}
