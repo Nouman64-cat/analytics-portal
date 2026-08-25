@@ -484,6 +484,7 @@ export const interviewsService = {
       round: string;
       company: string;
       candidate: string;
+      status: string;
       date: string;
       time?: string | null;
     }[];

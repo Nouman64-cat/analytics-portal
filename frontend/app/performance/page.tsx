@@ -294,7 +294,7 @@ export default function PerformancePage() {
               <thead>
                 <tr className="border-b border-slate-200 dark:border-white/[0.06] text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-500">
                   <th className="px-4 py-3 font-semibold">Candidate</th>
-                  <th className="px-4 py-3 font-semibold text-right">Legit / Total</th>
+                  <th className="px-4 py-3 font-semibold text-right">Total</th>
                   <th className="px-4 py-3 font-semibold w-32">Breakdown</th>
                   <th className={`px-4 py-3 font-semibold text-right ${METRIC_STYLE.closed.text}`}>Closing</th>
                   <th className={`px-4 py-3 font-semibold text-right ${METRIC_STYLE.progressed.text}`}>Progressed</th>
@@ -326,7 +326,7 @@ export default function PerformancePage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                        {m.legit} / {m.total}
+                        {m.legit}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">

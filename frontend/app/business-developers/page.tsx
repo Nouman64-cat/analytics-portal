@@ -256,8 +256,14 @@ export default function BusinessDevelopersPage() {
 
   const activeBdCount = useMemo(() => bds.filter((b) => b.is_active).length, [bds]);
 
+  /** Pipeline threads attributed to a BD within the currently filtered set (search/status/dept). */
+  const totalAttributedThreadsFiltered = useMemo(
+    () => filteredBds.reduce((s, b) => s + (bdThreadCounts[b.id] || 0), 0),
+    [filteredBds, bdThreadCounts],
+  );
+
   const avgPerBd =
-    filteredBds.length > 0 ? (totalAttributedThreads / filteredBds.length).toFixed(1) : "0";
+    filteredBds.length > 0 ? (totalAttributedThreadsFiltered / filteredBds.length).toFixed(1) : "0";
 
   const topBdFiltered = useMemo(
     () =>
@@ -449,10 +455,10 @@ export default function BusinessDevelopersPage() {
 
       {/* Stats */}
       <StatsGrid>
-        <StatsCard title="Total BDs" value={bds.length} icon={Users} gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
+        <StatsCard title="Total BDs" value={filteredBds.length} icon={Users} gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
         <StatsCard
           title="Pipeline leads (threads)"
-          value={totalLeadsInPeriod}
+          value={totalAttributedThreadsFiltered}
           icon={CalendarCheck}
           gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
         />

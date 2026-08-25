@@ -1296,6 +1296,7 @@ class ProgressSummaryItem(BaseModel):
     round: str
     company: str
     candidate: str
+    status: str
     date: str
     time: Optional[str] = None
 
@@ -1320,13 +1321,15 @@ def generate_progress_summary(
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
 
+    heading = f"Weekly Progress ({payload.range_label})"
+
     if not payload.items:
         return ProgressSummaryResponse(
-            summary=f"No interviews progressed to the next round during {payload.range_label}."
+            summary=f"{heading}\n\nNo interviews progressed to the next round during this period."
         )
 
     raw_lines = "\n".join(
-        f"- {item.round} for {item.company} — {item.candidate}"
+        f"- {item.round} for {item.company} — {item.candidate} — status: {item.status}"
         f" ({item.date}{', ' + item.time if item.time else ''})"
         for item in payload.items
     )
@@ -1338,14 +1341,14 @@ Rules:
 - Order candidates by their most advanced round overall (Final/highest round number first); within each candidate's list, also lead with their most advanced round first
 - Use short bullet points, not paragraphs
 - Every item in the input must be mentioned — don't drop or merge distinct companies/rounds
-- Include the candidate name (as the section label), company, and round for every item
+- Include the candidate name (as the section label), company, round, and current interview status for every item
 - Only mention dates/times where they add real value; don't repeat the same date on every line if it's obvious from grouping
 - No fluff, no buzzwords, no generic encouragement ("great progress!", "keep it up!") — just clear facts
 - Output plain text bullets only — no markdown headers, no emojis, no closing summary sentence"""
 
     user_msg = f"""Week: {payload.range_label}
 
-Raw progressed-interview data (round, company, candidate, date/time):
+Raw progressed-interview data (round, company, candidate, status, date/time):
 {raw_lines}
 
 Write a short, clear bullet-point summary of this week's progress for a stakeholder update."""
@@ -1364,7 +1367,7 @@ Write a short, clear bullet-point summary of this week's progress for a stakehol
     )
 
     summary = response.choices[0].message.content.strip()
-    return ProgressSummaryResponse(summary=summary)
+    return ProgressSummaryResponse(summary=f"{heading}\n\n{summary}")
 
 
 class AssignRoomRequest(BaseModel):
