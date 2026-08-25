@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -86,6 +87,10 @@ class User(SQLModel, table=True):
     glassmorphism_enabled: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     allowed_dept_ids: Optional[str] = Field(default=None)  # JSON list of UUID strings; [] = all; null = role default
+    # JSON list of department UUID strings, e.g. '["uuid1","uuid2"]' — source of truth for
+    # messaging scope (internal team messaging). Falls back to the legacy single
+    # department_id when unset.
+    department_ids: Optional[str] = Field(default=None)
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)
     bd_entity_id: Optional[uuid.UUID] = Field(default=None, foreign_key="business_developers.id", index=True)
     team_lead_user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)
@@ -94,3 +99,12 @@ class User(SQLModel, table=True):
     reset_token_expires_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    def get_department_ids_list(self) -> list[str]:
+        """Return department_ids as a Python list of UUID strings."""
+        if not self.department_ids:
+            return [str(self.department_id)] if self.department_id else []
+        try:
+            return json.loads(self.department_ids)
+        except (json.JSONDecodeError, TypeError):
+            return [str(self.department_id)] if self.department_id else []

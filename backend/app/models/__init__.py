@@ -16,6 +16,7 @@ from app.models.notification_read import NotificationRead
 from app.models.job_role import JobRole
 from app.models.broadcast_modal import BroadcastModal
 from app.models.engagement import Engagement
+from app.models.message import Message, MessageThread, MessageThreadParticipant, MessageRead
 
 __all__ = [
     "Department",
@@ -35,4 +36,8 @@ __all__ = [
     "JobRole",
     "BroadcastModal",
     "Engagement",
+    "Message",
+    "MessageThread",
+    "MessageThreadParticipant",
+    "MessageRead",
 ]

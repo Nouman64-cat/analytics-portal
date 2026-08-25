@@ -5,6 +5,7 @@ export const API_V1 = `${API_BASE_URL}/api/v1`;
 // Navigation
 export const NAV_ITEMS = [
   { label: "Dashboard", href: "/", icon: "LayoutDashboard" },
+  { label: "Messages", href: "/messages", icon: "MessageSquare" },
   { label: "Leads", href: "/leads", icon: "Target" },
   { label: "Interviews", href: "/interviews", icon: "CalendarCheck" },
   { label: "Calendar", href: "/calendar", icon: "Calendar" },

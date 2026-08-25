@@ -519,6 +519,77 @@ def migrate():
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_doc_keywords TEXT;",
              "Migration successful! 'interview_doc_keywords' column added to 'interviews' table."),
 
+            # ── Internal messaging: multi-department users ───────────────────────────
+            ("ALTER TABLE users ADD COLUMN IF NOT EXISTS department_ids TEXT;",
+             "Migration successful! 'department_ids' column added to 'users' table."),
+            ("""UPDATE users SET department_ids = '["' || department_id::text || '"]'
+                WHERE department_ids IS NULL AND department_id IS NOT NULL;""",
+             "Migration successful! Backfilled 'department_ids' from 'department_id' for existing users."),
+
+            # ── Internal messaging: threads (dm / group / department channel) ────────
+            ("""CREATE TABLE IF NOT EXISTS message_threads (
+                id UUID PRIMARY KEY,
+                kind VARCHAR(10) NOT NULL,
+                title VARCHAR(255),
+                department_id UUID REFERENCES departments(id) ON DELETE CASCADE,
+                created_by UUID REFERENCES users(id),
+                created_at TIMESTAMP NOT NULL
+            );""",
+             "Migration successful! 'message_threads' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_message_threads_kind ON message_threads (kind);",
+             "Migration successful! Index on message_threads.kind ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_message_threads_department_id ON message_threads (department_id);",
+             "Migration successful! Index on message_threads.department_id ensured."),
+            ("""CREATE UNIQUE INDEX IF NOT EXISTS uq_message_threads_department_channel
+                ON message_threads (department_id) WHERE kind = 'channel';""",
+             "Migration successful! Unique index (one channel per department) ensured."),
+
+            # ── Internal messaging: dm/group participants ─────────────────────────────
+            ("""CREATE TABLE IF NOT EXISTS message_thread_participants (
+                id UUID PRIMARY KEY,
+                thread_id UUID NOT NULL REFERENCES message_threads(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP NOT NULL
+            );""",
+             "Migration successful! 'message_thread_participants' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_message_thread_participants_thread_id ON message_thread_participants (thread_id);",
+             "Migration successful! Index on message_thread_participants.thread_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_message_thread_participants_user_id ON message_thread_participants (user_id);",
+             "Migration successful! Index on message_thread_participants.user_id ensured."),
+            ("""CREATE UNIQUE INDEX IF NOT EXISTS uq_message_thread_participant
+                ON message_thread_participants (thread_id, user_id);""",
+             "Migration successful! Unique index on message_thread_participants ensured."),
+
+            # ── Internal messaging: messages ──────────────────────────────────────────
+            ("""CREATE TABLE IF NOT EXISTS messages (
+                id UUID PRIMARY KEY,
+                thread_id UUID NOT NULL REFERENCES message_threads(id) ON DELETE CASCADE,
+                sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL
+            );""",
+             "Migration successful! 'messages' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_messages_sender_id ON messages (sender_id);",
+             "Migration successful! Index on messages.sender_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_messages_thread_id_created_at ON messages (thread_id, created_at);",
+             "Migration successful! Index on messages (thread_id, created_at) ensured."),
+
+            # ── Internal messaging: per-user read tracking ────────────────────────────
+            ("""CREATE TABLE IF NOT EXISTS message_reads (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                thread_id UUID NOT NULL,
+                last_read_at TIMESTAMP NOT NULL
+            );""",
+             "Migration successful! 'message_reads' table ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_message_reads_user_id ON message_reads (user_id);",
+             "Migration successful! Index on message_reads.user_id ensured."),
+            ("CREATE INDEX IF NOT EXISTS ix_message_reads_thread_id ON message_reads (thread_id);",
+             "Migration successful! Index on message_reads.thread_id ensured."),
+            ("""CREATE UNIQUE INDEX IF NOT EXISTS uq_message_read_user_thread
+                ON message_reads (user_id, thread_id);""",
+             "Migration successful! Unique index on message_reads ensured."),
+
         ]
         for sql, msg in migrations:
             try:

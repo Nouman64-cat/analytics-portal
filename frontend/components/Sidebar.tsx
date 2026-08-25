@@ -24,8 +24,10 @@ import {
   ChevronDown,
   Megaphone,
   DoorOpen,
+  MessageSquare,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
+import MessagesNavBadge from "@/components/messages/MessagesNavBadge";
 import { clearToken, getUserRole, getCanBroadcast } from "@/lib/auth";
 import { isNewFeature } from "@/lib/newBadge";
 import { useRouter } from "next/navigation";
@@ -63,6 +65,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   PieChart,
   Megaphone,
   DoorOpen,
+  MessageSquare,
 };
 
 export default function Sidebar({
@@ -362,6 +365,7 @@ export default function Sidebar({
                     New
                   </span>
                 )}
+                {item.href === "/messages" && !collapsed && <MessagesNavBadge />}
                 {isActive && !collapsed && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
                 )}

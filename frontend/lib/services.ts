@@ -664,6 +664,41 @@ export const notificationsService = {
     apiFetch<void>("/notifications/unresponsive-leads/mark-all-read", { method: "POST" }),
 };
 
+// ─── Internal Messaging ───────────────────────────────────────
+// Peer/group/department-channel messaging. Distinct from `chatService` above, which is
+// the AI assistant — do not confuse the two.
+
+export const messagesService = {
+  getContacts: (q?: string) => {
+    const qs = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+    return apiFetch<import("./types").MessageContact[]>(`/messages/contacts${qs}`);
+  },
+  getThreads: () =>
+    apiFetch<import("./types").MessageThreadSummary[]>("/messages/threads"),
+  getUnreadCount: () =>
+    apiFetch<{ unread_count: number }>("/messages/unread-count"),
+  openDm: (userId: string) =>
+    apiFetch<import("./types").MessageThreadSummary>(`/messages/threads/dm/${userId}`, {
+      method: "POST",
+    }),
+  createGroup: (title: string, participantUserIds: string[]) =>
+    apiFetch<import("./types").MessageThreadSummary>("/messages/threads/group", {
+      method: "POST",
+      body: JSON.stringify({ title, participant_user_ids: participantUserIds }),
+    }),
+  getMessages: (threadId: string, before?: string) => {
+    const qs = before ? `?before=${encodeURIComponent(before)}` : "";
+    return apiFetch<import("./types").TeamMessage[]>(`/messages/threads/${threadId}/messages${qs}`);
+  },
+  sendMessage: (threadId: string, body: string) =>
+    apiFetch<import("./types").TeamMessage>(`/messages/threads/${threadId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  markRead: (threadId: string) =>
+    apiFetch<void>(`/messages/threads/${threadId}/read`, { method: "POST" }),
+};
+
 // ─── Broadcast Modals ─────────────────────────────────────────
 
 export const broadcastModalService = {
