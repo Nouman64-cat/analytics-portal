@@ -95,6 +95,8 @@ export interface TeamMessage {
   sender_id: string;
   sender_name: string;
   body: string;
+  /** Contacts explicitly @-tagged via the composer — used to color mentions and notify. */
+  mentions: MessageContact[];
   created_at: string;
 }
 

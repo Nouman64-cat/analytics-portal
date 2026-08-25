@@ -48,6 +48,9 @@ class Message(SQLModel, table=True):
     thread_id: uuid.UUID = Field(index=True, foreign_key="message_threads.id")
     sender_id: uuid.UUID = Field(index=True, foreign_key="users.id")
     body: str
+    # JSON list of user-id strings the sender explicitly @-tagged via the composer (not a
+    # parse of the body text — the client sends exactly which contacts it inserted).
+    mentioned_user_ids: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

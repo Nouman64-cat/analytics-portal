@@ -1,17 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, Loader2, Search, Send, X } from "lucide-react";
+import { CalendarCheck2, ChevronLeft, Loader2, Search, Send, User as UserIcon, X } from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
 import { subscribeToMessages } from "@/lib/messagesSocket";
-import type { TeamMessage, MessageThreadSummary } from "@/lib/types";
+import type { TeamMessage, MessageThreadSummary, MessageContact } from "@/lib/types";
 import ThreadAvatar from "./ThreadAvatar";
+import MentionText from "./MentionText";
 import { dayKey, formatDateDivider, formatMessageTime } from "./format";
+import { QUICK_ACTIONS, QuickActionKey, buildQuickMessage } from "./quickMessages";
 
 // Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
 const POLL_INTERVAL_MS = 30 * 1000;
 const SEARCH_DEBOUNCE_MS = 250;
+const MENTION_DEBOUNCE_MS = 200;
+
+type MentionItem = { type: "action"; key: QuickActionKey; label: string } | { type: "contact"; contact: MessageContact };
 
 export default function ConversationPane({
   thread,
@@ -44,6 +49,16 @@ export default function ConversationPane({
   const [pendingScrollToId, setPendingScrollToId] = useState<string | null>(null);
   const messageRefs = useRef(new Map<string, HTMLDivElement>());
 
+  // "@" quick actions / mentions in the composer
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionHighlight, setMentionHighlight] = useState(0);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  // Contacts tagged via the @ dropdown while composing — sent alongside the message so the
+  // backend/other clients know exactly who was mentioned (not re-parsed from the text).
+  const [taggedContacts, setTaggedContacts] = useState<MessageContact[]>([]);
+
   const fetchMessages = useCallback(async (threadId: string, showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
     try {
@@ -65,6 +80,8 @@ export default function ConversationPane({
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults([]);
+    setComposerText("");
+    setTaggedContacts([]);
     fetchMessages(thread.id, true);
     messagesService.markRead(thread.id).catch(() => {});
     const interval = setInterval(() => {
@@ -125,6 +142,67 @@ export default function ConversationPane({
     return () => clearTimeout(t);
   }, [searchOpen, searchQuery, thread]);
 
+  useEffect(() => {
+    if (!mention) {
+      setMentionItems([]);
+      return;
+    }
+    setMentionHighlight(0);
+    let cancelled = false;
+    setMentionLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const q = mention.query.trim().toLowerCase();
+        const actionItems: MentionItem[] = QUICK_ACTIONS.filter(
+          (a) => !q || a.label.toLowerCase().includes(q),
+        ).map((a) => ({ type: "action", key: a.key, label: a.label }));
+        const contacts = await messagesService.getContacts(mention.query.trim());
+        if (!cancelled) {
+          setMentionItems([
+            ...actionItems,
+            ...contacts.slice(0, 6).map((c): MentionItem => ({ type: "contact", contact: c })),
+          ]);
+        }
+      } catch {
+        if (!cancelled) setMentionItems([]);
+      } finally {
+        if (!cancelled) setMentionLoading(false);
+      }
+    }, MENTION_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [mention]);
+
+  // Auto-grow the composer to fit its content (e.g. a multi-line inserted template),
+  // capped by the max-h-56 in its className below — beyond that it scrolls internally.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [composerText]);
+
+  /** Re-derive the active "@" mention (if any) from the textarea's current text + cursor. */
+  const syncMentionFromComposer = useCallback((text: string, cursor: number) => {
+    let atIndex = -1;
+    for (let i = cursor - 1; i >= 0; i--) {
+      const ch = text[i];
+      if (ch === "\n") break;
+      if (ch === "@") {
+        const before = text[i - 1];
+        if (i === 0 || before === " " || before === "\n") atIndex = i;
+        break;
+      }
+    }
+    if (atIndex === -1) {
+      setMention(null);
+      return;
+    }
+    setMention({ start: atIndex, query: text.slice(atIndex + 1, cursor) });
+  }, []);
+
   const handleJumpToResult = async (result: TeamMessage) => {
     if (!thread) return;
     setSearchOpen(false);
@@ -149,14 +227,44 @@ export default function ConversationPane({
     fetchMessages(thread.id, true);
   };
 
+  /** Replaces the active "@...query" span in the composer with the picked item's text — a
+   * plain "@Name " tag for a contact, or the blank fill-in-yourself template for a quick
+   * action (the user types the actual details in by hand after it's inserted). */
+  const handleSelectMentionItem = (item: MentionItem) => {
+    if (!mention) return;
+    const cursor = mention.start + 1 + mention.query.length;
+    const before = composerText.slice(0, mention.start);
+    const after = composerText.slice(cursor);
+    const replacement = item.type === "contact" ? `@${item.contact.full_name} ` : `${buildQuickMessage(item.key)}\n`;
+    const next = before + replacement + after;
+    setComposerText(next);
+    if (item.type === "contact") {
+      setTaggedContacts((prev) => (prev.some((c) => c.id === item.contact.id) ? prev : [...prev, item.contact]));
+    }
+    setMention(null);
+    setMentionItems([]);
+    requestAnimationFrame(() => {
+      const el = composerRef.current;
+      if (!el) return;
+      el.focus();
+      const pos = before.length + replacement.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
   const handleSend = async () => {
     if (!thread) return;
     const body = composerText.trim();
     if (!body || sending) return;
+    // Only mention contacts whose "@Name" tag is still actually present in the text — covers
+    // the case where the user backspaced a tag out after inserting it.
+    const mentionIds = taggedContacts
+      .filter((c) => composerText.includes(`@${c.full_name}`))
+      .map((c) => c.id);
     setSending(true);
     setError(null);
     try {
-      const sent = await messagesService.sendMessage(thread.id, body);
+      const sent = await messagesService.sendMessage(thread.id, body, mentionIds);
       if (historyModeRef.current) {
         setHistoryMode(false);
         await fetchMessages(thread.id, false);
@@ -164,6 +272,7 @@ export default function ConversationPane({
         setMessages((prev) => [...prev, sent]);
       }
       setComposerText("");
+      setTaggedContacts([]);
       onMessageSent?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send that message");
@@ -321,7 +430,7 @@ export default function ConversationPane({
                           : "bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 rounded-bl-sm"
                       } ${highlightedId === m.id ? "ring-2 ring-offset-2 ring-amber-400 dark:ring-offset-[#14161f]" : ""}`}
                     >
-                      {m.body}
+                      <MentionText body={m.body} mentions={m.mentions} mine={mine} />
                     </div>
                     <span className="px-1 text-[10px] text-slate-400 dark:text-slate-500">
                       {formatMessageTime(m.created_at)}
@@ -339,19 +448,104 @@ export default function ConversationPane({
         <p className="shrink-0 px-4 pb-1 text-xs text-red-500 dark:text-red-400">{error}</p>
       )}
 
-      <div className="shrink-0 flex items-end gap-2 px-4 py-3 border-t border-slate-200/70 dark:border-white/[0.07]">
+      <div className="relative shrink-0 flex items-end gap-2 px-4 py-3 border-t border-slate-200/70 dark:border-white/[0.07]">
+        {mention && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl z-20">
+            {mentionLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 size={16} className="animate-spin text-slate-400" />
+              </div>
+            ) : (
+              mentionItems.map((item, idx) => {
+                const isHighlighted = idx === mentionHighlight;
+                const base = `flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors ${
+                  isHighlighted ? "bg-indigo-500/10" : "hover:bg-slate-100 dark:hover:bg-white/[0.04]"
+                }`;
+                if (item.type === "action") {
+                  return (
+                    <button
+                      key={`action-${item.key}`}
+                      type="button"
+                      onMouseEnter={() => setMentionHighlight(idx)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSelectMentionItem(item);
+                      }}
+                      className={base}
+                    >
+                      <CalendarCheck2 size={15} className="shrink-0 text-indigo-500" />
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{item.label}</span>
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    key={`contact-${item.contact.id}`}
+                    type="button"
+                    onMouseEnter={() => setMentionHighlight(idx)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelectMentionItem(item);
+                    }}
+                    className={base}
+                  >
+                    <UserIcon size={15} className="shrink-0 text-slate-400" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-800 dark:text-slate-200">
+                      {item.contact.full_name}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+            {!mentionLoading && mentionItems.length === 0 && (
+              <p className="px-3.5 py-3 text-center text-xs text-slate-400 dark:text-slate-500">No matches</p>
+            )}
+          </div>
+        )}
         <textarea
+          ref={composerRef}
           value={composerText}
-          onChange={(e) => setComposerText(e.target.value)}
+          onChange={(e) => {
+            setComposerText(e.target.value);
+            syncMentionFromComposer(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
           onKeyDown={(e) => {
+            if (mention) {
+              // Intercept every navigation/confirm key while an "@" mention is being
+              // composed — even with zero items yet (still typing a search term) — so
+              // Enter never falls through to send the literal "@..." text as a message.
+              if (e.key === "ArrowDown" && mentionItems.length > 0) {
+                e.preventDefault();
+                setMentionHighlight((i) => (i + 1) % mentionItems.length);
+                return;
+              }
+              if (e.key === "ArrowUp" && mentionItems.length > 0) {
+                e.preventDefault();
+                setMentionHighlight((i) => (i - 1 + mentionItems.length) % mentionItems.length);
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                if (mentionItems.length > 0) {
+                  handleSelectMentionItem(mentionItems[mentionHighlight]);
+                }
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setMention(null);
+                setMentionItems([]);
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSend();
             }
           }}
-          placeholder="Write a message…"
+          placeholder="Write a message… (type @ for quick actions)"
           rows={1}
-          className="min-h-[38px] max-h-32 flex-1 resize-none rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-indigo-500/50"
+          className="min-h-[38px] max-h-56 flex-1 resize-none overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-indigo-500/50"
         />
         <button
           type="button"

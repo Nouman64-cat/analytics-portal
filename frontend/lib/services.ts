@@ -699,10 +699,10 @@ export const messagesService = {
     apiFetch<import("./types").TeamMessage[]>(
       `/messages/threads/${threadId}/search?q=${encodeURIComponent(q)}`,
     ),
-  sendMessage: (threadId: string, body: string) =>
+  sendMessage: (threadId: string, body: string, mentionedUserIds?: string[]) =>
     apiFetch<import("./types").TeamMessage>(`/messages/threads/${threadId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body, mentioned_user_ids: mentionedUserIds ?? [] }),
     }),
   markRead: (threadId: string) =>
     apiFetch<void>(`/messages/threads/${threadId}/read`, { method: "POST" }),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from collections import defaultdict
 from datetime import datetime
@@ -64,6 +65,9 @@ class MessageOut(BaseModel):
     sender_id: uuid.UUID
     sender_name: str
     body: str
+    # Contacts the sender explicitly @-tagged via the composer — used by clients to render
+    # mentions in a distinct color and to notify a mentioned user.
+    mentions: list[ContactOut] = []
     created_at: datetime
 
 
@@ -84,6 +88,7 @@ class UnreadCountOut(BaseModel):
 
 class SendMessageRequest(BaseModel):
     body: str
+    mentioned_user_ids: list[uuid.UUID] = []
 
 
 class CreateGroupRequest(BaseModel):
@@ -100,6 +105,29 @@ def _user_map(session: Session, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, Us
 
 def _contact_out(u: User) -> ContactOut:
     return ContactOut(id=u.id, full_name=u.full_name, email=u.email, role=u.role.value)
+
+
+def _parse_mention_ids(raw: Optional[str]) -> list[uuid.UUID]:
+    if not raw:
+        return []
+    try:
+        return [uuid.UUID(s) for s in json.loads(raw)]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+
+
+def _message_out(m: Message, people: dict[uuid.UUID, User]) -> MessageOut:
+    sender = people.get(m.sender_id)
+    mentions = [_contact_out(people[uid]) for uid in _parse_mention_ids(m.mentioned_user_ids) if uid in people]
+    return MessageOut(
+        id=m.id,
+        thread_id=m.thread_id,
+        sender_id=m.sender_id,
+        sender_name=sender.full_name if sender else "Unknown",
+        body=m.body,
+        mentions=mentions,
+        created_at=m.created_at,
+    )
 
 
 def _authorize_thread(session: Session, current_user: User, thread_id: uuid.UUID) -> MessageThread:
@@ -432,18 +460,10 @@ def get_thread_messages(
         stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
         rows = session.exec(stmt).all()
 
-    sender_map = _user_map(session, [m.sender_id for m in rows])
-    out = [
-        MessageOut(
-            id=m.id,
-            thread_id=m.thread_id,
-            sender_id=m.sender_id,
-            sender_name=sender_map[m.sender_id].full_name if m.sender_id in sender_map else "Unknown",
-            body=m.body,
-            created_at=m.created_at,
-        )
-        for m in rows
-    ]
+    people = _user_map(
+        session, [m.sender_id for m in rows] + [uid for m in rows for uid in _parse_mention_ids(m.mentioned_user_ids)]
+    )
+    out = [_message_out(m, people) for m in rows]
     out.reverse()
     return out
 
@@ -477,22 +497,17 @@ def search_thread_messages(
     )
     rows = session.exec(stmt).all()
 
-    sender_map = _user_map(session, [m.sender_id for m in rows])
-    return [
-        MessageOut(
-            id=m.id,
-            thread_id=m.thread_id,
-            sender_id=m.sender_id,
-            sender_name=sender_map[m.sender_id].full_name if m.sender_id in sender_map else "Unknown",
-            body=m.body,
-            created_at=m.created_at,
-        )
-        for m in rows
-    ]
+    people = _user_map(
+        session, [m.sender_id for m in rows] + [uid for m in rows for uid in _parse_mention_ids(m.mentioned_user_ids)]
+    )
+    return [_message_out(m, people) for m in rows]
+
+
+MAX_MENTIONS_PER_MESSAGE = 20
 
 
 def _send_message_sync(
-    session: Session, thread_id: uuid.UUID, current_user: User, body: str
+    session: Session, thread_id: uuid.UUID, current_user: User, body: str, mentioned_user_ids: list[uuid.UUID]
 ) -> tuple[MessageOut, set[uuid.UUID]]:
     """All the synchronous DB work for sending a message. Run via `run_in_threadpool` so it
     never blocks the event loop — this app runs as a single uvicorn process with no worker
@@ -507,19 +522,22 @@ def _send_message_sync(
             detail=f"Message too long (max {MAX_MESSAGE_LENGTH} characters)",
         )
 
-    message = Message(thread_id=thread_id, sender_id=current_user.id, body=body)
+    mention_ids = list(dict.fromkeys(uid for uid in mentioned_user_ids if uid != current_user.id))[
+        :MAX_MENTIONS_PER_MESSAGE
+    ]
+    message = Message(
+        thread_id=thread_id,
+        sender_id=current_user.id,
+        body=body,
+        mentioned_user_ids=json.dumps([str(uid) for uid in mention_ids]) if mention_ids else None,
+    )
     session.add(message)
     session.commit()
     session.refresh(message)
 
-    out = MessageOut(
-        id=message.id,
-        thread_id=message.thread_id,
-        sender_id=message.sender_id,
-        sender_name=current_user.full_name,
-        body=message.body,
-        created_at=message.created_at,
-    )
+    people = _user_map(session, mention_ids)
+    people[current_user.id] = current_user
+    out = _message_out(message, people)
 
     if thread.kind == MessageThreadKind.CHANNEL:
         recipient_ids = manager.connected_users_in_department(thread.department_id)
@@ -542,7 +560,7 @@ async def send_message(
     current_user: User = Depends(get_current_user),
 ) -> MessageOut:
     out, recipient_ids = await run_in_threadpool(
-        _send_message_sync, session, thread_id, current_user, payload.body.strip()
+        _send_message_sync, session, thread_id, current_user, payload.body.strip(), payload.mentioned_user_ids
     )
 
     # Push to whoever's currently connected — the safety-net poll on each client covers

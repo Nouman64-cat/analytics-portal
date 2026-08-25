@@ -590,6 +590,10 @@ def migrate():
                 ON message_reads (user_id, thread_id);""",
              "Migration successful! Unique index on message_reads ensured."),
 
+            # ── Internal messaging: @-mentions ────────────────────────────────────────
+            ("ALTER TABLE messages ADD COLUMN IF NOT EXISTS mentioned_user_ids TEXT;",
+             "Migration successful! 'mentioned_user_ids' column added to 'messages' table."),
+
         ]
         for sql, msg in migrations:
             try:
