@@ -28,12 +28,12 @@ import {
   Area,
   ResponsiveContainer,
 } from "recharts";
-import { candidatesService, leadsService, interviewsService } from "@/lib/services";
+import { candidatesService, interviewsService } from "@/lib/services";
 import { PageLoader, ErrorState } from "@/components/PageStates";
 import { getUserRole } from "@/lib/auth";
 import CandidateAvatar from "@/components/CandidateAvatar";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
-import type { Candidate, LeadListItem, Interview } from "@/lib/types";
+import type { Candidate, Interview } from "@/lib/types";
 import { format, parseISO, startOfMonth } from "date-fns";
 
 // ─── Tooltip Styles ─────────────────────────────────────────
@@ -197,25 +197,20 @@ export default function CandidatePerformancePage() {
     role === "superadmin" || role === "dept-lead" || role === "bd-team-lead";
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
-  const [leads, setLeads] = useState<LeadListItem[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"leads" | "interviews">("leads");
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const deptParam = departmentId ? { department_id: departmentId } : {};
-      const [candidatesData, leadsPage, interviewsData] = await Promise.all([
+      const [candidatesData, interviewsData] = await Promise.all([
         candidatesService.list({ department_id: departmentId }),
-        leadsService.list({ page: 1, page_size: 5000, candidate_id: candidateId, ...deptParam }),
         interviewsService.list(departmentId ? { department_id: departmentId } : undefined),
       ]);
       const found = candidatesData.find((c) => c.id === candidateId);
       setCandidate(found ?? null);
-      setLeads(leadsPage.items);
       setInterviews(interviewsData.filter((i) => i.candidate_id === candidateId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load candidate data");
@@ -228,21 +223,6 @@ export default function CandidatePerformancePage() {
     if (hasAccess) fetchData();
     else setLoading(false);
   }, [fetchData, hasAccess]);
-
-  // ── Leads Metrics ────────────────────────────────────────
-  const leadsMetrics = useMemo(() => {
-    const total = leads.length;
-    const dropped = leads.filter((l) => l.lead_outcome === "dropped").length;
-    const legit = total - dropped;
-    const closed = leads.filter((l) => l.lead_outcome === "closed").length;
-    const rejected = leads.filter(
-      (l) => l.lead_outcome === "rejected" || l.lead_outcome === "dead"
-    ).length;
-    const unresponsive = leads.filter((l) => l.lead_outcome === "unresponsive").length;
-    const progressed = leads.filter((l) => l.lead_outcome === "active").length;
-    const finalRounds = leads.filter((l) => l.last_round?.toLowerCase().includes("final")).length;
-    return { total, legit, closed, rejected, unresponsive, progressed, dropped, finalRounds };
-  }, [leads]);
 
   // ── Interviews Metrics ───────────────────────────────────
   const interviewsMetrics = useMemo(() => {
@@ -266,7 +246,7 @@ export default function CandidatePerformancePage() {
     return { total, legit, closed, rejected, unresponsive, progressed, dropped, finalRounds };
   }, [interviews]);
 
-  const m = activeTab === "leads" ? leadsMetrics : interviewsMetrics;
+  const m = interviewsMetrics;
 
   // ── Donut Data ───────────────────────────────────────────
   const donutData = useMemo(
@@ -285,21 +265,7 @@ export default function CandidatePerformancePage() {
   const monthlyData = useMemo(() => {
     // Use "yyyy-MM" as the map key so we can sort chronologically,
     // and store the human-readable "MMM yy" separately as the display label.
-    const map = new Map<string, { month: string; leads: number; interviews: number }>();
-    leads.forEach((l) => {
-      const dateStr = l.lead_arrival_date ?? l.first_interview_date;
-      if (!dateStr) return;
-      try {
-        const d = startOfMonth(parseISO(dateStr));
-        const sortKey = format(d, "yyyy-MM");
-        const label = format(d, "MMM yy");
-        const entry = map.get(sortKey) ?? { month: label, leads: 0, interviews: 0 };
-        entry.leads++;
-        map.set(sortKey, entry);
-      } catch {
-        // skip malformed dates
-      }
-    });
+    const map = new Map<string, { month: string; interviews: number }>();
     interviews.forEach((i) => {
       const dateStr = i.interview_date;
       if (!dateStr) return;
@@ -307,7 +273,7 @@ export default function CandidatePerformancePage() {
         const d = startOfMonth(parseISO(dateStr));
         const sortKey = format(d, "yyyy-MM");
         const label = format(d, "MMM yy");
-        const entry = map.get(sortKey) ?? { month: label, leads: 0, interviews: 0 };
+        const entry = map.get(sortKey) ?? { month: label, interviews: 0 };
         entry.interviews++;
         map.set(sortKey, entry);
       } catch {
@@ -318,7 +284,7 @@ export default function CandidatePerformancePage() {
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, v]) => v);
-  }, [leads, interviews]);
+  }, [interviews]);
 
 
   // ── Rate Bar Data ────────────────────────────────────────
@@ -335,18 +301,6 @@ export default function CandidatePerformancePage() {
   }, [m]);
 
   // ── Recent Items ─────────────────────────────────────────
-  const recentLeads = useMemo(
-    () =>
-      [...leads]
-        .sort((a, b) => {
-          const da = a.last_interview_date ?? a.first_interview_date ?? "";
-          const db = b.last_interview_date ?? b.first_interview_date ?? "";
-          return db.localeCompare(da);
-        })
-        .slice(0, 8),
-    [leads]
-  );
-
   const recentInterviews = useMemo(
     () =>
       [...interviews]
@@ -401,28 +355,11 @@ export default function CandidatePerformancePage() {
             </p>
           </div>
         </div>
-
-        {/* Mode Toggle */}
-        <div className="flex gap-1.5 rounded-full bg-slate-100 dark:bg-white/[0.06] p-1 shrink-0">
-          {(["leads", "interviews"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
-                activeTab === tab
-                  ? "bg-indigo-600 text-white"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ── KPI Stat Cards ──────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <StatCard label="Total" value={m.total} sub={`${m.legit} legit`} color="#6366f1" icon={<Target size={14} />} />
+        <StatCard label="Total" value={m.legit} sub={`${m.total} incl. dropped`} color="#6366f1" icon={<Target size={14} />} />
         <StatCard label="Closed" value={m.closed} sub={`${pct(m.closed, m.legit)}% rate`} color="#10b981" icon={<Award size={14} />} />
         <StatCard label="Progressed" value={m.progressed} sub={`${pct(m.progressed, m.legit)}% rate`} color="#8b5cf6" icon={<TrendingUp size={14} />} />
         <StatCard label="Rejected" value={m.rejected} sub={`${pct(m.rejected, m.legit)}% rate`} color="#ef4444" icon={<AlertTriangle size={14} />} />
@@ -434,18 +371,18 @@ export default function CandidatePerformancePage() {
       {/* ── Charts Row 1: Donut + Rate Bars ─────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Donut Chart */}
-        <ChartCard title="Outcome Breakdown" subtitle={`Distribution of ${activeTab} outcomes`}>
+        <ChartCard title="Outcome Breakdown" subtitle="Distribution of interview outcomes">
           {donutData.length === 0 ? (
             <div className="flex items-center justify-center h-[260px] text-slate-400 text-sm">
               No outcome data yet
             </div>
           ) : (
-            <DonutWithCenter data={donutData} total={m.total} />
+            <DonutWithCenter data={donutData} total={m.legit} />
           )}
         </ChartCard>
 
         {/* Horizontal Bar Chart — Rates */}
-        <ChartCard title="Performance Rates" subtitle="% by outcome (of legit leads)">
+        <ChartCard title="Performance Rates" subtitle="% by outcome (of legit interviews)">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={rateData}
@@ -488,7 +425,7 @@ export default function CandidatePerformancePage() {
       </div>
 
       {/* ── Monthly Activity Area Chart ──────────────────── */}
-      <ChartCard title="Monthly Activity" subtitle="Leads and interviews over time">
+      <ChartCard title="Monthly Activity" subtitle="Interviews over time">
         {monthlyData.length === 0 ? (
           <div className="flex items-center justify-center h-[240px] text-slate-400 text-sm">
             No time-series data available
@@ -497,10 +434,6 @@ export default function CandidatePerformancePage() {
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={monthlyData} margin={{ top: 5, right: 16, left: -10, bottom: 5 }}>
               <defs>
-                <linearGradient id="leadsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
                 <linearGradient id="interviewsGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
@@ -520,23 +453,6 @@ export default function CandidatePerformancePage() {
                 allowDecimals={false}
               />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Legend
-                verticalAlign="top"
-                height={36}
-                formatter={(value: string) => (
-                  <span style={{ fontSize: 11, color: "#94a3b8" }}>{value}</span>
-                )}
-              />
-              <Area
-                type="monotone"
-                dataKey="leads"
-                name="Leads"
-                stroke="#6366f1"
-                strokeWidth={2}
-                fill="url(#leadsGrad)"
-                dot={{ r: 4, strokeWidth: 0, fill: "#6366f1" }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
-              />
               <Area
                 type="monotone"
                 dataKey="interviews"
@@ -553,55 +469,8 @@ export default function CandidatePerformancePage() {
       </ChartCard>
 
       {/* ── Recent Activity Table ────────────────────────── */}
-      <ChartCard
-        title={`Recent ${activeTab === "leads" ? "Leads" : "Interviews"}`}
-        subtitle={`Latest ${activeTab} activity for this candidate`}
-      >
-        {activeTab === "leads" ? (
-          recentLeads.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-8">No leads found</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-wider text-slate-500">
-                    <th className="px-3 py-2 font-semibold">Company</th>
-                    <th className="px-3 py-2 font-semibold">Role</th>
-                    <th className="px-3 py-2 font-semibold">Outcome</th>
-                    <th className="px-3 py-2 font-semibold">Interviews</th>
-                    <th className="px-3 py-2 font-semibold">Last Activity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentLeads.map((lead) => (
-                    <tr
-                      key={lead.thread_id}
-                      className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">
-                        {lead.company_name ?? "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 truncate max-w-[160px]">
-                        {lead.primary_role ?? "—"}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <OutcomeBadge outcome={lead.lead_outcome} />
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 tabular-nums">
-                        {lead.interview_count}
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 text-xs tabular-nums">
-                        {lead.last_interview_date
-                          ? formatShortDate(lead.last_interview_date)
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        ) : recentInterviews.length === 0 ? (
+      <ChartCard title="Recent Interviews" subtitle="Latest interview activity for this candidate">
+        {recentInterviews.length === 0 ? (
           <p className="text-center text-sm text-slate-400 py-8">No interviews found</p>
         ) : (
           <div className="overflow-x-auto">
@@ -660,30 +529,6 @@ function formatShortDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
-}
-
-const OUTCOME_BADGE_STYLES: Record<string, { bg: string; text: string }> = {
-  closed: { bg: "rgba(16,185,129,0.15)", text: "#10b981" },
-  active: { bg: "rgba(99,102,241,0.15)", text: "#818cf8" },
-  rejected: { bg: "rgba(239,68,68,0.12)", text: "#f87171" },
-  dead: { bg: "rgba(100,116,139,0.12)", text: "#94a3b8" },
-  unresponsive: { bg: "rgba(245,158,11,0.15)", text: "#fbbf24" },
-  dropped: { bg: "rgba(59,130,246,0.12)", text: "#60a5fa" },
-};
-
-function OutcomeBadge({ outcome }: { outcome: string }) {
-  const style = OUTCOME_BADGE_STYLES[outcome] ?? {
-    bg: "rgba(148,163,184,0.1)",
-    text: "#94a3b8",
-  };
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-      style={{ backgroundColor: style.bg, color: style.text }}
-    >
-      {outcome}
-    </span>
-  );
 }
 
 function computedStatusStyle(status: string): React.CSSProperties {
