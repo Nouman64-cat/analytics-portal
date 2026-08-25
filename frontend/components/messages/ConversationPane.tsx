@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarCheck2, ChevronLeft, Loader2, Search, Send, User as UserIcon, X } from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
-import { subscribeToMessages } from "@/lib/messagesSocket";
+import { subscribeToMessages, setActiveThreadId } from "@/lib/messagesSocket";
 import type { TeamMessage, MessageThreadSummary, MessageContact } from "@/lib/types";
 import ThreadAvatar from "./ThreadAvatar";
 import MentionText from "./MentionText";
@@ -74,6 +74,7 @@ export default function ConversationPane({
   useEffect(() => {
     if (!thread) {
       setMessages([]);
+      setActiveThreadId(null);
       return;
     }
     setHistoryMode(false);
@@ -82,6 +83,7 @@ export default function ConversationPane({
     setSearchResults([]);
     setComposerText("");
     setTaggedContacts([]);
+    setActiveThreadId(thread.id);
     fetchMessages(thread.id, true);
     messagesService.markRead(thread.id).catch(() => {});
     const interval = setInterval(() => {
@@ -97,6 +99,7 @@ export default function ConversationPane({
     return () => {
       clearInterval(interval);
       unsubscribe();
+      setActiveThreadId(null);
     };
     // Deliberately keyed on thread?.id, not `thread` — the parent creates a new thread
     // object on every incoming-message/refetch (to update last_message/unread_count), which
@@ -269,7 +272,10 @@ export default function ConversationPane({
         setHistoryMode(false);
         await fetchMessages(thread.id, false);
       } else {
-        setMessages((prev) => [...prev, sent]);
+        // The backend also broadcasts this message back to the sender over the WebSocket
+        // (for multi-tab sync), which may arrive before this response does — dedupe by id
+        // the same way the WS handler does, or the message renders twice.
+        setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
       }
       setComposerText("");
       setTaggedContacts([]);

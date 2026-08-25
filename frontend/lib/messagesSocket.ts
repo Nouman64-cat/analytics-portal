@@ -17,8 +17,56 @@ let socket: WebSocket | null = null;
 let backoffMs = 1000;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Which thread's conversation pane is currently mounted/visible, if any — lets the sound
+// below skip messages the user is already watching appear live, without ConversationPane
+// having to manage its own sound logic (kept centralized here like notifyIfMentioned).
+let activeThreadId: string | null = null;
+export function setActiveThreadId(id: string | null) {
+  activeThreadId = id;
+}
+
 function wsUrl(): string {
   return `${API_V1.replace(/^http/, "ws")}/messages/ws`;
+}
+
+let audioCtx: AudioContext | null = null;
+
+/** Short synthesized "pop" — no audio asset to ship/host, just two quick tones via the Web
+ * Audio API. Browsers block audio until the user has interacted with the page at least once;
+ * that's an unavoidable platform restriction, not a bug here — the first message after page
+ * load may be silent, subsequent ones won't be. */
+function playIncomingSound() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    if (!audioCtx) audioCtx = new Ctx();
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    const now = audioCtx.currentTime;
+    [{ freq: 880, start: 0 }, { freq: 1175, start: 0.09 }].forEach(({ freq, start }) => {
+      const osc = audioCtx!.createOscillator();
+      const gain = audioCtx!.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + start);
+      gain.gain.linearRampToValueAtTime(0.15, now + start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + 0.15);
+      osc.connect(gain).connect(audioCtx!.destination);
+      osc.start(now + start);
+      osc.stop(now + start + 0.16);
+    });
+  } catch {
+    // audio isn't essential — never let it break message delivery
+  }
+}
+
+/** Plays the incoming-message ping unless the user is already looking at this exact
+ * conversation with the tab focused (they'll see the message appear live instead). */
+function notifyIncomingSound(evt: MessageEvent) {
+  if (typeof window === "undefined") return;
+  const myId = getUserId();
+  if (!myId || evt.message.sender_id === myId) return;
+  if (!document.hidden && evt.thread_id === activeThreadId) return;
+  playIncomingSound();
 }
 
 /** Browser notification when a live message @-tags the current user — mirrors WhatsApp's
@@ -73,6 +121,7 @@ function connect() {
       const data = JSON.parse(e.data);
       if (data?.type === "message") {
         notifyIfMentioned(data as MessageEvent);
+        notifyIncomingSound(data as MessageEvent);
         listeners.forEach((fn) => fn(data as MessageEvent));
       }
     } catch {
