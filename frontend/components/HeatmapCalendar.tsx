@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { Clock } from "lucide-react";
+import { Clock, Crown } from "lucide-react";
 
 interface DayInterview {
   id: string;
@@ -11,12 +11,14 @@ interface DayInterview {
   round: string;
   time_est: string | null;
   bd_name: string | null;
+  is_closed: boolean;
 }
 
 interface DayInterviews {
   date: string;
   count: number;
   interviews: DayInterview[];
+  has_closed: boolean;
 }
 
 interface HeatmapCalendarProps {
@@ -34,11 +36,11 @@ function getYearData(days: DayInterviews[]) {
   days.forEach(d => dayMap.set(d.date, d));
   const currentYear = new Date().getFullYear();
 
-  const months: { month: string; days: { date: string; count: number; interviews: DayInterview[]; isWeekend: boolean }[] }[] = [];
+  const months: { month: string; days: { date: string; count: number; interviews: DayInterview[]; isWeekend: boolean; hasClosed: boolean }[] }[] = [];
 
   for (let month = 0; month < 12; month++) {
     const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
-    const monthDays: { date: string; count: number; interviews: DayInterview[]; isWeekend: boolean }[] = [];
+    const monthDays: { date: string; count: number; interviews: DayInterview[]; isWeekend: boolean; hasClosed: boolean }[] = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
       const monthStr = String(month + 1).padStart(2, "0");
@@ -47,16 +49,18 @@ function getYearData(days: DayInterviews[]) {
       const dayData = dayMap.get(dateStr);
       const count = dayData ? dayData.count : 0;
       const interviews = dayData && dayData.interviews ? dayData.interviews : [];
-      
+      const hasClosed = dayData ? !!dayData.has_closed : false;
+
       const dateObj = new Date(currentYear, month, day);
       const dayOfWeek = dateObj.getDay();
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      
+
       monthDays.push({
         date: dateStr,
         count: count,
         interviews: interviews,
         isWeekend: isWeekend,
+        hasClosed: hasClosed,
       });
     }
 
@@ -117,6 +121,10 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
             <span className="w-3 h-3 rounded-sm bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></span>
             <span>Weekend</span>
           </div>
+          <div className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+            <Crown size={12} className="fill-amber-400 text-amber-600 dark:fill-amber-300 dark:text-amber-500" aria-hidden />
+            <span>Job closed</span>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <span>Less</span>
@@ -169,13 +177,13 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
                     const isSelected = selectedDay?.date === day.date;
                     const isWeekend = day.isWeekend;
                     const [, mm, dd] = day.date.split("-");
-                    const hoverTitle = `${month.month} ${Number(dd)}, ${currentYear}${day.count > 0 ? ` — ${day.count} interview${day.count !== 1 ? "s" : ""}` : ""}`;
+                    const hoverTitle = `${month.month} ${Number(dd)}, ${currentYear}${day.count > 0 ? ` — ${day.count} interview${day.count !== 1 ? "s" : ""}` : ""}${day.hasClosed ? " — job closed 👑" : ""}`;
 
                     return (
                       <div
                         key={dayIndex}
                         title={hoverTitle}
-                        className={`w-[20px] h-[20px] rounded-[2px] transition-all cursor-pointer hover:scale-110 ${getColor(day.count, isWeekend)} ${
+                        className={`relative w-[20px] h-[20px] rounded-[2px] transition-all cursor-pointer hover:scale-110 ${getColor(day.count, isWeekend)} ${
                           isToday ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-0" : ""
                         } ${isSelected ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-0" : ""}`}
                         onClick={(e) => {
@@ -190,7 +198,15 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
                             });
                           }
                         }}
-                      />
+                      >
+                        {day.hasClosed && (
+                          <Crown
+                            size={13}
+                            className="pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 fill-amber-400 text-amber-600 drop-shadow-sm dark:fill-amber-300 dark:text-amber-500"
+                            aria-hidden
+                          />
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -241,8 +257,15 @@ export default function HeatmapCalendar({ days, onDayClick }: HeatmapCalendarPro
                   key={iv.id}
                   className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                 >
-                  <div className="text-sm font-medium text-slate-900 dark:text-white">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900 dark:text-white">
                     {iv.company || "—"}
+                    {iv.is_closed && (
+                      <Crown
+                        size={12}
+                        className="shrink-0 fill-amber-400 text-amber-600 dark:fill-amber-300 dark:text-amber-500"
+                        aria-label="Job closed"
+                      />
+                    )}
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     {iv.candidate || "—"} · {iv.role}

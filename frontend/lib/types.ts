@@ -411,12 +411,14 @@ export interface DayInterview {
   round: string;
   time_est: string | null;
   bd_name: string | null;
+  is_closed: boolean;
 }
 
 export interface DayInterviews {
   date: string;
   count: number;
   interviews: DayInterview[];
+  has_closed: boolean;
 }
 
 export interface DashboardStats {
