@@ -7,10 +7,12 @@ import { EmptyState, LoadingView } from "../../../components/ui";
 import { useTheme } from "../../../lib/theme";
 import { useAuth } from "../../../lib/AuthContext";
 import { messagesService } from "../../../lib/api";
+import { subscribeToMessages } from "../../../lib/messagesSocket";
 import type { MessageThreadKind, TeamMessage } from "../../../lib/types";
 import { formatMessageTime } from "../../../components/messages/format";
 
-const POLL_MS = 4000;
+// Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
+const POLL_MS = 30000;
 
 export default function ConversationScreen() {
   const t = useTheme();
@@ -44,7 +46,15 @@ export default function ConversationScreen() {
       load();
       messagesService.markRead(params.id).catch(() => {});
       const interval = setInterval(() => load({ silent: true }), POLL_MS);
-      return () => clearInterval(interval);
+      const unsubscribe = subscribeToMessages((evt) => {
+        if (evt.thread_id !== params.id) return;
+        setMessages((prev) => (prev.some((m) => m.id === evt.message.id) ? prev : [...prev, evt.message]));
+        messagesService.markRead(params.id).catch(() => {});
+      });
+      return () => {
+        clearInterval(interval);
+        unsubscribe();
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [load, params.id]),
   );

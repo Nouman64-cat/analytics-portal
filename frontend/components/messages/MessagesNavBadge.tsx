@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { messagesService } from "@/lib/services";
+import { subscribeToMessages } from "@/lib/messagesSocket";
 
-const POLL_INTERVAL_MS = 20 * 1000;
+// Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
+const POLL_INTERVAL_MS = 90 * 1000;
 
 /** Small unread-count dot for the "Messages" sidebar nav item. No dropdown preview —
  * messaging has its own full page, unlike NotificationBell. */
@@ -22,7 +24,11 @@ export default function MessagesNavBadge() {
   useEffect(() => {
     fetchCount();
     const interval = setInterval(fetchCount, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeToMessages(() => fetchCount());
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [fetchCount]);
 
   if (unreadCount <= 0) return null;

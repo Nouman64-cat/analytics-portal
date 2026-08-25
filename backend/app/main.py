@@ -171,6 +171,7 @@ app.include_router(job_roles.router)
 app.include_router(broadcast_modals.router)
 app.include_router(public_stats.router)
 app.include_router(messages.router)
+app.include_router(messages.ws_router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])

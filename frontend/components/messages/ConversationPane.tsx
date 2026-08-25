@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, Loader2, Send } from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
+import { subscribeToMessages } from "@/lib/messagesSocket";
 import type { TeamMessage, MessageThreadSummary } from "@/lib/types";
 import ThreadAvatar from "./ThreadAvatar";
 import { formatMessageTime } from "./format";
 
-const POLL_INTERVAL_MS = 4 * 1000;
+// Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
+const POLL_INTERVAL_MS = 30 * 1000;
 
 export default function ConversationPane({
   thread,
@@ -49,8 +51,21 @@ export default function ConversationPane({
     fetchMessages(thread.id, true);
     messagesService.markRead(thread.id).catch(() => {});
     const interval = setInterval(() => fetchMessages(thread.id, false), POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [thread, fetchMessages]);
+    const unsubscribe = subscribeToMessages((evt) => {
+      if (evt.thread_id !== thread.id) return;
+      setMessages((prev) => (prev.some((m) => m.id === evt.message.id) ? prev : [...prev, evt.message]));
+      messagesService.markRead(thread.id).catch(() => {});
+    });
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+    // Deliberately keyed on thread?.id, not `thread` — the parent creates a new thread
+    // object on every incoming-message/refetch (to update last_message/unread_count), which
+    // would otherwise re-trigger this effect (and its loading-spinner reset) on every new
+    // message instead of only when actually switching to a different conversation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread?.id, fetchMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });

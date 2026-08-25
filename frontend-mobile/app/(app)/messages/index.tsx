@@ -6,10 +6,13 @@ import { LoadingView, ErrorBanner, EmptyState, Fab, SearchBar, Badge } from "../
 import { ThreadAvatar } from "../../../components/messages/ThreadAvatar";
 import { formatMessageTime } from "../../../components/messages/format";
 import { useTheme } from "../../../lib/theme";
+import { useAuth } from "../../../lib/AuthContext";
 import { messagesService } from "../../../lib/api";
+import { subscribeToMessages, MessageEvent } from "../../../lib/messagesSocket";
 import type { MessageThreadSummary } from "../../../lib/types";
 
-const POLL_MS = 6000;
+// Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
+const POLL_MS = 45000;
 
 function ThreadRow({ thread, onPress }: { thread: MessageThreadSummary; onPress: () => void }) {
   const t = useTheme();
@@ -53,6 +56,8 @@ function ThreadRow({ thread, onPress }: { thread: MessageThreadSummary; onPress:
 
 export default function MessagesListScreen() {
   const t = useTheme();
+  const { payload } = useAuth();
+  const myId = payload?.user_id;
   const [threads, setThreads] = useState<MessageThreadSummary[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -74,13 +79,40 @@ export default function MessagesListScreen() {
     }
   }, []);
 
+  const handleIncomingMessage = useCallback(
+    (evt: MessageEvent) => {
+      setThreads((prev) => {
+        const idx = prev.findIndex((th) => th.id === evt.thread_id);
+        if (idx === -1) {
+          load({ silent: true });
+          return prev;
+        }
+        const current = prev[idx];
+        const next = [...prev];
+        next[idx] = {
+          ...current,
+          last_message: evt.message,
+          updated_at: evt.message.created_at,
+          unread_count: evt.message.sender_id === myId ? current.unread_count : current.unread_count + 1,
+        };
+        next.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        return next;
+      });
+    },
+    [load, myId],
+  );
+
   useFocusEffect(
     useCallback(() => {
       load();
       const interval = setInterval(() => load({ silent: true }), POLL_MS);
-      return () => clearInterval(interval);
+      const unsubscribe = subscribeToMessages(handleIncomingMessage);
+      return () => {
+        clearInterval(interval);
+        unsubscribe();
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [load]),
+    }, [load, handleIncomingMessage]),
   );
 
   function handleSelect(thread: MessageThreadSummary) {

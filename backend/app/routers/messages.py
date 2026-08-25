@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from jose import JWTError, jwt
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.config import get_settings
 from app.database import get_session
 from app.deps import get_current_user
 from app.messaging_utils import (
@@ -30,12 +34,18 @@ from app.models.message import (
     MessageThreadParticipant,
 )
 from app.models.user import User, UserRole
+from app.ws_manager import manager
 
 router = APIRouter(
     prefix="/api/v1/messages",
     tags=["Messages"],
     dependencies=[Depends(get_current_user)],
 )
+
+# Separate router for the WebSocket route: it can't carry the HTTP-only
+# `Depends(get_current_user)` (HTTPBearer) applied to `router` above — the WS handshake
+# has no Authorization header, so it authenticates itself via a first-message token instead.
+ws_router = APIRouter(prefix="/api/v1/messages", tags=["Messages"])
 
 MAX_MESSAGE_LENGTH = 4000
 
@@ -112,7 +122,9 @@ def _authorize_thread(session: Session, current_user: User, thread_id: uuid.UUID
     return thread
 
 
-def _build_thread_summaries(session: Session, current_user: User) -> list[ThreadSummaryOut]:
+def _my_threads(session: Session, current_user: User) -> list[MessageThread]:
+    """Every thread visible to me — my DM/group threads, plus every department channel in
+    my scope (lazily ensuring those channel rows exist first)."""
     dept_ids = user_department_scope_ids(current_user, session)
     for did in dept_ids:
         get_or_create_channel_thread(session, did)
@@ -137,11 +149,15 @@ def _build_thread_summaries(session: Session, current_user: User) -> list[Thread
         if dm_group_ids
         else []
     )
+    return channel_threads + dm_group_threads
 
-    all_threads = channel_threads + dm_group_threads
+
+def _build_thread_summaries(session: Session, current_user: User) -> list[ThreadSummaryOut]:
+    all_threads = _my_threads(session, current_user)
     if not all_threads:
         return []
     thread_ids = [t.id for t in all_threads]
+    channel_threads = [t for t in all_threads if t.kind == MessageThreadKind.CHANNEL]
 
     messages = session.exec(
         select(Message).where(Message.thread_id.in_(thread_ids)).order_by(Message.created_at.desc())
@@ -166,7 +182,7 @@ def _build_thread_summaries(session: Session, current_user: User) -> list[Thread
         if last_read is None or m.created_at > last_read:
             unread_counts[m.thread_id] += 1
 
-    dm_thread_ids = [t.id for t in dm_group_threads if t.kind == MessageThreadKind.DM]
+    dm_thread_ids = [t.id for t in all_threads if t.kind == MessageThreadKind.DM]
     other_rows = (
         session.exec(
             select(MessageThreadParticipant).where(
@@ -273,7 +289,30 @@ def get_unread_count(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> UnreadCountOut:
-    total = sum(s.unread_count for s in _build_thread_summaries(session, current_user))
+    """Cheap variant of the unread total in `_build_thread_summaries` — N small indexed
+    COUNT queries instead of loading every message body in every visible thread. This is
+    the most frequently-polled endpoint of the three, so it's worth keeping lightweight."""
+    thread_ids = [t.id for t in _my_threads(session, current_user)]
+    if not thread_ids:
+        return UnreadCountOut(unread_count=0)
+
+    read_rows = session.exec(
+        select(MessageRead).where(
+            MessageRead.user_id == current_user.id, MessageRead.thread_id.in_(thread_ids)
+        )
+    ).all()
+    last_read_by_thread = {r.thread_id: r.last_read_at for r in read_rows}
+
+    total = 0
+    for tid in thread_ids:
+        stmt = select(func.count()).select_from(Message).where(
+            Message.thread_id == tid, Message.sender_id != current_user.id
+        )
+        last_read = last_read_by_thread.get(tid)
+        if last_read is not None:
+            stmt = stmt.where(Message.created_at > last_read)
+        total += session.exec(stmt).one()
+
     return UnreadCountOut(unread_count=total)
 
 
@@ -387,13 +426,13 @@ def get_thread_messages(
 
 
 @router.post("/threads/{thread_id}/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
-def send_message(
+async def send_message(
     thread_id: uuid.UUID,
     payload: SendMessageRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> MessageOut:
-    _authorize_thread(session, current_user, thread_id)
+    thread = _authorize_thread(session, current_user, thread_id)
     body = payload.body.strip()
     if not body:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message body is required")
@@ -408,7 +447,7 @@ def send_message(
     session.commit()
     session.refresh(message)
 
-    return MessageOut(
+    out = MessageOut(
         id=message.id,
         thread_id=message.thread_id,
         sender_id=message.sender_id,
@@ -416,6 +455,23 @@ def send_message(
         body=message.body,
         created_at=message.created_at,
     )
+
+    # Push to whoever's currently connected — the safety-net poll on each client covers
+    # anyone who isn't (or whose socket silently dropped).
+    if thread.kind == MessageThreadKind.CHANNEL:
+        recipient_ids = manager.connected_users_in_department(thread.department_id)
+    else:
+        recipient_ids = {
+            p.user_id
+            for p in session.exec(
+                select(MessageThreadParticipant).where(MessageThreadParticipant.thread_id == thread_id)
+            ).all()
+        }  # includes the sender deliberately, so their other open tabs/devices stay in sync
+    await manager.broadcast(
+        recipient_ids, {"type": "message", "thread_id": str(thread_id), "message": out.model_dump(mode="json")}
+    )
+
+    return out
 
 
 @router.post("/threads/{thread_id}/read", status_code=status.HTTP_204_NO_CONTENT)
@@ -437,3 +493,38 @@ def mark_thread_read(
     else:
         session.add(MessageRead(user_id=current_user.id, thread_id=thread_id, last_read_at=now))
     session.commit()
+
+
+@ws_router.websocket("/ws")
+async def messages_ws(websocket: WebSocket, session: Session = Depends(get_session)) -> None:
+    """Push channel for new messages. The client must send `{"token": "<jwt>"}` as its
+    first message within 10s of connecting — there's no Authorization header on a WS
+    handshake, so this re-implements the same decode `get_current_user` uses."""
+    await websocket.accept()
+    settings = get_settings()
+    user: Optional[User] = None
+    try:
+        first = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        token = first.get("token") if isinstance(first, dict) else None
+        if token:
+            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+            user_id = payload.get("user_id")
+            if user_id:
+                user = session.get(User, uuid.UUID(user_id))
+    except (asyncio.TimeoutError, JWTError, ValueError, KeyError):
+        user = None
+
+    if not user or not user.is_active:
+        await websocket.close(code=4401)
+        return
+
+    await manager.connect(user.id, user.get_department_ids_list(), websocket)
+    try:
+        while True:
+            # The client doesn't send anything meaningful after the handshake — this just
+            # keeps the loop (and thus the connection) alive and detects disconnects.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        manager.disconnect(user.id, websocket)

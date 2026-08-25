@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
+import { subscribeToMessages, type MessageEvent } from "@/lib/messagesSocket";
 import type { MessageThreadSummary } from "@/lib/types";
 import { PageLoader, ErrorState } from "@/components/PageStates";
 import ThreadList from "@/components/messages/ThreadList";
 import ConversationPane from "@/components/messages/ConversationPane";
 import ContactPicker from "@/components/messages/ContactPicker";
 
-const POLL_INTERVAL_MS = 6 * 1000;
+// Safety-net only — live updates arrive over the WebSocket in lib/messagesSocket.ts.
+const POLL_INTERVAL_MS = 45 * 1000;
 
 export default function MessagesPage() {
   const [threads, setThreads] = useState<MessageThreadSummary[]>([]);
@@ -17,6 +20,8 @@ export default function MessagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "conversation">("list");
+  const activeThreadIdRef = useRef<string | null>(null);
+  activeThreadIdRef.current = activeThreadId;
 
   const fetchThreads = useCallback(async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
@@ -31,11 +36,42 @@ export default function MessagesPage() {
     }
   }, []);
 
+  const handleIncomingMessage = useCallback(
+    (evt: MessageEvent) => {
+      const myId = getUserId();
+      setThreads((prev) => {
+        const idx = prev.findIndex((t) => t.id === evt.thread_id);
+        if (idx === -1) {
+          // A thread I don't have yet (e.g. a group/channel's first message) — full refetch.
+          fetchThreads(false);
+          return prev;
+        }
+        const isOpen = evt.thread_id === activeThreadIdRef.current;
+        const current = prev[idx];
+        const next = [...prev];
+        next[idx] = {
+          ...current,
+          last_message: evt.message,
+          updated_at: evt.message.created_at,
+          unread_count:
+            isOpen || evt.message.sender_id === myId ? current.unread_count : current.unread_count + 1,
+        };
+        next.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        return next;
+      });
+    },
+    [fetchThreads],
+  );
+
   useEffect(() => {
     fetchThreads(true);
     const interval = setInterval(() => fetchThreads(false), POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [fetchThreads]);
+    const unsubscribe = subscribeToMessages(handleIncomingMessage);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [fetchThreads, handleIncomingMessage]);
 
   const handleSelect = (thread: MessageThreadSummary) => {
     setActiveThreadId(thread.id);
