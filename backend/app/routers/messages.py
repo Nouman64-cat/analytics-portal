@@ -13,9 +13,10 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import Session, select
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
-from app.database import get_session
+from app.database import engine, get_session
 from app.deps import get_current_user
 from app.messaging_utils import (
     can_access_channel,
@@ -425,15 +426,14 @@ def get_thread_messages(
     return out
 
 
-@router.post("/threads/{thread_id}/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
-async def send_message(
-    thread_id: uuid.UUID,
-    payload: SendMessageRequest,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> MessageOut:
+def _send_message_sync(
+    session: Session, thread_id: uuid.UUID, current_user: User, body: str
+) -> tuple[MessageOut, set[uuid.UUID]]:
+    """All the synchronous DB work for sending a message. Run via `run_in_threadpool` so it
+    never blocks the event loop — this app runs as a single uvicorn process with no worker
+    pool, so a blocking call here would stall every other request (interviews, leads,
+    everything), not just messaging, for its duration."""
     thread = _authorize_thread(session, current_user, thread_id)
-    body = payload.body.strip()
     if not body:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message body is required")
     if len(body) > MAX_MESSAGE_LENGTH:
@@ -456,8 +456,6 @@ async def send_message(
         created_at=message.created_at,
     )
 
-    # Push to whoever's currently connected — the safety-net poll on each client covers
-    # anyone who isn't (or whose socket silently dropped).
     if thread.kind == MessageThreadKind.CHANNEL:
         recipient_ids = manager.connected_users_in_department(thread.department_id)
     else:
@@ -467,6 +465,24 @@ async def send_message(
                 select(MessageThreadParticipant).where(MessageThreadParticipant.thread_id == thread_id)
             ).all()
         }  # includes the sender deliberately, so their other open tabs/devices stay in sync
+
+    return out, recipient_ids
+
+
+@router.post("/threads/{thread_id}/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
+async def send_message(
+    thread_id: uuid.UUID,
+    payload: SendMessageRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> MessageOut:
+    out, recipient_ids = await run_in_threadpool(
+        _send_message_sync, session, thread_id, current_user, payload.body.strip()
+    )
+
+    # Push to whoever's currently connected — the safety-net poll on each client covers
+    # anyone who isn't (or whose socket silently dropped). This part stays on the event
+    # loop directly; it's already async I/O, not a blocking call.
     await manager.broadcast(
         recipient_ids, {"type": "message", "thread_id": str(thread_id), "message": out.model_dump(mode="json")}
     )
@@ -496,10 +512,17 @@ def mark_thread_read(
 
 
 @ws_router.websocket("/ws")
-async def messages_ws(websocket: WebSocket, session: Session = Depends(get_session)) -> None:
+async def messages_ws(websocket: WebSocket) -> None:
     """Push channel for new messages. The client must send `{"token": "<jwt>"}` as its
     first message within 10s of connecting — there's no Authorization header on a WS
-    handshake, so this re-implements the same decode `get_current_user` uses."""
+    handshake, so this re-implements the same decode `get_current_user` uses.
+
+    Deliberately does NOT depend on `get_session`: that would hold one of the app's 15
+    pooled DB connections open for as long as the socket stays connected (potentially
+    hours), which starves the pool for every other request once enough users are online
+    at once. Instead, open a short-lived session just for the auth lookup below and let
+    it close immediately — the connection sits idle with zero DB usage afterward.
+    """
     await websocket.accept()
     settings = get_settings()
     user: Optional[User] = None
@@ -510,7 +533,8 @@ async def messages_ws(websocket: WebSocket, session: Session = Depends(get_sessi
             payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get("user_id")
             if user_id:
-                user = session.get(User, uuid.UUID(user_id))
+                with Session(engine) as session:
+                    user = session.get(User, uuid.UUID(user_id))
     except (asyncio.TimeoutError, JWTError, ValueError, KeyError):
         user = None
 
