@@ -37,6 +37,9 @@ import type {
   BroadcastModalUpdate,
   JobRole,
   UnresponsiveLeadNotification,
+  MessageContact,
+  MessageThreadSummary,
+  TeamMessage,
 } from "./types";
 
 /** A RN-picked file (from expo-image-picker / expo-document-picker), ready for FormData. */
@@ -397,6 +400,36 @@ export const notificationsService = {
   markRead: (threadId: string) =>
     apiFetch<void>(`/notifications/unresponsive-leads/${threadId}/read`, { method: "POST" }),
   markAllRead: () => apiFetch<void>("/notifications/unresponsive-leads/mark-all-read", { method: "POST" }),
+};
+
+// ─── Team Messages ──────────────────────────────────────────
+// Peer/group/department-channel messaging. Distinct from `chatService` above, which is
+// the AI assistant — do not confuse the two.
+
+export const messagesService = {
+  getContacts: (q?: string) => {
+    const qs = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+    return apiFetch<MessageContact[]>(`/messages/contacts${qs}`);
+  },
+  getThreads: () => apiFetch<MessageThreadSummary[]>("/messages/threads"),
+  getUnreadCount: () => apiFetch<{ unread_count: number }>("/messages/unread-count"),
+  openDm: (userId: string) =>
+    apiFetch<MessageThreadSummary>(`/messages/threads/dm/${userId}`, { method: "POST" }),
+  createGroup: (title: string, participantUserIds: string[]) =>
+    apiFetch<MessageThreadSummary>("/messages/threads/group", {
+      method: "POST",
+      body: JSON.stringify({ title, participant_user_ids: participantUserIds }),
+    }),
+  getMessages: (threadId: string, before?: string) => {
+    const qs = before ? `?before=${encodeURIComponent(before)}` : "";
+    return apiFetch<TeamMessage[]>(`/messages/threads/${threadId}/messages${qs}`);
+  },
+  sendMessage: (threadId: string, body: string) =>
+    apiFetch<TeamMessage>(`/messages/threads/${threadId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  markRead: (threadId: string) => apiFetch<void>(`/messages/threads/${threadId}/read`, { method: "POST" }),
 };
 
 // ─── Broadcast Modals (Announcements) ─────────────────────────

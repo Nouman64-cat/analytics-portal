@@ -90,6 +90,39 @@ export interface ChatMessage {
   actions?: ChatAction[];
 }
 
+// ─── Internal Messaging ───────────────────────────────────────
+// Peer/group/department-channel messaging. Distinct from `ChatMessage` above, which is
+// the unrelated AI assistant feature.
+
+export type MessageThreadKind = "dm" | "group" | "channel";
+
+export interface MessageContact {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
+
+export interface TeamMessage {
+  id: string;
+  thread_id: string;
+  sender_id: string;
+  sender_name: string;
+  body: string;
+  created_at: string;
+}
+
+export interface MessageThreadSummary {
+  id: string;
+  kind: MessageThreadKind;
+  title: string;
+  department_id: string | null;
+  other_user: MessageContact | null;
+  last_message: TeamMessage | null;
+  unread_count: number;
+  updated_at: string;
+}
+
 // ─── Entity Types ───────────────────────────────────────────
 
 export interface Candidate {

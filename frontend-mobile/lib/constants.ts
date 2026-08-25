@@ -20,7 +20,8 @@ export type NavIcon =
   | "megaphone-outline"
   | "person-circle-outline"
   | "settings-outline"
-  | "chatbubbles-outline";
+  | "chatbubbles-outline"
+  | "chatbubble-ellipses-outline";
 
 export const NAV_ITEMS: { label: string; href: string; icon: NavIcon }[] = [
   { label: "Dashboard", href: "/", icon: "grid-outline" },
@@ -38,6 +39,7 @@ export const NAV_ITEMS: { label: string; href: string; icon: NavIcon }[] = [
   { label: "User Management", href: "/users", icon: "person-outline" },
   { label: "Database Backup", href: "/backup", icon: "server-outline" },
   { label: "Announcements", href: "/announcements", icon: "megaphone-outline" },
+  { label: "Messages", href: "/messages", icon: "chatbubble-ellipses-outline" },
   { label: "Chat Assistant", href: "/chat", icon: "chatbubbles-outline" },
   { label: "Profile", href: "/profile", icon: "person-circle-outline" },
   { label: "Settings", href: "/settings", icon: "settings-outline" },

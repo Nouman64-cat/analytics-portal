@@ -30,6 +30,7 @@ export default function AppDrawerLayout() {
       <Drawer.Screen name="users" options={{ title: "User Management" }} />
       <Drawer.Screen name="backup" options={{ title: "Database Backup" }} />
       <Drawer.Screen name="announcements" options={{ title: "Announcements" }} />
+      <Drawer.Screen name="messages" options={{ title: "Messages" }} />
       <Drawer.Screen name="chat" options={{ title: "Chat Assistant" }} />
       <Drawer.Screen name="profile" options={{ title: "Profile" }} />
       <Drawer.Screen name="settings" options={{ title: "Settings" }} />
