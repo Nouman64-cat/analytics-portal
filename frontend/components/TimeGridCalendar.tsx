@@ -12,8 +12,8 @@ export type CalendarGridView = "day" | "week" | "workweek";
 const HOUR_PX = 56; // matches the h-14 hour row below
 const DAY_PX = HOUR_PX * 24;
 const MIN_BLOCK_PX = 20;
-/** Interviews have no stored duration — approximate a visual block length. */
-const INTERVIEW_BLOCK_MINUTES = 45;
+/** Fallback block length for interview rows saved before `duration_minutes` existed. */
+const DEFAULT_INTERVIEW_BLOCK_MINUTES = 30;
 
 export function toISODateLocal(d: Date): string {
   const y = d.getFullYear();
@@ -172,7 +172,8 @@ export default function TimeGridCalendar({
       const z = zoned(instant, tz);
       const iso = toISODateLocal(z);
       const startMin = minutesOfDay(z);
-      const endMin = Math.min(startMin + INTERVIEW_BLOCK_MINUTES, 1440);
+      const durationMin = iv.duration_minutes ?? DEFAULT_INTERVIEW_BLOCK_MINUTES;
+      const endMin = Math.min(startMin + durationMin, 1440);
       if (!m.has(iso)) m.set(iso, []);
       m.get(iso)!.push({ item: iv, startMin, endMin });
     }

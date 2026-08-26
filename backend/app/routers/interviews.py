@@ -121,6 +121,7 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "interview_date": interview.interview_date,
         "time_est": interview.time_est,
         "time_pkt": interview.time_pkt,
+        "duration_minutes": interview.duration_minutes,
         "status": interview.status,
         "feedback": interview.feedback,
         "recruiter_feedback": interview.recruiter_feedback,

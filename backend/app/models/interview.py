@@ -33,6 +33,10 @@ class Interview(SQLModel, table=True):
     interview_date: Optional[date] = Field(default=None, index=True)
     time_est: Optional[time] = Field(default=None)
     time_pkt: Optional[time] = Field(default=None)
+    # How long the interview is scheduled for — drives the block length on the calendar's
+    # time-grid view. Defaults to 30 for both new rows and any existing row from before
+    # this field existed.
+    duration_minutes: Optional[int] = Field(default=30)
     status: Optional[str] = Field(default=None, max_length=500)
     # Internal notes after your presentation (SOP)
     feedback: Optional[str] = Field(default=None)

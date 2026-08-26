@@ -46,7 +46,6 @@ import {
   authService,
   leadsService,
   jobRolesService,
-  interviewRoomsService,
 } from "@/lib/services";
 import {
   formatInterviewDateEst,
@@ -73,7 +72,6 @@ import type {
   InterviewFormData,
   LeadListItem,
   JobRole,
-  InterviewRoom,
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -777,7 +775,6 @@ export default function InterviewsPage() {
   const [profiles, setProfiles] = useState<ResumeProfile[]>([]);
   const [businessDevs, setBusinessDevs] = useState<BusinessDeveloper[]>([]);
   const [jobRoles, setJobRoles] = useState<JobRole[]>([]);
-  const [rooms, setRooms] = useState<InterviewRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -1040,7 +1037,6 @@ export default function InterviewsPage() {
         leadsData,
         me,
         rolesData,
-        roomsData,
       ] = await Promise.all([
         interviewsService.list(
           departmentId ? { department_id: departmentId } : undefined,
@@ -1056,7 +1052,6 @@ export default function InterviewsPage() {
         }),
         authService.getMe(),
         jobRolesService.list(),
-        interviewRoomsService.list(),
       ]);
 
       let pipelineChains: Record<string, Interview[]> = {};
@@ -1083,7 +1078,6 @@ export default function InterviewsPage() {
       setLeadsList(leadsData.items);
       setMeCandidateId(me.candidate_id ?? null);
       setJobRoles(rolesData);
-      setRooms(roomsData);
 
       // Handle deep-linked interview from Dashboard
       if (typeof window !== "undefined") {
@@ -1136,6 +1130,7 @@ export default function InterviewsPage() {
       recruiter_feedback: "",
       parent_interview_id: undefined,
       room_id: "",
+      duration_minutes: 30,
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -1162,6 +1157,7 @@ export default function InterviewsPage() {
       interview_date: "",
       time_est: "",
       time_pkt: "",
+      duration_minutes: 30,
       status: "",
       feedback: "",
       recruiter_feedback: "",
@@ -1195,6 +1191,7 @@ export default function InterviewsPage() {
       interview_date: interview.interview_date || "",
       time_est: interview.time_est || "",
       time_pkt: interview.time_pkt || "",
+      duration_minutes: interview.duration_minutes ?? 30,
       status: interview.status || "",
       feedback: interview.feedback || "",
       recruiter_feedback: interview.recruiter_feedback || "",
@@ -1264,6 +1261,7 @@ export default function InterviewsPage() {
         interview_date?: string | null;
         time_est?: string | null;
         time_pkt?: string | null;
+        duration_minutes?: number | null;
         status?: string | null;
         feedback?: string | null;
         recruiter_feedback?: string | null;
@@ -1274,7 +1272,7 @@ export default function InterviewsPage() {
         is_phone_call?: boolean;
         salary_range?: string | null;
         room_id?: string | null;
-        [key: string]: string | boolean | null | undefined;
+        [key: string]: string | number | boolean | null | undefined;
       };
 
       // Send null to accurately clear fields in the database
@@ -1282,6 +1280,7 @@ export default function InterviewsPage() {
       if (!payload.interview_date) payload.interview_date = null;
       if (!payload.time_est) payload.time_est = null;
       if (!payload.time_pkt) payload.time_pkt = null;
+      if (!payload.duration_minutes) payload.duration_minutes = 30;
       if (!payload.status) payload.status = null;
       if (!payload.feedback) payload.feedback = null;
       if (!payload.recruiter_feedback) payload.recruiter_feedback = null;
@@ -3288,24 +3287,6 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
-          <FormField label="Room">
-            <select
-              value={formData.room_id || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, room_id: e.target.value })
-              }
-              className={selectClass}
-            >
-              <option value="">No room</option>
-              {rooms
-                .filter((r) => r.is_active || r.id === formData.room_id)
-                .map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.room_no}
-                  </option>
-                ))}
-            </select>
-          </FormField>
           <div className="col-span-1 sm:col-span-2">
             <div className="flex items-center gap-3 mb-2">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -3384,6 +3365,39 @@ export default function InterviewsPage() {
               className={inputClass}
             />
           </FormField>
+          <div className="col-span-1 sm:col-span-2">
+            <FormField label="Duration">
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { label: "15m", minutes: 15 },
+                    { label: "30m", minutes: 30 },
+                    { label: "45m", minutes: 45 },
+                    { label: "1h", minutes: 60 },
+                    { label: "2h", minutes: 120 },
+                  ] as const
+                ).map((opt) => {
+                  const selected = (formData.duration_minutes ?? 30) === opt.minutes;
+                  return (
+                    <button
+                      key={opt.minutes}
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, duration_minutes: opt.minutes })
+                      }
+                      className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                        selected
+                          ? "bg-indigo-600 text-white ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-indigo-500"
+                          : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </FormField>
+          </div>
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Round status">
               <div className="flex flex-wrap gap-2">

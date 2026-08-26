@@ -150,6 +150,15 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.interviews "
+                    f"ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 30"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

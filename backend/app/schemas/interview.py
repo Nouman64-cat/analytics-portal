@@ -18,6 +18,7 @@ class InterviewCreate(BaseModel):
     interview_date: Optional[date] = None
     time_est: Optional[time] = None
     time_pkt: Optional[time] = None
+    duration_minutes: Optional[int] = 30
     status: Optional[str] = None
     feedback: Optional[str] = None
     recruiter_feedback: Optional[str] = None
@@ -42,6 +43,7 @@ class InterviewUpdate(BaseModel):
     interview_date: Optional[date] = None
     time_est: Optional[time] = None
     time_pkt: Optional[time] = None
+    duration_minutes: Optional[int] = None
     status: Optional[str] = None
     feedback: Optional[str] = None
     recruiter_feedback: Optional[str] = None
@@ -67,6 +69,7 @@ class InterviewRead(BaseModel):
     interview_date: Optional[date] = None
     time_est: Optional[time] = None
     time_pkt: Optional[time] = None
+    duration_minutes: Optional[int] = 30
     status: Optional[str] = None
     feedback: Optional[str] = None
     recruiter_feedback: Optional[str] = None

@@ -252,6 +252,9 @@ export interface Interview {
   interview_date: string | null;
   time_est: string | null;
   time_pkt: string | null;
+  /** Minutes — how long the interview is scheduled for. Drives the block length on the
+   * calendar's time-grid view. Defaults to 30. */
+  duration_minutes?: number | null;
   status: string | null;
   /** Internal notes after your presentation (SOP). */
   feedback: string | null;
@@ -610,6 +613,7 @@ export interface InterviewFormData {
   interview_date?: string | null;
   time_est?: string | null;
   time_pkt?: string | null;
+  duration_minutes?: number | null;
   status?: string | null;
   feedback?: string | null;
   recruiter_feedback?: string | null;
