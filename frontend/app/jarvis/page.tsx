@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Send,
-  Bot,
+  Wand2,
+  Star,
   User,
   Building2,
   Briefcase,
@@ -264,12 +265,13 @@ function HeroEmptyState({ onPick }: { onPick: (text: string) => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
       <div className="relative mb-5 h-16 w-16">
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 blur-xl opacity-50" />
-        <div className="avatar-glow relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
-          <Bot size={30} className="text-white" />
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 blur-xl opacity-50" />
+        <div className="wizard-avatar-glow relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg">
+          <Wand2 size={28} className="-rotate-12 text-white" />
         </div>
+        <Star size={16} className="wizard-twinkle absolute -right-1 -top-1 fill-amber-400 text-amber-400 drop-shadow" />
       </div>
-      <h2 className="bg-gradient-to-br from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-xl font-bold text-transparent">
+      <h2 className="bg-gradient-to-br from-violet-600 to-fuchsia-600 dark:from-violet-400 dark:to-fuchsia-400 bg-clip-text text-xl font-bold text-transparent">
         Hi, I&apos;m Jarvis
       </h2>
       <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
@@ -610,15 +612,15 @@ export default function JarvisPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Jarvis AI" subtitle="Your AI recruitment assistant" />
-        <div className="mx-auto max-w-md overflow-hidden rounded-2xl border border-indigo-200/60 dark:border-indigo-400/20 bg-white/60 dark:bg-white/[0.04] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
+        <div className="mx-auto max-w-md overflow-hidden rounded-2xl border border-violet-200/60 dark:border-violet-400/20 bg-white/60 dark:bg-white/[0.04] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
           {/* Header */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 px-6 py-8 text-center">
+          <div className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 px-6 py-8 text-center">
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
             <div className="relative mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-              <Bot size={24} className="text-white" />
+              <Wand2 size={22} className="-rotate-12 text-white" />
             </div>
             <h2 className="relative text-lg font-bold text-white">Jarvis AI</h2>
-            <p className="relative mt-1 text-xs text-indigo-100">Your AI recruitment assistant</p>
+            <p className="relative mt-1 text-xs text-violet-100">Your AI recruitment assistant</p>
           </div>
 
           {/* Body */}
@@ -664,10 +666,11 @@ export default function JarvisPage() {
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-slate-200/70 dark:border-white/[0.07] px-5 py-4">
         <div className="relative h-10 w-10 shrink-0">
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 blur-md opacity-40" />
-          <div className="avatar-glow relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md">
-            <Bot size={20} className="text-white" />
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 blur-md opacity-40" />
+          <div className="wizard-avatar-glow relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-md">
+            <Wand2 size={18} className="-rotate-12 text-white" />
           </div>
+          <Star size={11} className="wizard-twinkle absolute -right-0.5 -top-0.5 fill-amber-400 text-amber-400 drop-shadow" />
         </div>
         <div className="min-w-0">
           <h1 className="text-base font-bold leading-none text-slate-900 dark:text-white">Jarvis AI</h1>
@@ -720,7 +723,7 @@ export default function JarvisPage() {
                   className={`animate-float-up group flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   {msg.role === "assistant" && (
-                    <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                    <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                       <Sparkles size={13} className="text-white" />
                     </div>
                   )}
@@ -776,7 +779,7 @@ export default function JarvisPage() {
 
             {loading && (
               <div className="animate-float-up flex gap-2.5 justify-start">
-                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                   <Sparkles size={13} className="text-white" />
                 </div>
                 <div className="flex items-center gap-1.5 bg-white/70 dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/[0.06] rounded-2xl rounded-tl-sm px-4 py-3.5 shadow-sm">

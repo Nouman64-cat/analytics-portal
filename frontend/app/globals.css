@@ -213,6 +213,23 @@
   animation: glow-pulse 2.4s ease-in-out infinite;
 }
 
+/* ─── Wizard theme (Jarvis) ──────────────────────────────── */
+@keyframes wizard-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 70, 239, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.16); }
+}
+.wizard-avatar-glow {
+  animation: wizard-glow-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes wizard-twinkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(20deg); }
+}
+.wizard-twinkle {
+  animation: wizard-twinkle 1.9s ease-in-out infinite;
+}
+
 /* ─── Chat typing indicator (Jarvis) ──────────────────────── */
 @keyframes typing-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
@@ -222,7 +239,7 @@
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: rgb(99 102 241);
+  background: rgb(192 38 211);
   animation: typing-bounce 1.2s ease-in-out infinite;
 }
 .typing-dot:nth-child(2) { animation-delay: 0.15s; }
