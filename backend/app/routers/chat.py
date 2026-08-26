@@ -117,6 +117,33 @@ def _prune_pending_actions() -> None:
         _pending_actions.pop(action_id, None)
 
 
+def _resolve_bd_id(args: dict[str, Any], session: Session) -> tuple[Optional[uuid.UUID], Optional[str]]:
+    """Resolve a business developer to its UUID from bd_id or bd_name.
+
+    Tolerant of gpt-4o-mini sometimes putting the plain name straight into bd_id instead
+    of calling list_business_developers first and using bd_name — a bd_id that isn't a
+    valid UUID is treated as a name to look up rather than crashing the whole write.
+    Returns (bd_id, error) — error is set only when a name was given (in either field)
+    and no match was found.
+    """
+    raw_id = (args.get("bd_id") or "").strip()
+    if raw_id:
+        try:
+            return uuid.UUID(raw_id), None
+        except ValueError:
+            pass  # not a real UUID — fall through and treat it as a name instead
+
+    name = (args.get("bd_name") or raw_id or "").strip()
+    if not name:
+        return None, None
+    bd_row = session.exec(
+        select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{name}%"))
+    ).first()
+    if not bd_row:
+        return None, f"Business developer '{name}' not found"
+    return bd_row.id, None
+
+
 def _summarize_pending(name: str, args: dict[str, Any]) -> str:
     if name == "create_company":
         return f"Create company \"{args.get('name', '?')}\""
@@ -750,10 +777,10 @@ def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: 
             "```\n\n"
             "If a candidate has no interview rounds (lead-only), show the lead row with round 'Lead'.\n"
             "Always end with the outcome breakdown block.\n\n"
-            "When presenting other analytics results, structure your response as:\n"
-            "1. **Key numbers** — the direct answer to the question\n"
-            "2. **Pattern** — what the data reveals (e.g. 'most losses happen at the Technical round')\n"
-            "3. **Suggestion** — one or two actionable recommendations\n\n"
+            "When presenting other analytics results: lead with the direct answer in the first sentence, "
+            "then a sentence or two on what the data actually shows (a real pattern, not just a restatement "
+            "of the numbers), and only add a suggestion if you have a genuinely useful one — don't force it. "
+            "Skip this structure entirely for a simple lookup that only needs one fact.\n\n"
             "For lead/interview operations when no candidate is specified, ask which candidate the "
             "opportunity is for, then use list_candidates to find their ID."
         )
@@ -767,6 +794,26 @@ User: {user.full_name} ({user.email}) — Role: {user.role.value}
 {role_ctx}
 
 {pipeline}
+
+## Response style (follow this for every reply)
+Talk like a sharp, capable colleague who already knows this system — not a corporate
+chatbot.
+- Get to the point. No "Certainly! I'd be happy to help with that" preambles, no
+  restating the user's question back to them, no "Let me know if there's anything
+  else!" sign-offs. Answer, then stop.
+- Default to plain sentences. Only reach for a bullet or numbered list when you're
+  presenting genuinely multiple items (several candidates, leads, interview rounds,
+  etc.) — never for a single fact or a short explanation. Don't invent headers or
+  bold text for an ordinary reply; save formatting for when it earns its keep.
+- Be direct and confident. If you already have enough to act — the pipeline snapshot,
+  something said earlier, an obvious default — act, don't ask permission to look
+  something up. Don't hedge ("it looks like maybe...", "this could possibly..."). If
+  something is genuinely ambiguous or missing, ask ONE crisp question for it and
+  nothing more.
+- Match the user's energy. A one-line request gets a one-line answer. A request for a
+  summary or analysis gets the length it actually needs — not padding either way.
+- Never narrate your own tool calls ("I'll check the database now...", "Let me look
+  that up..."). Just call the tool and reply with the result.
 
 ## Confirmation is required for every write (CRITICAL — follow exactly)
 create_company, create_lead, schedule_interview, update_interview, update_lead, and
@@ -856,7 +903,12 @@ def _exec_tool(
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
     if name == "list_business_developers":
-        rows = _list_business_developers_endpoint(session=session, current_user=user)
+        # department_id must be passed explicitly — calling a FastAPI route function
+        # directly (bypassing request handling) leaves a Query(...)-defaulted param set to
+        # the raw Query marker object, not None, which silently breaks the department
+        # filter added in list_business_developers (a truthy non-string never matches any
+        # real department id, so every dept-scoped BD gets filtered out).
+        rows = _list_business_developers_endpoint(department_id=None, session=session, current_user=user)
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
     if name == "list_interviews":
@@ -917,16 +969,12 @@ def _exec_tool(
             company_id = uuid.UUID(args["company_id"])
             resume_profile_id = uuid.UUID(args["resume_profile_id"])
             candidate_id = uuid.UUID(str(candidate_id_raw)) if candidate_id_raw else None
-            bd_id = uuid.UUID(args["bd_id"]) if args.get("bd_id") else None
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
 
-        if not bd_id and args.get("bd_name"):
-            bd_row = session.exec(
-                select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
-            ).first()
-            if bd_row:
-                bd_id = bd_row.id
+        bd_id, bd_err = _resolve_bd_id(args, session)
+        if bd_err:
+            return {"error": bd_err}, None
 
         arrived_on = None
         if args.get("arrived_on"):
@@ -980,16 +1028,12 @@ def _exec_tool(
             company_id = uuid.UUID(args["company_id"])
             resume_profile_id = uuid.UUID(args["resume_profile_id"])
             candidate_id = uuid.UUID(str(candidate_id_raw)) if candidate_id_raw else None
-            bd_id = uuid.UUID(args["bd_id"]) if args.get("bd_id") else None
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
 
-        if not bd_id and args.get("bd_name"):
-            bd_row = session.exec(
-                select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
-            ).first()
-            if bd_row:
-                bd_id = bd_row.id
+        bd_id, bd_err = _resolve_bd_id(args, session)
+        if bd_err:
+            return {"error": bd_err}, None
 
         interview_date = None
         if args.get("interview_date"):
@@ -1112,19 +1156,9 @@ def _exec_tool(
             update_kwargs["salary_range"] = args["salary_range"].strip()
             changed.append("salary_range")
 
-        bd_id = None
-        if args.get("bd_id"):
-            try:
-                bd_id = uuid.UUID(args["bd_id"])
-            except ValueError as e:
-                return {"error": f"Invalid BD UUID: {e}"}, None
-        elif args.get("bd_name"):
-            bd_row = session.exec(
-                select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
-            ).first()
-            if not bd_row:
-                return {"error": f"Business developer '{args['bd_name']}' not found"}, None
-            bd_id = bd_row.id
+        bd_id, bd_err = _resolve_bd_id(args, session)
+        if bd_err:
+            return {"error": bd_err}, None
         if bd_id:
             update_kwargs["bd_id"] = bd_id
             changed.append("bd_id")

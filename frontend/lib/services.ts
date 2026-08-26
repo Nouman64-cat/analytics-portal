@@ -200,7 +200,10 @@ export const leadsService = {
 // ─── Business Developers ────────────────────────────────────
 
 export const businessDevelopersService = {
-  list: () => apiFetch<BusinessDeveloper[]>("/business-developers/"),
+  list: (params?: { department_id?: string | null }) => {
+    const q = params?.department_id ? `?department_id=${encodeURIComponent(params.department_id)}` : "";
+    return apiFetch<BusinessDeveloper[]>(`/business-developers/${q}`);
+  },
   create: (data: BusinessDeveloperFormData) =>
     apiFetch<BusinessDeveloper>("/business-developers/", {
       method: "POST",

@@ -1,7 +1,8 @@
 import json
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.deps import get_current_user, assert_write_access
 from sqlmodel import Session, select
 from app.database import get_session
@@ -42,10 +43,17 @@ def _allowed_dept_strs(user: User, session=None) -> list[str] | None:
 
 @router.get("/", response_model=list[BusinessDeveloperRead])
 def list_business_developers(
+    department_id: Optional[str] = Query(None),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List business developers, scoped to the caller's department(s) for BD_TEAM_LEAD, BD, and tech stack manager."""
+    """List business developers, scoped to the caller's department(s) for BD_TEAM_LEAD, BD, and tech stack manager.
+
+    `department_id`, when passed, further narrows to BDs assigned to that specific
+    department (e.g. the sidebar's active-department switcher) — a BD with no
+    department restriction is treated as visible everywhere, same as the role-based
+    scoping above.
+    """
     all_bds = session.exec(select(BusinessDeveloper).order_by(BusinessDeveloper.name)).all()
 
     if current_user.role in _DEPT_SCOPED_BD_ROLES:
@@ -57,6 +65,14 @@ def list_business_developers(
                     return True
                 return any(d in allowed for d in bd_depts)
             all_bds = [b for b in all_bds if visible(b)]
+
+    if department_id:
+        def in_dept(bd: BusinessDeveloper) -> bool:
+            bd_depts = _bd_dept_ids(bd)
+            if not bd_depts:
+                return True
+            return department_id in bd_depts
+        all_bds = [b for b in all_bds if in_dept(b)]
 
     return all_bds
 

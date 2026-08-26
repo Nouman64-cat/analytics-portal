@@ -6,6 +6,14 @@ import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import type { BusyDay, Candidate, Engagement, Interview } from "@/lib/types";
 import { interviewInstant, parseUtcDatetime } from "@/lib/utils";
 import { getCandidateColor } from "@/lib/candidateColor";
+import CandidateAvatar from "@/components/CandidateAvatar";
+
+function getCandidateInitials(name?: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export type CalendarGridView = "day" | "week" | "workweek";
 
@@ -394,16 +402,30 @@ export default function TimeGridCalendar({
                         left: `${col * widthPct}%`,
                         width: `calc(${widthPct}% - 2px)`,
                         borderLeftColor: candColor,
+                        borderLeftWidth: 3,
                       }}
-                      title={`${iv.round} — ${iv.company_name ?? "Interview"}`}
-                      className="absolute z-10 overflow-hidden rounded-md border-l-[3px] bg-indigo-50/90 px-1.5 py-0.5 text-left shadow-sm hover:brightness-95 dark:bg-indigo-500/15"
+                      title={`${iv.round} — ${iv.company_name ?? "Interview"}${iv.candidate_name ? ` (${iv.candidate_name})` : ""}`}
+                      className="group absolute z-10 flex items-center gap-1 overflow-hidden rounded border border-slate-200/80 bg-slate-50 px-1 py-0.5 text-left text-[8px] sm:text-[10px] leading-tight text-slate-800 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/80 active:bg-indigo-100/50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-100 dark:hover:border-indigo-500/40 dark:hover:bg-indigo-500/15 sm:rounded-md sm:px-1.5 sm:py-1"
                     >
-                      <p className="truncate text-[10px] font-semibold text-indigo-800 dark:text-indigo-200">
-                        {iv.round}
-                      </p>
-                      <p className="truncate text-[9px] text-indigo-700/80 dark:text-indigo-300/80">
-                        {iv.company_name ?? "—"}
-                      </p>
+                      <span className="shrink-0 flex items-center">
+                        {cand ? (
+                          <CandidateAvatar candidate={cand} size={15} />
+                        ) : (
+                          <span className="flex h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[7px] sm:text-[8px] font-bold text-indigo-700 dark:text-indigo-300">
+                            {getCandidateInitials(iv.candidate_name)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {iv.round || "Interview"}
+                        </span>
+                        {iv.company_name && (
+                          <span className="text-slate-500 dark:text-slate-400 font-normal">
+                            {" · "}{iv.company_name}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}

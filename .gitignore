@@ -19,3 +19,6 @@ seeds.json
 # Scratch and temporary test files
 scratch_*
 *.scratch.*
+
+
+go-learning

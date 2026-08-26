@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Send,
   Bot,
@@ -22,13 +22,20 @@ import {
   Crown,
   ShieldCheck,
   MessageCircleQuestion,
+  UserRound,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chatService, authService } from "@/lib/services";
+import { chatService, authService, businessDevelopersService } from "@/lib/services";
 import { getUserRole } from "@/lib/auth";
+import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { PageHeader, PageLoader } from "@/components/PageStates";
-import type { ChatMessage, ChatAction } from "@/lib/types";
+import type { ChatMessage, ChatAction, BusinessDeveloper } from "@/lib/types";
+
+// Matches "bd", "business dev", or "business developer" as a standalone word while typing,
+// capturing whatever's typed right after it as a live filter query — e.g. "business developer sa"
+// keeps matching with query "sa". Used to trigger the BD picker dropdown in the composer.
+const BD_TRIGGER_RE = /\b(?:business\s+developer|business\s+dev|bd)\b[ \t]*([a-zA-Z]*)$/i;
 
 const WELCOME: ChatMessage = {
   role: "assistant",
@@ -326,6 +333,69 @@ export default function JarvisPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // "bd" / "business dev(eloper)" picker — scoped to the sidebar's currently-selected
+  // department, the same way every other page (leads, candidates, interviews) scopes its
+  // lists, so switching departments here shows the same BDs those pages would. Fetched
+  // once per department, lazily, on first trigger; re-fetches if the department changes.
+  const { departmentId } = useDepartmentContext();
+  const [bdMention, setBdMention] = useState<{ start: number; query: string } | null>(null);
+  const [bdAll, setBdAll] = useState<BusinessDeveloper[] | null>(null);
+  const [bdLoading, setBdLoading] = useState(false);
+  const [bdHighlight, setBdHighlight] = useState(0);
+
+  useEffect(() => {
+    setBdAll(null);
+  }, [departmentId]);
+
+  const bdSuggestions = useMemo(() => {
+    if (!bdMention || !bdAll) return [];
+    const q = bdMention.query.trim().toLowerCase();
+    const active = bdAll.filter((b) => b.is_active !== false);
+    const filtered = q ? active.filter((b) => b.name.toLowerCase().includes(q)) : active;
+    return filtered.slice(0, 6);
+  }, [bdMention, bdAll]);
+
+  const syncBdMention = useCallback(
+    (text: string, cursor: number) => {
+      const before = text.slice(0, cursor);
+      const match = before.match(BD_TRIGGER_RE);
+      if (!match) {
+        setBdMention(null);
+        return;
+      }
+      setBdMention({ start: match.index ?? 0, query: match[1] ?? "" });
+      setBdHighlight(0);
+      if (bdAll === null && !bdLoading) {
+        setBdLoading(true);
+        businessDevelopersService
+          .list({ department_id: departmentId })
+          .then(setBdAll)
+          .catch(() => setBdAll([]))
+          .finally(() => setBdLoading(false));
+      }
+    },
+    [bdAll, bdLoading, departmentId],
+  );
+
+  const handleSelectBd = useCallback(
+    (bd: BusinessDeveloper) => {
+      if (!bdMention) return;
+      const el = inputRef.current;
+      const cursor = el?.selectionStart ?? input.length;
+      const before = input.slice(0, bdMention.start);
+      const after = input.slice(cursor);
+      const next = `${before}${bd.name} ${after}`;
+      setInput(next);
+      setBdMention(null);
+      const caretPos = before.length + bd.name.length + 1;
+      setTimeout(() => {
+        el?.focus();
+        el?.setSelectionRange(caretPos, caretPos);
+      }, 0);
+    },
+    [bdMention, input],
+  );
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -410,6 +480,30 @@ export default function JarvisPage() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (bdMention) {
+      if (e.key === "ArrowDown" && bdSuggestions.length > 0) {
+        e.preventDefault();
+        setBdHighlight((i) => (i + 1) % bdSuggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp" && bdSuggestions.length > 0) {
+        e.preventDefault();
+        setBdHighlight((i) => (i - 1 + bdSuggestions.length) % bdSuggestions.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        if (bdSuggestions.length > 0) {
+          e.preventDefault();
+          handleSelectBd(bdSuggestions[bdHighlight]);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setBdMention(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -607,13 +701,54 @@ export default function JarvisPage() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-slate-200/70 dark:border-white/[0.07] px-4 py-3">
+      <div className="relative shrink-0 border-t border-slate-200/70 dark:border-white/[0.07] px-4 py-3">
+        {bdMention && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#181b26] shadow-lg animate-float-up">
+            <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-white/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <UserRound size={11} />
+              Select a business developer
+            </div>
+            {bdLoading ? (
+              <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
+                <Loader2 size={12} className="animate-spin" />
+                Loading…
+              </div>
+            ) : bdSuggestions.length > 0 ? (
+              bdSuggestions.map((bd, idx) => (
+                <button
+                  key={bd.id}
+                  type="button"
+                  onMouseEnter={() => setBdHighlight(idx)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectBd(bd);
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                    idx === bdHighlight
+                      ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+                      : "text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-500 dark:text-indigo-400">
+                    {bd.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="truncate">{bd.name}</span>
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-3 text-xs text-slate-400">No matching business developers</div>
+            )}
+          </div>
+        )}
         <div className="input-focus-glow flex gap-3 items-end rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] p-3 shadow-sm focus-within:border-indigo-500/50 transition-colors">
           <textarea
             ref={inputRef}
             rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              syncBdMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+            }}
             onKeyDown={onKeyDown}
             placeholder="Ask me to add a lead, company, or schedule an interview…"
             className="flex-1 resize-none bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none leading-relaxed max-h-32"
