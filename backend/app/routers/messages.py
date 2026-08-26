@@ -319,10 +319,6 @@ def _build_thread_summaries(session: Session, current_user: User, settings) -> l
     messages = session.exec(
         select(Message).where(Message.thread_id.in_(thread_ids)).order_by(Message.created_at.desc())
     ).all()
-    last_message_by_thread: dict[uuid.UUID, Message] = {}
-    for m in messages:
-        if m.thread_id not in last_message_by_thread:
-            last_message_by_thread[m.thread_id] = m
 
     read_rows = session.exec(
         select(MessageRead).where(
@@ -330,9 +326,18 @@ def _build_thread_summaries(session: Session, current_user: User, settings) -> l
         )
     ).all()
     last_read_by_thread = {r.thread_id: r.last_read_at for r in read_rows}
+    # "Clear chat for me" watermark — messages at/before this are hidden from my view only;
+    # every other participant's copy of the thread is untouched.
+    cleared_by_thread = {r.thread_id: r.cleared_at for r in read_rows if r.cleared_at}
 
+    last_message_by_thread: dict[uuid.UUID, Message] = {}
     unread_counts: dict[uuid.UUID, int] = defaultdict(int)
     for m in messages:
+        cleared = cleared_by_thread.get(m.thread_id)
+        if cleared and m.created_at <= cleared:
+            continue
+        if m.thread_id not in last_message_by_thread:
+            last_message_by_thread[m.thread_id] = m
         if m.sender_id == current_user.id:
             continue
         last_read = last_read_by_thread.get(m.thread_id)
@@ -545,6 +550,14 @@ def create_group(
     )
 
 
+def _cleared_at_for(session: Session, user_id: uuid.UUID, thread_id: uuid.UUID) -> Optional[datetime]:
+    """This user's "clear chat" watermark for this thread, if they've ever cleared it."""
+    row = session.exec(
+        select(MessageRead).where(MessageRead.user_id == user_id, MessageRead.thread_id == thread_id)
+    ).first()
+    return row.cleared_at if row else None
+
+
 @router.get("/threads/{thread_id}/messages", response_model=list[MessageOut])
 def get_thread_messages(
     thread_id: uuid.UUID,
@@ -560,18 +573,17 @@ def get_thread_messages(
     window of context centered on that message rather than the most recent page."""
     _authorize_thread(session, current_user, thread_id)
     limit = max(1, min(limit, 100))
+    cleared = _cleared_at_for(session, current_user.id, thread_id)
 
     if around:
         target = session.get(Message, around)
-        if not target or target.thread_id != thread_id:
+        if not target or target.thread_id != thread_id or (cleared and target.created_at <= cleared):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
         half = max(1, limit // 2)
-        older = session.exec(
-            select(Message)
-            .where(Message.thread_id == thread_id, Message.created_at < target.created_at)
-            .order_by(Message.created_at.desc())
-            .limit(half)
-        ).all()
+        older_stmt = select(Message).where(Message.thread_id == thread_id, Message.created_at < target.created_at)
+        if cleared:
+            older_stmt = older_stmt.where(Message.created_at > cleared)
+        older = session.exec(older_stmt.order_by(Message.created_at.desc()).limit(half)).all()
         newer = session.exec(
             select(Message)
             .where(Message.thread_id == thread_id, Message.created_at > target.created_at)
@@ -581,6 +593,8 @@ def get_thread_messages(
         rows = list(reversed(newer)) + [target] + older  # descending order, matches the branch below
     else:
         stmt = select(Message).where(Message.thread_id == thread_id)
+        if cleared:
+            stmt = stmt.where(Message.created_at > cleared)
         if before:
             stmt = stmt.where(Message.created_at < before)
         stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
@@ -616,13 +630,14 @@ def search_thread_messages(
     if not needle:
         return []
     limit = max(1, min(limit, 50))
+    cleared = _cleared_at_for(session, current_user.id, thread_id)
 
-    stmt = (
-        select(Message)
-        .where(Message.thread_id == thread_id, Message.body.ilike(f"%{_escape_like(needle)}%", escape="\\"))
-        .order_by(Message.created_at.desc())
-        .limit(limit)
+    stmt = select(Message).where(
+        Message.thread_id == thread_id, Message.body.ilike(f"%{_escape_like(needle)}%", escape="\\")
     )
+    if cleared:
+        stmt = stmt.where(Message.created_at > cleared)
+    stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
     rows = session.exec(stmt).all()
 
     people = _user_map(
@@ -890,6 +905,34 @@ def mark_thread_read(
         session.add(existing)
     else:
         session.add(MessageRead(user_id=current_user.id, thread_id=thread_id, last_read_at=now))
+    session.commit()
+
+
+@router.post("/threads/{thread_id}/clear", status_code=status.HTTP_204_NO_CONTENT)
+def clear_thread(
+    thread_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """"Clear chat for me" — hides everything sent up to now from this user's view of the
+    thread (history, search, thread-list preview). Purely a per-user watermark: it never
+    touches the `Message` rows themselves, so every other participant (the other side of a
+    DM, or the rest of a group/channel) keeps their history exactly as it was. If someone
+    sends a new message afterwards, it shows up normally — same as WhatsApp's per-device
+    "Clear chat" (as opposed to "Delete for everyone")."""
+    _authorize_thread(session, current_user, thread_id)
+    existing = session.exec(
+        select(MessageRead).where(
+            MessageRead.user_id == current_user.id, MessageRead.thread_id == thread_id
+        )
+    ).first()
+    now = datetime.utcnow()
+    if existing:
+        existing.cleared_at = now
+        existing.last_read_at = now
+        session.add(existing)
+    else:
+        session.add(MessageRead(user_id=current_user.id, thread_id=thread_id, last_read_at=now, cleared_at=now))
     session.commit()
 
 

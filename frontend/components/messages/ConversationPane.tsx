@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   FileText,
   Loader2,
+  MoreVertical,
   Paperclip,
   Pencil,
   Search,
@@ -21,6 +22,7 @@ import { messagesService } from "@/lib/services";
 import { generatePdfThumbnail } from "@/lib/pdfThumbnail";
 import { subscribeToMessages, setActiveThreadId } from "@/lib/messagesSocket";
 import type { TeamMessage, MessageThreadSummary, MessageContact, MessageAttachment } from "@/lib/types";
+import Modal, { buttonSecondary, buttonDanger } from "@/components/Modal";
 import ThreadAvatar from "./ThreadAvatar";
 import MentionText from "./MentionText";
 import AttachmentLightbox from "./AttachmentLightbox";
@@ -107,6 +109,12 @@ export default function ConversationPane({
   // Emoji picker in the composer
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Header "more options" menu — currently just "Clear chat"
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   // Editing one of my own messages in place
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -252,6 +260,18 @@ export default function ConversationPane({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [composerText]);
+
+  // Close the header "more options" menu on an outside click.
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [moreMenuOpen]);
 
   // Close the emoji picker on an outside click.
   useEffect(() => {
@@ -471,6 +491,24 @@ export default function ConversationPane({
     });
   };
 
+  /** "Clear chat for me" — hides history from this view only; the other participant(s) keep
+   * theirs untouched, and a new message afterwards shows up normally (WhatsApp's Clear Chat,
+   * not Delete for Everyone). */
+  const handleConfirmClearChat = async () => {
+    if (!thread) return;
+    setClearing(true);
+    try {
+      await messagesService.clearChat(thread.id);
+      setMessages([]);
+      onMessageSent?.(); // thread list preview/unread count need to refresh too
+      setClearConfirmOpen(false);
+    } catch {
+      setError("Failed to clear chat");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!thread) return;
     const body = composerText.trim();
@@ -547,6 +585,37 @@ export default function ConversationPane({
         >
           <Search size={16} />
         </button>
+        <div className="relative" ref={moreMenuRef}>
+          <button
+            type="button"
+            onClick={() => setMoreMenuOpen((v) => !v)}
+            disabled={clearing}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
+              moreMenuOpen
+                ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400"
+                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
+            }`}
+            title="More options"
+            aria-label="More options"
+          >
+            {clearing ? <Loader2 size={16} className="animate-spin" /> : <MoreVertical size={16} />}
+          </button>
+          {moreMenuOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1.5 w-44 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  setClearConfirmOpen(true);
+                }}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+              >
+                <Trash2 size={14} className="shrink-0" />
+                Clear chat
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {searchOpen && (
@@ -1037,6 +1106,39 @@ export default function ConversationPane({
         </button>
       </div>
       <AttachmentLightbox attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />
+      <Modal
+        open={clearConfirmOpen}
+        onClose={() => !clearing && setClearConfirmOpen(false)}
+        title="Clear chat"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            This will remove the message history from your view only — it stays exactly as-is for
+            {thread.kind === "dm" ? " the other person" : " everyone else in this conversation"}, and
+            any new message sent afterwards will show up normally.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setClearConfirmOpen(false)}
+              disabled={clearing}
+              className={buttonSecondary}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmClearChat}
+              disabled={clearing}
+              className={`${buttonDanger} disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2`}
+            >
+              {clearing && <Loader2 className="animate-spin" size={16} />}
+              {clearing ? "Clearing..." : "Clear chat"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -721,6 +721,11 @@ export const messagesService = {
     }),
   markRead: (threadId: string) =>
     apiFetch<void>(`/messages/threads/${threadId}/read`, { method: "POST" }),
+  /** "Clear chat for me" — hides everything up to now from this user's view only; every
+   * other participant's copy of the thread is untouched (matches WhatsApp's per-device
+   * Clear Chat, not Delete for Everyone). A new message afterwards shows up normally. */
+  clearChat: (threadId: string) =>
+    apiFetch<void>(`/messages/threads/${threadId}/clear`, { method: "POST" }),
   /** Uploads one file straight to S3 via a presigned PUT (never touches our server), then
    * returns the metadata `sendMessage` needs to attach it. Call once per file — the caller
    * fires these off in parallel for multi-file sends. */

@@ -78,8 +78,12 @@ class MessageAttachment(SQLModel, table=True):
 
 
 class MessageRead(SQLModel, table=True):
-    """Per-user read watermark for a thread — one row per (user_id, thread_id).
-    Unread count = messages in the thread newer than last_read_at (or all, if no row)."""
+    """Per-user watermarks for a thread — one row per (user_id, thread_id).
+    Unread count = messages in the thread newer than last_read_at (or all, if no row).
+    `cleared_at` is the "clear chat for me" watermark: messages at or before it are hidden
+    from this user's view of the thread (history, search, last-message preview) while
+    staying fully intact for every other participant — a new message after clearing shows
+    up again normally, same as WhatsApp's per-device clear."""
 
     __tablename__ = "message_reads"
     __table_args__ = (
@@ -90,3 +94,4 @@ class MessageRead(SQLModel, table=True):
     user_id: uuid.UUID = Field(index=True, foreign_key="users.id")
     thread_id: uuid.UUID = Field(index=True)  # no FK — mirrors NotificationRead.thread_id style
     last_read_at: datetime = Field(default_factory=datetime.utcnow)
+    cleared_at: Optional[datetime] = Field(default=None)
