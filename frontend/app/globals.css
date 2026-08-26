@@ -209,6 +209,25 @@
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
+.avatar-glow {
+  animation: glow-pulse 2.4s ease-in-out infinite;
+}
+
+/* ─── Chat typing indicator (Jarvis) ──────────────────────── */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(99 102 241);
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
 @keyframes slideIn {
   from {
     opacity: 0;

@@ -214,6 +214,44 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+/** Full-bleed landing state shown before the first message — a proper "start here"
+ * screen rather than just a chat bubble, so new users get oriented before typing. */
+function HeroEmptyState({ onPick }: { onPick: (text: string) => void }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+      <div className="relative mb-5 h-16 w-16">
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 blur-xl opacity-50" />
+        <div className="avatar-glow relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
+          <Bot size={30} className="text-white" />
+        </div>
+      </div>
+      <h2 className="bg-gradient-to-br from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-xl font-bold text-transparent">
+        Hi, I&apos;m Jarvis
+      </h2>
+      <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
+        Tell me what you need in plain English — I&apos;ll show you exactly what I&apos;m about to do and wait for your OK before anything changes.
+      </p>
+
+      <div className="stagger-children mt-7 grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+        {SUGGESTED_PROMPTS.map(({ icon: Icon, text }) => (
+          <button
+            key={text}
+            onClick={() => onPick(text)}
+            className="group flex items-center gap-3 rounded-xl border border-slate-200 dark:border-white/[0.07] bg-white/70 dark:bg-white/[0.03] px-3.5 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-300 dark:hover:border-indigo-400/30 hover:shadow-md"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 transition-colors group-hover:bg-indigo-500 group-hover:text-white">
+              <Icon size={14} />
+            </span>
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white">
+              {text}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MarkdownContent({ text }: { text: string }) {
   return (
     <ReactMarkdown
@@ -436,12 +474,12 @@ export default function JarvisPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] max-w-3xl mx-auto flex-col overflow-hidden rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
+    <div className="flex h-[calc(100vh-9rem)] min-h-[520px] w-full flex-col overflow-hidden rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-slate-200/70 dark:border-white/[0.07] px-5 py-4">
         <div className="relative h-10 w-10 shrink-0">
           <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 blur-md opacity-40" />
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md">
+          <div className="avatar-glow relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md">
             <Bot size={20} className="text-white" />
           </div>
         </div>
@@ -459,8 +497,11 @@ export default function JarvisPage() {
             </span>
           )}
           <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            GPT-4o mini
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            </span>
+            Online
           </span>
           <button
             onClick={resetConversation}
@@ -475,99 +516,99 @@ export default function JarvisPage() {
       </div>
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            {msg.role === "assistant" && (
-              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                <Sparkles size={13} className="text-white" />
-              </div>
-            )}
+      <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
+        {messages.length === 1 && !loading ? (
+          <HeroEmptyState
+            onPick={(text) => {
+              setInput(text);
+              inputRef.current?.focus();
+            }}
+          />
+        ) : (
+          <div className="space-y-4">
+            {messages
+              .filter((m) => m !== WELCOME)
+              .map((msg, i) => (
+                <div
+                  key={i}
+                  className={`animate-float-up group flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  {msg.role === "assistant" && (
+                    <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                      <Sparkles size={13} className="text-white" />
+                    </div>
+                  )}
 
-            <div className={`max-w-[85%] space-y-1.5 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col`}>
-              <div
-                className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-indigo-600 text-white rounded-tr-sm"
-                    : "bg-white/70 dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/[0.06] text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm"
-                }`}
-              >
-                <MarkdownContent text={msg.content} />
-              </div>
+                  <div className={`max-w-[85%] lg:max-w-2xl space-y-1.5 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col`}>
+                    <div
+                      className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-indigo-600 text-white rounded-tr-sm"
+                          : "bg-white/70 dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/[0.06] text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm"
+                      }`}
+                    >
+                      <MarkdownContent text={msg.content} />
+                    </div>
 
-              {msg.timestamp && (
-                <span className="px-1 text-[10px] text-slate-400 dark:text-slate-500">{formatClock(msg.timestamp)}</span>
-              )}
+                    {msg.timestamp && (
+                      <span className="px-1 text-[10px] text-slate-400 dark:text-slate-500">{formatClock(msg.timestamp)}</span>
+                    )}
 
-              {msg.pendingAction && (
-                <PendingActionCard
-                  message={msg}
-                  busy={confirmingId === msg.pendingAction.id}
-                  onConfirm={handleConfirm}
-                  onCancel={handleCancel}
-                />
-              )}
+                    {msg.pendingAction && (
+                      <PendingActionCard
+                        message={msg}
+                        busy={confirmingId === msg.pendingAction.id}
+                        onConfirm={handleConfirm}
+                        onCancel={handleCancel}
+                      />
+                    )}
 
-              {msg.role === "assistant" && !msg.pendingAction && msg.actions && msg.actions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {msg.actions.map((a, j) => (
-                    <ActionCard key={j} action={a} />
-                  ))}
-                  <CopyButton text={msg.content} />
+                    {msg.role === "assistant" && !msg.pendingAction && msg.actions && msg.actions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {msg.actions.map((a, j) => (
+                          <ActionCard key={j} action={a} />
+                        ))}
+                        <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                          <CopyButton text={msg.content} />
+                        </span>
+                      </div>
+                    )}
+                    {msg.role === "assistant" && !msg.pendingAction && (!msg.actions || msg.actions.length === 0) && (
+                      <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                        <CopyButton text={msg.content} />
+                      </span>
+                    )}
+                  </div>
+
+                  {msg.role === "user" && (
+                    <div className="h-7 w-7 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <User size={13} className="text-slate-600 dark:text-slate-300" />
+                    </div>
+                  )}
                 </div>
-              )}
-              {msg.role === "assistant" && !msg.pendingAction && (!msg.actions || msg.actions.length === 0) && (
-                <CopyButton text={msg.content} />
-              )}
-            </div>
+              ))}
 
-            {msg.role === "user" && (
-              <div className="h-7 w-7 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0 mt-0.5">
-                <User size={13} className="text-slate-600 dark:text-slate-300" />
+            {loading && (
+              <div className="animate-float-up flex gap-2.5 justify-start">
+                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                  <Sparkles size={13} className="text-white" />
+                </div>
+                <div className="flex items-center gap-1.5 bg-white/70 dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/[0.06] rounded-2xl rounded-tl-sm px-4 py-3.5 shadow-sm">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </div>
               </div>
             )}
-          </div>
-        ))}
-
-        {loading && (
-          <div className="flex gap-2.5 justify-start">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-              <Sparkles size={13} className="text-white" />
-            </div>
-            <div className="flex items-center gap-2 bg-white/70 dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/[0.06] rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
-              <Loader2 size={14} className="animate-spin text-indigo-500" />
-              <span className="text-xs text-slate-400 dark:text-slate-500">Jarvis is thinking…</span>
-            </div>
           </div>
         )}
 
         <div ref={bottomRef} />
       </div>
 
-      {/* Suggested prompts — shown only when only the welcome message exists */}
-      {messages.length === 1 && (
-        <div className="shrink-0 px-4 pb-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {SUGGESTED_PROMPTS.map(({ icon: Icon, text }) => (
-              <button
-                key={text}
-                onClick={() => {
-                  setInput(text);
-                  inputRef.current?.focus();
-                }}
-                className="flex items-center gap-2 text-left text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white hover:border-indigo-200 dark:hover:border-indigo-400/20 transition-colors shadow-sm"
-              >
-                <Icon size={13} className="shrink-0 text-indigo-500 dark:text-indigo-400" />
-                <span className="truncate">{text}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="shrink-0 border-t border-slate-200/70 dark:border-white/[0.07] px-4 py-3">
-        <div className="flex gap-3 items-end rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] p-3 shadow-sm focus-within:border-indigo-500/50 transition-colors">
+        <div className="input-focus-glow flex gap-3 items-end rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] p-3 shadow-sm focus-within:border-indigo-500/50 transition-colors">
           <textarea
             ref={inputRef}
             rows={1}
@@ -587,12 +628,12 @@ export default function JarvisPage() {
           <button
             onClick={send}
             disabled={!input.trim() || loading}
-            className="h-9 w-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shadow-sm shrink-0"
+            className="h-9 w-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center transition-all shadow-sm shrink-0"
           >
             {loading ? <Loader2 size={15} className="animate-spin text-white" /> : <Send size={15} className="text-white" />}
           </button>
         </div>
-        <p className="text-center text-[10px] text-slate-400 mt-2">Press Enter to send · Shift+Enter for new line</p>
+        <p className="text-center text-[10px] text-slate-400 mt-2">Press Enter to send · Shift+Enter for new line · Jarvis can make mistakes, review before confirming</p>
       </div>
     </div>
   );
