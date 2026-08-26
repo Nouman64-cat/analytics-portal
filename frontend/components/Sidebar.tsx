@@ -25,6 +25,8 @@ import {
   Megaphone,
   DoorOpen,
   MessageSquare,
+  Bot,
+  Wand2,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import MessagesNavBadge from "@/components/messages/MessagesNavBadge";
@@ -66,6 +68,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Megaphone,
   DoorOpen,
   MessageSquare,
+  Bot,
 };
 
 export default function Sidebar({
@@ -361,7 +364,8 @@ export default function Sidebar({
                 />
                 {!collapsed && <span>{item.label}</span>}
                 {!collapsed && isNewFeature(item.href) && (
-                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                    <Wand2 size={9} />
                     New
                   </span>
                 )}

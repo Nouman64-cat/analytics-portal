@@ -130,15 +130,39 @@ export interface MessageThreadSummary {
 // ─── Chat ────────────────────────────────────────────────────
 
 export interface ChatAction {
-  type: "company_created" | "lead_created" | "interview_scheduled";
+  type:
+    | "company_created"
+    | "lead_created"
+    | "interview_scheduled"
+    | "interview_updated"
+    | "lead_updated"
+    | "lead_outcome_updated"
+    | "summary_generated";
   description: string;
   id?: string;
+}
+
+/** A write the assistant proposed but has NOT executed yet — nothing happens until the
+ * user confirms it via `chatService.confirmAction`/`cancelAction`. */
+export interface ChatPendingAction {
+  id: string;
+  /** Raw tool name, e.g. "create_lead" — used to pick a matching icon. */
+  actionType: string;
+  summary: string;
+  /** Field-level breakdown (e.g. "Company: Acme") so the user confirms real data. */
+  details: { label: string; value: string }[];
 }
 
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   actions?: ChatAction[];
+  pendingAction?: ChatPendingAction;
+  /** Set once the user has confirmed or cancelled `pendingAction`, so the UI can grey out
+   * the control instead of leaving it clickable indefinitely. */
+  pendingResolved?: "confirmed" | "cancelled";
+  /** Client-side send/receive time (epoch ms) — purely a display timestamp, not persisted. */
+  timestamp?: number;
 }
 
 // ─── Entity Types ───────────────────────────────────────────
@@ -579,6 +603,10 @@ export interface User {
   alarm_style: string | null;
   accent_color: string | null;
   glassmorphism_enabled: boolean;
+  /** True once a Jarvis AI trial has ever been granted — trials are one-time only. */
+  jarvis_trial_used: boolean;
+  /** Jarvis AI access expiry (trial or subscription); null/past = no access. Superadmins bypass this entirely. */
+  jarvis_access_until: string | null;
   created_at: string;
   updated_at: string;
   /** Present for team-member role when a Candidate row matches this user's email. */

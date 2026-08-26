@@ -7,7 +7,6 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import InterviewAlertMonitor from "@/components/InterviewAlertMonitor";
 import EngagementAlertMonitor from "@/components/EngagementAlertMonitor";
-import ChatWidget from "@/components/ChatWidget";
 import BroadcastModalViewer from "@/components/BroadcastModalViewer";
 import { useVoiceCommand, useVoiceContext } from "react-voice-action-router";
 import {
@@ -156,7 +155,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <InterviewAlertMonitor />
       <EngagementAlertMonitor />
-      <ChatWidget />
       <BroadcastModalViewer />
     </DepartmentProvider>
   );

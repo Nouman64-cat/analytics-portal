@@ -7,11 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.deps import get_current_user
+from app.deps import get_current_user, require_superadmin
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.config import get_settings
 from app.email_ses import try_send_welcome_email
+
+_JARVIS_TRIAL_DAYS = 7
+_JARVIS_SUBSCRIPTION_DAYS = 30
 
 router = APIRouter(
     prefix="/api/v1/users",
@@ -440,6 +443,87 @@ def toggle_user_active(
 
     from datetime import datetime
     user.is_active = not user.is_active
+    user.updated_at = datetime.utcnow()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.post("/{user_id}/jarvis/trial", response_model=UserRead)
+def grant_jarvis_trial(
+    user_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_superadmin),
+):
+    """Superadmin-only: grant a one-time 7-day Jarvis AI trial. Cannot be re-granted."""
+    import uuid
+    from datetime import datetime, timedelta
+
+    user = session.get(User, uuid.UUID(user_id))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.role == UserRole.SUPERADMIN:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Superadmins already have full Jarvis AI access")
+    if user.jarvis_trial_used:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This user's Jarvis AI trial has already been used")
+
+    now = datetime.utcnow()
+    user.jarvis_trial_used = True
+    user.jarvis_access_until = now + timedelta(days=_JARVIS_TRIAL_DAYS)
+    user.updated_at = now
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.post("/{user_id}/jarvis/subscribe", response_model=UserRead)
+def activate_jarvis_subscription(
+    user_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_superadmin),
+):
+    """Superadmin-only: activate/renew Jarvis AI access for 30 days from now."""
+    import uuid
+    from datetime import datetime, timedelta
+
+    user = session.get(User, uuid.UUID(user_id))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.role == UserRole.SUPERADMIN:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Superadmins already have full Jarvis AI access")
+
+    now = datetime.utcnow()
+    user.jarvis_access_until = now + timedelta(days=_JARVIS_SUBSCRIPTION_DAYS)
+    user.updated_at = now
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.post("/{user_id}/jarvis/revoke", response_model=UserRead)
+def revoke_jarvis_access(
+    user_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_superadmin),
+):
+    """Superadmin-only: end a user's Jarvis AI access immediately (trial or subscription).
+
+    Does not reset jarvis_trial_used — a revoked trial is still a used trial, it doesn't
+    grant a fresh one.
+    """
+    import uuid
+    from datetime import datetime
+
+    user = session.get(User, uuid.UUID(user_id))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.role == UserRole.SUPERADMIN:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Superadmins already have full Jarvis AI access")
+
+    user.jarvis_access_until = None
     user.updated_at = datetime.utcnow()
     session.add(user)
     session.commit()

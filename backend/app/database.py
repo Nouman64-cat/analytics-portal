@@ -159,6 +159,24 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.users "
+                    f"ADD COLUMN IF NOT EXISTS jarvis_trial_used BOOLEAN DEFAULT FALSE"
+                )
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.users "
+                    f"ADD COLUMN IF NOT EXISTS jarvis_access_until TIMESTAMP"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

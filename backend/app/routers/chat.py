@@ -8,9 +8,8 @@ from datetime import datetime, date, time as dt_time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app import analytics_helpers
@@ -21,14 +20,192 @@ from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
 from app.models.company import Company
 from app.models.interview import Interview
-from app.models.lead_thread import LeadThread
 from app.models.resume_profile import ResumeProfile
 from app.models.user import User, UserRole
-from app.lead_thread_utils import ensure_lead_thread, ALLOWED_LEAD_OUTCOMES
+from app.lead_thread_utils import ALLOWED_LEAD_OUTCOMES
 from app.team_member_scope import candidate_id_for_team_member
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
+from app.schemas.interview import InterviewCreate, InterviewUpdate
+from app.schemas.company import CompanyCreate
+from app.schemas.lead_thread import LeadThreadUpdate
+# Reused directly (as plain function calls) so every read AND write this assistant makes
+# goes through the exact same department/ownership/entity scoping the REST API enforces —
+# the chat tools below must never query or mutate rows by hand, only through these.
+from app.routers.companies import (
+    create_company as _create_company_endpoint,
+    list_companies as _list_companies_endpoint,
+)
+from app.routers.interviews import (
+    create_interview as _create_interview_endpoint,
+    update_interview as _update_interview_endpoint,
+    patch_lead_thread_status as _patch_lead_thread_endpoint,
+    list_interviews as _list_interviews_endpoint,
+)
+from app.routers.candidates import list_candidates as _list_candidates_endpoint
+from app.routers.business_developers import list_business_developers as _list_business_developers_endpoint
 
 router = APIRouter(prefix="/api/v1/chat", tags=["Chat"])
+
+# ─── Per-role tool access ─────────────────────────────────────
+# Every role can open Jarvis; which tools it's even offered differs by role, mirroring the
+# real REST gates exactly (not a separate policy invented for chat).
+
+# Mirrors app/deps.py:assert_write_access exactly — blocked from any write at all.
+_WRITE_BLOCKED_ROLES = {UserRole.BD_MANAGER, UserRole.GUEST, UserRole.COORDINATOR}
+# Mirrors app/routers/leads.py:_require_lead_write_role. Deliberately stricter than plain
+# write access for genuinely lead-level operations (opening a new pipeline, editing
+# lead-thread metadata, changing lead outcome): the real create_interview/update_interview
+# endpoints don't reject MANAGER themselves (a real gap in interviews.py — a manager could
+# open a new pipeline through that endpoint even though the dedicated Leads API blocks
+# them), but Jarvis should match the product's actual intent for "who manages leads," not
+# inherit that backend inconsistency.
+_LEAD_WRITE_ROLES = {
+    UserRole.SUPERADMIN,
+    UserRole.TEAM_MEMBER,
+    UserRole.BD,
+    UserRole.DEPT_LEAD,
+    UserRole.BD_TEAM_LEAD,
+    UserRole.TECH_STACK_MANAGER,
+}
+
+
+def _assert_jarvis_access(user: User) -> None:
+    """Superadmins always have access; everyone else needs an active trial/subscription
+    granted from the User Management page (User.jarvis_access_until in the future)."""
+    if user.role == UserRole.SUPERADMIN:
+        return
+    if user.jarvis_access_until and user.jarvis_access_until > datetime.utcnow():
+        return
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail="Jarvis AI requires an active subscription or trial. Ask your superadmin to activate one.",
+    )
+
+
+_READ_ONLY_TOOL_NAMES = {
+    "list_companies",
+    "list_resume_profiles",
+    "list_candidates",
+    "list_business_developers",
+    "list_interviews",
+}
+_LEAD_WRITE_TOOL_NAMES = {"create_lead", "schedule_interview", "update_lead", "update_lead_outcome"}
+# Everything else in _TOOLS (create_company, update_interview) is gated by plain write
+# access only — no lead-specific restriction, matching their real endpoints.
+
+# ─── Pending write confirmation ──────────────────────────────
+# Every mutating tool call is proposed, not executed, on the first pass — the model must
+# get the user's explicit confirmation (a click in the UI) before anything is written.
+# In-memory only: fine for a single-uvicorn-process app (same constraint as ws_manager.py),
+# and a short TTL means a restart or expiry just means "ask again," never a stuck state.
+
+_MUTATING_TOOLS = {
+    "create_company",
+    "create_lead",
+    "schedule_interview",
+    "update_interview",
+    "update_lead",
+    "update_lead_outcome",
+}
+_PENDING_TTL_MINUTES = 10
+_pending_actions: dict[str, dict[str, Any]] = {}
+
+
+def _prune_pending_actions() -> None:
+    cutoff = datetime.utcnow() - timedelta(minutes=_PENDING_TTL_MINUTES)
+    for action_id in [k for k, v in _pending_actions.items() if v["created_at"] < cutoff]:
+        _pending_actions.pop(action_id, None)
+
+
+def _summarize_pending(name: str, args: dict[str, Any]) -> str:
+    if name == "create_company":
+        return f"Create company \"{args.get('name', '?')}\""
+    if name == "create_lead":
+        return f"Open a new lead — {args.get('role', '?')}"
+    if name == "schedule_interview":
+        return f"Schedule interview — {args.get('role', '?')} ({args.get('round', '?')})"
+    if name == "update_interview":
+        return "Update this interview"
+    if name == "update_lead":
+        return "Update this lead"
+    if name == "update_lead_outcome":
+        return f"Mark lead outcome as \"{args.get('outcome', '?')}\""
+    return f"Run {name}"
+
+
+def _build_pending_details(name: str, args: dict[str, Any], session: Session) -> list[dict[str, str]]:
+    """Field-level breakdown for the confirmation card — resolves IDs to names where the
+    lookup is cheap (a single get-by-id), so the user confirms real data, not a UUID."""
+
+    def _lookup(model: Any, raw_id: Optional[str]) -> Optional[Any]:
+        if not raw_id:
+            return None
+        try:
+            return session.get(model, uuid.UUID(raw_id))
+        except ValueError:
+            return None
+
+    def _bd_display(raw_id: Optional[str], name_hint: Optional[str]) -> Optional[str]:
+        if name_hint:
+            return name_hint
+        bd = _lookup(BusinessDeveloper, raw_id)
+        return bd.name if bd else None
+
+    details: list[dict[str, str]] = []
+
+    if name == "create_company":
+        details.append({"label": "Name", "value": args.get("name") or "—"})
+        if args.get("is_staffing_firm"):
+            details.append({"label": "Type", "value": "Staffing firm"})
+        if args.get("detail"):
+            details.append({"label": "Notes", "value": args["detail"]})
+
+    elif name in ("create_lead", "schedule_interview"):
+        company = _lookup(Company, args.get("company_id"))
+        if company:
+            details.append({"label": "Company", "value": company.name})
+        if args.get("role"):
+            details.append({"label": "Role", "value": args["role"]})
+        if name == "schedule_interview" and args.get("round"):
+            details.append({"label": "Round", "value": args["round"]})
+        candidate = _lookup(Candidate, args.get("candidate_id"))
+        if candidate:
+            details.append({"label": "Candidate", "value": candidate.name})
+        bd = _bd_display(args.get("bd_id"), args.get("bd_name"))
+        if bd:
+            details.append({"label": "Business developer", "value": bd})
+        if args.get("salary_range"):
+            details.append({"label": "Salary", "value": args["salary_range"]})
+        date_field = "arrived_on" if name == "create_lead" else "interview_date"
+        if args.get(date_field):
+            details.append({"label": "Date", "value": args[date_field]})
+        if args.get("time_est"):
+            details.append({"label": "Time", "value": f"{args['time_est']} EST"})
+        if args.get("interviewer"):
+            details.append({"label": "Interviewer", "value": args["interviewer"]})
+        if args.get("is_phone_call"):
+            details.append({"label": "Format", "value": "Phone call"})
+        if args.get("notes"):
+            details.append({"label": "Notes", "value": args["notes"]})
+
+    elif name in ("update_interview", "update_lead"):
+        skip = {"interview_id", "bd_id"}
+        bd = _bd_display(args.get("bd_id"), args.get("bd_name"))
+        if bd:
+            details.append({"label": "Business developer", "value": bd})
+            skip.add("bd_name")
+        for key, value in args.items():
+            if key in skip or value in (None, ""):
+                continue
+            label = key.replace("_", " ").title()
+            if label.endswith("Est"):
+                label = label[:-3] + "EST"
+            details.append({"label": label, "value": str(value)})
+
+    elif name == "update_lead_outcome":
+        details.append({"label": "New outcome", "value": (args.get("outcome") or "—").title()})
+
+    return details
 
 
 # ─── Request / Response ─────────────────────────────────────
@@ -49,9 +226,32 @@ class ChatAction(BaseModel):
     id: Optional[str] = None
 
 
+class PendingActionDetail(BaseModel):
+    label: str
+    value: str
+
+
+class PendingActionOut(BaseModel):
+    id: str
+    # The raw tool name (e.g. "create_lead") — lets the frontend pick a matching icon.
+    action_type: str
+    summary: str
+    # Field-level breakdown of what's about to be written — IDs are resolved to names
+    # where cheap (company/candidate/BD lookups) so the user is confirming real business
+    # data, not a UUID.
+    details: list[PendingActionDetail] = []
+
+
 class ChatResponse(BaseModel):
     reply: str
     actions: list[ChatAction] = []
+    # Set when the assistant proposed a write this turn — nothing has been executed yet.
+    # The frontend must render a Confirm/Cancel control and call /confirm or /cancel.
+    pending_action: Optional[PendingActionOut] = None
+
+
+class ConfirmActionRequest(BaseModel):
+    action_id: str
 
 
 # ─── Tool definitions ────────────────────────────────────────
@@ -394,6 +594,27 @@ _ANALYTICS_TOOLS = [
 ]
 
 
+def _tools_for_role(role: UserRole) -> list[dict[str, Any]]:
+    """The exact tool set a role is offered — not just enforced at execution time. A
+    role that can't write never even sees a write tool in the schema, so the model can't
+    propose (and the UI can't render a confirm card for) an action that would just come
+    back as a permission error."""
+    tools: list[dict[str, Any]] = []
+    for t in _TOOLS:
+        tname = t["function"]["name"]
+        if tname in _READ_ONLY_TOOL_NAMES:
+            tools.append(t)
+        elif tname in _LEAD_WRITE_TOOL_NAMES:
+            if role in _LEAD_WRITE_ROLES:
+                tools.append(t)
+        else:  # create_company, update_interview — plain write access only
+            if role not in _WRITE_BLOCKED_ROLES:
+                tools.append(t)
+    if role == UserRole.SUPERADMIN:
+        tools += _ANALYTICS_TOOLS
+    return tools
+
+
 # ─── Time helpers ────────────────────────────────────────────
 
 _TZ_EASTERN = ZoneInfo("America/New_York")
@@ -410,32 +631,38 @@ def _est_to_pkt(t: dt_time, ref_date: Optional[date] = None) -> dt_time:
 # ─── Context snapshot ────────────────────────────────────────
 
 def _pipeline_snapshot(session: Session, user: User, own_candidate_id: Optional[uuid.UUID]) -> str:
-    """Return a compact table of recent pipeline records to inject into the system prompt."""
+    """Compact table of recent pipeline records injected into the system prompt. Goes
+    through the same scoped `list_interviews` endpoint every read tool uses — this used to
+    query `Interview` directly with only a team-member filter, which meant every other
+    role's snapshot (BD, dept lead, manager, ...) was drawn from the whole org, unscoped,
+    baked straight into the model's context. That's the one context-injection surface that
+    matters most to get right, since it happens on every single message regardless of what
+    the user asks."""
     limit = 100 if user.role == UserRole.SUPERADMIN else 30
-    stmt = (
-        select(Interview)
-        .options(selectinload(Interview.company))
-        .order_by(Interview.created_at.desc())
-        .limit(limit)
-    )
-    if user.role == UserRole.TEAM_MEMBER and own_candidate_id:
-        stmt = stmt.where(Interview.candidate_id == own_candidate_id)
-
-    rows = session.exec(stmt).all()
+    rows = _list_interviews_endpoint(
+        candidate_id=None,
+        company_id=None,
+        resume_profile_id=None,
+        status_filter=None,
+        search=None,
+        date_from=None,
+        date_to=None,
+        department_id=None,
+        session=session,
+        current_user=user,
+    )[:limit]
     if not rows:
         return "=== Pipeline snapshot: no records found ==="
 
     lines = [
-        f"=== Pipeline snapshot (most recent {limit} — use these IDs directly for updates) ===",
+        f"=== Pipeline snapshot (most recent {len(rows)} — use these IDs directly for updates) ===",
         "interview_id | thread_id | company | role | round | status | outcome_override | date",
     ]
     for iv in rows:
-        lt = session.get(LeadThread, iv.thread_id)
-        outcome = lt.outcome_override if lt else None
         lines.append(
-            f"{iv.id} | {iv.thread_id} | {iv.company.name if iv.company else '?'} | "
-            f"{iv.role} | {iv.round} | {iv.status or '—'} | {outcome or '—'} | "
-            f"{iv.interview_date or '—'}"
+            f"{iv['id']} | {iv['thread_id']} | {iv.get('company_name') or '?'} | "
+            f"{iv.get('role')} | {iv.get('round')} | {iv.get('status') or '—'} | "
+            f"{iv.get('lead_outcome') or '—'} | {iv.get('interview_date') or '—'}"
         )
     return "\n".join(lines)
 
@@ -458,10 +685,37 @@ def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: 
     elif user.role == UserRole.BD_TEAM_LEAD:
         role_ctx = (
             "You are assisting a BD TEAM LEAD. They manage a team of business developers and oversee the pipeline. "
-            "They can create companies, open leads, schedule interviews, and update existing records. "
+            "They can create companies, open leads, schedule interviews, and update existing records — scoped to "
+            "their own team; the backend enforces this, so an out-of-scope action will come back as a clear error "
+            "rather than succeeding. "
             "When a candidate is not specified, call list_candidates and ask which candidate the opportunity is for. "
             "When a BD is mentioned, call list_business_developers to find the exact match and always pass bd_id. "
             "If no BD is specified for a lead or interview, ask if they'd like to assign one."
+        )
+    elif user.role in (UserRole.BD, UserRole.DEPT_LEAD, UserRole.TECH_STACK_MANAGER):
+        role_label = {
+            UserRole.BD: "BUSINESS DEVELOPER",
+            UserRole.DEPT_LEAD: "DEPARTMENT LEAD",
+            UserRole.TECH_STACK_MANAGER: "TECH STACK MANAGER",
+        }[user.role]
+        role_ctx = (
+            f"You are assisting a {role_label}. They can create companies, open leads, schedule interviews, "
+            "and update existing records — scoped to their own department/entity; the backend enforces this "
+            "exactly like the rest of the app, so an out-of-scope action will come back as a clear error rather "
+            "than silently succeeding or silently failing. "
+            "When a candidate is not specified, call list_candidates and ask which candidate the opportunity is "
+            "for. When a BD is mentioned, call list_business_developers to find the exact match and pass bd_id."
+        )
+    elif user.role in (UserRole.MANAGER, UserRole.BD_MANAGER, UserRole.GUEST, UserRole.COORDINATOR):
+        role_label = user.role.value.replace("-", " ").title()
+        role_ctx = (
+            f"You are assisting a {role_label}, who has READ-ONLY access in this assistant. You can look up and "
+            "summarize companies, candidates, business developers, and the interview/lead pipeline (via "
+            "list_companies, list_candidates, list_business_developers, list_interviews, list_resume_profiles) — "
+            "but you have NOT been given any tool to create or edit anything; those tools simply aren't in your "
+            "toolset this turn. If they ask you to create, schedule, or change something, say plainly that their "
+            "role has read-only access here and suggest they ask someone with write permissions — do not imply "
+            "you attempted it."
         )
     else:
         role_ctx = (
@@ -514,13 +768,28 @@ User: {user.full_name} ({user.email}) — Role: {user.role.value}
 
 {pipeline}
 
-## Company lookup rules (CRITICAL — follow exactly)
+## Confirmation is required for every write (CRITICAL — follow exactly)
+create_company, create_lead, schedule_interview, update_interview, update_lead, and
+update_lead_outcome do NOT execute when you call them — they only propose the action. The
+tool result will come back as {{"status": "pending_confirmation", ...}}, not real data, and
+no ID it might reference is real yet. When you see that:
+- Tell the user in ONE short sentence exactly what you're about to do, then STOP. Do not
+  say it succeeded, do not say "done," and do not chain another tool call afterward — the
+  UI is showing them a Confirm/Cancel control right now for this proposal.
+- Only one proposal can be pending at a time. If a request needs several steps (e.g. a
+  company must be created before you can open a lead for it), propose only the FIRST step,
+  explain that the rest will follow once they confirm, and stop there.
+- The actual execution and the "it's done" confirmation happen outside this conversation,
+  after the user clicks Confirm — you will not see the result of a confirmed action.
+- Never fabricate or assume an ID from a pending (unconfirmed) proposal. If a later step
+  genuinely needs the real ID a pending action would produce, wait for a future turn.
+
+## Company lookup rules
 1. Call list_companies and look for a company whose name matches what the user specified (case-insensitive).
 2. If a match is found, use its ID — proceed.
-3. If NO match is found, do NOT use any other company from the list. Instead:
-   a. Call create_company with the user's exact company name.
-   b. Inform the user in your reply: "I didn't find '[name]' in the database, so I created it."
-   c. Then continue creating the lead/interview using the newly created company's ID.
+3. If NO match is found, do NOT use any other company from the list. Propose create_company
+   with the user's exact company name and stop (see the confirmation rule above) — you
+   cannot create the lead/interview in the same turn since the company doesn't exist yet.
 4. NEVER substitute a different company because it looks similar. The company name the user gives is the one to use.
 
 ## Profile / candidate / BD lookup rules
@@ -533,7 +802,6 @@ User: {user.full_name} ({user.email}) — Role: {user.role.value}
 - Call list_interviews only for older records not in the snapshot.
 - Never guess a UUID.
 - Ask for one missing required field at a time.
-- Be transparent: state every action you take in your reply (company created, lead created, interview scheduled, field updated, etc.).
 - Dates: YYYY-MM-DD. Times: HH:MM (24-hour) EST.
 - Round labels: Lead · Phone Screen · Technical · Onsite · Final Round · Offer
 
@@ -551,11 +819,28 @@ def _exec_tool(
     session: Session,
     user: User,
     own_candidate_id: Optional[uuid.UUID],
+    background_tasks: BackgroundTasks,
+    confirm: bool = False,
 ) -> tuple[Any, Optional[ChatAction]]:
-    """Run a tool and return (result_for_openai, action_or_None)."""
+    """Run a tool and return (result_for_openai, action_or_None).
+
+    `confirm` gates every entry in `_MUTATING_TOOLS`: the caller loop in `chat_message`
+    never lets a mutating tool reach this function with `confirm=False` (it intercepts
+    those calls itself and records a pending action instead) — the guard below is a
+    second line of defense, not the primary gate. Only `POST /chat/confirm`, after
+    verifying the pending action belongs to the requesting user, calls this with
+    `confirm=True` to actually perform the write.
+    """
+    if name in _MUTATING_TOOLS and not confirm:
+        return {
+            "status": "pending_confirmation",
+            "note": "Not executed — this requires the user's explicit confirmation in the UI.",
+        }, None
 
     if name == "list_companies":
-        rows = session.exec(select(Company).order_by(Company.name)).all()
+        # Companies have no scoping anywhere in the real API — every authenticated role
+        # sees every company (see _list_companies_endpoint itself).
+        rows = _list_companies_endpoint(session)
         return [{"id": str(r.id), "name": r.name, "is_staffing_firm": r.is_staffing_firm} for r in rows], None
 
     if name == "list_resume_profiles":
@@ -565,73 +850,68 @@ def _exec_tool(
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
     if name == "list_candidates":
-        if user.role == UserRole.TEAM_MEMBER:
-            if own_candidate_id is None:
-                return [], None
-            c = session.get(Candidate, own_candidate_id)
-            return [{"id": str(c.id), "name": c.name}] if c else [], None
-        rows = session.exec(select(Candidate).order_by(Candidate.name)).all()
+        rows = _list_candidates_endpoint(
+            department_id=None, is_active=None, session=session, settings=get_settings(), current_user=user
+        )
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
     if name == "list_business_developers":
-        rows = session.exec(select(BusinessDeveloper).order_by(BusinessDeveloper.name)).all()
+        rows = _list_business_developers_endpoint(session=session, current_user=user)
         return [{"id": str(r.id), "name": r.name} for r in rows], None
 
     if name == "list_interviews":
-        company_filter = args.get("company_name", "").strip().lower()
-        role_filter = args.get("role", "").strip().lower()
-        round_filter = args.get("round", "").strip().lower()
+        # The real endpoint's own `search` param already covers company/role/status/notes
+        # text search — reuse it instead of re-filtering by hand, so scoping (team-member
+        # own-candidate, BD/BD-team-lead entity scope, department scope for everyone else)
+        # comes for free from the same code the Interviews page itself calls.
+        search = (args.get("company_name") or args.get("role") or args.get("round") or "").strip() or None
         limit = min(int(args.get("limit", 20)), 50)
-
-        stmt = (
-            select(Interview)
-            .options(selectinload(Interview.company))
-            .order_by(Interview.created_at.desc())
+        rows = _list_interviews_endpoint(
+            candidate_id=None,
+            company_id=None,
+            resume_profile_id=None,
+            status_filter=None,
+            search=search,
+            date_from=None,
+            date_to=None,
+            department_id=None,
+            session=session,
+            current_user=user,
         )
-        if user.role == UserRole.TEAM_MEMBER and own_candidate_id:
-            stmt = stmt.where(Interview.candidate_id == own_candidate_id)
-
         results = []
-        for iv in session.exec(stmt).all():
-            company_name = iv.company.name if iv.company else ""
-            if company_filter and company_filter not in company_name.lower():
-                continue
-            if role_filter and role_filter not in iv.role.lower():
-                continue
-            if round_filter and round_filter not in iv.round.lower():
-                continue
-            lt = session.get(LeadThread, iv.thread_id)
+        for iv in rows[:limit]:
+            created_at = iv.get("created_at")
             results.append({
-                "interview_id": str(iv.id),
-                "thread_id": str(iv.thread_id),
-                "company": company_name,
-                "role": iv.role,
-                "round": iv.round,
-                "status": iv.status,
-                "outcome_override": lt.outcome_override if lt else None,
-                "interview_date": str(iv.interview_date) if iv.interview_date else None,
-                "created_at": iv.created_at.date().isoformat(),
+                "interview_id": str(iv["id"]),
+                "thread_id": str(iv["thread_id"]),
+                "company": iv.get("company_name"),
+                "role": iv.get("role"),
+                "round": iv.get("round"),
+                "status": iv.get("status"),
+                "outcome_override": iv.get("lead_outcome"),
+                "interview_date": str(iv["interview_date"]) if iv.get("interview_date") else None,
+                "created_at": created_at.date().isoformat() if created_at else None,
             })
-            if len(results) >= limit:
-                break
         return results, None
 
     if name == "create_company":
         existing = session.exec(select(Company).where(Company.name == args["name"])).first()
         if existing:
             return {"error": f"Company '{args['name']}' already exists (id: {existing.id})."}, None
-        company = Company(
-            name=args["name"],
-            is_staffing_firm=args.get("is_staffing_firm", False),
-            detail=args.get("detail"),
-        )
-        session.add(company)
-        session.commit()
-        session.refresh(company)
+        try:
+            company = _create_company_endpoint(
+                CompanyCreate(name=args["name"], is_staffing_firm=args.get("is_staffing_firm", False)),
+                session,
+                user,
+            )
+        except HTTPException as e:
+            return {"error": e.detail}, None
         action = ChatAction(type="company_created", description=f"Company '{company.name}' created", id=str(company.id))
         return {"id": str(company.id), "name": company.name}, action
 
     if name == "create_lead":
+        if user.role not in _LEAD_WRITE_ROLES:
+            return {"error": "Your role doesn't have permission to create leads."}, None
         candidate_id_raw = own_candidate_id if user.role == UserRole.TEAM_MEMBER else args.get("candidate_id")
         try:
             company_id = uuid.UUID(args["company_id"])
@@ -648,15 +928,6 @@ def _exec_tool(
             if bd_row:
                 bd_id = bd_row.id
 
-        if not session.get(Company, company_id):
-            return {"error": "Company not found"}, None
-        if not session.get(ResumeProfile, resume_profile_id):
-            return {"error": "Resume profile not found"}, None
-        if candidate_id and not session.get(Candidate, candidate_id):
-            return {"error": "Candidate not found"}, None
-        if bd_id and not session.get(BusinessDeveloper, bd_id):
-            return {"error": "Business developer not found"}, None
-
         arrived_on = None
         if args.get("arrived_on"):
             try:
@@ -664,27 +935,7 @@ def _exec_tool(
             except ValueError:
                 pass
 
-        thread_id = uuid.uuid4()
-        lt = ensure_lead_thread(session, thread_id)
-        if candidate_id:
-            lt.entertaining_candidate_id = candidate_id
-        notes = (args.get("notes") or "").strip() or None
-        if notes:
-            lt.notes = notes
-        # Always stamp arrival date so it never stays NULL (a NULL arrived_on makes the
-        # Leads page fall back to the live interview_date and drift on later edits).
-        lt.arrived_on = arrived_on or datetime.utcnow().date()
-        lt.updated_at = datetime.utcnow()
-        session.add(lt)
-
-        dept_id = user.department_id
-        if candidate_id:
-            cand = session.get(Candidate, candidate_id)
-            if cand and cand.department_id:
-                dept_id = cand.department_id
-
-        interview = Interview(
-            thread_id=thread_id,
+        payload = InterviewCreate(
             company_id=company_id,
             resume_profile_id=resume_profile_id,
             candidate_id=candidate_id,
@@ -694,20 +945,36 @@ def _exec_tool(
             round="1st",
             status="Upcoming",
             interview_date=arrived_on,
-            department_id=dept_id,
-            created_by_user_id=user.id,
         )
-        session.add(interview)
-        session.commit()
-        session.refresh(interview)
+        try:
+            data = _create_interview_endpoint(payload, background_tasks, session, user)
+        except HTTPException as e:
+            return {"error": e.detail}, None
 
+        # Thread-level notes aren't part of InterviewCreate — set them through the same
+        # scoped lead-thread endpoint the Leads page uses. Best-effort: the lead itself
+        # already exists at this point even if this secondary step fails.
+        notes = (args.get("notes") or "").strip()
+        if notes:
+            try:
+                _patch_lead_thread_endpoint(uuid.UUID(str(data["thread_id"])), LeadThreadUpdate(notes=notes), session, user)
+            except HTTPException:
+                pass
 
-        company = session.get(Company, company_id)
-        desc = f"Lead created — {company.name} · {args['role'].strip()}"
-        action = ChatAction(type="lead_created", description=desc, id=str(thread_id))
-        return {"thread_id": str(thread_id), "interview_id": str(interview.id), "company": company.name, "role": args["role"]}, action
+        desc = f"Lead created — {data.get('company_name')} · {args['role'].strip()}"
+        action = ChatAction(type="lead_created", description=desc, id=str(data["thread_id"]))
+        return {
+            "thread_id": str(data["thread_id"]),
+            "interview_id": str(data["id"]),
+            "company": data.get("company_name"),
+            "role": args["role"],
+        }, action
 
     if name == "schedule_interview":
+        # schedule_interview always opens a brand-new pipeline (no parent_interview_id
+        # support today) — same lead-write gate as create_lead, not just plain write access.
+        if user.role not in _LEAD_WRITE_ROLES:
+            return {"error": "Your role doesn't have permission to open a new pipeline."}, None
         candidate_id_raw = own_candidate_id if user.role == UserRole.TEAM_MEMBER else args.get("candidate_id")
         try:
             company_id = uuid.UUID(args["company_id"])
@@ -723,13 +990,6 @@ def _exec_tool(
             ).first()
             if bd_row:
                 bd_id = bd_row.id
-
-        if not session.get(Company, company_id):
-            return {"error": "Company not found"}, None
-        if not session.get(ResumeProfile, resume_profile_id):
-            return {"error": "Resume profile not found"}, None
-        if candidate_id and not session.get(Candidate, candidate_id):
-            return {"error": "Candidate not found"}, None
 
         interview_date = None
         if args.get("interview_date"):
@@ -748,14 +1008,7 @@ def _exec_tool(
             except (ValueError, IndexError):
                 pass
 
-        dept_id = user.department_id
-        if candidate_id:
-            cand = session.get(Candidate, candidate_id)
-            if cand and cand.department_id:
-                dept_id = cand.department_id
-
-        interview = Interview(
-            thread_id=uuid.uuid4(),
+        payload = InterviewCreate(
             company_id=company_id,
             resume_profile_id=resume_profile_id,
             candidate_id=candidate_id,
@@ -768,140 +1021,135 @@ def _exec_tool(
             interview_link=args.get("interview_link"),
             is_phone_call=args.get("is_phone_call", False),
             interviewer=args.get("interviewer"),
-            department_id=dept_id,
-            created_by_user_id=user.id,
         )
-        session.add(interview)
-        session.commit()
+        try:
+            data = _create_interview_endpoint(payload, background_tasks, session, user)
+        except HTTPException as e:
+            return {"error": e.detail}, None
 
-        company = session.get(Company, company_id)
         date_str = f" on {interview_date}" if interview_date else ""
         time_str = f" at {args['time_est']} EST" if args.get("time_est") else ""
-        desc = f"Interview scheduled — {company.name} · {args['role']} · {args['round']}{date_str}{time_str}"
-        action = ChatAction(type="interview_scheduled", description=desc, id=str(interview.id))
-        return {"interview_id": str(interview.id), "thread_id": str(interview.thread_id), "company": company.name, "round": args["round"]}, action
+        desc = f"Interview scheduled — {data.get('company_name')} · {args['role']} · {args['round']}{date_str}{time_str}"
+        action = ChatAction(type="interview_scheduled", description=desc, id=str(data["id"]))
+        return {
+            "interview_id": str(data["id"]),
+            "thread_id": str(data["thread_id"]),
+            "company": data.get("company_name"),
+            "round": args["round"],
+        }, action
 
     if name == "update_interview":
         try:
             iid = uuid.UUID(args["interview_id"])
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
-        iv = session.get(Interview, iid)
-        if not iv:
-            return {"error": "Interview not found"}, None
 
-        changed = []
-        if "interview_date" in args and args["interview_date"]:
+        update_kwargs: dict[str, Any] = {}
+        if args.get("interview_date"):
             try:
-                new_date = date.fromisoformat(args["interview_date"])
-                # Lock the lead arrival date before changing a root interview's date, so a
-                # legacy/NULL arrived_on doesn't drift with the edit (see update_interview).
-                if iv.parent_interview_id is None:
-                    lt = ensure_lead_thread(session, iv.thread_id)
-                    if lt.arrived_on is None:
-                        lt.arrived_on = iv.interview_date or new_date
-                        lt.updated_at = datetime.utcnow()
-                        session.add(lt)
-                iv.interview_date = new_date
-                changed.append("date")
-                # Recompute PKT for the new date if a time is already set
-                if iv.time_est:
-                    iv.time_pkt = _est_to_pkt(iv.time_est, iv.interview_date)
+                update_kwargs["interview_date"] = date.fromisoformat(args["interview_date"])
             except ValueError:
                 return {"error": "Invalid date format — use YYYY-MM-DD"}, None
-        if "time_est" in args and args["time_est"]:
+        if args.get("time_est"):
             try:
                 parts = args["time_est"].split(":")
-                iv.time_est = dt_time(int(parts[0]), int(parts[1]))
-                iv.time_pkt = _est_to_pkt(iv.time_est, iv.interview_date)
-                changed.append("time")
+                update_kwargs["time_est"] = dt_time(int(parts[0]), int(parts[1]))
             except (ValueError, IndexError):
                 return {"error": "Invalid time format — use HH:MM"}, None
-        if "round" in args and args["round"]:
-            iv.round = args["round"].strip()
-            changed.append("round")
-        if "status" in args and args["status"]:
-            iv.status = args["status"].strip()
-            changed.append("status")
-        if "interview_link" in args and args["interview_link"]:
-            iv.interview_link = args["interview_link"].strip()
-            changed.append("link")
-        if "interviewer" in args and args["interviewer"]:
-            iv.interviewer = args["interviewer"].strip()
-            changed.append("interviewer")
+            # Mirror the edit form: always send time_pkt alongside time_est, derived from
+            # the interview's date (the new one if it's also changing this call).
+            ref_date = update_kwargs.get("interview_date")
+            if ref_date is None:
+                existing_iv = session.get(Interview, iid)
+                ref_date = existing_iv.interview_date if existing_iv else None
+            update_kwargs["time_pkt"] = _est_to_pkt(update_kwargs["time_est"], ref_date)
+        if args.get("round"):
+            update_kwargs["round"] = args["round"].strip()
+        if args.get("status"):
+            update_kwargs["status"] = args["status"].strip()
+        if args.get("interview_link"):
+            update_kwargs["interview_link"] = args["interview_link"].strip()
+        if args.get("interviewer"):
+            update_kwargs["interviewer"] = args["interviewer"].strip()
         if "is_phone_call" in args:
-            iv.is_phone_call = bool(args["is_phone_call"])
-            changed.append("is_phone_call")
-        if "feedback" in args and args["feedback"]:
-            iv.feedback = args["feedback"].strip()
-            changed.append("feedback")
-        if "recruiter_feedback" in args and args["recruiter_feedback"]:
-            iv.recruiter_feedback = args["recruiter_feedback"].strip()
-            changed.append("recruiter_feedback")
+            update_kwargs["is_phone_call"] = bool(args["is_phone_call"])
+        if args.get("feedback"):
+            update_kwargs["feedback"] = args["feedback"].strip()
+        if args.get("recruiter_feedback"):
+            update_kwargs["recruiter_feedback"] = args["recruiter_feedback"].strip()
 
-        if not changed:
+        if not update_kwargs:
             return {"error": "No fields provided to update"}, None
 
-        iv.updated_at = datetime.utcnow()
-        session.add(iv)
-        session.commit()
+        try:
+            data = _update_interview_endpoint(iid, InterviewUpdate(**update_kwargs), background_tasks, session, user)
+        except HTTPException as e:
+            return {"error": e.detail}, None
 
-        desc = f"Interview updated — {', '.join(changed)}"
-        action = ChatAction(type="interview_updated", description=desc, id=str(iv.id))
-        return {"interview_id": str(iv.id), "updated": changed}, action
+        desc = f"Interview updated — {', '.join(update_kwargs.keys())}"
+        action = ChatAction(type="interview_updated", description=desc, id=str(data["id"]))
+        return {"interview_id": str(data["id"]), "updated": list(update_kwargs.keys())}, action
 
     if name == "update_lead":
+        if user.role not in _LEAD_WRITE_ROLES:
+            return {"error": "Your role doesn't have permission to edit leads."}, None
         try:
             iid = uuid.UUID(args["interview_id"])
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
-        iv = session.get(Interview, iid)
-        if not iv:
+        # Read-only lookup, just to get the thread_id for the notes call below — the
+        # actual writes below each go through their own scoped endpoint.
+        interview_row = session.get(Interview, iid)
+        if not interview_row:
             return {"error": "Interview (lead row) not found"}, None
 
-        changed = []
-        if "role" in args and args["role"]:
-            iv.role = args["role"].strip()
+        changed: list[str] = []
+        update_kwargs: dict[str, Any] = {}
+        if args.get("role"):
+            update_kwargs["role"] = args["role"].strip()
             changed.append("role")
-        if "salary_range" in args and args["salary_range"]:
-            iv.salary_range = args["salary_range"].strip()
+        if args.get("salary_range"):
+            update_kwargs["salary_range"] = args["salary_range"].strip()
             changed.append("salary_range")
-        if "bd_id" in args and args["bd_id"]:
+
+        bd_id = None
+        if args.get("bd_id"):
             try:
                 bd_id = uuid.UUID(args["bd_id"])
             except ValueError as e:
                 return {"error": f"Invalid BD UUID: {e}"}, None
-            if not session.get(BusinessDeveloper, bd_id):
-                return {"error": "Business developer not found"}, None
-            iv.bd_id = bd_id
-            changed.append("bd_id")
-        elif "bd_name" in args and args["bd_name"]:
+        elif args.get("bd_name"):
             bd_row = session.exec(
                 select(BusinessDeveloper).where(BusinessDeveloper.name.ilike(f"%{args['bd_name']}%"))
             ).first()
-            if bd_row:
-                iv.bd_id = bd_row.id
-                changed.append("bd_id")
-            else:
+            if not bd_row:
                 return {"error": f"Business developer '{args['bd_name']}' not found"}, None
+            bd_id = bd_row.id
+        if bd_id:
+            update_kwargs["bd_id"] = bd_id
+            changed.append("bd_id")
 
-        if "notes" in args and args["notes"]:
-            lt = ensure_lead_thread(session, iv.thread_id)
-            lt.notes = args["notes"].strip()
-            lt.updated_at = datetime.utcnow()
-            session.add(lt)
+        if update_kwargs:
+            try:
+                _update_interview_endpoint(iid, InterviewUpdate(**update_kwargs), background_tasks, session, user)
+            except HTTPException as e:
+                return {"error": e.detail}, None
+
+        if args.get("notes"):
+            try:
+                _patch_lead_thread_endpoint(
+                    interview_row.thread_id, LeadThreadUpdate(notes=args["notes"].strip()), session, user
+                )
+            except HTTPException as e:
+                return {"error": e.detail}, None
             changed.append("notes")
 
         if not changed:
             return {"error": "No fields provided to update"}, None
 
-        iv.updated_at = datetime.utcnow()
-        session.add(iv)
-        session.commit()
-
         desc = f"Lead updated — {', '.join(changed)}"
-        action = ChatAction(type="lead_updated", description=desc, id=str(iv.thread_id))
-        return {"interview_id": str(iv.id), "thread_id": str(iv.thread_id), "updated": changed}, action
+        action = ChatAction(type="lead_updated", description=desc, id=str(interview_row.thread_id))
+        return {"interview_id": str(iid), "thread_id": str(interview_row.thread_id), "updated": changed}, action
 
     if name == "update_lead_outcome":
         outcome = args["outcome"].strip().lower()
@@ -911,17 +1159,10 @@ def _exec_tool(
             thread_id = uuid.UUID(args["thread_id"])
         except ValueError as e:
             return {"error": f"Invalid UUID: {e}"}, None
-        lt = ensure_lead_thread(session, thread_id)
-        prev_outcome = (lt.outcome_override or "").strip().lower()
-        lt.outcome_override = outcome
-        if outcome == "unresponsive":
-            if prev_outcome != "unresponsive":
-                lt.unresponsive_since = datetime.utcnow()
-        else:
-            lt.unresponsive_since = None
-        lt.updated_at = datetime.utcnow()
-        session.add(lt)
-        session.commit()
+        try:
+            _patch_lead_thread_endpoint(thread_id, LeadThreadUpdate(outcome_override=outcome), session, user)
+        except HTTPException as e:
+            return {"error": e.detail}, None
         action = ChatAction(
             type="lead_outcome_updated",
             description=f"Lead outcome → '{outcome}'",
@@ -993,12 +1234,16 @@ def _exec_tool(
 @router.post("/message", response_model=ChatResponse)
 def chat_message(
     body: ChatRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    if current_user.role not in (UserRole.SUPERADMIN, UserRole.TEAM_MEMBER, UserRole.BD_TEAM_LEAD):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chat is only available to team members, BD team leads, and admins.")
-
+    # Every role can use Jarvis — what it's actually offered (read tools vs. write tools,
+    # and which write tools) is scoped per role by `_tools_for_role` below, mirroring the
+    # real REST gates exactly. Access itself (can they open Jarvis at all) is a separate,
+    # subscription-based gate: superadmin always; everyone else needs an active trial or
+    # subscription granted from User Management (see _assert_jarvis_access).
+    _assert_jarvis_access(current_user)
     settings = get_settings()
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
@@ -1018,9 +1263,10 @@ def chat_message(
         messages.append({"role": m.role, "content": m.content})
     messages.append({"role": "user", "content": body.message})
 
-    tools = _TOOLS + (_ANALYTICS_TOOLS if current_user.role == UserRole.SUPERADMIN else [])
+    tools = _tools_for_role(current_user.role)
 
     actions: list[ChatAction] = []
+    pending_out: Optional[PendingActionOut] = None
     max_iterations = 10
 
     for _ in range(max_iterations):
@@ -1033,7 +1279,7 @@ def chat_message(
         msg = response.choices[0].message
 
         if not msg.tool_calls:
-            return ChatResponse(reply=msg.content or "", actions=actions)
+            return ChatResponse(reply=msg.content or "", actions=actions, pending_action=pending_out)
 
         messages.append({
             "role": "assistant",
@@ -1053,13 +1299,97 @@ def chat_message(
                 tool_args = json.loads(tc.function.arguments)
             except json.JSONDecodeError:
                 tool_args = {}
-            result, action = _exec_tool(tc.function.name, tool_args, session, current_user, own_candidate_id)
-            if action:
-                actions.append(action)
+
+            if tc.function.name in _MUTATING_TOOLS:
+                # Propose, never execute here — the model only decided *what* to do; a
+                # human still has to say "yes, do it" before anything is written.
+                if pending_out is not None:
+                    tool_result: Any = {
+                        "error": (
+                            "Another action is already awaiting the user's confirmation. "
+                            "Wait for them to confirm or cancel it before proposing anything else."
+                        ),
+                    }
+                else:
+                    _prune_pending_actions()
+                    action_id = str(uuid.uuid4())
+                    _pending_actions[action_id] = {
+                        "name": tc.function.name,
+                        "args": tool_args,
+                        "user_id": current_user.id,
+                        "created_at": datetime.utcnow(),
+                    }
+                    pending_out = PendingActionOut(
+                        id=action_id,
+                        action_type=tc.function.name,
+                        summary=_summarize_pending(tc.function.name, tool_args),
+                        details=_build_pending_details(tc.function.name, tool_args, session),
+                    )
+                    tool_result = {
+                        "status": "pending_confirmation",
+                        "note": (
+                            "Not executed — awaiting the user's explicit confirmation via the UI. "
+                            "Tell them in one sentence what you're about to do, then stop. "
+                            "Do not say it succeeded."
+                        ),
+                    }
+            else:
+                tool_result, action = _exec_tool(
+                    tc.function.name, tool_args, session, current_user, own_candidate_id, background_tasks
+                )
+                if action:
+                    actions.append(action)
+
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
-                "content": json.dumps(result),
+                "content": json.dumps(tool_result),
             })
 
-    return ChatResponse(reply="I ran into an issue completing your request. Please try again.", actions=actions)
+    return ChatResponse(
+        reply="I ran into an issue completing your request. Please try again.",
+        actions=actions,
+        pending_action=pending_out,
+    )
+
+
+@router.post("/confirm", response_model=ChatResponse)
+def confirm_action(
+    body: ConfirmActionRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Actually perform a previously-proposed write. This is the only path that ever
+    calls `_exec_tool(..., confirm=True)` for a mutating tool."""
+    _assert_jarvis_access(current_user)
+    _prune_pending_actions()
+    pending = _pending_actions.pop(body.action_id, None)
+    if not pending:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This action has expired or was already handled — please ask again.",
+        )
+    if pending["user_id"] != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This action does not belong to you.")
+
+    own_candidate_id = None
+    if current_user.role == UserRole.TEAM_MEMBER:
+        own_candidate_id = candidate_id_for_team_member(session, current_user)
+
+    result, action = _exec_tool(
+        pending["name"], pending["args"], session, current_user, own_candidate_id, background_tasks, confirm=True
+    )
+    if isinstance(result, dict) and result.get("error"):
+        return ChatResponse(reply=f"I couldn't complete that: {result['error']}", actions=[])
+    return ChatResponse(reply=action.description if action else "Done.", actions=[action] if action else [])
+
+
+@router.post("/cancel", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_action(
+    body: ConfirmActionRequest,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    pending = _pending_actions.get(body.action_id)
+    if pending and pending["user_id"] == current_user.id:
+        _pending_actions.pop(body.action_id, None)

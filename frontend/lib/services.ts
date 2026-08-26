@@ -541,6 +541,12 @@ export const usersService = {
     apiFetch<void>(`/users/${id}`, { method: "DELETE" }),
   toggleActive: (id: string) =>
     apiFetch<User>(`/users/${id}/toggle-active`, { method: "PATCH" }),
+  grantJarvisTrial: (id: string) =>
+    apiFetch<User>(`/users/${id}/jarvis/trial`, { method: "POST" }),
+  activateJarvisSubscription: (id: string) =>
+    apiFetch<User>(`/users/${id}/jarvis/subscribe`, { method: "POST" }),
+  revokeJarvisAccess: (id: string) =>
+    apiFetch<User>(`/users/${id}/jarvis/revoke`, { method: "POST" }),
 };
 
 // ─── Database backup (Superadmin only) ───────────────────────
@@ -555,12 +561,35 @@ export const backupService = {
 
 // ─── Chat assistant ──────────────────────────────────────────
 
+interface ChatApiResponse {
+  reply: string;
+  actions: { type: string; description: string; id?: string }[];
+  /** Set when the assistant proposed a write this turn — nothing has executed yet. */
+  pending_action?: {
+    id: string;
+    action_type: string;
+    summary: string;
+    details?: { label: string; value: string }[];
+  } | null;
+}
+
 export const chatService = {
   send: (messages: { role: string; content: string }[], message: string) =>
-    apiFetch<{ reply: string; actions: { type: string; description: string; id?: string }[] }>(
-      "/chat/message",
-      { method: "POST", body: JSON.stringify({ messages, message }) },
-    ),
+    apiFetch<ChatApiResponse>("/chat/message", {
+      method: "POST",
+      body: JSON.stringify({ messages, message }),
+    }),
+  /** Actually perform a previously-proposed write. */
+  confirmAction: (actionId: string) =>
+    apiFetch<ChatApiResponse>("/chat/confirm", {
+      method: "POST",
+      body: JSON.stringify({ action_id: actionId }),
+    }),
+  cancelAction: (actionId: string) =>
+    apiFetch<void>("/chat/cancel", {
+      method: "POST",
+      body: JSON.stringify({ action_id: actionId }),
+    }),
 };
 
 // ─── Departments ─────────────────────────────────────────────

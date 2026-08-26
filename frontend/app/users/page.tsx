@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Loader2, Search, Pencil, Trash2, Shield, Power, Megaphone, X, ChevronLeft, ChevronRight, Gift, CreditCard, Sparkles, Ban } from "lucide-react";
 import { usersService, departmentsService, candidatesService, authService, businessDevelopersService } from "@/lib/services";
 import { formatDate } from "@/lib/utils";
 import type { User, UserFormData, Department, BusinessDeveloper } from "@/lib/types";
@@ -285,6 +285,43 @@ export default function UsersPage() {
     }
   };
 
+  const [jarvisBusyId, setJarvisBusyId] = useState<string | null>(null);
+  const handleGrantJarvisTrial = async (user: User) => {
+    setJarvisBusyId(user.id);
+    try {
+      await usersService.grantJarvisTrial(user.id);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to grant Jarvis AI trial");
+    } finally {
+      setJarvisBusyId(null);
+    }
+  };
+  const handleActivateJarvisSubscription = async (user: User) => {
+    setJarvisBusyId(user.id);
+    try {
+      await usersService.activateJarvisSubscription(user.id);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to activate Jarvis AI subscription");
+    } finally {
+      setJarvisBusyId(null);
+    }
+  };
+  const handleRevokeJarvisAccess = async (user: User) => {
+    setJarvisBusyId(user.id);
+    try {
+      await usersService.revokeJarvisAccess(user.id);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to revoke Jarvis AI access");
+    } finally {
+      setJarvisBusyId(null);
+    }
+  };
+  const jarvisAccessActive = (user: User) =>
+    !!user.jarvis_access_until && new Date(user.jarvis_access_until).getTime() > Date.now();
+
   if (!hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -422,6 +459,9 @@ export default function UsersPage() {
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Department</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Created</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Status</th>
+                  {isSuperadmin && (
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Jarvis AI</th>
+                  )}
                   <th className="px-5 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Actions</th>
                 </tr>
               </thead>
@@ -499,6 +539,54 @@ export default function UsersPage() {
                         </span>
                       )}
                     </td>
+                    {isSuperadmin && (
+                      <td className="px-5 py-4">
+                        {user.role === "superadmin" ? (
+                          <span className="text-slate-400 dark:text-slate-500 text-[13px]">Full access</span>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            {jarvisAccessActive(user) ? (
+                              <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
+                                <Sparkles size={10} />
+                                Until {formatDate(user.jarvis_access_until)}
+                              </span>
+                            ) : (
+                              <span className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-lg border border-slate-400/20 bg-slate-400/10 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                No access
+                              </span>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleGrantJarvisTrial(user)}
+                                disabled={user.jarvis_trial_used || jarvisBusyId === user.id}
+                                title={user.jarvis_trial_used ? "Trial already used" : "Grant 7-day trial"}
+                                className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-indigo-500/10 hover:text-indigo-500 disabled:cursor-not-allowed disabled:opacity-30"
+                              >
+                                {jarvisBusyId === user.id ? <Loader2 size={12} className="animate-spin" /> : <Gift size={12} />}
+                              </button>
+                              <button
+                                onClick={() => handleActivateJarvisSubscription(user)}
+                                disabled={jarvisBusyId === user.id}
+                                title="Activate 30-day subscription"
+                                className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-emerald-500/10 hover:text-emerald-500 disabled:cursor-not-allowed disabled:opacity-30"
+                              >
+                                {jarvisBusyId === user.id ? <Loader2 size={12} className="animate-spin" /> : <CreditCard size={12} />}
+                              </button>
+                              {jarvisAccessActive(user) && (
+                                <button
+                                  onClick={() => handleRevokeJarvisAccess(user)}
+                                  disabled={jarvisBusyId === user.id}
+                                  title="Revoke access now"
+                                  className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
+                                >
+                                  {jarvisBusyId === user.id ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    )}
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button

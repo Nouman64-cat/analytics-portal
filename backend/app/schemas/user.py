@@ -45,6 +45,8 @@ class UserRead(UserBase):
     alarm_style: Optional[str] = None
     accent_color: Optional[str] = None
     glassmorphism_enabled: bool = False
+    jarvis_trial_used: bool = False
+    jarvis_access_until: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

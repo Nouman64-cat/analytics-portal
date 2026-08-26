@@ -97,6 +97,11 @@ class User(SQLModel, table=True):
     can_broadcast: bool = Field(default=False)
     reset_token: Optional[str] = Field(default=None)
     reset_token_expires_at: Optional[datetime] = Field(default=None)
+    # Jarvis AI access (non-superadmin roles only — superadmin always has full access).
+    # A trial can only ever be granted once per user; re-activating a subscription simply
+    # resets jarvis_access_until to 30 days out, it does not stack.
+    jarvis_trial_used: bool = Field(default=False)
+    jarvis_access_until: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
