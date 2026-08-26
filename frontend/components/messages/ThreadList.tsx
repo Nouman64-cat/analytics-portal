@@ -2,9 +2,22 @@
 
 import { useState } from "react";
 import { Plus, Search } from "lucide-react";
-import type { MessageThreadSummary } from "@/lib/types";
+import type { MessageThreadSummary, TeamMessage } from "@/lib/types";
 import ThreadAvatar from "./ThreadAvatar";
 import { formatMessageTime } from "./format";
+
+/** Body text is blank for a deleted message and for an attachment-only message — fall back
+ * to a label so the thread-list preview isn't just empty. */
+function lastMessagePreview(m: TeamMessage): string {
+  if (m.deleted_at) return "Message deleted";
+  if (m.body) return m.body;
+  if (m.attachments.length > 0) {
+    const isImage = m.attachments[0].content_type.startsWith("image/");
+    const kind = isImage ? "Photo" : "File";
+    return m.attachments.length > 1 ? `${kind} +${m.attachments.length - 1} more` : kind;
+  }
+  return "";
+}
 
 export default function ThreadList({
   threads,
@@ -85,7 +98,7 @@ export default function ThreadList({
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs text-slate-500 dark:text-slate-400">
                     {t.last_message
-                      ? `${t.last_message.sender_name}: ${t.last_message.body}`
+                      ? `${t.last_message.sender_name}: ${lastMessagePreview(t.last_message)}`
                       : "No messages yet"}
                   </span>
                   {t.unread_count > 0 && (

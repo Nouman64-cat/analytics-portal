@@ -87,6 +87,18 @@ export interface MessageContact {
   role: string;
 }
 
+export interface MessageAttachment {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  /** Presigned S3 GET URL (7-day expiry) — re-fetch the message to refresh once it lapses. */
+  url: string;
+  /** Presigned URL for a client-generated page-1 preview (PDFs only). Absent if generation
+   * failed or the attachment predates this feature — fall back to a generic file chip. */
+  thumbnail_url?: string | null;
+}
+
 /** A single internal team message. Not to be confused with `ChatMessage` below, which is
  * the unrelated AI-assistant chat feature. */
 export interface TeamMessage {
@@ -97,6 +109,7 @@ export interface TeamMessage {
   body: string;
   /** Contacts explicitly @-tagged via the composer — used to color mentions and notify. */
   mentions: MessageContact[];
+  attachments: MessageAttachment[];
   created_at: string;
   edited_at?: string | null;
   /** Set once the message is deleted — `body` is blanked server-side; render a placeholder. */

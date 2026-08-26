@@ -699,13 +699,71 @@ export const messagesService = {
     apiFetch<import("./types").TeamMessage[]>(
       `/messages/threads/${threadId}/search?q=${encodeURIComponent(q)}`,
     ),
-  sendMessage: (threadId: string, body: string, mentionedUserIds?: string[]) =>
+  sendMessage: (
+    threadId: string,
+    body: string,
+    mentionedUserIds?: string[],
+    attachments?: {
+      s3_key: string;
+      filename: string;
+      content_type: string;
+      size_bytes: number;
+      thumbnail_s3_key?: string;
+    }[],
+  ) =>
     apiFetch<import("./types").TeamMessage>(`/messages/threads/${threadId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ body, mentioned_user_ids: mentionedUserIds ?? [] }),
+      body: JSON.stringify({
+        body,
+        mentioned_user_ids: mentionedUserIds ?? [],
+        attachments: attachments ?? [],
+      }),
     }),
   markRead: (threadId: string) =>
     apiFetch<void>(`/messages/threads/${threadId}/read`, { method: "POST" }),
+  /** Uploads one file straight to S3 via a presigned PUT (never touches our server), then
+   * returns the metadata `sendMessage` needs to attach it. Call once per file — the caller
+   * fires these off in parallel for multi-file sends. */
+  uploadAttachment: (
+    threadId: string,
+    file: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<{ s3_key: string; filename: string; content_type: string; size_bytes: number }> => {
+    const token = getToken();
+    const jsonHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) jsonHeaders["Authorization"] = `Bearer ${token}`;
+
+    return (async () => {
+      const presignRes = await fetch(`${API_V1}/messages/threads/${threadId}/attachments/presign-upload`, {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ filename: file.name, content_type: file.type }),
+      });
+      if (!presignRes.ok) {
+        const error = await presignRes.json().catch(() => ({ detail: presignRes.statusText }));
+        if (presignRes.status === 401) { clearToken(); window.location.href = "/login"; }
+        throw new Error(error.detail || `API Error: ${presignRes.status}`);
+      }
+      const { upload_url, s3_key } = (await presignRes.json()) as { upload_url: string; s3_key: string };
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", upload_url, true);
+        xhr.setRequestHeader("Content-Type", file.type);
+        if (onProgress) {
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+          });
+        }
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error("File upload failed"));
+        xhr.onerror = () => reject(new Error("Upload network error"));
+        xhr.send(file);
+      });
+
+      return { s3_key, filename: file.name, content_type: file.type, size_bytes: file.size };
+    })();
+  },
   editMessage: (threadId: string, messageId: string, body: string) =>
     apiFetch<import("./types").TeamMessage>(`/messages/threads/${threadId}/messages/${messageId}`, {
       method: "PATCH",

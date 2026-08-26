@@ -58,6 +58,25 @@ class Message(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None)
 
 
+class MessageAttachment(SQLModel, table=True):
+    """A file (image or PDF) attached to a message. The browser uploads the bytes straight
+    to S3 via a presigned PUT before the message is sent — this row just records where it
+    landed, so the server never touches attachment bytes."""
+
+    __tablename__ = "message_attachments"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    message_id: uuid.UUID = Field(index=True, foreign_key="messages.id")
+    s3_key: str
+    filename: str = Field(max_length=255)
+    content_type: str = Field(max_length=100)
+    size_bytes: int = 0
+    # Client-rendered page-1 preview (PDFs only) — a small JPEG generated in the browser via
+    # PDF.js and uploaded the same way as the main file. Null if generation failed/skipped.
+    thumbnail_s3_key: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class MessageRead(SQLModel, table=True):
     """Per-user read watermark for a thread — one row per (user_id, thread_id).
     Unread count = messages in the thread newer than last_read_at (or all, if no row)."""

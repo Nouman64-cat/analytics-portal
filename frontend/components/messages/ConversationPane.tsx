@@ -5,7 +5,9 @@ import {
   CalendarCheck2,
   Check,
   ChevronLeft,
+  FileText,
   Loader2,
+  Paperclip,
   Pencil,
   Search,
   Send,
@@ -16,10 +18,12 @@ import {
 } from "lucide-react";
 import { getUserId } from "@/lib/auth";
 import { messagesService } from "@/lib/services";
+import { generatePdfThumbnail } from "@/lib/pdfThumbnail";
 import { subscribeToMessages, setActiveThreadId } from "@/lib/messagesSocket";
-import type { TeamMessage, MessageThreadSummary, MessageContact } from "@/lib/types";
+import type { TeamMessage, MessageThreadSummary, MessageContact, MessageAttachment } from "@/lib/types";
 import ThreadAvatar from "./ThreadAvatar";
 import MentionText from "./MentionText";
+import AttachmentLightbox from "./AttachmentLightbox";
 import { dayKey, formatDateDivider, formatMessageTime } from "./format";
 import { QUICK_ACTIONS, QuickActionKey, buildQuickMessage } from "./quickMessages";
 import { EMOJI_GROUPS } from "./EMOJI_LIST";
@@ -29,7 +33,35 @@ const POLL_INTERVAL_MS = 30 * 1000;
 const SEARCH_DEBOUNCE_MS = 250;
 const MENTION_DEBOUNCE_MS = 200;
 
+// Must mirror the backend's _ATTACHMENT_ALLOWED_TYPES (app/routers/messages.py) — this is
+// just an early client-side check so a bad pick fails instantly instead of after upload.
+const ALLOWED_ATTACHMENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+
 type MentionItem = { type: "action"; key: QuickActionKey; label: string } | { type: "contact"; contact: MessageContact };
+
+type PendingAttachment = {
+  id: string;
+  file: File;
+  previewUrl?: string;
+  progress: number;
+  status: "uploading" | "done" | "error";
+  error?: string;
+  result?: {
+    s3_key: string;
+    filename: string;
+    content_type: string;
+    size_bytes: number;
+    thumbnail_s3_key?: string;
+  };
+};
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function ConversationPane({
   thread,
@@ -81,6 +113,13 @@ export default function ConversationPane({
   const [editingText, setEditingText] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // File attachments (images + PDFs) — each one uploads to S3 directly and asynchronously
+  // (in parallel, off the main send action) the moment it's picked; only fully-uploaded
+  // ones are attached when the message is actually sent.
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<MessageAttachment | null>(null);
 
   const fetchMessages = useCallback(async (threadId: string, showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
@@ -352,10 +391,92 @@ export default function ConversationPane({
     });
   };
 
+  /** Validates and stages picked files, then kicks off an independent, parallel S3 upload
+   * for each one immediately — nothing here blocks the composer or waits on another file. */
+  const handleFilesSelected = (files: FileList | null) => {
+    if (!files || !thread) return;
+    const incoming = Array.from(files);
+    if (pendingAttachments.length + incoming.length > MAX_ATTACHMENTS) {
+      setError(`You can attach up to ${MAX_ATTACHMENTS} files per message`);
+      return;
+    }
+    const accepted: PendingAttachment[] = [];
+    for (const file of incoming) {
+      if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+        setError(`${file.name}: only images and PDF files are allowed`);
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_SIZE) {
+        setError(`${file.name} is too large (max ${formatFileSize(MAX_ATTACHMENT_SIZE)})`);
+        continue;
+      }
+      accepted.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+        progress: 0,
+        status: "uploading",
+      });
+    }
+    if (accepted.length === 0) return;
+    setError(null);
+    setPendingAttachments((prev) => [...prev, ...accepted]);
+
+    // Each file uploads on its own, independent async path — a PDF additionally renders a
+    // page-1 thumbnail client-side (via PDF.js) and uploads that in parallel with the main
+    // file, so the message gets an inline visual preview the same way an image does. None
+    // of this blocks the composer or other in-flight uploads.
+    accepted.forEach(async (att) => {
+      try {
+        const isPdf = att.file.type === "application/pdf";
+        const thumbBlob = isPdf ? await generatePdfThumbnail(att.file) : null;
+        if (thumbBlob) {
+          const url = URL.createObjectURL(thumbBlob);
+          setPendingAttachments((prev) => prev.map((p) => (p.id === att.id ? { ...p, previewUrl: url } : p)));
+        }
+
+        const mainUpload = messagesService.uploadAttachment(thread.id, att.file, (pct) => {
+          setPendingAttachments((prev) => prev.map((p) => (p.id === att.id ? { ...p, progress: pct } : p)));
+        });
+        const thumbUpload = thumbBlob
+          ? messagesService
+              .uploadAttachment(thread.id, new File([thumbBlob], `thumb-${att.id}.jpg`, { type: "image/jpeg" }))
+              .then((r) => r.s3_key)
+              .catch(() => undefined) // thumbnail is best-effort — never fail the whole attachment over it
+          : Promise.resolve(undefined);
+
+        const [main, thumbnail_s3_key] = await Promise.all([mainUpload, thumbUpload]);
+        setPendingAttachments((prev) =>
+          prev.map((p) =>
+            p.id === att.id ? { ...p, status: "done", progress: 100, result: { ...main, thumbnail_s3_key } } : p,
+          ),
+        );
+      } catch (err) {
+        setPendingAttachments((prev) =>
+          prev.map((p) =>
+            p.id === att.id
+              ? { ...p, status: "error", error: err instanceof Error ? err.message : "Upload failed" }
+              : p,
+          ),
+        );
+      }
+    });
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setPendingAttachments((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
   const handleSend = async () => {
     if (!thread) return;
     const body = composerText.trim();
-    if (!body || sending) return;
+    const uploading = pendingAttachments.some((a) => a.status === "uploading");
+    const readyAttachments = pendingAttachments.filter((a) => a.status === "done" && a.result).map((a) => a.result!);
+    if ((!body && readyAttachments.length === 0) || sending || uploading) return;
     // Only mention contacts whose "@Name" tag is still actually present in the text — covers
     // the case where the user backspaced a tag out after inserting it.
     const mentionIds = taggedContacts
@@ -364,7 +485,7 @@ export default function ConversationPane({
     setSending(true);
     setError(null);
     try {
-      const sent = await messagesService.sendMessage(thread.id, body, mentionIds);
+      const sent = await messagesService.sendMessage(thread.id, body, mentionIds, readyAttachments);
       if (historyModeRef.current) {
         setHistoryMode(false);
         await fetchMessages(thread.id, false);
@@ -376,6 +497,8 @@ export default function ConversationPane({
       }
       setComposerText("");
       setTaggedContacts([]);
+      pendingAttachments.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      setPendingAttachments([]);
       onMessageSent?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send that message");
@@ -553,6 +676,65 @@ export default function ConversationPane({
                         {m.sender_name}
                       </span>
                     )}
+                    {!m.deleted_at && m.attachments.length > 0 && editingId !== m.id && (
+                      <div className={`flex flex-wrap gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
+                        {m.attachments.map((a) => {
+                          // Images preview in-app (lightbox); PDFs open in a new tab either
+                          // way — like WhatsApp, the visual card is just a preview, tapping
+                          // it hands off to the browser's own PDF viewer/download.
+                          if (a.content_type.startsWith("image/")) {
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => setPreviewAttachment(a)}
+                                className="relative block w-[180px] shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static/local asset next/image can optimize */}
+                                <img src={a.url} alt={a.filename} className="max-h-48 w-full object-cover" />
+                              </button>
+                            );
+                          }
+                          return a.thumbnail_url ? (
+                            <a
+                              key={a.id}
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative block w-[180px] shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static/local asset next/image can optimize */}
+                              <img src={a.thumbnail_url} alt={a.filename} className="h-[140px] w-full object-cover" />
+                              <span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                                PDF
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-white dark:bg-white/[0.03] px-2.5 py-1.5">
+                                <FileText size={13} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                                <span className="min-w-0 flex-1 truncate text-left text-xs font-medium text-slate-700 dark:text-slate-300">
+                                  {a.filename}
+                                </span>
+                              </span>
+                            </a>
+                          ) : (
+                            <a
+                              key={a.id}
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-colors"
+                            >
+                              <FileText size={16} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                              <span className="min-w-0 max-w-[160px] truncate text-xs font-medium text-slate-700 dark:text-slate-300">
+                                {a.filename}
+                              </span>
+                              <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                                {formatFileSize(a.size_bytes)}
+                              </span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
                     {editingId === m.id ? (
                       <div className="flex flex-col gap-1.5 w-full min-w-[240px]">
                         <textarea
@@ -594,21 +776,23 @@ export default function ConversationPane({
                         </div>
                       </div>
                     ) : (
-                      <div
-                        className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words transition-colors ${
-                          m.deleted_at
-                            ? "italic text-slate-400 dark:text-slate-500 bg-transparent border border-dashed border-slate-300 dark:border-white/10"
-                            : mine
-                              ? "bg-indigo-600 text-white rounded-br-sm"
-                              : "bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 rounded-bl-sm"
-                        } ${highlightedId === m.id ? "ring-2 ring-offset-2 ring-amber-400 dark:ring-offset-[#14161f]" : ""}`}
-                      >
-                        {m.deleted_at ? (
-                          "Message deleted"
-                        ) : (
-                          <MentionText body={m.body} mentions={m.mentions} mine={mine} />
-                        )}
-                      </div>
+                      (m.body || m.deleted_at) && (
+                        <div
+                          className={`rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words transition-colors ${
+                            m.deleted_at
+                              ? "italic text-slate-400 dark:text-slate-500 bg-transparent border border-dashed border-slate-300 dark:border-white/10"
+                              : mine
+                                ? "bg-indigo-600 text-white rounded-br-sm"
+                                : "bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 rounded-bl-sm"
+                          } ${highlightedId === m.id ? "ring-2 ring-offset-2 ring-amber-400 dark:ring-offset-[#14161f]" : ""}`}
+                        >
+                          {m.deleted_at ? (
+                            "Message deleted"
+                          ) : (
+                            <MentionText body={m.body} mentions={m.mentions} mine={mine} />
+                          )}
+                        </div>
+                      )
                     )}
                     {editingId !== m.id && (
                       <span className="px-1 text-[10px] text-slate-400 dark:text-slate-500">
@@ -627,6 +811,52 @@ export default function ConversationPane({
 
       {error && (
         <p className="shrink-0 px-4 pb-1 text-xs text-red-500 dark:text-red-400">{error}</p>
+      )}
+
+      {pendingAttachments.length > 0 && (
+        <div className="shrink-0 flex flex-wrap gap-2 px-4 pt-3">
+          {pendingAttachments.map((att) => (
+            <div
+              key={att.id}
+              className="relative flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] pl-2 pr-7 py-1.5"
+            >
+              {att.previewUrl ? (
+                <img src={att.previewUrl} alt={att.file.name} className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-white/[0.06]">
+                  <FileText size={16} className="text-slate-500 dark:text-slate-400" />
+                </div>
+              )}
+              <div className="min-w-0 max-w-[140px]">
+                <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">{att.file.name}</p>
+                {att.status === "uploading" && (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Uploading… {att.progress}%</p>
+                )}
+                {att.status === "done" && (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">{formatFileSize(att.file.size)}</p>
+                )}
+                {att.status === "error" && <p className="text-[10px] text-red-500 dark:text-red-400">Failed</p>}
+              </div>
+              {att.status === "uploading" && (
+                <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden rounded-b-xl bg-slate-100 dark:bg-white/[0.06]">
+                  <div
+                    className="h-full bg-indigo-500 transition-all"
+                    style={{ width: `${att.progress}%` }}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleRemoveAttachment(att.id)}
+                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Remove"
+                aria-label="Remove attachment"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="relative shrink-0 flex items-end gap-2 px-4 py-3 border-t border-slate-200/70 dark:border-white/[0.07]">
@@ -758,6 +988,26 @@ export default function ConversationPane({
           rows={1}
           className="min-h-[38px] max-h-56 flex-1 resize-none overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-indigo-500/50"
         />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ALLOWED_ATTACHMENT_TYPES.join(",")}
+          className="hidden"
+          onChange={(e) => {
+            handleFilesSelected(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-white/[0.08] text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+          title="Attach files"
+          aria-label="Attach files"
+        >
+          <Paperclip size={17} />
+        </button>
         <button
           type="button"
           onClick={() => setEmojiPickerOpen((v) => !v)}
@@ -774,7 +1024,11 @@ export default function ConversationPane({
         <button
           type="button"
           onClick={handleSend}
-          disabled={sending || !composerText.trim()}
+          disabled={
+            sending ||
+            pendingAttachments.some((a) => a.status === "uploading") ||
+            (!composerText.trim() && !pendingAttachments.some((a) => a.status === "done"))
+          }
           className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Send"
           aria-label="Send message"
@@ -782,6 +1036,7 @@ export default function ConversationPane({
           {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
+      <AttachmentLightbox attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />
     </div>
   );
 }

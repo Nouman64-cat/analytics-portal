@@ -123,6 +123,15 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.message_attachments "
+                    f"ADD COLUMN IF NOT EXISTS thumbnail_s3_key VARCHAR"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

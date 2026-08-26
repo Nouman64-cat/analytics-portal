@@ -9,6 +9,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -30,6 +31,7 @@ from app.messaging_utils import (
 from app.models.department import Department
 from app.models.message import (
     Message,
+    MessageAttachment,
     MessageRead,
     MessageThread,
     MessageThreadKind,
@@ -51,12 +53,69 @@ ws_router = APIRouter(prefix="/api/v1/messages", tags=["Messages"])
 
 MAX_MESSAGE_LENGTH = 4000
 
+# ─── Attachments (images + PDFs, uploaded browser → S3 directly via presigned URL) ────
+_ATTACHMENT_ALLOWED_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "application/pdf": "pdf",
+}
+MAX_ATTACHMENTS_PER_MESSAGE = 10
+
+_s3_client_cache: dict = {}
+
+
+def _get_s3_client(settings):
+    try:
+        import boto3
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail="boto3 is required for S3 uploads") from e
+
+    aws_access_key_id = settings.effective_aws_access_key_id
+    aws_secret_access_key = settings.effective_aws_secret_access_key
+    if not aws_access_key_id or not aws_secret_access_key:
+        raise HTTPException(status_code=500, detail="AWS credentials are not configured")
+
+    cache_key = (aws_access_key_id, settings.AWS_REGION)
+    if cache_key not in _s3_client_cache:
+        _s3_client_cache[cache_key] = boto3.client(
+            "s3",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+    return _s3_client_cache[cache_key]
+
+
+def _presign_get_url(s3_client, settings, key: str, expiry: int = 604800) -> str:
+    """Presigned GET (default 7 days) for a privately-stored attachment. Falls back to the
+    raw (inaccessible without bucket policy changes) URL if signing fails for any reason —
+    mirrors `make_presigned_doc_url` in app/email_ses.py."""
+    try:
+        return s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.AWS_S3_BUCKET_NAME, "Key": key},
+            ExpiresIn=expiry,
+        )
+    except (BotoCoreError, ClientError):
+        return f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+
 
 class ContactOut(BaseModel):
     id: uuid.UUID
     full_name: str
     email: str
     role: str
+
+
+class AttachmentOut(BaseModel):
+    id: uuid.UUID
+    filename: str
+    content_type: str
+    size_bytes: int
+    url: str
+    thumbnail_url: Optional[str] = None
 
 
 class MessageOut(BaseModel):
@@ -68,6 +127,7 @@ class MessageOut(BaseModel):
     # Contacts the sender explicitly @-tagged via the composer — used by clients to render
     # mentions in a distinct color and to notify a mentioned user.
     mentions: list[ContactOut] = []
+    attachments: list[AttachmentOut] = []
     created_at: datetime
     edited_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
@@ -88,14 +148,35 @@ class UnreadCountOut(BaseModel):
     unread_count: int
 
 
+class AttachmentInput(BaseModel):
+    s3_key: str
+    filename: str
+    content_type: str
+    size_bytes: int = 0
+    # Client-rendered page-1 preview (PDFs only), uploaded via the same presign endpoint —
+    # optional and best-effort; a message still sends fine if thumbnail generation failed.
+    thumbnail_s3_key: Optional[str] = None
+
+
 class SendMessageRequest(BaseModel):
-    body: str
+    body: str = ""
     mentioned_user_ids: list[uuid.UUID] = []
+    attachments: list[AttachmentInput] = []
 
 
 class CreateGroupRequest(BaseModel):
     title: str
     participant_user_ids: list[uuid.UUID]
+
+
+class PresignAttachmentRequest(BaseModel):
+    filename: str
+    content_type: str
+
+
+class PresignAttachmentResponse(BaseModel):
+    upload_url: str
+    s3_key: str
 
 
 class EditMessageRequest(BaseModel):
@@ -122,9 +203,47 @@ def _parse_mention_ids(raw: Optional[str]) -> list[uuid.UUID]:
         return []
 
 
-def _message_out(m: Message, people: dict[uuid.UUID, User]) -> MessageOut:
+def _attachment_out(a: MessageAttachment, s3_client, settings) -> AttachmentOut:
+    return AttachmentOut(
+        id=a.id,
+        filename=a.filename,
+        content_type=a.content_type,
+        size_bytes=a.size_bytes,
+        url=_presign_get_url(s3_client, settings, a.s3_key),
+        thumbnail_url=_presign_get_url(s3_client, settings, a.thumbnail_s3_key) if a.thumbnail_s3_key else None,
+    )
+
+
+def _attachments_map(
+    session: Session, message_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[MessageAttachment]]:
+    if not message_ids:
+        return {}
+    rows = session.exec(
+        select(MessageAttachment)
+        .where(MessageAttachment.message_id.in_(message_ids))
+        .order_by(MessageAttachment.created_at.asc())
+    ).all()
+    out: dict[uuid.UUID, list[MessageAttachment]] = defaultdict(list)
+    for a in rows:
+        out[a.message_id].append(a)
+    return out
+
+
+def _message_out(
+    m: Message,
+    people: dict[uuid.UUID, User],
+    attachments: Optional[list[MessageAttachment]] = None,
+    s3_client=None,
+    settings=None,
+) -> MessageOut:
     sender = people.get(m.sender_id)
     mentions = [_contact_out(people[uid]) for uid in _parse_mention_ids(m.mentioned_user_ids) if uid in people]
+    attachment_outs = (
+        [_attachment_out(a, s3_client, settings) for a in attachments]
+        if attachments and s3_client is not None and settings is not None
+        else []
+    )
     return MessageOut(
         id=m.id,
         thread_id=m.thread_id,
@@ -132,6 +251,7 @@ def _message_out(m: Message, people: dict[uuid.UUID, User]) -> MessageOut:
         sender_name=sender.full_name if sender else "Unknown",
         body=m.body,
         mentions=mentions,
+        attachments=attachment_outs,
         created_at=m.created_at,
         edited_at=m.edited_at,
         deleted_at=m.deleted_at,
@@ -189,7 +309,7 @@ def _my_threads(session: Session, current_user: User) -> list[MessageThread]:
     return channel_threads + dm_group_threads
 
 
-def _build_thread_summaries(session: Session, current_user: User) -> list[ThreadSummaryOut]:
+def _build_thread_summaries(session: Session, current_user: User, settings) -> list[ThreadSummaryOut]:
     all_threads = _my_threads(session, current_user)
     if not all_threads:
         return []
@@ -234,6 +354,8 @@ def _build_thread_summaries(session: Session, current_user: User) -> list[Thread
 
     sender_ids = [m.sender_id for m in last_message_by_thread.values()]
     people = _user_map(session, list(other_user_id_by_thread.values()) + sender_ids)
+    attachments_by_message = _attachments_map(session, [m.id for m in last_message_by_thread.values()])
+    s3_client = _get_s3_client(settings) if attachments_by_message else None
 
     dept_map = (
         {
@@ -263,7 +385,11 @@ def _build_thread_summaries(session: Session, current_user: User) -> list[Thread
             title = t.title or "Group"
 
         last_msg = last_message_by_thread.get(t.id)
-        last_message_out = _message_out(last_msg, people) if last_msg else None
+        last_message_out = (
+            _message_out(last_msg, people, attachments_by_message.get(last_msg.id), s3_client, settings)
+            if last_msg
+            else None
+        )
 
         results.append(
             ThreadSummaryOut(
@@ -305,10 +431,11 @@ def list_contacts(
 @router.get("/threads", response_model=list[ThreadSummaryOut])
 def list_threads(
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ) -> list[ThreadSummaryOut]:
     """All threads visible to me: my DMs/groups, plus every department channel in my scope."""
-    return _build_thread_summaries(session, current_user)
+    return _build_thread_summaries(session, current_user, settings)
 
 
 @router.get("/unread-count", response_model=UnreadCountOut)
@@ -425,6 +552,7 @@ def get_thread_messages(
     around: Optional[uuid.UUID] = None,
     limit: int = 50,
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ) -> list[MessageOut]:
     """Cursor-paginated history, newest-first internally, returned oldest-first for display.
@@ -461,7 +589,9 @@ def get_thread_messages(
     people = _user_map(
         session, [m.sender_id for m in rows] + [uid for m in rows for uid in _parse_mention_ids(m.mentioned_user_ids)]
     )
-    out = [_message_out(m, people) for m in rows]
+    attachments_by_message = _attachments_map(session, [m.id for m in rows])
+    s3_client = _get_s3_client(settings) if attachments_by_message else None
+    out = [_message_out(m, people, attachments_by_message.get(m.id), s3_client, settings) for m in rows]
     out.reverse()
     return out
 
@@ -519,20 +649,43 @@ def _recipients_for_thread(session: Session, thread: MessageThread, thread_id: u
 
 
 def _send_message_sync(
-    session: Session, thread_id: uuid.UUID, current_user: User, body: str, mentioned_user_ids: list[uuid.UUID]
+    session: Session,
+    thread_id: uuid.UUID,
+    current_user: User,
+    body: str,
+    mentioned_user_ids: list[uuid.UUID],
+    attachments: list[AttachmentInput],
+    settings,
 ) -> tuple[MessageOut, set[uuid.UUID]]:
     """All the synchronous DB work for sending a message. Run via `run_in_threadpool` so it
     never blocks the event loop — this app runs as a single uvicorn process with no worker
     pool, so a blocking call here would stall every other request (interviews, leads,
     everything), not just messaging, for its duration."""
     thread = _authorize_thread(session, current_user, thread_id)
-    if not body:
+    if not body and not attachments:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message body is required")
     if len(body) > MAX_MESSAGE_LENGTH:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Message too long (max {MAX_MESSAGE_LENGTH} characters)",
         )
+    if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many attachments (max {MAX_ATTACHMENTS_PER_MESSAGE})",
+        )
+    # The presign step already restricts content-type and scopes the key under this thread,
+    # but a client could skip it and hand us an arbitrary key/type here — re-validate both so
+    # a message can never end up pointing at (and thus exposing a presigned GET for) an S3
+    # object outside its own thread's upload prefix.
+    expected_prefix = f"messages/{thread_id}/"
+    for a in attachments:
+        if a.content_type not in _ATTACHMENT_ALLOWED_TYPES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported attachment type")
+        if not a.s3_key.startswith(expected_prefix):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid attachment")
+        if a.thumbnail_s3_key and not a.thumbnail_s3_key.startswith(expected_prefix):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid attachment")
 
     mention_ids = list(dict.fromkeys(uid for uid in mentioned_user_ids if uid != current_user.id))[
         :MAX_MENTIONS_PER_MESSAGE
@@ -544,13 +697,64 @@ def _send_message_sync(
         mentioned_user_ids=json.dumps([str(uid) for uid in mention_ids]) if mention_ids else None,
     )
     session.add(message)
+    session.flush()
+
+    attachment_rows = [
+        MessageAttachment(
+            message_id=message.id,
+            s3_key=a.s3_key,
+            filename=a.filename[:255],
+            content_type=a.content_type,
+            size_bytes=max(0, a.size_bytes),
+            thumbnail_s3_key=a.thumbnail_s3_key,
+        )
+        for a in attachments
+    ]
+    for row in attachment_rows:
+        session.add(row)
     session.commit()
     session.refresh(message)
 
     people = _user_map(session, mention_ids)
     people[current_user.id] = current_user
-    out = _message_out(message, people)
+    s3_client = _get_s3_client(settings) if attachment_rows else None
+    out = _message_out(message, people, attachment_rows, s3_client, settings)
     return out, _recipients_for_thread(session, thread, thread_id)
+
+
+@router.post("/threads/{thread_id}/attachments/presign-upload", response_model=PresignAttachmentResponse)
+def presign_attachment_upload(
+    thread_id: uuid.UUID,
+    payload: PresignAttachmentRequest,
+    session: Session = Depends(get_session),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+) -> PresignAttachmentResponse:
+    """Generate a presigned S3 PUT URL so the browser can upload an attachment directly to
+    S3 — the file's bytes never pass through this server. Call once per file; multiple
+    files upload in parallel, then their s3_keys are attached to the message on send."""
+    _authorize_thread(session, current_user, thread_id)
+    if payload.content_type not in _ATTACHMENT_ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only images (JPEG/PNG/WEBP/GIF) and PDF files are allowed",
+        )
+    if not settings.AWS_S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="AWS S3 bucket not configured")
+
+    ext = _ATTACHMENT_ALLOWED_TYPES[payload.content_type]
+    key = f"messages/{thread_id}/{uuid.uuid4()}.{ext}"
+    s3_client = _get_s3_client(settings)
+    try:
+        upload_url = s3_client.generate_presigned_url(
+            "put_object",
+            Params={"Bucket": settings.AWS_S3_BUCKET_NAME, "Key": key, "ContentType": payload.content_type},
+            ExpiresIn=300,
+        )
+    except (BotoCoreError, ClientError) as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {e}")
+
+    return PresignAttachmentResponse(upload_url=upload_url, s3_key=key)
 
 
 @router.post("/threads/{thread_id}/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
@@ -558,10 +762,18 @@ async def send_message(
     thread_id: uuid.UUID,
     payload: SendMessageRequest,
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ) -> MessageOut:
     out, recipient_ids = await run_in_threadpool(
-        _send_message_sync, session, thread_id, current_user, payload.body.strip(), payload.mentioned_user_ids
+        _send_message_sync,
+        session,
+        thread_id,
+        current_user,
+        payload.body.strip(),
+        payload.mentioned_user_ids,
+        payload.attachments,
+        settings,
     )
 
     # Push to whoever's currently connected — the safety-net poll on each client covers
@@ -589,6 +801,7 @@ async def edit_message(
     message_id: uuid.UUID,
     payload: EditMessageRequest,
     session: Session = Depends(get_session),
+    settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ) -> MessageOut:
     thread = _authorize_thread(session, current_user, thread_id)
@@ -597,7 +810,8 @@ async def edit_message(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit your own messages")
 
     body = payload.body.strip()
-    if not body:
+    attachments = _attachments_map(session, [message.id]).get(message.id, [])
+    if not body and not attachments:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message body is required")
     if len(body) > MAX_MESSAGE_LENGTH:
         raise HTTPException(
@@ -613,7 +827,8 @@ async def edit_message(
 
     people = _user_map(session, _parse_mention_ids(message.mentioned_user_ids))
     people[current_user.id] = current_user
-    out = _message_out(message, people)
+    s3_client = _get_s3_client(settings) if attachments else None
+    out = _message_out(message, people, attachments, s3_client, settings)
 
     await manager.broadcast(
         _recipients_for_thread(session, thread, thread_id),
@@ -634,13 +849,17 @@ async def delete_message(
     if message.sender_id != current_user.id and current_user.role != UserRole.SUPERADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own messages")
 
-    # Clear the body/mentions in place rather than removing the row — keeps the message's
-    # position in the timeline (and unread-count math) intact, with `deleted_at` as the only
-    # trace so clients can render a "Message deleted" placeholder where it used to be.
+    # Clear the body/mentions/attachments in place rather than removing the row — keeps the
+    # message's position in the timeline (and unread-count math) intact, with `deleted_at`
+    # as the only trace so clients can render a "Message deleted" placeholder where it used
+    # to be. Attachment rows are removed (S3 objects are left in place, same as every other
+    # feature in this codebase that never garbage-collects a replaced/orphaned upload).
     message.body = ""
     message.mentioned_user_ids = None
     message.deleted_at = datetime.utcnow()
     session.add(message)
+    for a in session.exec(select(MessageAttachment).where(MessageAttachment.message_id == message.id)).all():
+        session.delete(a)
     session.commit()
     session.refresh(message)
 
