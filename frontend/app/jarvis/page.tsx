@@ -37,6 +37,22 @@ import type { ChatMessage, ChatAction, BusinessDeveloper } from "@/lib/types";
 // keeps matching with query "sa". Used to trigger the BD picker dropdown in the composer.
 const BD_TRIGGER_RE = /\b(?:business\s+developer|business\s+dev|bd)\b[ \t]*([a-zA-Z]*)$/i;
 
+// Persisted across page navigation (component unmount/remount) so switching pages doesn't
+// wipe the conversation — only the explicit "New conversation" button should do that.
+const CHAT_STORAGE_KEY = "jarvis_chat_messages";
+
+function loadStoredMessages(): ChatMessage[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 const WELCOME: ChatMessage = {
   role: "assistant",
   content:
@@ -326,12 +342,24 @@ export default function JarvisPage() {
       .finally(() => setCheckingAccess(false));
   }, [role]);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadStoredMessages() ?? [WELCOME]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    try {
+      if (messages.length > 1 || messages[0] !== WELCOME) {
+        sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      } else {
+        sessionStorage.removeItem(CHAT_STORAGE_KEY);
+      }
+    } catch {
+      // best-effort — private browsing / storage disabled just means no persistence
+    }
+  }, [messages]);
 
   // "bd" / "business dev(eloper)" picker — scoped to the sidebar's currently-selected
   // department, the same way every other page (leads, candidates, interviews) scopes its
@@ -476,6 +504,11 @@ export default function JarvisPage() {
   const resetConversation = () => {
     setMessages([WELCOME]);
     setInput("");
+    try {
+      sessionStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch {
+      // best-effort
+    }
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
