@@ -817,3 +817,28 @@ export interface LeadOutcomesByCandidateData {
   weekly_keys: string[];
   monthly_keys: string[];
 }
+
+export interface ImportJobResultEntry {
+  sheet: string;
+  row: number;
+  level: "skipped" | "error" | "info";
+  reason: string;
+}
+
+export interface ImportJob {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  filename: string;
+  total_rows: number;
+  processed_rows: number;
+  imported_count: number;
+  updated_count: number;
+  skipped_count: number;
+  error_count: number;
+  results: ImportJobResultEntry[];
+  summary: Record<string, number>;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}

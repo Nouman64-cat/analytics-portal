@@ -20,7 +20,7 @@ from app.backup_scheduler import run_backup_scheduler
 from migrate import migrate
 
 # Import all models so SQLModel registers them
-from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay, UnresponsiveFollowUpLog, NotificationRead, JobRole, BroadcastModal, Engagement, Message, MessageThread, MessageThreadParticipant, MessageRead  # noqa: F401
+from app.models import Department, Candidate, ResumeProfile, Company, BusinessDeveloper, Interview, InterviewReminderLog, ActivityLog, User, LeadThread, BusyDay, UnresponsiveFollowUpLog, NotificationRead, JobRole, BroadcastModal, Engagement, Message, MessageThread, MessageThreadParticipant, MessageRead, ImportJob  # noqa: F401
 
 from app.routers import (
     candidates,
@@ -46,6 +46,7 @@ from app.routers import job_roles
 from app.routers import broadcast_modals
 from app.routers import public_stats
 from app.routers import messages
+from app.routers import import_router
 
 settings = get_settings()
 
@@ -155,6 +156,7 @@ app.include_router(candidates.router)
 app.include_router(resume_profiles.router)
 app.include_router(companies.router)
 app.include_router(interviews.router)
+app.include_router(import_router.router)
 app.include_router(interview_rooms.router)
 app.include_router(leads.router)
 app.include_router(business_developers.router)

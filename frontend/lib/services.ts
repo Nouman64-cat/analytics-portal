@@ -39,6 +39,7 @@ import type {
   BroadcastModalUpdate,
   Engagement,
   EngagementFormData,
+  ImportJob,
 } from "./types";
 
 // ─── Generic fetch wrapper ──────────────────────────────────
@@ -498,6 +499,33 @@ export const interviewsService = {
     }),
   delete: (id: string) =>
     apiFetch<void>(`/interviews/${id}`, { method: "DELETE" }),
+
+  /** Kick off an async bulk import of interviews from an .xlsx file. Returns immediately with
+   * a job to poll via getImportStatus. */
+  startImport: async (file: File, departmentMapping: Record<string, string>) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("department_mapping", JSON.stringify(departmentMapping));
+
+    const res = await fetch(`${API_V1}/interviews/import/`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      if (res.status === 401) {
+        clearToken();
+        window.location.href = "/login";
+      }
+      throw new Error(error.detail || `API Error: ${res.status}`);
+    }
+
+    return res.json() as Promise<ImportJob>;
+  },
+  getImportStatus: (jobId: string) => apiFetch<ImportJob>(`/interviews/import/${jobId}`),
 };
 
 // ─── Activities ─────────────────────────────────────────────

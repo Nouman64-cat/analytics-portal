@@ -72,6 +72,7 @@ import type {
   InterviewFormData,
   LeadListItem,
   JobRole,
+  ImportJob,
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -90,6 +91,7 @@ import Modal, {
   buttonSecondary,
 } from "@/components/Modal";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import ImportInterviewsModal from "@/components/ImportInterviewsModal";
 import CompanyCombobox from "@/components/CompanyCombobox";
 import RoleCombobox from "@/components/RoleCombobox";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -875,6 +877,17 @@ export default function InterviewsPage() {
     { id: string; text: string; tone: "info" | "success" }[]
   >([]);
 
+  // Bulk Excel import (async background job) — see ImportInterviewsModal.
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [activeImportJob, setActiveImportJob] = useState<ImportJob | null>(null);
+  const [importReportOpen, setImportReportOpen] = useState(false);
+  const importPollStop = useRef(false);
+  useEffect(() => {
+    return () => {
+      importPollStop.current = true;
+    };
+  }, []);
+
   // Company popover
   const [companyPopover, setCompanyPopover] = useState<{
     company: Company;
@@ -1647,6 +1660,39 @@ export default function InterviewsPage() {
     }
   };
 
+  // Bulk Excel import runs as a background job — unbounded poll (unlike the 8-attempt doc
+  // poller above) since it can take minutes to process hundreds of rows with per-row commits.
+  const handleImportStarted = (job: ImportJob) => {
+    importPollStop.current = false;
+    setActiveImportJob(job);
+    pushDocToast(`Importing "${job.filename}"…`, "info");
+    pollImportJob(job.id);
+  };
+
+  const pollImportJob = async (jobId: string) => {
+    while (!importPollStop.current) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        const latest = await interviewsService.getImportStatus(jobId);
+        setActiveImportJob(latest);
+        if (latest.status === "completed" || latest.status === "failed") {
+          fetchData();
+          if (latest.status === "completed") {
+            pushDocToast(
+              `Import finished — ${latest.imported_count} created, ${latest.updated_count} updated, ${latest.skipped_count} skipped.`,
+              "success",
+            );
+          } else {
+            pushDocToast(latest.error_message || "Import failed — see the report for details.", "info");
+          }
+          return;
+        }
+      } catch {
+        // transient — keep polling
+      }
+    }
+  };
+
   const interviewsByThread = useMemo(() => {
     const m = new Map<string, Interview[]>();
     for (const i of interviews) {
@@ -1998,6 +2044,12 @@ export default function InterviewsPage() {
               Export
             </button>
             {!cannotCRUD && (
+              <button onClick={() => setImportModalOpen(true)} className={buttonSecondary}>
+                <Upload size={16} />
+                Import
+              </button>
+            )}
+            {!cannotCRUD && (
               <button
                 onClick={openCreateModal}
                 className={buttonPrimary}
@@ -2015,6 +2067,54 @@ export default function InterviewsPage() {
           </div>
         }
       />
+
+      {activeImportJob && (activeImportJob.status === "pending" || activeImportJob.status === "processing") && (
+        <div className="flex items-center gap-3 rounded-xl border border-indigo-200 dark:border-indigo-500/25 bg-indigo-50 dark:bg-indigo-500/10 px-4 py-3 text-sm text-indigo-900 dark:text-indigo-200">
+          <Loader2 size={16} className="shrink-0 animate-spin" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Importing &quot;{activeImportJob.filename}&quot;…</p>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200/60 dark:bg-indigo-500/15">
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all"
+                style={{
+                  width: `${activeImportJob.total_rows > 0 ? Math.min(100, Math.round((activeImportJob.processed_rows / activeImportJob.total_rows) * 100)) : 5}%`,
+                }}
+              />
+            </div>
+          </div>
+          <span className="shrink-0 text-xs tabular-nums text-indigo-700 dark:text-indigo-300">
+            {activeImportJob.processed_rows}/{activeImportJob.total_rows || "…"}
+          </span>
+        </div>
+      )}
+
+      {activeImportJob && (activeImportJob.status === "completed" || activeImportJob.status === "failed") && (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white/60 dark:bg-white/[0.04] px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
+          {activeImportJob.status === "completed" ? (
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
+          ) : (
+            <X size={16} className="shrink-0 text-red-500" />
+          )}
+          <span className="min-w-0 flex-1">
+            {activeImportJob.status === "completed"
+              ? `Import "${activeImportJob.filename}" finished — ${activeImportJob.imported_count} created, ${activeImportJob.updated_count} updated, ${activeImportJob.skipped_count} skipped.`
+              : `Import "${activeImportJob.filename}" failed.`}
+          </span>
+          <button
+            onClick={() => setImportReportOpen(true)}
+            className="shrink-0 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            View report
+          </button>
+          <button
+            onClick={() => setActiveImportJob(null)}
+            className="shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            aria-label="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {isTeamMember && !meCandidateId && (
         <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100/90">
@@ -4588,6 +4688,59 @@ export default function InterviewsPage() {
             {companyPopover.company.detail}
           </p>
         </div>
+      )}
+
+      <ImportInterviewsModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImportStarted={handleImportStarted}
+      />
+
+      {activeImportJob && (
+        <Modal open={importReportOpen} onClose={() => setImportReportOpen(false)} title="Import report" size="md">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {[
+                { label: "Created", value: activeImportJob.imported_count, color: "text-emerald-600 dark:text-emerald-400" },
+                { label: "Updated", value: activeImportJob.updated_count, color: "text-indigo-600 dark:text-indigo-400" },
+                { label: "Skipped", value: activeImportJob.skipped_count, color: "text-amber-600 dark:text-amber-400" },
+                { label: "Errors", value: activeImportJob.error_count, color: "text-red-600 dark:text-red-400" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white/60 dark:bg-white/[0.03] px-3 py-2.5 text-center">
+                  <p className={`text-lg font-semibold ${s.color}`}>{s.value}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{s.label}</p>
+                </div>
+              ))}
+            </div>
+            {activeImportJob.error_message && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500 dark:text-red-400">
+                {activeImportJob.error_message}
+              </p>
+            )}
+            {activeImportJob.results.length > 0 && (
+              <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-slate-50 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Sheet</th>
+                      <th className="px-3 py-2 text-left font-medium">Row</th>
+                      <th className="px-3 py-2 text-left font-medium">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+                    {activeImportJob.results.map((r, i) => (
+                      <tr key={i} className={r.level === "error" ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"}>
+                        <td className="px-3 py-1.5">{r.sheet}</td>
+                        <td className="px-3 py-1.5">{r.row || "—"}</td>
+                        <td className="px-3 py-1.5">{r.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       {/* Interview document keyword-highlighting toasts (background job progress/completion) */}

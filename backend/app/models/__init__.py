@@ -17,6 +17,7 @@ from app.models.job_role import JobRole
 from app.models.broadcast_modal import BroadcastModal
 from app.models.engagement import Engagement
 from app.models.message import Message, MessageThread, MessageThreadParticipant, MessageRead
+from app.models.import_job import ImportJob
 
 __all__ = [
     "Department",
@@ -40,4 +41,5 @@ __all__ = [
     "MessageThread",
     "MessageThreadParticipant",
     "MessageRead",
+    "ImportJob",
 ]
