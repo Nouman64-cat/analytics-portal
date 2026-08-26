@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import type { MessageThreadSummary, TeamMessage } from "@/lib/types";
 import ThreadAvatar from "./ThreadAvatar";
 import { formatMessageTime } from "./format";
@@ -24,11 +24,15 @@ export default function ThreadList({
   activeThreadId,
   onSelect,
   onNewMessage,
+  onRemove,
 }: {
   threads: MessageThreadSummary[];
   activeThreadId: string | null;
   onSelect: (thread: MessageThreadSummary) => void;
   onNewMessage: () => void;
+  /** Ask to remove (delete-for-me) a conversation from the list — the caller owns the
+   * confirmation step and the actual API call. */
+  onRemove: (thread: MessageThreadSummary) => void;
 }) {
   const [query, setQuery] = useState("");
 
@@ -69,46 +73,59 @@ export default function ThreadList({
           </p>
         ) : (
           filtered.map((t) => (
-            <button
+            <div
               key={t.id}
-              type="button"
-              onClick={() => onSelect(t)}
-              className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors border-b border-slate-100 dark:border-white/[0.04] last:border-b-0 ${
+              className={`group relative flex items-center border-b border-slate-100 dark:border-white/[0.04] last:border-b-0 transition-colors ${
                 activeThreadId === t.id
                   ? "bg-indigo-50 dark:bg-indigo-500/10"
                   : "hover:bg-slate-50 dark:hover:bg-white/[0.03]"
               }`}
             >
-              <ThreadAvatar title={t.title} kind={t.kind} />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2">
-                  <span
-                    className={`truncate text-sm ${
-                      t.unread_count > 0
-                        ? "font-semibold text-slate-900 dark:text-white"
-                        : "font-medium text-slate-700 dark:text-slate-200"
-                    }`}
-                  >
-                    {t.title}
-                  </span>
-                  <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
-                    {formatMessageTime(t.updated_at)}
-                  </span>
-                </span>
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {t.last_message
-                      ? `${t.last_message.sender_name}: ${lastMessagePreview(t.last_message)}`
-                      : "No messages yet"}
-                  </span>
-                  {t.unread_count > 0 && (
-                    <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold leading-none text-white">
-                      {t.unread_count > 99 ? "99+" : t.unread_count}
+              <button
+                type="button"
+                onClick={() => onSelect(t)}
+                className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
+              >
+                <ThreadAvatar title={t.title} kind={t.kind} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span
+                      className={`truncate text-sm ${
+                        t.unread_count > 0
+                          ? "font-semibold text-slate-900 dark:text-white"
+                          : "font-medium text-slate-700 dark:text-slate-200"
+                      }`}
+                    >
+                      {t.title}
                     </span>
-                  )}
+                    <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                      {formatMessageTime(t.updated_at)}
+                    </span>
+                  </span>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate text-xs text-slate-500 dark:text-slate-400">
+                      {t.last_message
+                        ? `${t.last_message.sender_name}: ${lastMessagePreview(t.last_message)}`
+                        : "No messages yet"}
+                    </span>
+                    {t.unread_count > 0 && (
+                      <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold leading-none text-white">
+                        {t.unread_count > 99 ? "99+" : t.unread_count}
+                      </span>
+                    )}
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemove(t)}
+                className="mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
+                title="Delete chat"
+                aria-label="Delete chat"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           ))
         )}
       </div>

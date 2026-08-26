@@ -281,13 +281,11 @@ export default function DashboardPage() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2.5 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-2.5 rounded-[20px] border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm shadow-sm p-2.5 w-full">
         {[
-          { title: "Legit Interviews", value: stats.legit_interviews, emoji: "😎", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-500/10 dark:bg-cyan-500/20" },
-          { title: "Total Interviews", value: stats.total_interviews, emoji: "😀", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 dark:bg-indigo-500/20" },
+          { title: "Total Interviews", value: stats.legit_interviews, emoji: "😎", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-500/10 dark:bg-cyan-500/20" },
           ...(typeof stats.total_leads === "number" && typeof stats.legit_leads === "number" ? [
-            { title: "Legit Leads", value: stats.legit_leads, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
-            { title: "Total Leads", value: stats.total_leads, emoji: "😀", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" }
+            { title: "Total Leads", value: stats.legit_leads, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" }
           ] : []),
           ...(!isTeamMember ? [
             { title: "Candidates", value: stats.total_candidates, emoji: "🙂", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" }

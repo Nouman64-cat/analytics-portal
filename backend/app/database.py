@@ -141,6 +141,15 @@ def create_db_and_tables():
             )
         except Exception:
             pass
+        try:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {_schema_sql}.message_reads "
+                    f"ADD COLUMN IF NOT EXISTS removed_at TIMESTAMP"
+                )
+            )
+        except Exception:
+            pass
 
 
 def get_session():

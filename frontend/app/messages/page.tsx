@@ -6,6 +6,7 @@ import { messagesService } from "@/lib/services";
 import { subscribeToMessages, type MessageEvent } from "@/lib/messagesSocket";
 import type { MessageThreadSummary } from "@/lib/types";
 import { PageLoader, ErrorState } from "@/components/PageStates";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import ThreadList from "@/components/messages/ThreadList";
 import ConversationPane from "@/components/messages/ConversationPane";
 import ContactPicker from "@/components/messages/ContactPicker";
@@ -20,6 +21,8 @@ export default function MessagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "conversation">("list");
+  const [removeThread, setRemoveThread] = useState<MessageThreadSummary | null>(null);
+  const [removing, setRemoving] = useState(false);
   const activeThreadIdRef = useRef<string | null>(null);
   activeThreadIdRef.current = activeThreadId;
 
@@ -89,6 +92,24 @@ export default function MessagesPage() {
     setMobileView("conversation");
   };
 
+  const handleConfirmRemove = async () => {
+    if (!removeThread) return;
+    setRemoving(true);
+    try {
+      await messagesService.removeChat(removeThread.id);
+      setThreads((prev) => prev.filter((t) => t.id !== removeThread.id));
+      if (activeThreadId === removeThread.id) {
+        setActiveThreadId(null);
+        setMobileView("list");
+      }
+      setRemoveThread(null);
+    } catch {
+      // leave the modal open so the user can see it failed and retry
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
 
   if (loading) return <PageLoader />;
@@ -106,6 +127,7 @@ export default function MessagesPage() {
           activeThreadId={activeThreadId}
           onSelect={handleSelect}
           onNewMessage={() => setPickerOpen(true)}
+          onRemove={(thread) => setRemoveThread(thread)}
         />
       </div>
       <div className={`min-w-0 flex-1 ${mobileView === "list" ? "hidden md:block" : "block"}`}>
@@ -120,6 +142,16 @@ export default function MessagesPage() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onThreadReady={handleThreadReady}
+      />
+
+      <DeleteConfirmModal
+        open={removeThread !== null}
+        onClose={() => !removing && setRemoveThread(null)}
+        onConfirm={() => void handleConfirmRemove()}
+        isDeleting={removing}
+        title="Delete chat"
+        description="This removes the conversation from your messages list only — it stays intact for everyone else, and it'll reappear if a new message comes in."
+        itemName={removeThread?.title ?? "This conversation"}
       />
     </div>
   );

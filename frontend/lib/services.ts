@@ -726,6 +726,11 @@ export const messagesService = {
    * Clear Chat, not Delete for Everyone). A new message afterwards shows up normally. */
   clearChat: (threadId: string) =>
     apiFetch<void>(`/messages/threads/${threadId}/clear`, { method: "POST" }),
+  /** "Delete chat for me" — removes the conversation from this user's messages list (and
+   * clears its history) without affecting any other participant. A new message afterwards
+   * brings it back into the list automatically (matches WhatsApp's Delete Chat). */
+  removeChat: (threadId: string) =>
+    apiFetch<void>(`/messages/threads/${threadId}/remove`, { method: "POST" }),
   /** Uploads one file straight to S3 via a presigned PUT (never touches our server), then
    * returns the metadata `sendMessage` needs to attach it. Call once per file — the caller
    * fires these off in parallel for multi-file sends. */

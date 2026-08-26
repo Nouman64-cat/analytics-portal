@@ -329,6 +329,9 @@ def _build_thread_summaries(session: Session, current_user: User, settings) -> l
     # "Clear chat for me" watermark — messages at/before this are hidden from my view only;
     # every other participant's copy of the thread is untouched.
     cleared_by_thread = {r.thread_id: r.cleared_at for r in read_rows if r.cleared_at}
+    # "Remove chat for me" watermark — the thread itself drops out of my list below unless a
+    # message newer than this shows up (from anyone), same self-healing rule as clearing.
+    removed_by_thread = {r.thread_id: r.removed_at for r in read_rows if r.removed_at}
 
     last_message_by_thread: dict[uuid.UUID, Message] = {}
     unread_counts: dict[uuid.UUID, int] = defaultdict(int)
@@ -377,6 +380,11 @@ def _build_thread_summaries(session: Session, current_user: User, settings) -> l
 
     results: list[ThreadSummaryOut] = []
     for t in all_threads:
+        # Removed from my list and nothing's happened since — stays hidden. Any message
+        # newer than the removal (last_message_by_thread is already cleared-at-filtered, so
+        # its presence here means "newer than max(cleared_at, removed_at)") brings it back.
+        if removed_by_thread.get(t.id) and t.id not in last_message_by_thread:
+            continue
         other_user: Optional[ContactOut] = None
         if t.kind == MessageThreadKind.CHANNEL:
             dept = dept_map.get(t.department_id)
@@ -933,6 +941,40 @@ def clear_thread(
         session.add(existing)
     else:
         session.add(MessageRead(user_id=current_user.id, thread_id=thread_id, last_read_at=now, cleared_at=now))
+    session.commit()
+
+
+@router.post("/threads/{thread_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+def remove_thread(
+    thread_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """"Delete chat for me" — drops the thread out of this user's messages list entirely
+    (on top of clearing its history, same as `clear_thread`), while every other participant
+    keeps the thread and its history exactly as it was. A DM/group/channel can't otherwise
+    be "deleted" server-side since it's shared state; this only ever affects the caller's
+    own view. If anyone sends a new message afterwards — including the remover, e.g. via
+    "New message" to the same person — the thread reappears in the list automatically,
+    same as WhatsApp's "Delete chat"."""
+    _authorize_thread(session, current_user, thread_id)
+    existing = session.exec(
+        select(MessageRead).where(
+            MessageRead.user_id == current_user.id, MessageRead.thread_id == thread_id
+        )
+    ).first()
+    now = datetime.utcnow()
+    if existing:
+        existing.cleared_at = now
+        existing.removed_at = now
+        existing.last_read_at = now
+        session.add(existing)
+    else:
+        session.add(
+            MessageRead(
+                user_id=current_user.id, thread_id=thread_id, last_read_at=now, cleared_at=now, removed_at=now
+            )
+        )
     session.commit()
 
 

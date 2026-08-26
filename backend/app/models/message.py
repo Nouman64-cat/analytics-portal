@@ -83,7 +83,10 @@ class MessageRead(SQLModel, table=True):
     `cleared_at` is the "clear chat for me" watermark: messages at or before it are hidden
     from this user's view of the thread (history, search, last-message preview) while
     staying fully intact for every other participant — a new message after clearing shows
-    up again normally, same as WhatsApp's per-device clear."""
+    up again normally, same as WhatsApp's per-device clear.
+    `removed_at` additionally hides the *thread itself* from this user's messages list —
+    same "for me only" scope, and the same self-healing rule: a message sent after removal
+    (by anyone, including the remover) brings the thread back into the list automatically."""
 
     __tablename__ = "message_reads"
     __table_args__ = (
@@ -95,3 +98,4 @@ class MessageRead(SQLModel, table=True):
     thread_id: uuid.UUID = Field(index=True)  # no FK — mirrors NotificationRead.thread_id style
     last_read_at: datetime = Field(default_factory=datetime.utcnow)
     cleared_at: Optional[datetime] = Field(default=None)
+    removed_at: Optional[datetime] = Field(default=None)
