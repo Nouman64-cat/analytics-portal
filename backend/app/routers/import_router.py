@@ -15,7 +15,7 @@ from sqlmodel import Session, func, select
 
 from app.config import get_settings
 from app.database import get_session
-from app.deps import assert_write_access, get_current_user
+from app.deps import get_current_user
 from app.import_utils import (
     ParsedRow,
     SHEET_READERS,
@@ -33,7 +33,7 @@ from app.lead_thread_utils import ensure_lead_thread
 from app.models.department import Department
 from app.models.import_job import ImportJob
 from app.models.interview import Interview
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.import_job import ImportJobRead
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,18 @@ router = APIRouter(
     tags=["Interviews Import"],
     dependencies=[Depends(get_current_user)],
 )
+
+# Bulk import can create/modify hundreds of records at once — restricted beyond normal write
+# access to the two roles with org/department-wide oversight.
+_IMPORT_ALLOWED_ROLES = {UserRole.SUPERADMIN, UserRole.DEPT_LEAD}
+
+
+def _assert_import_access(user: User) -> None:
+    if user.role not in _IMPORT_ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmins and department leads can import interviews.",
+        )
 
 
 def _job_to_read(job: ImportJob) -> ImportJobRead:
@@ -75,7 +87,7 @@ def start_import(
     current_user: User = Depends(get_current_user),
 ):
     """Kick off a background import job and return immediately with its id for polling."""
-    assert_write_access(current_user)
+    _assert_import_access(current_user)
 
     if not (file.filename or "").lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Only .xlsx files are accepted")
@@ -141,6 +153,7 @@ def get_import_status(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    _assert_import_access(current_user)
     job = session.get(ImportJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Import job not found")

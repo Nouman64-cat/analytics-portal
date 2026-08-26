@@ -1011,6 +1011,8 @@ export default function InterviewsPage() {
   }, [departmentId]);
 
   const cannotCRUD = role === "manager" || role === "bd-manager" || role === "guest" || role === "coordinator";
+  /** Bulk Excel import touches many records at once — restricted beyond normal write access. */
+  const canImport = role === "superadmin" || role === "dept-lead";
   /** Coordinators' whole job is assigning rooms; superadmin can too. */
   const canAssignRoom = role === "superadmin" || role === "coordinator";
   const isTeamMember = role === "team-member";
@@ -2043,7 +2045,7 @@ export default function InterviewsPage() {
               <Download size={16} />
               Export
             </button>
-            {!cannotCRUD && (
+            {canImport && (
               <button onClick={() => setImportModalOpen(true)} className={buttonSecondary}>
                 <Upload size={16} />
                 Import
