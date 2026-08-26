@@ -26,16 +26,37 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chatService, authService, businessDevelopersService } from "@/lib/services";
+import { chatService, authService, businessDevelopersService, candidatesService, profilesService } from "@/lib/services";
 import { getUserRole } from "@/lib/auth";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { PageHeader, PageLoader } from "@/components/PageStates";
-import type { ChatMessage, ChatAction, BusinessDeveloper } from "@/lib/types";
+import type { ChatMessage, ChatAction, BusinessDeveloper, Candidate, ResumeProfile } from "@/lib/types";
 
-// Matches "bd", "business dev", or "business developer" as a standalone word while typing,
-// capturing whatever's typed right after it as a live filter query — e.g. "business developer sa"
-// keeps matching with query "sa". Used to trigger the BD picker dropdown in the composer.
-const BD_TRIGGER_RE = /\b(?:business\s+developer|business\s+dev|bd)\b[ \t]*([a-zA-Z]*)$/i;
+type MentionKind = "bd" | "candidate" | "profile";
+interface MentionOption {
+  id: string;
+  name: string;
+  is_active?: boolean;
+}
+
+// Each entry matches its trigger word(s) as a standalone phrase while typing, capturing
+// whatever's typed right after it as a live filter query — e.g. "business developer sa" keeps
+// matching with query "sa". Used to trigger the mention picker dropdown in the composer.
+const MENTION_TRIGGERS: { kind: MentionKind; re: RegExp; label: string }[] = [
+  { kind: "bd", re: /\b(?:business\s+developer|business\s+dev|bd)\b[ \t]*([a-zA-Z]*)$/i, label: "BD" },
+  { kind: "candidate", re: /\bcandidate\b[ \t]*([a-zA-Z]*)$/i, label: "Candidate" },
+  {
+    kind: "profile",
+    re: /\b(?:resume\s+profile|resume|profile)\b[ \t]*([a-zA-Z]*)$/i,
+    label: "Resume Profile",
+  },
+];
+
+const MENTION_COPY: Record<MentionKind, { heading: string; empty: string; icon: React.ElementType }> = {
+  bd: { heading: "Select a business developer", empty: "No matching business developers", icon: UserRound },
+  candidate: { heading: "Select a candidate", empty: "No matching candidates", icon: User },
+  profile: { heading: "Select a resume profile", empty: "No matching resume profiles", icon: Briefcase },
+};
 
 // Persisted across page navigation (component unmount/remount) so switching pages doesn't
 // wipe the conversation — only the explicit "New conversation" button should do that.
@@ -361,67 +382,105 @@ export default function JarvisPage() {
     }
   }, [messages]);
 
-  // "bd" / "business dev(eloper)" picker — scoped to the sidebar's currently-selected
-  // department, the same way every other page (leads, candidates, interviews) scopes its
-  // lists, so switching departments here shows the same BDs those pages would. Fetched
-  // once per department, lazily, on first trigger; re-fetches if the department changes.
+  // "bd" / "candidate" / "resume profile" pickers — each scoped to the sidebar's
+  // currently-selected department, the same way every other page (leads, candidates,
+  // interviews) scopes its lists, so switching departments here shows the same records
+  // those pages would. Each list is fetched once per department, lazily, on first trigger;
+  // all three are cleared and re-fetched if the department changes.
   const { departmentId } = useDepartmentContext();
-  const [bdMention, setBdMention] = useState<{ start: number; query: string } | null>(null);
+  const [mention, setMention] = useState<{ kind: MentionKind; start: number; query: string } | null>(null);
+  const [mentionHighlight, setMentionHighlight] = useState(0);
   const [bdAll, setBdAll] = useState<BusinessDeveloper[] | null>(null);
   const [bdLoading, setBdLoading] = useState(false);
-  const [bdHighlight, setBdHighlight] = useState(0);
+  const [candidatesAll, setCandidatesAll] = useState<Candidate[] | null>(null);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [profilesAll, setProfilesAll] = useState<ResumeProfile[] | null>(null);
+  const [profilesLoading, setProfilesLoading] = useState(false);
 
   useEffect(() => {
     setBdAll(null);
+    setCandidatesAll(null);
+    setProfilesAll(null);
   }, [departmentId]);
 
-  const bdSuggestions = useMemo(() => {
-    if (!bdMention || !bdAll) return [];
-    const q = bdMention.query.trim().toLowerCase();
-    const active = bdAll.filter((b) => b.is_active !== false);
+  const mentionSource: Record<MentionKind, { all: MentionOption[] | null; loading: boolean }> = {
+    bd: { all: bdAll, loading: bdLoading },
+    candidate: { all: candidatesAll, loading: candidatesLoading },
+    profile: { all: profilesAll, loading: profilesLoading },
+  };
+
+  const mentionSuggestions = useMemo(() => {
+    if (!mention) return [];
+    const all = mentionSource[mention.kind].all;
+    if (!all) return [];
+    const q = mention.query.trim().toLowerCase();
+    const active = all.filter((b) => b.is_active !== false);
     const filtered = q ? active.filter((b) => b.name.toLowerCase().includes(q)) : active;
     return filtered.slice(0, 6);
-  }, [bdMention, bdAll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mention, bdAll, candidatesAll, profilesAll]);
 
-  const syncBdMention = useCallback(
+  const syncMention = useCallback(
     (text: string, cursor: number) => {
       const before = text.slice(0, cursor);
-      const match = before.match(BD_TRIGGER_RE);
-      if (!match) {
-        setBdMention(null);
+      let best: { kind: MentionKind; start: number; query: string } | null = null;
+      for (const t of MENTION_TRIGGERS) {
+        const m = before.match(t.re);
+        if (m && (best === null || (m.index ?? 0) > best.start)) {
+          best = { kind: t.kind, start: m.index ?? 0, query: m[1] ?? "" };
+        }
+      }
+      if (!best) {
+        setMention(null);
         return;
       }
-      setBdMention({ start: match.index ?? 0, query: match[1] ?? "" });
-      setBdHighlight(0);
-      if (bdAll === null && !bdLoading) {
+      setMention(best);
+      setMentionHighlight(0);
+      if (best.kind === "bd" && bdAll === null && !bdLoading) {
         setBdLoading(true);
         businessDevelopersService
           .list({ department_id: departmentId })
           .then(setBdAll)
           .catch(() => setBdAll([]))
           .finally(() => setBdLoading(false));
+      } else if (best.kind === "candidate" && candidatesAll === null && !candidatesLoading) {
+        setCandidatesLoading(true);
+        candidatesService
+          .list({ department_id: departmentId })
+          .then(setCandidatesAll)
+          .catch(() => setCandidatesAll([]))
+          .finally(() => setCandidatesLoading(false));
+      } else if (best.kind === "profile" && profilesAll === null && !profilesLoading) {
+        setProfilesLoading(true);
+        profilesService
+          .list({ department_id: departmentId })
+          .then(setProfilesAll)
+          .catch(() => setProfilesAll([]))
+          .finally(() => setProfilesLoading(false));
       }
     },
-    [bdAll, bdLoading, departmentId],
+    [bdAll, bdLoading, candidatesAll, candidatesLoading, profilesAll, profilesLoading, departmentId],
   );
 
-  const handleSelectBd = useCallback(
-    (bd: BusinessDeveloper) => {
-      if (!bdMention) return;
+  const handleSelectMention = useCallback(
+    (item: MentionOption) => {
+      if (!mention) return;
+      const label = MENTION_TRIGGERS.find((t) => t.kind === mention.kind)!.label;
       const el = inputRef.current;
       const cursor = el?.selectionStart ?? input.length;
-      const before = input.slice(0, bdMention.start);
+      const before = input.slice(0, mention.start);
       const after = input.slice(cursor);
-      const next = `${before}${bd.name} ${after}`;
+      const inserted = `${label}: ${item.name}`;
+      const next = `${before}${inserted} ${after}`;
       setInput(next);
-      setBdMention(null);
-      const caretPos = before.length + bd.name.length + 1;
+      setMention(null);
+      const caretPos = before.length + inserted.length + 1;
       setTimeout(() => {
         el?.focus();
         el?.setSelectionRange(caretPos, caretPos);
       }, 0);
     },
-    [bdMention, input],
+    [mention, input],
   );
 
   useEffect(() => {
@@ -468,7 +527,7 @@ export default function JarvisPage() {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [input, loading, messages]);
+  }, [input, loading, messages, departmentId]);
 
   const handleConfirm = useCallback(async (actionId: string) => {
     setConfirmingId(actionId);
@@ -513,27 +572,27 @@ export default function JarvisPage() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (bdMention) {
-      if (e.key === "ArrowDown" && bdSuggestions.length > 0) {
+    if (mention) {
+      if (e.key === "ArrowDown" && mentionSuggestions.length > 0) {
         e.preventDefault();
-        setBdHighlight((i) => (i + 1) % bdSuggestions.length);
+        setMentionHighlight((i) => (i + 1) % mentionSuggestions.length);
         return;
       }
-      if (e.key === "ArrowUp" && bdSuggestions.length > 0) {
+      if (e.key === "ArrowUp" && mentionSuggestions.length > 0) {
         e.preventDefault();
-        setBdHighlight((i) => (i - 1 + bdSuggestions.length) % bdSuggestions.length);
+        setMentionHighlight((i) => (i - 1 + mentionSuggestions.length) % mentionSuggestions.length);
         return;
       }
       if (e.key === "Enter" || e.key === "Tab") {
-        if (bdSuggestions.length > 0) {
+        if (mentionSuggestions.length > 0) {
           e.preventDefault();
-          handleSelectBd(bdSuggestions[bdHighlight]);
+          handleSelectMention(mentionSuggestions[mentionHighlight]);
           return;
         }
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setBdMention(null);
+        setMention(null);
         return;
       }
     }
@@ -735,44 +794,49 @@ export default function JarvisPage() {
 
       {/* Input */}
       <div className="relative shrink-0 border-t border-slate-200/70 dark:border-white/[0.07] px-4 py-3">
-        {bdMention && (
-          <div className="absolute bottom-full left-4 right-4 mb-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#181b26] shadow-lg animate-float-up">
-            <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-white/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              <UserRound size={11} />
-              Select a business developer
-            </div>
-            {bdLoading ? (
-              <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
-                <Loader2 size={12} className="animate-spin" />
-                Loading…
+        {mention && (() => {
+          const copy = MENTION_COPY[mention.kind];
+          const loading = mentionSource[mention.kind].loading;
+          const MentionIcon = copy.icon;
+          return (
+            <div className="absolute bottom-full left-4 right-4 mb-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#181b26] shadow-lg animate-float-up">
+              <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-white/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                <MentionIcon size={11} />
+                {copy.heading}
               </div>
-            ) : bdSuggestions.length > 0 ? (
-              bdSuggestions.map((bd, idx) => (
-                <button
-                  key={bd.id}
-                  type="button"
-                  onMouseEnter={() => setBdHighlight(idx)}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleSelectBd(bd);
-                  }}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
-                    idx === bdHighlight
-                      ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-                      : "text-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-500 dark:text-indigo-400">
-                    {bd.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="truncate">{bd.name}</span>
-                </button>
-              ))
-            ) : (
-              <div className="px-3 py-3 text-xs text-slate-400">No matching business developers</div>
-            )}
-          </div>
-        )}
+              {loading ? (
+                <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
+                  <Loader2 size={12} className="animate-spin" />
+                  Loading…
+                </div>
+              ) : mentionSuggestions.length > 0 ? (
+                mentionSuggestions.map((item, idx) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onMouseEnter={() => setMentionHighlight(idx)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelectMention(item);
+                    }}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                      idx === mentionHighlight
+                        ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
+                        : "text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-500 dark:text-indigo-400">
+                      {item.name.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="truncate">{item.name}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-3 text-xs text-slate-400">{copy.empty}</div>
+              )}
+            </div>
+          );
+        })()}
         <div className="input-focus-glow flex gap-3 items-end rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] p-3 shadow-sm focus-within:border-indigo-500/50 transition-colors">
           <textarea
             ref={inputRef}
@@ -780,7 +844,7 @@ export default function JarvisPage() {
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
-              syncBdMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+              syncMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
             }}
             onKeyDown={onKeyDown}
             placeholder="Ask me to add a lead, company, or schedule an interview…"
