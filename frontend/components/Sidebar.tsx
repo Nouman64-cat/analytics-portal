@@ -25,7 +25,6 @@ import {
   Megaphone,
   DoorOpen,
   MessageSquare,
-  Bot,
   Wand2,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
@@ -68,7 +67,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Megaphone,
   DoorOpen,
   MessageSquare,
-  Bot,
+  Wand2,
 };
 
 export default function Sidebar({
