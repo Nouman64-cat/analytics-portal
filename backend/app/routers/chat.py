@@ -88,6 +88,7 @@ _READ_ONLY_TOOL_NAMES = {
     "list_candidates",
     "list_business_developers",
     "list_interviews",
+    "get_upcoming_interviews",
 }
 _LEAD_WRITE_TOOL_NAMES = {"create_lead", "schedule_interview", "update_lead", "update_lead_outcome"}
 # Everything else in _TOOLS (create_company, update_interview) is gated by plain write
@@ -337,6 +338,30 @@ _TOOLS = [
                     "role": {"type": "string", "description": "Partial role/job title (optional)"},
                     "round": {"type": "string", "description": "Round label (optional)"},
                     "limit": {"type": "integer", "description": "Max results (default 20)", "default": 20},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_upcoming_interviews",
+            "description": (
+                "Get interviews scheduled today or later, sorted soonest-first with their exact scheduled time. "
+                "ALWAYS call this for any question about the 'next', 'most upcoming', 'soonest', or 'nearest' "
+                "interview, or about today's schedule in time order — do not try to answer these from the "
+                "pipeline snapshot in the system prompt, since that snapshot is sorted most-recently-dated-first "
+                "(not soonest-first) and has no time column, so eyeballing it gives wrong answers."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "today_only": {
+                        "type": "boolean",
+                        "description": "If true, only include interviews scheduled for today. Default false (today and all future dates).",
+                    },
+                    "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10},
                 },
                 "required": [],
             },
@@ -685,14 +710,16 @@ def _pipeline_snapshot(session: Session, user: User, own_candidate_id: Optional[
         return "=== Pipeline snapshot: no records found ==="
 
     lines = [
-        f"=== Pipeline snapshot (most recent {len(rows)} — use these IDs directly for updates) ===",
-        "interview_id | thread_id | company | role | round | status | outcome_override | date",
+        f"=== Pipeline snapshot ({len(rows)} rows, sorted by date DESC — furthest-out/most-recent date "
+        "first, NOT soonest-first; use these IDs directly for updates) ===",
+        "interview_id | thread_id | company | role | round | status | outcome_override | date | time_est",
     ]
     for iv in rows:
         lines.append(
             f"{iv['id']} | {iv['thread_id']} | {iv.get('company_name') or '?'} | "
             f"{iv.get('role')} | {iv.get('round')} | {iv.get('status') or '—'} | "
-            f"{iv.get('lead_outcome') or '—'} | {iv.get('interview_date') or '—'}"
+            f"{iv.get('lead_outcome') or '—'} | {iv.get('interview_date') or '—'} | "
+            f"{iv['time_est'].strftime('%H:%M') if iv.get('time_est') else '—'}"
         )
     return "\n".join(lines)
 
@@ -852,6 +879,10 @@ no ID it might reference is real yet. When you see that:
 ## General rules
 - The pipeline snapshot above has IDs for existing records — use them directly for updates.
 - Call list_interviews only for older records not in the snapshot.
+- The pipeline snapshot is sorted furthest-out-date-first, not soonest-first — never answer a
+  "next/most upcoming/soonest interview" or time-ordered "today's schedule" question by eyeballing
+  it. Always call get_upcoming_interviews for those questions instead; it returns pre-sorted,
+  soonest-first data with exact times.
 - Never guess a UUID.
 - Ask for one missing required field at a time.
 - Dates: YYYY-MM-DD. Times: HH:MM (24-hour) EST.
@@ -949,6 +980,47 @@ def _exec_tool(
                 "outcome_override": iv.get("lead_outcome"),
                 "interview_date": str(iv["interview_date"]) if iv.get("interview_date") else None,
                 "created_at": created_at.date().isoformat() if created_at else None,
+            })
+        return results, None
+
+    if name == "get_upcoming_interviews":
+        today = date.today()
+        today_only = bool(args.get("today_only"))
+        limit = min(int(args.get("limit", 10)), 50)
+        rows = _list_interviews_endpoint(
+            candidate_id=None,
+            company_id=None,
+            resume_profile_id=None,
+            status_filter=None,
+            search=None,
+            date_from=None,
+            date_to=None,
+            department_id=department_id,
+            session=session,
+            current_user=user,
+        )
+        upcoming = [
+            iv for iv in rows
+            if iv.get("interview_date")
+            and iv["interview_date"] >= today
+            and (not today_only or iv["interview_date"] == today)
+        ]
+        # Soonest first — the DB/endpoint sort is most-recently-dated-first, the opposite of what
+        # "upcoming" needs, and time_est (not exposed elsewhere to the model) is the tiebreaker
+        # within a day.
+        upcoming.sort(key=lambda iv: (iv["interview_date"], iv.get("time_est") or dt_time.max))
+        results = []
+        for iv in upcoming[:limit]:
+            results.append({
+                "interview_id": str(iv["id"]),
+                "thread_id": str(iv["thread_id"]),
+                "company": iv.get("company_name"),
+                "role": iv.get("role"),
+                "round": iv.get("round"),
+                "candidate": iv.get("candidate_name"),
+                "status": iv.get("status"),
+                "interview_date": iv["interview_date"].isoformat(),
+                "time_est": iv["time_est"].strftime("%H:%M") if iv.get("time_est") else None,
             })
         return results, None
 
