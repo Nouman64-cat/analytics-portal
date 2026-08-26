@@ -411,7 +411,7 @@ export default function JarvisPage() {
 
     try {
       const history = messages.filter((m) => m !== WELCOME).map(({ role, content }) => ({ role, content }));
-      const res = await chatService.send(history, text);
+      const res = await chatService.send(history, text, departmentId);
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: res.reply,

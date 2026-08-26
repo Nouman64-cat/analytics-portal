@@ -577,10 +577,14 @@ interface ChatApiResponse {
 }
 
 export const chatService = {
-  send: (messages: { role: string; content: string }[], message: string) =>
+  send: (
+    messages: { role: string; content: string }[],
+    message: string,
+    departmentId?: string | null,
+  ) =>
     apiFetch<ChatApiResponse>("/chat/message", {
       method: "POST",
-      body: JSON.stringify({ messages, message }),
+      body: JSON.stringify({ messages, message, department_id: departmentId || undefined }),
     }),
   /** Actually perform a previously-proposed write. */
   confirmAction: (actionId: string) =>

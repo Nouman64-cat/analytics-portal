@@ -245,6 +245,7 @@ class HistoryMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[HistoryMessage] = []
     message: str
+    department_id: Optional[uuid.UUID] = None
 
 
 class ChatAction(BaseModel):
@@ -572,19 +573,21 @@ _ANALYTICS_TOOLS = [
         "function": {
             "name": "get_weekly_summary",
             "description": (
-                "Generate a weekly summary of leads and interviews taken by each candidate, "
+                "Generate a summary of leads and interviews taken by each candidate, "
                 "including the status of each opportunity (Converted, Rejected, Unresponsive, or Active). "
-                "Use this when the admin asks for a 'summary of interviews', 'weekly report', or similar. "
-                "Pass week_type='current' for the current week (Monday to today) or 'last' for the previous "
-                "Mon–Sun week. Alternatively, pass explicit date_from and date_to (YYYY-MM-DD) to cover any range."
+                "Use this when the admin asks for a 'summary of interviews', 'weekly report', 'today's schedule', "
+                "or similar. Pass week_type='today' when the admin asks about just today (e.g. 'today's schedule', "
+                "'what's happening today'), 'current' for the current week (Monday to today), or 'last' for the "
+                "previous Mon–Sun week. Alternatively, pass explicit date_from and date_to (YYYY-MM-DD) to cover "
+                "any range — for a single day, set date_from and date_to to the same date."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "week_type": {
                         "type": "string",
-                        "enum": ["current", "last"],
-                        "description": "'current' = Mon to today, 'last' = previous Mon–Sun week.",
+                        "enum": ["today", "current", "last"],
+                        "description": "'today' = just today, 'current' = Mon to today, 'last' = previous Mon–Sun week.",
                     },
                     "date_from": {"type": "string", "description": "Start date YYYY-MM-DD (optional, overrides week_type)"},
                     "date_to": {"type": "string", "description": "End date YYYY-MM-DD (optional, overrides week_type)"},
@@ -757,7 +760,9 @@ def _system_prompt(user: User, own_candidate_id: Optional[uuid.UUID], pipeline: 
             "- Use analyze_bd_performance to compare business developer effectiveness\n"
             "- Use analyze_interview_notes to surface patterns in feedback, rejection reasons, or recruiter notes\n"
             "- Use get_weekly_summary when asked for a 'summary of interviews', 'weekly report', 'this week's activity', "
-            "  or 'last week's summary'. Pass week_type='current' or 'last', or explicit date_from/date_to.\n\n"
+            "  'last week's summary', or 'today's schedule'. Pass week_type='today' for today-only questions "
+            "  ('today's schedule', 'what's today look like'), 'current' for this week, 'last' for last week, "
+            "  or explicit date_from/date_to (same date for both, for a single day).\n\n"
             "## Weekly summary formatting rules\n"
             "When you receive data from get_weekly_summary, format your reply EXACTLY as follows — "
             "no prose preamble, just the summary block so it is easy to copy:\n\n"
@@ -868,6 +873,7 @@ def _exec_tool(
     own_candidate_id: Optional[uuid.UUID],
     background_tasks: BackgroundTasks,
     confirm: bool = False,
+    department_id: Optional[uuid.UUID] = None,
 ) -> tuple[Any, Optional[ChatAction]]:
     """Run a tool and return (result_for_openai, action_or_None).
 
@@ -1248,12 +1254,15 @@ def _exec_tool(
             last_monday = today - timedelta(days=days_since_monday + 7)
             df = last_monday
             dt = last_monday + timedelta(days=6)
+        elif args.get("week_type") == "today":
+            df = today
+            dt = today
         else:
             # Current week: Mon to today
             df = today - timedelta(days=today.weekday())
             dt = today
 
-        data = analytics_helpers.get_weekly_interview_summary(session, df, dt)
+        data = analytics_helpers.get_weekly_interview_summary(session, df, dt, department_id=department_id)
         action = ChatAction(
             type="summary_generated",
             description=f"Weekly summary: {df.isoformat()} → {dt.isoformat()}",
@@ -1369,7 +1378,8 @@ def chat_message(
                     }
             else:
                 tool_result, action = _exec_tool(
-                    tc.function.name, tool_args, session, current_user, own_candidate_id, background_tasks
+                    tc.function.name, tool_args, session, current_user, own_candidate_id, background_tasks,
+                    department_id=body.department_id,
                 )
                 if action:
                     actions.append(action)

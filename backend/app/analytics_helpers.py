@@ -271,11 +271,13 @@ def get_weekly_interview_summary(
     session: Session,
     date_from: date,
     date_to: date,
+    department_id: Optional[uuid.UUID] = None,
 ) -> dict:
     """Weekly summary of leads and interview rounds grouped by candidate.
 
     Returns one entry per candidate containing all lead threads that had any
     activity (created_at) in [date_from, date_to], plus overall outcome counts.
+    Pass `department_id` to scope the summary to a single department.
     """
     from datetime import datetime as _dt
 
@@ -288,6 +290,8 @@ def get_weekly_interview_summary(
         .where(Interview.created_at <= date_to_dt)
         .order_by(Interview.created_at)
     )
+    if department_id:
+        stmt = stmt.where(Interview.department_id == department_id)
     all_interviews = session.exec(stmt).all()
 
     # Group by thread_id → collect all rounds
