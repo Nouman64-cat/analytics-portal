@@ -85,9 +85,24 @@ function getWeeklyProgressPayload(interviews: Interview[]): {
     return (roundCountByThread.get(inv.thread_id) ?? 0) > 1;
   });
 
+  // A thread (lead pipeline) can have multiple rounds land within the same window — e.g. R2 and R3
+  // for the same company in one week. Only the latest round reflects the pipeline's current state,
+  // so collapse each thread down to its single most-recent round before reporting it.
+  const latestByThread = new Map<string, Interview>();
+  for (const inv of progressed) {
+    const existing = latestByThread.get(inv.thread_id!);
+    if (
+      !existing ||
+      inv.interview_date! > existing.interview_date! ||
+      (inv.interview_date === existing.interview_date && roundRank(inv.round) > roundRank(existing.round))
+    ) {
+      latestByThread.set(inv.thread_id!, inv);
+    }
+  }
+
   const rangeLabel = `${lastMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${today.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
-  const ordered = [...progressed].sort((a, b) => roundRank(b.round) - roundRank(a.round));
+  const ordered = [...latestByThread.values()].sort((a, b) => roundRank(b.round) - roundRank(a.round));
   const items: ProgressItem[] = ordered.map((inv) => {
     const dateIso = inv.interview_date!.split("T")[0];
     const dateLabel = new Date(`${dateIso}T00:00:00`).toLocaleDateString("en-US", {
