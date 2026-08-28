@@ -293,6 +293,82 @@
 .stagger-children > *:nth-child(6) { animation-delay: 300ms; }
 
 
+/* ─── Magical / Harry Potter auth theme ─────────────────── */
+/* Used by the login, forgot-password, reset-password and
+   change-password screens. Candlelit night-sky-over-Hogwarts look. */
+
+.font-wizard {
+  font-family: var(--font-wizard), "Cinzel", "Trajan Pro", Georgia,
+    "Times New Roman", serif;
+  letter-spacing: 0.01em;
+}
+
+/* Candlelight gold gradient text */
+.text-enchanted {
+  background: linear-gradient(180deg, #fdf1c7 0%, #f5d489 45%, #d9a441 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 6px rgba(226, 168, 74, 0.25));
+}
+
+/* Slow twinkle for decorative sparkles / runes */
+@keyframes wizard-twinkle-soft {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.1); }
+}
+.animate-twinkle-soft { animation: wizard-twinkle-soft 2.6s ease-in-out infinite; }
+
+/* Candle-flame flicker for glows */
+@keyframes wizard-flicker {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  25%      { opacity: 1;    transform: scale(1.04); }
+  50%      { opacity: 0.7;  transform: scale(0.97); }
+  75%      { opacity: 0.95; transform: scale(1.02); }
+}
+.animate-flicker { animation: wizard-flicker 3.2s ease-in-out infinite; }
+
+/* Gentle levitation */
+@keyframes wizard-levitate {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+.animate-levitate { animation: wizard-levitate 5s ease-in-out infinite; }
+
+/* Golden shimmer sweep for the primary spell button */
+@keyframes wizard-shimmer {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+.animate-wizard-shimmer { animation: wizard-shimmer 2.8s ease-in-out infinite; }
+
+/* Breathing halo */
+@keyframes wizard-halo {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(226, 168, 74, 0.0),
+                         0 0 22px 2px rgba(226, 168, 74, 0.20); }
+  50%      { box-shadow: 0 0 0 4px rgba(226, 168, 74, 0.10),
+                         0 0 34px 6px rgba(226, 168, 74, 0.32); }
+}
+.animate-halo { animation: wizard-halo 4s ease-in-out infinite; }
+
+/* Slow drift of an enchanted rune ring */
+@keyframes wizard-rune-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.animate-rune-spin { animation: wizard-rune-spin 40s linear infinite; }
+.animate-rune-spin-rev { animation: wizard-rune-spin 60s linear infinite reverse; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-twinkle-soft,
+  .animate-flicker,
+  .animate-levitate,
+  .animate-wizard-shimmer,
+  .animate-halo,
+  .animate-rune-spin,
+  .animate-rune-spin-rev { animation: none !important; }
+}
+
 /* ─── Select styling ────────────────────────────────────── */
 select option {
   background-color: #1a1d2e;

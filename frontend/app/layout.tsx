@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -10,6 +10,13 @@ const inter = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+// Display face for the "magical" auth screens (login / password flows)
+const cinzel = Cinzel({
+  variable: "--font-wizard",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -25,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${cinzel.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex bg-[#f0f2ff] dark:bg-[#08070f] text-slate-900 dark:text-indigo-50">

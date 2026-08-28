@@ -1,135 +1,53 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Loader2, Eye, EyeOff, Wand2, Sparkles, Mail, KeyRound,
+  Moon, ShieldCheck, Stars,
+} from "lucide-react";
 import { authService } from "@/lib/services";
 import { setToken, isAuthenticated } from "@/lib/auth";
-import { useAccentPalette, type AccentPalette } from "@/lib/useAccentPalette";
+import MagicBackdrop from "@/components/MagicBackdrop";
 
-/* ─── Cute floating art canvas ────────────────────────── */
-function CuteArt({ palette }: { palette: AccentPalette }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef   = useRef<number>(0);
-  const paletteRef = useRef(palette);
-  useEffect(() => { paletteRef.current = palette; }, [palette]);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const p = paletteRef.current;
-    const W = canvas.width, H = canvas.height, t = Date.now() / 1000;
-    ctx.clearRect(0, 0, W, H);
-
-    // Soft pastel sky, tinted by the current accent hue
-    const bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, `hsl(${p.orbHueBase}, 75%, 95%)`);
-    bg.addColorStop(0.55, `hsl(${p.meshHue}, 65%, 91%)`);
-    bg.addColorStop(1, `hsl(${p.dotHueBase}, 70%, 94%)`);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-    // Big soft blobs, gently drifting
-    [
-      { bx: 0.18, by: 0.22, r: 190, hue: p.orbHueBase },
-      { bx: 0.82, by: 0.18, r: 150, hue: p.meshHue + 20 },
-      { bx: 0.75, by: 0.72, r: 210, hue: p.dotHueBase + 10 },
-      { bx: 0.15, by: 0.78, r: 160, hue: p.orbHueBase - 15 },
-    ].forEach((b, i) => {
-      const bx = b.bx * W + Math.sin(t * 0.18 + i * 1.4) * 30;
-      const by = b.by * H + Math.cos(t * 0.15 + i * 1.1) * 24;
-      const g = ctx.createRadialGradient(bx, by, 0, bx, by, b.r);
-      g.addColorStop(0, `hsla(${b.hue}, 90%, 82%, 0.55)`);
-      g.addColorStop(0.6, `hsla(${b.hue + 15}, 85%, 78%, 0.22)`);
-      g.addColorStop(1, "transparent");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, b.r, 0, Math.PI * 2); ctx.fill();
-    });
-
-    // Rising bubbles
-    for (let i = 0; i < 16; i++) {
-      const seed = i * 137.5;
-      const speed = 18 + (i % 5) * 6;
-      const x = (seed * 1.618) % W;
-      const y = H - (((t * speed + seed) % (H + 60)));
-      const r = 3 + (i % 4) * 2.5;
-      const wobble = Math.sin(t * 1.2 + i) * 8;
-      ctx.beginPath();
-      ctx.arc(x + wobble, y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = `hsla(${p.orbHueBase}, 80%, 70%, 0.35)`;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x + wobble - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,0.6)";
-      ctx.fill();
-    }
-
-    // Floating happy stickers
-    const stickers = ["✨", "🌸", "⭐", "💫", "🎈", "💛", "🌟", "🦋"];
-    const spots = [
-      [0.12, 0.15], [0.88, 0.12], [0.5, 0.08], [0.08, 0.5],
-      [0.92, 0.5], [0.2, 0.85], [0.8, 0.88], [0.5, 0.94],
-    ];
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    spots.forEach(([rx, ry], i) => {
-      const x = rx * W + Math.sin(t * 0.35 + i * 1.3) * 16;
-      const y = ry * H + Math.cos(t * 0.3 + i * 1.7) * 20;
-      const size = 20 + Math.sin(t * 0.5 + i) * 3;
-      ctx.font = `${size}px serif`;
-      ctx.globalAlpha = 0.75 + Math.sin(t * 0.6 + i) * 0.2;
-      ctx.fillText(stickers[i % stickers.length], x, y);
-    });
-    ctx.globalAlpha = 1;
-
-    animRef.current = requestAnimationFrame(draw);
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current; if(!canvas) return;
-    const resize = () => { canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; };
-    resize(); const ro = new ResizeObserver(resize); ro.observe(canvas);
-    animRef.current = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(animRef.current); ro.disconnect(); };
-  }, [draw]);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ display:"block" }} />;
-}
-
-/* ─── Reusable form input with emoji ─────────────────── */
+/* ─── Themed form input ──────────────────────────────── */
 function FormInput({
   id, label, type, value, onChange, placeholder, required, autoFocus,
-  icon, rightSlot,
+  icon: Icon, rightSlot,
 }: {
   id: string; label: string; type: string; value: string;
   onChange: (v: string) => void; placeholder: string;
   required?: boolean; autoFocus?: boolean;
-  icon: string; rightSlot?: React.ReactNode;
+  icon: React.ElementType; rightSlot?: React.ReactNode;
 }) {
   const [focused, setFocused] = useState(false);
-
   return (
     <div className="space-y-1.5">
       <label
         htmlFor={id}
-        className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+        className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/70 font-wizard"
       >
         {label}
       </label>
       <div
-        className={`relative flex items-center rounded-2xl border-2 transition-all duration-200 ${
+        className={`relative flex items-center rounded-xl border transition-all duration-200 ${
           focused
-            ? "border-pink-300 bg-white shadow-[0_0_0_4px_rgba(244,114,182,0.15)]"
-            : "border-slate-200 bg-slate-50 hover:border-pink-200 hover:bg-white"
+            ? "border-amber-300/60 bg-amber-50/[0.06] shadow-[0_0_0_3px_rgba(226,168,74,0.15)]"
+            : "border-amber-200/15 bg-white/[0.03] hover:border-amber-200/30 hover:bg-white/[0.05]"
         }`}
       >
-        {/* Left emoji */}
-        <div className="flex-shrink-0 flex items-center justify-center w-11 h-full text-lg">
-          {icon}
+        <div
+          className={`flex-shrink-0 flex items-center justify-center w-11 h-full pl-3.5 transition-colors duration-200 ${
+            focused ? "text-amber-300" : "text-amber-200/45"
+          }`}
+        >
+          <Icon size={16} />
         </div>
-        {/* Divider */}
-        <div className={`w-px self-stretch my-2.5 transition-colors duration-200 ${focused ? "bg-pink-200" : "bg-slate-200"}`} />
-        {/* Input */}
+        <div
+          className={`w-px self-stretch my-2.5 transition-colors duration-200 ${
+            focused ? "bg-amber-300/40" : "bg-amber-200/10"
+          }`}
+        />
         <input
           id={id}
           type={type}
@@ -140,9 +58,8 @@ function FormInput({
           autoFocus={autoFocus}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          className="flex-1 bg-transparent px-3.5 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-300 min-w-0"
+          className="flex-1 bg-transparent px-3.5 py-3 text-sm text-amber-50 outline-none placeholder:text-amber-100/25 min-w-0"
         />
-        {/* Right slot (show/hide password etc.) */}
         {rightSlot && <div className="pr-3">{rightSlot}</div>}
       </div>
     </div>
@@ -152,7 +69,6 @@ function FormInput({
 /* ─── Login Page ──────────────────────────────────────── */
 export default function LoginPage() {
   const router = useRouter();
-  const palette = useAccentPalette();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -179,69 +95,91 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full min-h-screen flex bg-gradient-to-br from-pink-50 via-orange-50/40 to-indigo-50">
-      {/* ── Left: Cute Art Panel ── */}
+    <div className="w-full min-h-screen flex bg-[#07060f] text-amber-50">
+      {/* ── Left: enchanted night sky ── */}
       <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden flex-col">
-        <CuteArt palette={palette} />
+        <MagicBackdrop />
         <div className="relative z-10 flex flex-col justify-between h-full p-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/60 backdrop-blur-sm border border-white/60 flex items-center justify-center shadow-lg text-lg">
-              🎯
+            <div className="w-10 h-10 rounded-xl bg-amber-200/10 backdrop-blur-sm border border-amber-200/25 flex items-center justify-center shadow-lg animate-halo">
+              <Wand2 size={18} className="text-amber-200" />
             </div>
             <div>
-              <span className="font-bold text-slate-700 text-sm block leading-tight">Interview Management</span>
-              <span className="text-slate-500/80 text-[10px] uppercase tracking-widest">Portal</span>
+              <span className="font-wizard font-bold text-amber-100 text-sm block leading-tight tracking-wide">
+                Interview Management
+              </span>
+              <span className="text-amber-200/50 text-[10px] uppercase tracking-[0.28em]">Portal</span>
             </div>
           </div>
+
           <div className="max-w-sm">
-            <div className="flex flex-wrap gap-2 mb-4">
-              {["📊 Analytics", "🧑‍💼 Candidates", "💡 Insights"].map((tag) => (
-                <span key={tag} className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/70 text-slate-600 border border-white/70 backdrop-blur-sm shadow-sm">
+            <div className="flex flex-wrap gap-2 mb-5">
+              {["Analytics", "Candidates", "Insights"].map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-200/[0.06] text-amber-100/80 border border-amber-200/20 backdrop-blur-sm"
+                >
+                  <Sparkles size={10} className="text-amber-300" />
                   {tag}
                 </span>
               ))}
             </div>
-            <h2 className="text-slate-700 font-bold text-xl leading-snug">
-              Let&apos;s find your next great hire! 🎉
+            <h2 className="font-wizard text-enchanted font-bold text-[26px] leading-snug">
+              Every candidate&apos;s tale, written in the stars.
             </h2>
-            <p className="mt-2 text-slate-500 text-sm leading-relaxed">
-              Track interviews, celebrate the wins, and make hiring decisions with a smile 😊
+            <p className="mt-3 text-amber-100/55 text-sm leading-relaxed">
+              Track interviews, follow the trail, and make each hiring decision by candlelight. ✦
             </p>
+            <div className="mt-6 flex items-center gap-4 text-amber-200/40 text-xs">
+              <span className="flex items-center gap-1.5"><Moon size={13} /> Night mode, always</span>
+              <span className="flex items-center gap-1.5"><Stars size={13} /> Charmed &amp; secure</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Right: Form Panel ── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
-        <div className="w-full max-w-[420px] animate-fade-in">
-
+      {/* ── Right: sign-in ── */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12 relative overflow-hidden bg-[#0a0812]">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            background:
+              "radial-gradient(600px 400px at 70% 0%, rgba(226,168,74,0.10), transparent 60%), radial-gradient(500px 500px at 0% 100%, rgba(124,58,237,0.12), transparent 60%)",
+          }}
+        />
+        <div className="w-full max-w-[420px] animate-fade-in relative">
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-2.5 mb-8">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-orange-300 flex items-center justify-center text-base shadow-sm">
-              🎯
+            <div className="w-9 h-9 rounded-xl bg-amber-200/10 border border-amber-200/25 flex items-center justify-center">
+              <Wand2 size={16} className="text-amber-200" />
             </div>
             <div>
-              <span className="font-bold text-slate-900 text-sm block leading-tight">Interview Management</span>
-              <span className="text-slate-400 text-[10px] uppercase tracking-widest">Portal</span>
+              <span className="font-wizard font-bold text-amber-100 text-sm block leading-tight">
+                Interview Management
+              </span>
+              <span className="text-amber-200/50 text-[10px] uppercase tracking-[0.28em]">Portal</span>
             </div>
           </div>
 
           {/* Header */}
           <div className="mb-8">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 border border-pink-100 mb-4">
-              <span className="text-xs">✨</span>
-              <span className="text-[11px] font-medium text-pink-600">So happy you&apos;re here</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-200/[0.07] border border-amber-200/20 mb-4">
+              <Sparkles size={11} className="text-amber-300 animate-twinkle-soft" />
+              <span className="text-[11px] font-medium text-amber-200/80 font-wizard tracking-wide">
+                The portal awaits
+              </span>
             </div>
-            <h1 className="text-[28px] font-bold text-slate-900 tracking-tight leading-tight">
-              Welcome back! 👋
+            <h1 className="font-wizard text-enchanted text-[30px] font-bold tracking-tight leading-tight">
+              Welcome back
             </h1>
-            <p className="mt-1.5 text-sm text-slate-500">
-              We&apos;ve missed you — let&apos;s get you signed in.
+            <p className="mt-2 text-sm text-amber-100/55">
+              Speak the words and the door shall open.
             </p>
           </div>
 
           {/* Form card */}
-          <div className="rounded-3xl border border-slate-100 bg-slate-50/50 p-6 shadow-sm">
+          <div className="relative rounded-2xl border border-amber-200/15 bg-white/[0.025] p-6 shadow-[0_8px_40px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+            <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-amber-300/50 to-transparent" />
             <form onSubmit={handleSubmit} className="space-y-4">
               <FormInput
                 id="login-email"
@@ -252,7 +190,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 autoFocus
-                icon="📧"
+                icon={Mail}
               />
 
               <FormInput
@@ -261,78 +199,68 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={setPassword}
-                placeholder="Enter your password"
+                placeholder="Your secret incantation"
                 required
-                icon="🔒"
+                icon={KeyRound}
                 rightSlot={
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     tabIndex={-1}
-                    className="p-1.5 rounded-lg text-base hover:bg-slate-100 transition-all"
+                    className="p-1.5 rounded-lg text-amber-200/50 hover:text-amber-200 hover:bg-amber-200/10 transition-all"
                   >
-                    {showPassword ? "🙈" : "👀"}
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 }
               />
 
-              {/* Forgot password */}
               <div className="flex justify-end pt-0.5">
                 <button
                   type="button"
                   onClick={() => router.push("/forgot-password")}
-                  className="text-xs font-medium text-pink-600 hover:text-pink-500 transition-colors"
+                  className="text-xs font-medium text-amber-300/80 hover:text-amber-200 transition-colors"
                 >
-                  Forgot password? 🤔
+                  Forgotten the incantation?
                 </button>
               </div>
 
-              {/* Error */}
               {error && (
-                <div className="animate-float-up flex items-start gap-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs">
-                    😬
+                <div className="animate-float-up flex items-start gap-3 rounded-xl bg-red-500/10 border border-red-400/25 px-4 py-3">
+                  <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-red-300 text-[10px] font-bold">!</span>
                   </div>
-                  <p className="text-xs text-red-600 leading-relaxed">{error}</p>
+                  <p className="text-xs text-red-300 leading-relaxed">{error}</p>
                 </div>
               )}
 
-              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="relative w-full overflow-hidden flex items-center justify-center gap-2.5 rounded-full px-4 py-3.5 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 mt-2 shadow-md"
+                className="relative w-full overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-4 py-3.5 text-sm font-semibold text-[#2a1c05] font-wizard tracking-wide transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed mt-2 animate-halo"
                 style={{
                   background: loading
-                    ? "#f472b6"
-                    : "linear-gradient(135deg, #f472b6 0%, #fb923c 50%, #facc15 100%)",
+                    ? "#c9a24a"
+                    : "linear-gradient(135deg,#b8860b 0%,#e2a84a 45%,#f7e08a 100%)",
                 }}
               >
-                {/* shimmer layer */}
                 {!loading && (
-                  <span
-                    className="absolute inset-0 animate-shimmer pointer-events-none"
-                    style={{
-                      background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)",
-                      backgroundSize: "200% auto",
-                    }}
-                  />
+                  <span className="absolute inset-y-0 -left-1/3 w-1/3 animate-wizard-shimmer pointer-events-none bg-gradient-to-r from-transparent via-white/60 to-transparent" />
                 )}
-                <span className={loading ? "animate-spin" : ""}>{loading ? "🌀" : "🚀"}</span>
-                <span>{loading ? "Signing you in…" : "Let's go!"}</span>
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                <span>{loading ? "Unlocking…" : "Alohomora"}</span>
               </button>
             </form>
           </div>
 
           {/* Trust badges */}
           <div className="mt-6 flex items-center justify-center gap-4">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <span>🔒</span>
-              Safe &amp; secure
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-200/40">
+              <ShieldCheck size={13} className="text-emerald-400/80" />
+              Protected by ancient magic
             </div>
-            <span className="w-px h-3.5 bg-slate-200" />
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <span>💛</span>
+            <span className="w-px h-3.5 bg-amber-200/15" />
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-200/40">
+              <Sparkles size={12} className="text-amber-300/80" />
               Made with care
             </div>
           </div>
