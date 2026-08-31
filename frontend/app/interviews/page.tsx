@@ -4086,6 +4086,7 @@ export default function InterviewsPage() {
                 <InterviewChainTimeline
                   chain={chain}
                   highlightId={detailModal.id}
+                  onStepClick={(step) => setDetailModal(step)}
                 />
               );
             })()}

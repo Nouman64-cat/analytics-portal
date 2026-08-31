@@ -10,10 +10,13 @@ export function InterviewChainTimeline({
   highlightId,
   /** Denser layout for hover popovers and tight columns */
   compact = false,
+  onStepClick,
 }: {
   chain: Interview[];
   highlightId?: string;
   compact?: boolean;
+  /** When provided, each round becomes clickable and invokes this with the clicked round's interview record. */
+  onStepClick?: (step: Interview) => void;
 }) {
   if (chain.length === 0) return null;
 
@@ -89,7 +92,22 @@ export function InterviewChainTimeline({
                   aria-hidden
                 />
                 <div
+                  role={onStepClick ? "button" : undefined}
+                  tabIndex={onStepClick ? 0 : undefined}
+                  onClick={onStepClick ? () => onStepClick(step) : undefined}
+                  onKeyDown={
+                    onStepClick
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onStepClick(step);
+                          }
+                        }
+                      : undefined
+                  }
                   className={`min-w-0 flex-1 rounded-lg border px-3 py-2.5 transition-colors ${
+                    onStepClick ? "cursor-pointer hover:border-indigo-400/70 hover:bg-indigo-50/60 dark:hover:bg-indigo-500/[0.08]" : ""
+                  } ${
                     active
                       ? "border-indigo-400/70 bg-indigo-50 dark:border-indigo-500/40 dark:bg-indigo-500/10"
                       : "border-slate-200/90 bg-white dark:border-white/[0.06] dark:bg-[#151821]"
