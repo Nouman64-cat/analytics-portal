@@ -112,9 +112,168 @@ import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 // ─── Weather Card (shown in Interview Details modal) ────────
 
+interface MapGeoResult {
+  id: number;
+  name: string;
+  country: string;
+  admin1?: string;
+  latitude: number;
+  longitude: number;
+}
+
+function MapSearchBox({
+  onSelect,
+}: {
+  onSelect: (r: MapGeoResult) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<MapGeoResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const search = (q: string) => {
+    abortRef.current?.abort();
+    if (!q.trim() || q.trim().length < 2) {
+      setResults([]);
+      setLoading(false);
+      setOpen(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLoading(true);
+    setOpen(true);
+    fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q.trim())}&count=6&language=en&format=json`,
+      { signal: ctrl.signal },
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (!ctrl.signal.aborted) {
+          setResults(data.results ?? []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setLoading(false);
+      });
+  };
+
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value;
+    setQuery(q);
+    setActiveIndex(-1);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(q), 300);
+  };
+
+  const select = (r: MapGeoResult) => {
+    const label = [r.name, r.admin1, r.country].filter(Boolean).join(", ");
+    setQuery(label);
+    setResults([]);
+    setOpen(false);
+    setActiveIndex(-1);
+    onSelect(r);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      select(results[activeIndex]!);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="absolute top-2 left-2 right-2 z-[500] max-w-xs">
+      <div className="relative">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (results.length > 0) setOpen(true);
+          }}
+          placeholder="Search a place on the map…"
+          className="w-full rounded-lg border border-slate-200 dark:border-white/[0.1] bg-white/95 dark:bg-[#161926]/95 pl-8 pr-7 py-1.5 text-xs shadow-md backdrop-blur focus:outline-none focus:ring-2 focus:ring-rose-400/50 text-slate-700 dark:text-slate-200"
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+        />
+        {loading && (
+          <Loader2 size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-slate-400" />
+        )}
+      </div>
+
+      {open && (results.length > 0 || loading) && (
+        <ul
+          role="listbox"
+          className="mt-1 w-full rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1d2a] shadow-xl overflow-hidden max-h-48 overflow-y-auto"
+        >
+          {loading && results.length === 0 && (
+            <li className="px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
+              <Loader2 size={11} className="animate-spin" />
+              Searching…
+            </li>
+          )}
+          {results.map((r, i) => {
+            const label = [r.name, r.admin1, r.country].filter(Boolean).join(", ");
+            return (
+              <li
+                key={r.id}
+                role="option"
+                aria-selected={i === activeIndex}
+                onMouseDown={() => select(r)}
+                onMouseEnter={() => setActiveIndex(i)}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-xs transition-colors ${
+                  i === activeIndex
+                    ? "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                } ${i !== 0 ? "border-t border-slate-100 dark:border-white/[0.04]" : ""}`}
+              >
+                <MapPin size={11} className={`shrink-0 ${i === activeIndex ? "text-rose-500" : "text-slate-400 dark:text-slate-500"}`} />
+                <span className="truncate">{label}</span>
+              </li>
+            );
+          })}
+          {!loading && results.length === 0 && (
+            <li className="px-3 py-2 text-xs text-slate-400">No locations found</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function WeatherCard({ location }: { location: string }) {
   const { loading, error, weather, description } = useProfileWeather(location);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number; label: string } | null>(null);
 
   if (loading) {
     return (
@@ -192,13 +351,39 @@ function WeatherCard({ location }: { location: string }) {
 
       {/* Embedded Map */}
       {mapExpanded && (
-        <div className="mt-1 w-full rounded-lg overflow-hidden border border-rose-200 dark:border-rose-500/20 shadow-inner h-48 md:h-64 transition-all">
+        <div className="mt-1 relative w-full rounded-lg overflow-hidden border border-rose-200 dark:border-rose-500/20 shadow-inner h-48 md:h-64 transition-all">
+          <MapSearchBox
+            onSelect={(r) =>
+              setMapCenter({
+                lat: r.latitude,
+                lon: r.longitude,
+                label: [r.name, r.admin1, r.country].filter(Boolean).join(", "),
+              })
+            }
+          />
+          {mapCenter && (
+            <button
+              type="button"
+              onClick={() => setMapCenter(null)}
+              title={`Reset to ${weather.cityName}`}
+              className="absolute bottom-2 left-2 z-[500] inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/[0.1] bg-white/95 dark:bg-[#161926]/95 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 shadow-md backdrop-blur hover:bg-white dark:hover:bg-[#161926]"
+            >
+              <MapPin size={11} className="text-rose-500 shrink-0" />
+              Reset to {weather.cityName}
+            </button>
+          )}
           <iframe
             width="100%"
             height="100%"
             frameBorder="0"
             scrolling="no"
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${weather.longitude - 0.05},${weather.latitude - 0.05},${weather.longitude + 0.05},${weather.latitude + 0.05}&layer=mapnik&marker=${weather.latitude},${weather.longitude}`}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+              (mapCenter?.lon ?? weather.longitude) - 0.05
+            },${(mapCenter?.lat ?? weather.latitude) - 0.05},${
+              (mapCenter?.lon ?? weather.longitude) + 0.05
+            },${(mapCenter?.lat ?? weather.latitude) + 0.05}&layer=mapnik&marker=${
+              mapCenter?.lat ?? weather.latitude
+            },${mapCenter?.lon ?? weather.longitude}`}
             className="w-full h-full"
           />
         </div>
