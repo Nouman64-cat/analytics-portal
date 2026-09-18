@@ -773,18 +773,23 @@ function LeadThreadPanel({
   const [override, setOverride] = useState<string>(
     explicit && interview.lead_outcome ? interview.lead_outcome : "",
   );
+  const [closedSubStatus, setClosedSubStatus] = useState<string>(
+    interview.closed_sub_status || "active",
+  );
   const [notes, setNotes] = useState(interview.lead_notes ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const ex = interview.lead_source === "explicit";
     setOverride(ex && interview.lead_outcome ? interview.lead_outcome : "");
+    setClosedSubStatus(interview.closed_sub_status || "active");
     setNotes(interview.lead_notes ?? "");
   }, [
     threadId,
     interview.id,
     interview.lead_source,
     interview.lead_outcome,
+    interview.closed_sub_status,
     interview.lead_notes,
   ]);
 
@@ -800,6 +805,8 @@ function LeadThreadPanel({
       } else {
         res = await interviewsService.updateLead(threadId, {
           outcome_override: override,
+          closed_sub_status:
+            override === "closed" ? (closedSubStatus || "active") : null,
           ...(notes.trim() !== "" ? { notes: notes.trim() } : {}),
         });
       }
@@ -809,6 +816,7 @@ function LeadThreadPanel({
         lead_source: res.lead_source,
         lead_notes: res.lead_notes ?? null,
         lead_closed_at: res.lead_closed_at ?? null,
+        closed_sub_status: res.closed_sub_status ?? null,
       });
       await fetchData();
     } finally {
@@ -832,15 +840,21 @@ function LeadThreadPanel({
   const leadBadge = (
     outcome: string | null | undefined,
     label: string | null | undefined,
+    closedSub?: string | null,
   ) => {
-    const loStyle = getLeadOutcomeBadgeStyle(outcome);
+    const loStyle = getLeadOutcomeBadgeStyle(outcome, closedSub);
+    const sub = (closedSub || "").toLowerCase();
+    const displayLabel =
+      (outcome || "").toLowerCase() === "closed" && sub
+        ? `${label ?? "Closed"} · ${sub === "lost" ? "Lost" : "Active"}`
+        : label ?? "—";
     return (
       <span
         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${loStyle.bg} ${loStyle.text}`}
       >
         <span className={`h-1.5 w-1.5 rounded-full ${loStyle.dot}`} />
-        <span aria-hidden="true">{getLeadOutcomeEmoji(outcome)}</span>
-        {label ?? "—"}
+        <span aria-hidden="true">{getLeadOutcomeEmoji(outcome, closedSub)}</span>
+        {displayLabel}
       </span>
     );
   };
@@ -854,7 +868,11 @@ function LeadThreadPanel({
           >
             Lead
           </span>
-          {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+          {leadBadge(
+            interview.lead_outcome,
+            interview.lead_status_label,
+            interview.closed_sub_status,
+          )}
           <Link
             href={`/leads?thread_id=${threadId}`}
             className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline ml-auto shrink-0"
@@ -871,7 +889,11 @@ function LeadThreadPanel({
             Lead
           </span>
           <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+            {leadBadge(
+              interview.lead_outcome,
+              interview.lead_status_label,
+              interview.closed_sub_status,
+            )}
             {sourceHint}
           </span>
         </div>
@@ -883,7 +905,11 @@ function LeadThreadPanel({
             Lead
           </h4>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {leadBadge(interview.lead_outcome, interview.lead_status_label)}
+            {leadBadge(
+              interview.lead_outcome,
+              interview.lead_status_label,
+              interview.closed_sub_status,
+            )}
             {sourceHint}
           </div>
         </>
@@ -915,6 +941,21 @@ function LeadThreadPanel({
               ))}
             </select>
           </div>
+          {override === "closed" && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                Closure type
+              </label>
+              <select
+                value={closedSubStatus}
+                onChange={(e) => setClosedSubStatus(e.target.value)}
+                className={`${selectClass} ${getLeadOutcomeSelectShellClass("closed", closedSubStatus)}`}
+              >
+                <option value="active">😌 Active (Won)</option>
+                <option value="lost">😔 Lost</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
               Notes (optional)
@@ -1331,6 +1372,8 @@ export default function InterviewsPage() {
       parent_interview_id: undefined,
       room_id: "",
       duration_minutes: 30,
+      status: "",
+      closed_sub_status: "active",
     });
     setInterviewDocFile(null);
     setInterviewDocError(null);
@@ -1359,6 +1402,7 @@ export default function InterviewsPage() {
       time_pkt: "",
       duration_minutes: 30,
       status: "",
+      closed_sub_status: "active",
       feedback: "",
       recruiter_feedback: "",
       bd_id: parent.bd_id || "",
@@ -1393,6 +1437,7 @@ export default function InterviewsPage() {
       time_pkt: interview.time_pkt || "",
       duration_minutes: interview.duration_minutes ?? 30,
       status: interview.status || "",
+      closed_sub_status: interview.closed_sub_status || "active",
       feedback: interview.feedback || "",
       recruiter_feedback: interview.recruiter_feedback || "",
       bd_id: interview.bd_id || "",
@@ -1482,6 +1527,11 @@ export default function InterviewsPage() {
       if (!payload.time_pkt) payload.time_pkt = null;
       if (!payload.duration_minutes) payload.duration_minutes = 30;
       if (!payload.status) payload.status = null;
+      if (payload.status === "Closed") {
+        payload.closed_sub_status = formData.closed_sub_status || "active";
+      } else {
+        payload.closed_sub_status = null;
+      }
       if (!payload.feedback) payload.feedback = null;
       if (!payload.recruiter_feedback) payload.recruiter_feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
@@ -1629,10 +1679,28 @@ export default function InterviewsPage() {
     }
   };
 
-  const handleInterviewStatusSave = async (interview: Interview, status: string | null) => {
+  const handleInterviewStatusSave = async (
+    interview: Interview,
+    status: string | null,
+    closedSubStatus?: string | null,
+  ) => {
     setSavingCell(true);
     try {
-      patchInterviewLocal(await interviewsService.update(interview.id, { status }));
+      const isCl = status?.toLowerCase() === "closed";
+      const payload: InterviewFormData = {
+        company_id: interview.company_id,
+        candidate_id: interview.candidate_id || "",
+        resume_profile_id: interview.resume_profile_id,
+        role: interview.role,
+        round: interview.round,
+        status,
+        closed_sub_status: isCl ? (closedSubStatus || "active") : null,
+      };
+      const updated = await interviewsService.update(interview.id, payload);
+      patchInterviewLocal({
+        ...updated,
+        closed_sub_status: isCl ? (closedSubStatus || "active") : null,
+      });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update status");
     } finally {
@@ -2096,8 +2164,18 @@ export default function InterviewsPage() {
 
     let matchStatus = true;
     if (filters.status !== "All") {
-      matchStatus =
-        i.computed_status.toLowerCase() === filters.status.toLowerCase();
+      if (filters.status === "Closed:active") {
+        matchStatus =
+          i.computed_status.toLowerCase() === "closed" &&
+          (i.closed_sub_status || "").toLowerCase() !== "lost";
+      } else if (filters.status === "Closed:lost") {
+        matchStatus =
+          i.computed_status.toLowerCase() === "closed" &&
+          (i.closed_sub_status || "").toLowerCase() === "lost";
+      } else {
+        matchStatus =
+          i.computed_status.toLowerCase() === filters.status.toLowerCase();
+      }
     }
 
     let matchMonth = true;
@@ -2185,6 +2263,8 @@ export default function InterviewsPage() {
     Rejected: 0,
     Dead: 0,
     Closed: 0,
+    ClosedActive: 0,
+    ClosedLost: 0,
     Dropped: 0,
   };
 
@@ -2195,7 +2275,14 @@ export default function InterviewsPage() {
     else if (label.includes("converted") || label.includes("progressed")) statusCounts.Progressed++;
     else if (label.includes("rejected")) statusCounts.Rejected++;
     else if (label === "dead") statusCounts.Dead++;
-    else if (label.includes("closed")) statusCounts.Closed++;
+    else if (label.includes("closed")) {
+      statusCounts.Closed++;
+      if ((i.closed_sub_status || "").toLowerCase() === "lost") {
+        statusCounts.ClosedLost++;
+      } else {
+        statusCounts.ClosedActive++;
+      }
+    }
     else if (label.includes("dropped")) statusCounts.Dropped++;
   });
 
@@ -2318,10 +2405,11 @@ export default function InterviewsPage() {
       <div className="rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2.5 w-full flex flex-col gap-2.5">
         {/* Row 1 + Toggle Button */}
         <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2.5 w-full">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 flex-1 gap-2 sm:gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 flex-1 gap-2 sm:gap-2.5">
             {[
               { title: "Total", value: legitInterviewsCount, emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
-              { title: "Closed", value: statusCounts.Closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+              { title: "Closed · Active", value: statusCounts.ClosedActive, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+              { title: "Closed · Lost", value: statusCounts.ClosedLost, emoji: "😔", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-500/10 dark:bg-rose-500/20" },
               { title: "Upcoming", value: statusCounts.Upcoming, emoji: "🙂", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 dark:bg-blue-500/20" },
               { title: "Rejected", value: statusCounts.Rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
               { title: "Progressed", value: statusCounts.Progressed, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
@@ -2447,7 +2535,9 @@ export default function InterviewsPage() {
                 <option value="Unresponsed">Unresponsed</option>
                 <option value="Dead">Dead</option>
                 <option value="Rejected">Rejected</option>
-                <option value="Closed">Closed</option>
+                <option value="Closed">Closed (All)</option>
+                <option value="Closed:active">Closed · Active</option>
+                <option value="Closed:lost">Closed · Lost</option>
                 <option value="Dropped">Dropped</option>
               </select>
               {!isTeamMember && (
@@ -2661,7 +2751,13 @@ export default function InterviewsPage() {
                     const isUpcoming =
                       interview.computed_status.toLowerCase() === "upcoming";
                     const isClosed =
-                      interview.computed_status.toLowerCase() === "closed";
+                      interview.computed_status.toLowerCase() === "closed" ||
+                      interview.lead_outcome?.toLowerCase() === "closed";
+                    const isClosedLost =
+                      isClosed &&
+                      (interview.closed_sub_status || "").toLowerCase() ===
+                        "lost";
+                    const isClosedActive = isClosed && !isClosedLost;
                     const minsLeft = isUpcoming
                       ? minutesUntilInterview(interview, nowMs)
                       : null;
@@ -2677,9 +2773,11 @@ export default function InterviewsPage() {
                         ? "border-b border-amber-200 dark:border-amber-500/20"
                         : isUpcoming
                           ? "border-b border-blue-200 dark:border-white/[0.08]"
-                          : isClosed
-                            ? "border-b border-emerald-200 dark:border-white/[0.08]"
-                            : "border-b border-slate-200 dark:border-white/[0.06]";
+                          : isClosedLost
+                            ? "border-b border-rose-200 dark:border-white/[0.08]"
+                            : isClosedActive
+                              ? "border-b border-emerald-200 dark:border-white/[0.08]"
+                              : "border-b border-slate-200 dark:border-white/[0.06]";
                     const rowBg = isImminent
                       ? "iv-row-imminent border-l-4 border-l-red-500"
                       : isWarning
@@ -2688,9 +2786,11 @@ export default function InterviewsPage() {
                           ? "bg-violet-50/40 dark:bg-violet-500/[0.06] hover:bg-violet-100/50 dark:hover:bg-violet-500/[0.10] border-l-4 border-l-violet-400/70 dark:border-l-violet-500/50 opacity-80"
                           : isUpcoming
                             ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
-                            : isClosed
-                              ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
-                              : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
+                            : isClosedLost
+                              ? "bg-rose-100 dark:bg-rose-500/[0.15] hover:bg-rose-200/70 dark:hover:bg-rose-500/[0.22] border-l-4 border-l-rose-500 dark:border-l-rose-400"
+                              : isClosedActive
+                                ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
+                                : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
 
                     return (
                       <tr
@@ -3081,14 +3181,22 @@ export default function InterviewsPage() {
                           {editingCell?.id === interview.id && editingCell.field === "status" ? (
                             <select
                               autoFocus
-                              defaultValue={interview.status ?? ""}
+                              defaultValue={
+                                interview.status?.toLowerCase() === "closed"
+                                  ? ((interview.closed_sub_status || "").toLowerCase() === "lost"
+                                      ? "Closed:lost"
+                                      : "Closed:active")
+                                  : (interview.status ?? "")
+                              }
                               onClick={(e) => e.stopPropagation()}
                               onBlur={(e) => {
-                                const val = e.target.value || null;
-                                if (val !== (interview.status ?? null)) {
-                                  handleInterviewStatusSave(interview, val);
+                                const val = e.target.value;
+                                if (val === "Closed:active") {
+                                  void handleInterviewStatusSave(interview, "Closed", "active");
+                                } else if (val === "Closed:lost") {
+                                  void handleInterviewStatusSave(interview, "Closed", "lost");
                                 } else {
-                                  setEditingCell(null);
+                                  void handleInterviewStatusSave(interview, val || null, null);
                                 }
                               }}
                               onKeyDown={(e) => {
@@ -3096,24 +3204,20 @@ export default function InterviewsPage() {
                               }}
                               className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
                             >
-                              {(
-                                [
-                                  "",
-                                  "Upcoming",
-                                  "Converted",
-                                  "Closed",
-                                  "Dropped",
-                                  "Rejected",
-                                ] as const
-                              ).map((val) => (
-                                <option key={val} value={val}>
-                                  {val === "" ? "Unresponsed" : val === "Converted" ? "Progressed" : val}
-                                </option>
-                              ))}
+                              <option value="">Unresponsed</option>
+                              <option value="Upcoming">Upcoming</option>
+                              <option value="Converted">Progressed</option>
+                              <option value="Closed:active">Closed · Active</option>
+                              <option value="Closed:lost">Closed · Lost</option>
+                              <option value="Dropped">Dropped</option>
+                              <option value="Rejected">Rejected</option>
                             </select>
                           ) : (
                             <span className="group/cell inline-flex items-center gap-1.5">
-                              <StatusBadge status={interview.computed_status} />
+                              <StatusBadge
+                                status={interview.computed_status}
+                                closedSubStatus={interview.closed_sub_status}
+                              />
                               {!cannotCRUD && (
                                 <button
                                   type="button"
@@ -3699,14 +3803,25 @@ export default function InterviewsPage() {
                   ] as const
                 ).map((val) => {
                   const label = val === "" ? "Unresponsed" : val === "Converted" ? "Progressed" : val;
-                  const s = getStatusStyle(val === "" ? null : val);
+                  const s = getStatusStyle(
+                    val === "" ? null : val,
+                    val === "Closed"
+                      ? formData.closed_sub_status || "active"
+                      : null,
+                  );
                   const selected = (formData.status || "") === val;
                   return (
                     <button
                       key={val}
                       type="button"
                       onClick={() =>
-                        setFormData({ ...formData, status: val || null })
+                        setFormData({
+                          ...formData,
+                          status: val || null,
+                          ...(val === "Closed" && !formData.closed_sub_status
+                            ? { closed_sub_status: "active" }
+                            : {}),
+                        })
                       }
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all
                         ${
@@ -3718,12 +3833,60 @@ export default function InterviewsPage() {
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${selected ? s.dot : "bg-slate-400 dark:bg-slate-500"}`}
                       />
-                      <span aria-hidden="true">{getStatusEmoji(val || null)}</span>
+                      <span aria-hidden="true">
+                        {getStatusEmoji(
+                          val || null,
+                          val === "Closed"
+                            ? formData.closed_sub_status || "active"
+                            : null,
+                        )}
+                      </span>
                       {label}
                     </button>
                   );
                 })}
               </div>
+              {formData.status === "Closed" && (
+                <div className="mt-3 flex items-center gap-2.5">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Closure type:
+                  </span>
+                  <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          closed_sub_status: "active",
+                        })
+                      }
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                        (formData.closed_sub_status || "active") === "active"
+                          ? "bg-emerald-500 text-white shadow-sm"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      😌 Active (Won)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          closed_sub_status: "lost",
+                        })
+                      }
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                        formData.closed_sub_status === "lost"
+                          ? "bg-rose-500 text-white shadow-sm"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      😔 Lost
+                    </button>
+                  </div>
+                </div>
+              )}
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 Use <span className="font-medium">Progressed</span> when this
                 round moved the candidate forward. Use{" "}
@@ -4111,7 +4274,7 @@ export default function InterviewsPage() {
                       threadId={detailModal.thread_id}
                       interview={detailModal}
                       fetchData={fetchData}
-                      readOnly={true}
+                      readOnly={!canEditLeadThreadPanel || detailModal.bd_dept_only}
                       onUpdateDetail={(patch) =>
                         setDetailModal((prev) =>
                           prev ? { ...prev, ...patch } : null,
@@ -4430,7 +4593,10 @@ export default function InterviewsPage() {
                         Status
                       </p>
                       <div className="mt-1">
-                        <StatusBadge status={detailModal.computed_status} />
+                        <StatusBadge
+                          status={detailModal.computed_status}
+                          closedSubStatus={detailModal.closed_sub_status}
+                        />
                       </div>
                     </div>
                     {detailModal.interviewer && (

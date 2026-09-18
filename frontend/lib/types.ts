@@ -313,6 +313,7 @@ export interface Interview {
   lead_source?: string | null;
   lead_notes?: string | null;
   lead_closed_at?: string | null;
+  closed_sub_status?: string | null;
   /**
    * True when a BD user can see this interview via their department association
    * but it is NOT attributed to their own BD entity. Full detail/edit/delete is
@@ -658,6 +659,7 @@ export interface InterviewFormData {
   parent_interview_id?: string | null;
   thread_id?: string | null;
   room_id?: string | null;
+  closed_sub_status?: string | null;
 }
 
 /** Superadmin: POST /api/v1/admin/backup/ */

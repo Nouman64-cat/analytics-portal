@@ -133,7 +133,12 @@ export default function InterviewDetailScreen() {
     );
   }
 
-  const badge = interview ? interviewStatusBadge(interview.computed_status) : null;
+  const badge = interview
+    ? interviewStatusBadge(
+        interview.computed_status,
+        interview.closed_sub_status,
+      )
+    : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

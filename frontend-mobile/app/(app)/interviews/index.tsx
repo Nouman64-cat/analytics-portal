@@ -71,7 +71,7 @@ export default function InterviewsListScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={t.primary} />}
           ListEmptyComponent={<EmptyState icon="checkmark-done-circle-outline" title="No interviews found" />}
           renderItem={({ item }) => {
-            const badge = interviewStatusBadge(item.computed_status);
+            const badge = interviewStatusBadge(item.computed_status, item.closed_sub_status);
             return (
               <ListRow
                 leftDot={badge.dot}

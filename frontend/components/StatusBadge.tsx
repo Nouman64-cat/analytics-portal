@@ -4,12 +4,13 @@ import { getStatusStyle, getStatusLabel, getStatusEmoji } from "@/lib/utils";
 
 interface StatusBadgeProps {
   status: string | null | undefined;
+  closedSubStatus?: string | null;
 }
 
-export default function StatusBadge({ status }: StatusBadgeProps) {
-  const style = getStatusStyle(status);
-  const label = getStatusLabel(status);
-  const emoji = getStatusEmoji(status);
+export default function StatusBadge({ status, closedSubStatus }: StatusBadgeProps) {
+  const style = getStatusStyle(status, closedSubStatus);
+  const label = getStatusLabel(status, closedSubStatus);
+  const emoji = getStatusEmoji(status, closedSubStatus);
 
   const isUpcoming = label.toLowerCase() === "upcoming";
 

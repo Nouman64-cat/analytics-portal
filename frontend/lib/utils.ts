@@ -243,7 +243,7 @@ export function getLeadOutcomeSelectShellClass(
   return `border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] text-slate-900 dark:text-white ${f} focus:border-indigo-500/50 focus:ring-indigo-500/20`;
 }
 
-export function getStatusStyle(status: string | null | undefined) {
+export function getStatusStyle(status: string | null | undefined, closedSubStatus?: string | null) {
   const label = getStatusLabel(status).toLowerCase();
 
   if (label === "unresponsed") {
@@ -263,14 +263,24 @@ export function getStatusStyle(status: string | null | undefined) {
   if (label.includes("converted") || label.includes("progressed")) return STATUS_COLORS.converted;
   if (label.includes("rejected")) return STATUS_COLORS.rejected;
   if (label.includes("dropped")) return STATUS_COLORS.dropped;
-  if (label.includes("closed")) return STATUS_COLORS.closed;
+  if (label.includes("closed")) {
+    const sub = (closedSubStatus || "").toLowerCase();
+    if (sub === "lost") {
+      return {
+        bg: "bg-rose-500/15",
+        text: "text-rose-800 dark:text-rose-300",
+        dot: "bg-rose-500",
+      };
+    }
+    return STATUS_COLORS.closed;
+  }
   if (label === "dead") return STATUS_COLORS.dead;
 
   return { bg: "bg-slate-500/10", text: "text-slate-400", dot: "bg-slate-400" };
 }
 
 /** Face emoji for an interview's computed status. */
-export function getStatusEmoji(status: string | null | undefined): string {
+export function getStatusEmoji(status: string | null | undefined, closedSubStatus?: string | null): string {
   const label = getStatusLabel(status).toLowerCase();
 
   if (label === "unresponsed") return "😐";
@@ -278,7 +288,11 @@ export function getStatusEmoji(status: string | null | undefined): string {
   if (label.includes("converted") || label.includes("progressed")) return "😄";
   if (label.includes("rejected")) return "😞";
   if (label.includes("dropped")) return "🙁";
-  if (label.includes("closed")) return "😌";
+  if (label.includes("closed")) {
+    const sub = (closedSubStatus || "").toLowerCase();
+    if (sub === "lost") return "😔";
+    return "😌";
+  }
   if (label === "dead") return "💀";
 
   return "🤷";
@@ -306,10 +320,15 @@ export function getLeadOutcomeEmoji(outcome: string | null | undefined, closedSu
 /**
  * Get a short label for a status string.
  */
-export function getStatusLabel(status: string | null | undefined): string {
+export function getStatusLabel(status: string | null | undefined, closedSubStatus?: string | null): string {
   if (!status || status.trim() === "") return "Unresponsed";
   if (status.length > 50) return status.substring(0, 47) + "...";
-  if (status.toLowerCase() === "converted") return "Progressed";
+  const s = status.trim().toLowerCase();
+  if (s === "closed" && closedSubStatus) {
+    const sub = closedSubStatus.toLowerCase();
+    return `Closed · ${sub === "lost" ? "Lost" : "Active"}`;
+  }
+  if (s === "converted") return "Progressed";
   return status;
 }
 

@@ -9,6 +9,7 @@ const BLUE: BadgeStyle = { bg: "#3b82f626", color: "#1d4ed8", dot: "#3b82f6" };
 const AMBER: BadgeStyle = { bg: "#f59e0b26", color: "#b45309", dot: "#f59e0b" };
 const RED: BadgeStyle = { bg: "#ef444426", color: "#dc2626", dot: "#f87171" };
 const EMERALD: BadgeStyle = { bg: "#10b98126", color: "#047857", dot: "#10b981" };
+const ROSE: BadgeStyle = { bg: "#f43f5e26", color: "#be123c", dot: "#f43f5e" };
 const STONE: BadgeStyle = { bg: "#78716c26", color: "#57534e", dot: "#a8a29e" };
 const VIOLET: BadgeStyle = { bg: "#8b5cf626", color: "#7c3aed", dot: "#d946ef" };
 
@@ -25,9 +26,12 @@ export function prettify(value: string | null | undefined): string {
  * getStatusLabel/getStatusStyle: "converted" is user-facing as "Progressed" — an interview
  * round that has moved forward isn't "converted", the lead thread it belongs to is.
  */
-export function interviewStatusBadge(status: string | null | undefined): { label: string; bg: string; color: string; dot: string } {
+export function interviewStatusBadge(
+  status: string | null | undefined,
+  closedSubStatus?: string | null,
+): { label: string; bg: string; color: string; dot: string } {
   const raw = status?.trim() || "";
-  const label = !raw ? "Unresponsed" : raw.toLowerCase() === "converted" ? "Progressed" : raw;
+  let label = !raw ? "Unresponsed" : raw.toLowerCase() === "converted" ? "Progressed" : raw;
   const lower = label.toLowerCase();
 
   let style = SLATE;
@@ -36,8 +40,18 @@ export function interviewStatusBadge(status: string | null | undefined): { label
   else if (lower.includes("converted") || lower.includes("progressed")) style = VIOLET;
   else if (lower.includes("rejected")) style = RED;
   else if (lower.includes("dropped")) style = AMBER;
-  else if (lower.includes("closed")) style = EMERALD;
-  else if (lower === "dead") style = STONE;
+  else if (lower.includes("closed")) {
+    const sub = (closedSubStatus || "").toLowerCase();
+    if (sub === "lost") {
+      style = ROSE;
+      label = "Closed · Lost";
+    } else if (sub === "active") {
+      style = EMERALD;
+      label = "Closed · Active";
+    } else {
+      style = EMERALD;
+    }
+  } else if (lower === "dead") style = STONE;
 
   return { label, ...style };
 }
@@ -48,20 +62,35 @@ export function interviewStatusBadge(status: string | null | undefined): { label
  * than being re-derived here — this function only supplies the color for a given raw outcome.
  * Mirrors frontend/lib/utils.ts getLeadOutcomeBadgeStyle.
  */
-export function leadOutcomeStyle(outcome: string | null | undefined): BadgeStyle {
+export function leadOutcomeStyle(
+  outcome: string | null | undefined,
+  closedSubStatus?: string | null,
+): BadgeStyle {
   const o = (outcome || "").toLowerCase();
   if (o === "active" || o === "in_pipeline") return BLUE;
   if (o === "unresponsive") return AMBER;
   if (o === "rejected") return RED;
   if (o === "dropped") return AMBER;
-  if (o === "closed") return EMERALD;
+  if (o === "closed") {
+    if ((closedSubStatus || "").toLowerCase() === "lost") return ROSE;
+    return EMERALD;
+  }
   if (o === "dead") return STONE;
   if (o === "converted") return VIOLET;
   return SLATE;
 }
 
-export function leadOutcomeBadge(outcome: string | null | undefined, label: string | null | undefined) {
-  return { label: label || "—", ...leadOutcomeStyle(outcome) };
+export function leadOutcomeBadge(
+  outcome: string | null | undefined,
+  label: string | null | undefined,
+  closedSubStatus?: string | null,
+) {
+  const sub = (closedSubStatus || "").toLowerCase();
+  const displayLabel =
+    (outcome || "").toLowerCase() === "closed" && sub
+      ? `${label || "Closed"} · ${sub === "lost" ? "Lost" : "Active"}`
+      : label || "—";
+  return { label: displayLabel, ...leadOutcomeStyle(outcome, closedSubStatus) };
 }
 
 export function formatDate(value: string | null | undefined): string {

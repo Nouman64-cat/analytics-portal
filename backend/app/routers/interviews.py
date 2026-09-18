@@ -674,6 +674,15 @@ def create_interview(
     payload = data.model_dump()
     _reject_lead_only_interview_status(payload.get("status"))
 
+    closed_sub = payload.pop("closed_sub_status", None)
+    if closed_sub is not None:
+        closed_sub = closed_sub.strip().lower() if isinstance(closed_sub, str) else None
+        if closed_sub and closed_sub not in ("active", "lost"):
+            raise HTTPException(
+                status_code=400,
+                detail="closed_sub_status must be 'active' or 'lost'",
+            )
+
     tm_cid = candidate_id_for_team_member(session, current_user)
     if current_user.role == UserRole.TEAM_MEMBER:
         if tm_cid is None:
@@ -775,6 +784,14 @@ def create_interview(
     # date would drift when the date is filled in/edited later.
     if interview.parent_interview_id is None and lt.arrived_on is None:
         lt.arrived_on = interview.interview_date or datetime.utcnow().date()
+        lt.updated_at = datetime.utcnow()
+        session.add(lt)
+    if closed_sub:
+        lt.closed_sub_status = closed_sub
+        lt.updated_at = datetime.utcnow()
+        session.add(lt)
+    elif payload.get("status") == "Closed" and not lt.closed_sub_status:
+        lt.closed_sub_status = "active"
         lt.updated_at = datetime.utcnow()
         session.add(lt)
     if parent_for_followup:
@@ -1454,6 +1471,33 @@ def update_interview(
     update_data = data.model_dump(exclude_unset=True)
     if "status" in update_data:
         _reject_lead_only_interview_status(update_data.get("status"))
+
+    has_closed_sub = "closed_sub_status" in update_data
+    closed_sub = update_data.pop("closed_sub_status", None)
+    if has_closed_sub:
+        sub = closed_sub.strip().lower() if isinstance(closed_sub, str) else None
+        if sub and sub not in ("active", "lost"):
+            raise HTTPException(
+                status_code=400,
+                detail="closed_sub_status must be 'active' or 'lost'",
+            )
+        lt = ensure_lead_thread(session, interview.thread_id)
+        lt.closed_sub_status = sub if sub else None
+        lt.updated_at = datetime.utcnow()
+        session.add(lt)
+    elif "status" in update_data and update_data["status"] == "Closed":
+        lt = ensure_lead_thread(session, interview.thread_id)
+        if not lt.closed_sub_status:
+            lt.closed_sub_status = "active"
+            lt.updated_at = datetime.utcnow()
+            session.add(lt)
+    elif "status" in update_data and update_data["status"] is not None and update_data["status"] != "Closed":
+        lt = ensure_lead_thread(session, interview.thread_id)
+        if (lt.outcome_override or "").lower() != "closed":
+            lt.closed_sub_status = None
+            lt.updated_at = datetime.utcnow()
+            session.add(lt)
+
     if current_user.role == UserRole.TEAM_MEMBER:
         update_data.pop("candidate_id", None)
     # Thread is derived from the parent chain; clients should not set it directly.
