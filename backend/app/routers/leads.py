@@ -154,6 +154,7 @@ def _build_lead_list_item(
         lead_source=eff["lead_source"],
         lead_notes=eff.get("lead_notes"),
         bd_notes=eff.get("bd_notes"),
+        closed_sub_status=eff.get("closed_sub_status"),
     )
 
 
@@ -255,6 +256,7 @@ def _sort_merged_leads(
 def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
     pipeline = terminal = other = active = converted = 0
     rejected = dropped = closed = dead = 0
+    closed_won = closed_lost = 0
     for l in items:
         b = _lead_bucket(l.lead_outcome)
         if b == "pipeline":
@@ -276,6 +278,11 @@ def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
             dropped += 1
         elif o == "closed":
             closed += 1
+            sub = (l.closed_sub_status or "").lower()
+            if sub == "lost":
+                closed_lost += 1
+            else:
+                closed_won += 1
         elif o == "dead":
             dead += 1
     return LeadListStats(
@@ -288,6 +295,8 @@ def _compute_lead_stats(items: list[LeadListItem]) -> LeadListStats:
         rejected=rejected,
         dropped=dropped,
         closed=closed,
+        closed_won=closed_won,
+        closed_lost=closed_lost,
         dead=dead,
     )
 

@@ -77,6 +77,10 @@ export const LEAD_STAT_CARD_GRADIENT = {
   dropped: "bg-gradient-to-br from-amber-500 to-orange-600",
   /** Success */
   closed: "bg-gradient-to-br from-emerald-500 to-green-600",
+  /** Closed + Active (won) */
+  closed_won: "bg-gradient-to-br from-emerald-500 to-green-600",
+  /** Closed + Lost */
+  closed_lost: "bg-gradient-to-br from-rose-500 to-red-600",
   dead: "bg-gradient-to-br from-stone-500 to-neutral-700",
   /** Legit Leads = total − dropped (qualified pipeline). */
   legit: "bg-gradient-to-br from-teal-500 to-cyan-600",

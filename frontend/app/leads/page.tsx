@@ -95,18 +95,24 @@ const SEARCH_DEBOUNCE_MS = 300;
 function LeadOutcomeBadge({
   outcome,
   label,
+  closedSubStatus,
 }: {
   outcome: string;
   label: string;
+  closedSubStatus?: string | null;
 }) {
-  const s = getLeadOutcomeBadgeStyle(outcome);
+  const s = getLeadOutcomeBadgeStyle(outcome, closedSubStatus);
+  const sub = (closedSubStatus || "").toLowerCase();
+  const displayLabel = outcome === "closed" && sub
+    ? `${label} · ${sub === "lost" ? "Lost" : "Active"}`
+    : label;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${s.bg} ${s.text}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
-      <span aria-hidden="true">{getLeadOutcomeEmoji(outcome)}</span>
-      {label}
+      <span aria-hidden="true">{getLeadOutcomeEmoji(outcome, closedSubStatus)}</span>
+      {displayLabel}
     </span>
   );
 }
@@ -165,6 +171,8 @@ const EMPTY_STATS: LeadListStats = {
   rejected: 0,
   dropped: 0,
   closed: 0,
+  closed_won: 0,
+  closed_lost: 0,
   dead: 0,
 };
 
@@ -614,10 +622,29 @@ Return "all" for fields the user didn't mention.`;
         lead_status_label: updated.lead_status_label,
         lead_source: updated.lead_source,
         lead_notes: updated.lead_notes,
+        closed_sub_status: updated.closed_sub_status ?? null,
       });
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "Failed to update lead status",
+      );
+    } finally {
+      setSavingLeadThreadId(null);
+    }
+  };
+
+  const handleClosedSubStatusChange = async (
+    lead: LeadListItem,
+    e: ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const sub = e.target.value;
+    setSavingLeadThreadId(lead.thread_id);
+    try {
+      await interviewsService.updateLead(lead.thread_id, { closed_sub_status: sub || null });
+      patchLeadLocal(lead.thread_id, { closed_sub_status: sub || null });
+    } catch (err) {
+      alert(
+        err instanceof Error ? err.message : "Failed to update closed sub-status",
       );
     } finally {
       setSavingLeadThreadId(null);
@@ -825,13 +852,14 @@ Return "all" for fields the user didn't mention.`;
 
       <div className="rounded-[20px] border border-white/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.06] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)] p-2.5 w-full flex flex-col gap-2.5">
         <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2.5 w-full">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 flex-1 gap-2 sm:gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 flex-1 gap-2 sm:gap-2.5">
             {[
               { title: "Total", value: Math.max(0, displayStats.total_leads - displayStats.dropped), emoji: "😎", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10 dark:bg-teal-500/20" },
               { title: "Progressed", value: displayStats.converted, emoji: "😄", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-500/10 dark:bg-violet-500/20" },
               { title: "Rejected", value: displayStats.rejected, emoji: "😞", color: "text-red-700 dark:text-red-300", bg: "bg-red-500/10 dark:bg-red-500/20" },
               { title: "Dropped", value: displayStats.dropped, emoji: "🙁", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 dark:bg-amber-500/20" },
-              { title: "Closed", value: displayStats.closed, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+              { title: "Closed · Active", value: displayStats.closed_won, emoji: "😌", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
+              { title: "Closed · Lost", value: displayStats.closed_lost, emoji: "😔", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-500/10 dark:bg-rose-500/20" },
             ].map((s, i) => (
               <div key={i} className={`flex items-center gap-2.5 px-3 py-2.5 min-w-0 rounded-xl transition-all duration-200 hover:scale-[1.02] ${s.bg}`}>
                 <div className={`flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-black/20 ${s.color}`}>
@@ -1103,43 +1131,61 @@ Return "all" for fields the user didn't mention.`;
                     </td>
                     <td className="py-2.5 pr-3 align-top">
                       {canEditLeadStatus ? (
-                        <div className="relative inline-block w-full max-w-[min(100%,260px)]">
-                          <select
-                            value={
-                              l.lead_source === "explicit" && l.lead_outcome
-                                ? l.lead_outcome
-                                : ""
-                            }
-                            disabled={savingLeadThreadId === l.thread_id}
-                            onChange={(e) => void handleLeadStatusChange(l, e)}
-                            className={`w-full rounded-lg border pl-2 pr-7 py-1.5 text-xs appearance-none cursor-pointer ${getLeadOutcomeSelectShellClass(l.lead_outcome)}`}
-                            aria-label="Lead status"
-                          >
-                            <option value="">
-                              {l.lead_source === "explicit" && l.lead_outcome
-                                ? "Use status from interviews"
-                                : l.lead_status_label || "—"}
-                            </option>
-                            {LEAD_OUTCOME_OPTIONS.filter(
-                              (o) =>
-                                !(
-                                  l.lead_source === "derived" &&
-                                  (l.lead_outcome || "").toLowerCase() ===
-                                    "active" &&
-                                  o.value === "active"
-                                ),
-                            ).map((o) => (
-                              <option key={o.value} value={o.value}>
-                                {o.label}
+                        <div className="flex flex-col gap-1 w-full max-w-[min(100%,260px)]">
+                          <div className="relative inline-block w-full">
+                            <select
+                              value={
+                                l.lead_source === "explicit" && l.lead_outcome
+                                  ? l.lead_outcome
+                                  : ""
+                              }
+                              disabled={savingLeadThreadId === l.thread_id}
+                              onChange={(e) => void handleLeadStatusChange(l, e)}
+                              className={`w-full rounded-lg border pl-2 pr-7 py-1.5 text-xs appearance-none cursor-pointer ${getLeadOutcomeSelectShellClass(l.lead_outcome, l.closed_sub_status)}`}
+                              aria-label="Lead status"
+                            >
+                              <option value="">
+                                {l.lead_source === "explicit" && l.lead_outcome
+                                  ? "Use status from interviews"
+                                  : l.lead_status_label || "—"}
                               </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none opacity-60" />
+                              {LEAD_OUTCOME_OPTIONS.filter(
+                                (o) =>
+                                  !(
+                                    l.lead_source === "derived" &&
+                                    (l.lead_outcome || "").toLowerCase() ===
+                                      "active" &&
+                                    o.value === "active"
+                                  ),
+                              ).map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none opacity-60" />
+                          </div>
+                          {(l.lead_outcome || "").toLowerCase() === "closed" && (
+                            <div className="relative inline-block w-full">
+                              <select
+                                value={l.closed_sub_status || "active"}
+                                disabled={savingLeadThreadId === l.thread_id}
+                                onChange={(e) => void handleClosedSubStatusChange(l, e)}
+                                className={`w-full rounded-lg border pl-2 pr-7 py-1 text-[11px] appearance-none cursor-pointer ${getLeadOutcomeSelectShellClass("closed", l.closed_sub_status)}`}
+                                aria-label="Closed sub-status"
+                              >
+                                <option value="active">Active (Won)</option>
+                                <option value="lost">Lost</option>
+                              </select>
+                              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-60" />
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <LeadOutcomeBadge
                           outcome={l.lead_outcome || ""}
                           label={l.lead_status_label || "—"}
+                          closedSubStatus={l.closed_sub_status}
                         />
                       )}
                     </td>

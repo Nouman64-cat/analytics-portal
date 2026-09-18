@@ -165,7 +165,7 @@ export function formatTime(timeStr: string | null | undefined): string {
  * Get status badge styling based on status text.
  */
 /** Badge colors for thread lead outcome (GET/PATCH lead on interviews). */
-export function getLeadOutcomeBadgeStyle(outcome: string | null | undefined): {
+export function getLeadOutcomeBadgeStyle(outcome: string | null | undefined, closedSubStatus?: string | null): {
   bg: string;
   text: string;
   dot: string;
@@ -187,7 +187,17 @@ export function getLeadOutcomeBadgeStyle(outcome: string | null | undefined): {
   }
   if (o === "rejected") return STATUS_COLORS.rejected;
   if (o === "dropped") return STATUS_COLORS.dropped;
-  if (o === "closed") return STATUS_COLORS.closed;
+  if (o === "closed") {
+    const sub = (closedSubStatus || "").toLowerCase();
+    if (sub === "lost") {
+      return {
+        bg: "bg-rose-500/15",
+        text: "text-rose-800 dark:text-rose-300",
+        dot: "bg-rose-500",
+      };
+    }
+    return STATUS_COLORS.closed;
+  }
   if (o === "dead") return STATUS_COLORS.dead;
   if (o === "converted") return STATUS_COLORS.converted;
   return {
@@ -200,6 +210,7 @@ export function getLeadOutcomeBadgeStyle(outcome: string | null | undefined): {
 /** Same palette as {@link getLeadOutcomeBadgeStyle} for native select shells on the Leads table. */
 export function getLeadOutcomeSelectShellClass(
   outcome: string | null | undefined,
+  closedSubStatus?: string | null,
 ): string {
   const o = (outcome || "").toLowerCase();
   const f =
@@ -217,6 +228,10 @@ export function getLeadOutcomeSelectShellClass(
     return `border-amber-500/40 bg-amber-500/[0.08] text-amber-950 dark:text-amber-100 ${f} focus:border-amber-500/55 focus:ring-amber-500/25`;
   }
   if (o === "closed") {
+    const sub = (closedSubStatus || "").toLowerCase();
+    if (sub === "lost") {
+      return `border-rose-500/45 bg-rose-500/[0.10] text-rose-950 dark:text-rose-100 ${f} focus:border-rose-500/55 focus:ring-rose-500/25`;
+    }
     return `border-emerald-500/45 bg-emerald-500/[0.10] text-emerald-950 dark:text-emerald-100 ${f} focus:border-emerald-500/55 focus:ring-emerald-500/25`;
   }
   if (o === "dead") {
@@ -270,14 +285,18 @@ export function getStatusEmoji(status: string | null | undefined): string {
 }
 
 /** Face emoji for a lead's outcome, matching {@link getLeadOutcomeBadgeStyle}'s palette. */
-export function getLeadOutcomeEmoji(outcome: string | null | undefined): string {
+export function getLeadOutcomeEmoji(outcome: string | null | undefined, closedSubStatus?: string | null): string {
   const o = (outcome || "").toLowerCase();
 
   if (o === "active" || o === "in_pipeline") return "🙂";
   if (o === "unresponsive") return "😐";
   if (o === "rejected") return "😞";
   if (o === "dropped") return "🙁";
-  if (o === "closed") return "😌";
+  if (o === "closed") {
+    const sub = (closedSubStatus || "").toLowerCase();
+    if (sub === "lost") return "😔";
+    return "😌";
+  }
   if (o === "dead") return "💀";
   if (o === "converted") return "😄";
 

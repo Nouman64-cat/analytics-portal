@@ -594,6 +594,10 @@ def migrate():
             ("ALTER TABLE messages ADD COLUMN IF NOT EXISTS mentioned_user_ids TEXT;",
              "Migration successful! 'mentioned_user_ids' column added to 'messages' table."),
 
+            # ── Closed sub-status (active / lost) for closed leads ──────────────────
+            ("ALTER TABLE lead_threads ADD COLUMN IF NOT EXISTS closed_sub_status VARCHAR(20);",
+             "Migration successful! 'closed_sub_status' column added to 'lead_threads' table."),
+
         ]
         for sql, msg in migrations:
             try:

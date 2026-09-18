@@ -104,6 +104,7 @@ class LeadListItem(BaseModel):
     lead_source: str = "derived"
     lead_notes: Optional[str] = None
     bd_notes: Optional[str] = None
+    closed_sub_status: Optional[str] = None
 
 
 class LeadListStats(BaseModel):
@@ -118,6 +119,8 @@ class LeadListStats(BaseModel):
     rejected: int
     dropped: int
     closed: int
+    closed_won: int = 0
+    closed_lost: int = 0
     dead: int
 
 

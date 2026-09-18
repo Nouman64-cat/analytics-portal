@@ -329,6 +329,7 @@ export interface LeadThreadRead {
   lead_source: string;
   lead_notes?: string | null;
   lead_closed_at?: string | null;
+  closed_sub_status?: string | null;
 }
 
 export interface LeadThreadUpdate {
@@ -337,6 +338,7 @@ export interface LeadThreadUpdate {
   clear_override?: boolean;
   closed_at?: string | null;
   is_converted_override?: boolean | null;
+  closed_sub_status?: string | null;
 }
 
 /** POST /api/v1/leads/ */
@@ -402,6 +404,7 @@ export interface LeadListItem {
   lead_source: string;
   lead_notes: string | null;
   bd_notes: string | null;
+  closed_sub_status?: string | null;
 }
 
 /** GET /api/v1/leads/ — aggregates for the current filters (full filtered set, not only the page). */
@@ -416,6 +419,8 @@ export interface LeadListStats {
   rejected: number;
   dropped: number;
   closed: number;
+  closed_won: number;
+  closed_lost: number;
   dead: number;
 }
 

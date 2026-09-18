@@ -559,11 +559,13 @@ def patch_lead_thread_status(
     if data.clear_override:
         row.outcome_override = None
         row.unresponsive_since = None
+        row.closed_sub_status = None
     elif data.outcome_override is not None:
         o = data.outcome_override.strip().lower()
         if not o:
             row.outcome_override = None
             row.unresponsive_since = None
+            row.closed_sub_status = None
         elif o not in ALLOWED_LEAD_OUTCOMES:
             raise HTTPException(
                 status_code=400,
@@ -576,6 +578,19 @@ def patch_lead_thread_status(
                     row.unresponsive_since = datetime.utcnow()
             else:
                 row.unresponsive_since = None
+            # Auto-clear closed_sub_status when switching away from "closed"
+            if o != "closed":
+                row.closed_sub_status = None
+
+    # Handle closed_sub_status (only valid when outcome is "closed")
+    if data.closed_sub_status is not None:
+        sub = data.closed_sub_status.strip().lower()
+        if sub and sub not in ("active", "lost"):
+            raise HTTPException(
+                status_code=400,
+                detail="closed_sub_status must be 'active' or 'lost'",
+            )
+        row.closed_sub_status = sub if sub else None
 
     if data.notes is not None:
         row.notes = (data.notes.strip()

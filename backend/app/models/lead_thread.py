@@ -23,6 +23,8 @@ class LeadThread(SQLModel, table=True):
     notes: Optional[str] = Field(default=None)
     bd_notes: Optional[str] = Field(default=None)
     closed_at: Optional[datetime] = Field(default=None)
+    #: Sub-status when outcome is "closed": "active" (won) or "lost".
+    closed_sub_status: Optional[str] = Field(default=None, max_length=20)
     #: When the lead was received — independent of any interview round's date.
     arrived_on: Optional[date] = Field(default=None)
     #: Set when `outcome_override` becomes `unresponsive`; used to auto-mark dead after 30 days.

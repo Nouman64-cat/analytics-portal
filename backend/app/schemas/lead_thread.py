@@ -12,6 +12,7 @@ class LeadThreadRead(BaseModel):
     lead_source: str
     lead_notes: Optional[str] = None
     lead_closed_at: Optional[datetime] = None
+    closed_sub_status: Optional[str] = None
 
 
 class LeadThreadUpdate(BaseModel):
@@ -25,3 +26,4 @@ class LeadThreadUpdate(BaseModel):
     clear_override: bool = False
     closed_at: Optional[datetime] = None
     is_converted_override: Optional[bool] = None
+    closed_sub_status: Optional[str] = None
