@@ -8,6 +8,7 @@ import {
   useMemo,
   ChangeEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   Search,
@@ -410,33 +411,90 @@ function RowActionsDropdown({
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    placement: "top" | "bottom";
+  }>({ top: 0, left: 0, placement: "bottom" });
+
+  const updateCoords = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      setOpen(false);
+      return;
+    }
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const estimatedMenuHeight = 150;
+    const openUpwards = spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow;
+
+    const menuWidth = 176; // w-44 = 11rem = 176px
+    let left = rect.right - menuWidth;
+    if (left < 8) left = 8;
+    if (left + menuWidth > window.innerWidth - 8) {
+      left = window.innerWidth - menuWidth - 8;
+    }
+
+    setCoords({
+      top: openUpwards ? rect.top - 6 : rect.bottom + 6,
+      left,
+      placement: openUpwards ? "top" : "bottom",
+    });
+  }, []);
 
   useEffect(() => {
     if (!open) return;
+    updateCoords();
+
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+
+    const handleReposition = () => {
+      updateCoords();
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
     };
-  }, [open]);
+  }, [open, updateCoords]);
 
   return (
-    <div className="relative inline-block text-left" ref={menuRef}>
+    <div className="relative inline-block text-left">
       <button
+        ref={buttonRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(!open);
+          if (!open) {
+            updateCoords();
+            setOpen(true);
+          } else {
+            setOpen(false);
+          }
         }}
         className="rounded-lg p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/80 dark:hover:bg-white/10 transition-colors"
         title="More options"
@@ -446,52 +504,67 @@ function RowActionsDropdown({
         <MoreVertical size={16} />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-[#161926] p-1.5 shadow-xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100">
-          {!isRejected && canAddPipelineRound && (
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top: coords.top,
+              left: coords.left,
+              transform:
+                coords.placement === "top" ? "translateY(-100%)" : undefined,
+              zIndex: 9999,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-44 rounded-xl border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-[#161926] p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          >
+            {!isRejected && canAddPipelineRound && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onAddNextRound();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+              >
+                <ArrowRight size={14} className="text-indigo-500 shrink-0" />
+                <span>Add Next Round</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpen(false);
-                onAddNextRound();
+                onEdit();
               }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
             >
-              <ArrowRight size={14} className="text-indigo-500 shrink-0" />
-              <span>Add Next Round</span>
+              <Pencil size={14} className="text-slate-400 shrink-0" />
+              <span>Edit</span>
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onEdit();
-            }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
-            <Pencil size={14} className="text-slate-400 shrink-0" />
-            <span>Edit</span>
-          </button>
+            <div className="my-1 border-t border-slate-100 dark:border-white/[0.06]" />
 
-          <div className="my-1 border-t border-slate-100 dark:border-white/[0.06]" />
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onDelete();
-            }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
-          >
-            <Trash2 size={14} className="shrink-0" />
-            <span>Delete</span>
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onDelete();
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+            >
+              <Trash2 size={14} className="shrink-0" />
+              <span>Delete</span>
+            </button>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
