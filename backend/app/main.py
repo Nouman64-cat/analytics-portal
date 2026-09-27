@@ -45,6 +45,7 @@ from app.routers import debug
 from app.routers import job_roles
 from app.routers import broadcast_modals
 from app.routers import public_stats
+from app.routers import public_vpa
 from app.routers import messages
 from app.routers import import_router
 
@@ -172,6 +173,7 @@ app.include_router(debug.router)
 app.include_router(job_roles.router)
 app.include_router(broadcast_modals.router)
 app.include_router(public_stats.router)
+app.include_router(public_vpa.router)
 app.include_router(messages.router)
 app.include_router(messages.ws_router)
 

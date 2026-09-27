@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # Acts as the page's only access control — treat it like a password. Leave empty to disable the endpoint (404).
     PUBLIC_STATS_TOKEN: Optional[str] = Field(None, env="PUBLIC_STATS_TOKEN")
 
+    # Unauthenticated read-only "today's AI/ML interviews" page for the VPA (/public/vpa/<token>).
+    # Separate from PUBLIC_STATS_TOKEN so either link can be revoked on its own. Empty disables it (404).
+    PUBLIC_VPA_TOKEN: Optional[str] = Field(None, env="PUBLIC_VPA_TOKEN")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

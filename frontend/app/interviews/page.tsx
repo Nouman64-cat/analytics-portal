@@ -251,11 +251,10 @@ function MapSearchBox({
                 aria-selected={i === activeIndex}
                 onMouseDown={() => select(r)}
                 onMouseEnter={() => setActiveIndex(i)}
-                className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-xs transition-colors ${
-                  i === activeIndex
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-xs transition-colors ${i === activeIndex
                     ? "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300"
                     : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                } ${i !== 0 ? "border-t border-slate-100 dark:border-white/[0.04]" : ""}`}
+                  } ${i !== 0 ? "border-t border-slate-100 dark:border-white/[0.04]" : ""}`}
               >
                 <MapPin size={11} className={`shrink-0 ${i === activeIndex ? "text-rose-500" : "text-slate-400 dark:text-slate-500"}`} />
                 <span className="truncate">{label}</span>
@@ -300,7 +299,7 @@ function WeatherCard({ location }: { location: string }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-rose-200/70 dark:border-rose-500/20 bg-gradient-to-r from-rose-50/60 to-orange-50/40 dark:from-rose-500/[0.06] dark:to-orange-500/[0.04] p-4 relative">
       <div className="flex flex-wrap md:flex-nowrap items-center gap-4 min-w-0">
-        
+
         {/* Left side: Location and weather */}
         <div className="flex flex-col gap-2.5 min-w-0 flex-1">
           {/* Location + local time */}
@@ -340,7 +339,7 @@ function WeatherCard({ location }: { location: string }) {
         </div>
 
         {/* Right side: Map Button */}
-        <button 
+        <button
           type="button"
           onClick={() => setMapExpanded(!mapExpanded)}
           className="inline-flex items-center justify-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-white/60 dark:bg-black/20 text-rose-600 dark:text-rose-400 hover:bg-white dark:hover:bg-black/40 transition-colors shrink-0 w-full md:w-auto"
@@ -378,13 +377,10 @@ function WeatherCard({ location }: { location: string }) {
             height="100%"
             frameBorder="0"
             scrolling="no"
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${
-              (mapCenter?.lon ?? weather.longitude) - 0.05
-            },${(mapCenter?.lat ?? weather.latitude) - 0.05},${
-              (mapCenter?.lon ?? weather.longitude) + 0.05
-            },${(mapCenter?.lat ?? weather.latitude) + 0.05}&layer=mapnik&marker=${
-              mapCenter?.lat ?? weather.latitude
-            },${mapCenter?.lon ?? weather.longitude}`}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${(mapCenter?.lon ?? weather.longitude) - 0.05
+              },${(mapCenter?.lat ?? weather.latitude) - 0.05},${(mapCenter?.lon ?? weather.longitude) + 0.05
+              },${(mapCenter?.lat ?? weather.latitude) + 0.05}&layer=mapnik&marker=${mapCenter?.lat ?? weather.latitude
+              },${mapCenter?.lon ?? weather.longitude}`}
             className="w-full h-full"
           />
         </div>
@@ -1650,17 +1646,17 @@ export default function InterviewsPage() {
         await Promise.all([
           interviewDocFile
             ? interviewsService.uploadInterviewDoc(
-                savedInterview.id,
-                interviewDocFile,
-                (pct) => setUploadProgress((p) => ({ ...p, doc: pct })),
-              )
+              savedInterview.id,
+              interviewDocFile,
+              (pct) => setUploadProgress((p) => ({ ...p, doc: pct })),
+            )
             : Promise.resolve(),
           interviewResumeFile
             ? interviewsService.uploadInterviewResume(
-                savedInterview.id,
-                interviewResumeFile,
-                (pct) => setUploadProgress((p) => ({ ...p, resume: pct })),
-              )
+              savedInterview.id,
+              interviewResumeFile,
+              (pct) => setUploadProgress((p) => ({ ...p, resume: pct })),
+            )
             : Promise.resolve(),
         ]);
         setUploadingInterviewId(null);
@@ -2121,8 +2117,8 @@ export default function InterviewsPage() {
     const scoped =
       isTeamMember && meCandidateId
         ? withParent.filter(
-            (l) => !l.candidate_id || l.candidate_id === meCandidateId,
-          )
+          (l) => !l.candidate_id || l.candidate_id === meCandidateId,
+        )
         : withParent;
     return [...scoped].sort((a, b) => {
       const ac = (a.company_name || "").localeCompare(b.company_name || "");
@@ -2624,22 +2620,20 @@ export default function InterviewsPage() {
                 onClick={() =>
                   setFilters({ ...filters, is_today: !filters.is_today })
                 }
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all focus:outline-none cursor-pointer min-h-[2.25rem] ${
-                  filters.is_today
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all focus:outline-none cursor-pointer min-h-[2.25rem] ${filters.is_today
                     ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
                     : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
-                }`}
+                  }`}
               >
                 Today
               </button>
               <button
                 type="button"
                 onClick={() => setShowExtraFilters((v) => !v)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer min-h-[2.25rem] ${
-                  showExtraFilters || extraCount > 0
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer min-h-[2.25rem] ${showExtraFilters || extraCount > 0
                     ? "border-indigo-400/60 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
                     : "bg-white dark:bg-[#12141c] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.12]"
-                }`}
+                  }`}
               >
                 <SlidersHorizontal size={12} className="shrink-0" />
                 Filters
@@ -2776,693 +2770,690 @@ export default function InterviewsPage() {
       {filtered.length === 0 ? (
         <EmptyState message="No interviews found" />
       ) : (
-          <div className="overflow-hidden rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-full table-auto">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-white/[0.06]">
-                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Lead
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Role
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Candidate
-                    </th>
-                    <th className="hidden xl:table-cell px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Profile
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Round
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Pipeline
-                    </th>
-                    <th
-                      className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap"
-                      title="Calendar day in US Eastern (from interview date + EST time)"
-                    >
-                      Date (EST)
-                    </th>
-                    <th
-                      className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap"
-                      title="Wall-clock time in US Eastern and Pakistan (same instant, two time zones)"
-                    >
-                      EST / PKT
-                    </th>
-                    <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Status
-                    </th>
-                    <th className="px-3 py-2 text-center text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedInterviews.map((interview) => {
-                    const isUpcoming =
-                      interview.computed_status.toLowerCase() === "upcoming";
-                    const isClosed =
-                      interview.computed_status.toLowerCase() === "closed" ||
-                      interview.lead_outcome?.toLowerCase() === "closed";
-                    const isClosedLost =
-                      isClosed &&
-                      (interview.closed_sub_status || "").toLowerCase() ===
-                        "lost";
-                    const isClosedActive = isClosed && !isClosedLost;
-                    const minsLeft = isUpcoming
-                      ? minutesUntilInterview(interview, nowMs)
-                      : null;
-                    // Alert tiers: imminent ≤15 min, warning ≤60 min
-                    const isImminent =
-                      minsLeft !== null && minsLeft >= 0 && minsLeft <= 15;
-                    const isWarning =
-                      minsLeft !== null && minsLeft > 15 && minsLeft <= 60;
-                    const isDeptOnly = interview.bd_dept_only === true;
-                    const rowSep = isImminent
-                      ? "border-b border-red-300 dark:border-red-500/30"
-                      : isWarning
-                        ? "border-b border-amber-200 dark:border-amber-500/20"
+        <div className="overflow-hidden rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/35 dark:bg-white/[0.05] backdrop-blur-3xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.25)]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-full table-auto">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-white/[0.06]">
+                  <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Lead
+                  </th>
+                  <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Role
+                  </th>
+                  <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Candidate
+                  </th>
+                  <th className="hidden xl:table-cell px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Profile
+                  </th>
+                  <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Round
+                  </th>
+                  <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Pipeline
+                  </th>
+                  <th
+                    className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap"
+                    title="Calendar day in US Eastern (from interview date + EST time)"
+                  >
+                    Date (EST)
+                  </th>
+                  <th
+                    className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap"
+                    title="Wall-clock time in US Eastern and Pakistan (same instant, two time zones)"
+                  >
+                    EST / PKT
+                  </th>
+                  <th className="px-3 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="px-3 py-2 text-center text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500 whitespace-nowrap">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedInterviews.map((interview) => {
+                  const isUpcoming =
+                    interview.computed_status.toLowerCase() === "upcoming";
+                  const isClosed =
+                    interview.computed_status.toLowerCase() === "closed" ||
+                    interview.lead_outcome?.toLowerCase() === "closed";
+                  const isClosedLost =
+                    isClosed &&
+                    (interview.closed_sub_status || "").toLowerCase() ===
+                    "lost";
+                  const isClosedActive = isClosed && !isClosedLost;
+                  const minsLeft = isUpcoming
+                    ? minutesUntilInterview(interview, nowMs)
+                    : null;
+                  // Alert tiers: imminent ≤15 min, warning ≤60 min
+                  const isImminent =
+                    minsLeft !== null && minsLeft >= 0 && minsLeft <= 15;
+                  const isWarning =
+                    minsLeft !== null && minsLeft > 15 && minsLeft <= 60;
+                  const isDeptOnly = interview.bd_dept_only === true;
+                  const rowSep = isImminent
+                    ? "border-b border-red-300 dark:border-red-500/30"
+                    : isWarning
+                      ? "border-b border-amber-200 dark:border-amber-500/20"
+                      : isUpcoming
+                        ? "border-b border-blue-200 dark:border-white/[0.08]"
+                        : isClosedLost
+                          ? "border-b border-rose-200 dark:border-white/[0.08]"
+                          : isClosedActive
+                            ? "border-b border-emerald-200 dark:border-white/[0.08]"
+                            : "border-b border-slate-200 dark:border-white/[0.06]";
+                  const rowBg = isImminent
+                    ? "iv-row-imminent border-l-4 border-l-red-500"
+                    : isWarning
+                      ? "iv-row-warning border-l-4 border-l-amber-500"
+                      : isDeptOnly
+                        ? "bg-violet-50/40 dark:bg-violet-500/[0.06] hover:bg-violet-100/50 dark:hover:bg-violet-500/[0.10] border-l-4 border-l-violet-400/70 dark:border-l-violet-500/50 opacity-80"
                         : isUpcoming
-                          ? "border-b border-blue-200 dark:border-white/[0.08]"
+                          ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
                           : isClosedLost
-                            ? "border-b border-rose-200 dark:border-white/[0.08]"
+                            ? "bg-rose-100 dark:bg-rose-500/[0.15] hover:bg-rose-200/70 dark:hover:bg-rose-500/[0.22] border-l-4 border-l-rose-500 dark:border-l-rose-400"
                             : isClosedActive
-                              ? "border-b border-emerald-200 dark:border-white/[0.08]"
-                              : "border-b border-slate-200 dark:border-white/[0.06]";
-                    const rowBg = isImminent
-                      ? "iv-row-imminent border-l-4 border-l-red-500"
-                      : isWarning
-                        ? "iv-row-warning border-l-4 border-l-amber-500"
-                        : isDeptOnly
-                          ? "bg-violet-50/40 dark:bg-violet-500/[0.06] hover:bg-violet-100/50 dark:hover:bg-violet-500/[0.10] border-l-4 border-l-violet-400/70 dark:border-l-violet-500/50 opacity-80"
-                          : isUpcoming
-                            ? "bg-blue-100 dark:bg-blue-500/[0.15] hover:bg-blue-200/70 dark:hover:bg-blue-500/[0.22] border-l-4 border-l-blue-500 dark:border-l-blue-400"
-                            : isClosedLost
-                              ? "bg-rose-100 dark:bg-rose-500/[0.15] hover:bg-rose-200/70 dark:hover:bg-rose-500/[0.22] border-l-4 border-l-rose-500 dark:border-l-rose-400"
-                              : isClosedActive
-                                ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
-                                : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
+                              ? "bg-emerald-100 dark:bg-emerald-500/[0.15] hover:bg-emerald-200/70 dark:hover:bg-emerald-500/[0.22] border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
+                              : "hover:bg-slate-100 dark:hover:bg-white/[0.02]";
 
-                    return (
-                      <tr
-                        key={interview.id}
-                        onClick={() => setDetailModal(interview)}
-                        className={`transition-colors cursor-pointer ${rowSep} ${rowBg}`}
-                      >
-                        <td className="px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-white">
-                          {(() => {
-                            const company = companies.find(
-                              (c) => c.id === interview.company_id,
-                            );
-                            if (!company?.detail)
-                              return <span>{interview.company_name}</span>;
-                            return (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const rect = (
-                                    e.target as HTMLElement
-                                  ).getBoundingClientRect();
-                                  setProfilePopover(null);
-                                  setPipelinePopover(null);
-                                  setCompanyPopover((prev) =>
-                                    prev?.company.id === company.id
-                                      ? null
-                                      : {
-                                          company,
-                                          x: rect.left,
-                                          y: rect.bottom + 6,
-                                        },
-                                  );
-                                }}
-                                className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                              >
-                                {interview.company_name}
-                              </button>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
-                          {truncate(interview.role, 40)}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
-                          <EditableCandidateCell
-                            candidateId={interview.candidate_id}
-                            candidateName={interview.candidate_name}
-                            candidates={candidates}
-                            editable={!cannotCRUD}
-                            onSave={(id) => handleInterviewCandidateSave(interview, id)}
-                          />
-                        </td>
-                        <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                          <EditableProfileCell
-                            profileId={interview.resume_profile_id}
-                            profileName={interview.resume_profile_name}
-                            profiles={profiles}
-                            editable={!cannotCRUD}
-                            onSave={(id) => handleInterviewProfileSave(interview, id)}
-                            extra={(() => {
-                              const profile = profiles.find(
-                                (p) => p.id === interview.resume_profile_id,
-                              );
-                              if (
-                                !profile?.linkedin_url &&
-                                !profile?.github_url &&
-                                !profile?.portfolio_url &&
-                                !profile?.resume_url
-                              )
-                                return null;
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const rect = (
-                                      e.currentTarget as HTMLElement
-                                    ).getBoundingClientRect();
-                                    setCompanyPopover(null);
-                                    setPipelinePopover(null);
-                                    setProfilePopover((prev) =>
-                                      prev?.profile.id === profile.id
-                                        ? null
-                                        : {
-                                            profile,
-                                            x: rect.left,
-                                            y: rect.bottom + 6,
-                                          },
-                                    );
-                                  }}
-                                  title="Profile links"
-                                  aria-label="Profile links"
-                                  className="shrink-0 text-slate-400 hover:text-indigo-500 transition-colors"
-                                >
-                                  <ExternalLink size={12} />
-                                </button>
-                              );
-                            })()}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          {editingCell?.id === interview.id && editingCell.field === "round" ? (
-                            <div
-                              className="w-36"
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={(e) => {
-                                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                                  setEditingCell(null);
-                                }
+                  return (
+                    <tr
+                      key={interview.id}
+                      onClick={() => setDetailModal(interview)}
+                      className={`transition-colors cursor-pointer ${rowSep} ${rowBg}`}
+                    >
+                      <td className="px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-white">
+                        {(() => {
+                          const company = companies.find(
+                            (c) => c.id === interview.company_id,
+                          );
+                          if (!company?.detail)
+                            return <span>{interview.company_name}</span>;
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const rect = (
+                                  e.target as HTMLElement
+                                ).getBoundingClientRect();
+                                setProfilePopover(null);
+                                setPipelinePopover(null);
+                                setCompanyPopover((prev) =>
+                                  prev?.company.id === company.id
+                                    ? null
+                                    : {
+                                      company,
+                                      x: rect.left,
+                                      y: rect.bottom + 6,
+                                    },
+                                );
                               }}
+                              className="text-left underline decoration-dotted decoration-slate-400 dark:decoration-slate-600 underline-offset-2 cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
                             >
-                              <TypeableSelect
-                                options={[
-                                  "Recruiter's Call",
-                                  "Phone Screen",
-                                  "1st",
-                                  "2nd",
-                                  "3rd",
-                                  "4th",
-                                  "5th",
-                                  "6th",
-                                  "Final",
-                                ]}
-                                value={interview.round}
-                                onChange={() => {}}
-                                onCommit={(val) => handleInterviewRoundSave(interview, val)}
-                                placeholder="Type or select round…"
-                                autoFocus
-                              />
-                            </div>
-                          ) : (
-                            <span className="group/cell inline-flex items-center gap-1.5">
-                              <span
-                                className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
-                              >
-                                {interview.round}
-                              </span>
-                              {!cannotCRUD && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingCell({ id: interview.id, field: "round" });
-                                  }}
-                                  disabled={savingCell}
-                                  title="Change round"
-                                  aria-label="Change round"
-                                  className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                              )}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                          {(() => {
-                            const { step, total } = chainStep(interview);
-                            if (total <= 1) {
-                              return (
-                                <span className="text-slate-400 dark:text-slate-600">
-                                  —
-                                </span>
-                              );
-                            }
-                            const tid = interview.thread_id ?? interview.id;
-                            const chain = chainByThreadId.get(tid) || [
-                              interview,
-                            ];
+                              {interview.company_name}
+                            </button>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 max-w-[200px]">
+                        {truncate(interview.role, 40)}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300">
+                        <EditableCandidateCell
+                          candidateId={interview.candidate_id}
+                          candidateName={interview.candidate_name}
+                          candidates={candidates}
+                          editable={!cannotCRUD}
+                          onSave={(id) => handleInterviewCandidateSave(interview, id)}
+                        />
+                      </td>
+                      <td className="hidden xl:table-cell px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                        <EditableProfileCell
+                          profileId={interview.resume_profile_id}
+                          profileName={interview.resume_profile_name}
+                          profiles={profiles}
+                          editable={!cannotCRUD}
+                          onSave={(id) => handleInterviewProfileSave(interview, id)}
+                          extra={(() => {
+                            const profile = profiles.find(
+                              (p) => p.id === interview.resume_profile_id,
+                            );
+                            if (
+                              !profile?.linkedin_url &&
+                              !profile?.github_url &&
+                              !profile?.portfolio_url &&
+                              !profile?.resume_url
+                            )
+                              return null;
                             return (
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors cursor-help"
-                                title="Hover for pipeline details"
-                                aria-label={`Pipeline step ${step} of ${total}, hover or focus for conversion path`}
-                                onMouseEnter={(e) => {
-                                  if (pipelineHoverTimerRef.current) {
-                                    clearTimeout(pipelineHoverTimerRef.current);
-                                    pipelineHoverTimerRef.current = null;
-                                  }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = (
+                                    e.currentTarget as HTMLElement
+                                  ).getBoundingClientRect();
                                   setCompanyPopover(null);
-                                  setProfilePopover(null);
-                                  const rect =
-                                    e.currentTarget.getBoundingClientRect();
-                                  const layout = getPipelinePopoverLayout(rect);
-                                  setPipelinePopover({
-                                    interview,
-                                    chain,
-                                    x: layout.x,
-                                    y: layout.y,
-                                    flipAbove: layout.flipAbove,
-                                  });
-                                }}
-                                onMouseLeave={() => {
-                                  pipelineHoverTimerRef.current = setTimeout(
-                                    () => setPipelinePopover(null),
-                                    200,
+                                  setPipelinePopover(null);
+                                  setProfilePopover((prev) =>
+                                    prev?.profile.id === profile.id
+                                      ? null
+                                      : {
+                                        profile,
+                                        x: rect.left,
+                                        y: rect.bottom + 6,
+                                      },
                                   );
                                 }}
-                                onFocus={(e) => {
-                                  if (pipelineHoverTimerRef.current) {
-                                    clearTimeout(pipelineHoverTimerRef.current);
-                                    pipelineHoverTimerRef.current = null;
-                                  }
-                                  setCompanyPopover(null);
-                                  setProfilePopover(null);
-                                  const rect =
-                                    e.currentTarget.getBoundingClientRect();
-                                  const layout = getPipelinePopoverLayout(rect);
-                                  setPipelinePopover({
-                                    interview,
-                                    chain,
-                                    x: layout.x,
-                                    y: layout.y,
-                                    flipAbove: layout.flipAbove,
-                                  });
-                                }}
-                                onBlur={() => {
-                                  pipelineHoverTimerRef.current = setTimeout(
-                                    () => setPipelinePopover(null),
-                                    150,
-                                  );
-                                }}
+                                title="Profile links"
+                                aria-label="Profile links"
+                                className="shrink-0 text-slate-400 hover:text-indigo-500 transition-colors"
                               >
-                                <GitBranch
-                                  className="size-3.5 shrink-0 opacity-85"
-                                  aria-hidden
-                                />
-                                {step}/{total}
+                                <ExternalLink size={12} />
                               </button>
                             );
                           })()}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                          {editingCell?.id === interview.id && editingCell.field === "date" ? (
-                            <input
-                              type="date"
-                              autoFocus
-                              defaultValue={interview.interview_date ?? ""}
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={(e) => {
-                                if (e.target.value !== (interview.interview_date ?? "")) {
-                                  handleInterviewDateSave(interview, e.target.value);
-                                } else {
-                                  setEditingCell(null);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") setEditingCell(null);
-                              }}
-                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
-                            />
-                          ) : (
-                            (() => {
-                              const dateStr = formatInterviewDateEst(
-                                interview.interview_date,
-                                interview.time_est,
-                                true,
-                              );
-                              const parts = dateStr.split(", ");
-                              const hasDay =
-                                parts.length > 1 && parts[0].length === 3;
-                              const day = hasDay ? parts[0] : "";
-                              // Drop the year — parts[1] is "MMM d" when a day badge is present.
-                              const rest = hasDay ? parts[1] : dateStr;
-
-                              let badgeColor = "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400";
-                              if (hasDay) {
-                                switch (day.toLowerCase()) {
-                                  case "mon": badgeColor = "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"; break;
-                                  case "tue": badgeColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"; break;
-                                  case "wed": badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"; break;
-                                  case "thu": badgeColor = "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"; break;
-                                  case "fri": badgeColor = "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"; break;
-                                  case "sat": badgeColor = "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"; break;
-                                  case "sun": badgeColor = "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"; break;
-                                }
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        {editingCell?.id === interview.id && editingCell.field === "round" ? (
+                          <div
+                            className="w-36"
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => {
+                              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                setEditingCell(null);
                               }
-
-                              const badge = hasDay ? (
-                                <span
-                                  className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                    !isUpcoming ? "opacity-70" : ""
-                                  } ${badgeColor}`}
-                                >
-                                  {day}
-                                </span>
-                              ) : null;
-
-                              return (
-                                <span
-                                  className={`group/cell inline-flex items-center gap-1.5 ${
-                                    isUpcoming ? "font-medium text-slate-800 dark:text-slate-200" : ""
-                                  }`}
-                                >
-                                  {badge}
-                                  <span>{rest}</span>
-                                  {!cannotCRUD && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingCell({ id: interview.id, field: "date" });
-                                      }}
-                                      disabled={savingCell}
-                                      title="Change date"
-                                      aria-label="Change date"
-                                      className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
-                                    >
-                                      <Pencil size={12} />
-                                    </button>
-                                  )}
-                                </span>
-                              );
-                            })()
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                          {editingCell?.id === interview.id && editingCell.field === "time" ? (
-                            <input
-                              type="time"
+                            }}
+                          >
+                            <TypeableSelect
+                              options={[
+                                "Recruiter's Call",
+                                "Phone Screen",
+                                "1st",
+                                "2nd",
+                                "3rd",
+                                "4th",
+                                "5th",
+                                "6th",
+                                "Final",
+                              ]}
+                              value={interview.round}
+                              onChange={() => { }}
+                              onCommit={(val) => handleInterviewRoundSave(interview, val)}
+                              placeholder="Type or select round…"
                               autoFocus
-                              defaultValue={interview.time_est ?? ""}
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={(e) => {
-                                if (e.target.value !== (interview.time_est ?? "")) {
-                                  handleInterviewTimeSave(interview, e.target.value);
-                                } else {
-                                  setEditingCell(null);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") setEditingCell(null);
-                              }}
-                              title="Sets EST — PKT is calculated automatically"
-                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
                             />
-                          ) : (
-                            <div className="group/cell flex flex-col gap-1">
-                              <span className="inline-flex items-center gap-1.5">
-                                <span>
-                                  {interview.time_est ? (
-                                    formatTime(interview.time_est)
-                                  ) : (
-                                    <span className="text-slate-400 dark:text-slate-600">
-                                      —
-                                    </span>
-                                  )}
-                                  <span className="text-slate-400 dark:text-slate-600"> / </span>
-                                  {interview.time_pkt ? (
-                                    formatTime(interview.time_pkt)
-                                  ) : (
-                                    <span className="text-slate-400 dark:text-slate-600">
-                                      —
-                                    </span>
-                                  )}
-                                </span>
+                          </div>
+                        ) : (
+                          <span className="group/cell inline-flex items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${isUpcoming ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-slate-100 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300"}`}
+                            >
+                              {interview.round}
+                            </span>
+                            {!cannotCRUD && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingCell({ id: interview.id, field: "round" });
+                                }}
+                                disabled={savingCell}
+                                title="Change round"
+                                aria-label="Change round"
+                                className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {(() => {
+                          const { step, total } = chainStep(interview);
+                          if (total <= 1) {
+                            return (
+                              <span className="text-slate-400 dark:text-slate-600">
+                                —
+                              </span>
+                            );
+                          }
+                          const tid = interview.thread_id ?? interview.id;
+                          const chain = chainByThreadId.get(tid) || [
+                            interview,
+                          ];
+                          return (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors cursor-help"
+                              title="Hover for pipeline details"
+                              aria-label={`Pipeline step ${step} of ${total}, hover or focus for conversion path`}
+                              onMouseEnter={(e) => {
+                                if (pipelineHoverTimerRef.current) {
+                                  clearTimeout(pipelineHoverTimerRef.current);
+                                  pipelineHoverTimerRef.current = null;
+                                }
+                                setCompanyPopover(null);
+                                setProfilePopover(null);
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                const layout = getPipelinePopoverLayout(rect);
+                                setPipelinePopover({
+                                  interview,
+                                  chain,
+                                  x: layout.x,
+                                  y: layout.y,
+                                  flipAbove: layout.flipAbove,
+                                });
+                              }}
+                              onMouseLeave={() => {
+                                pipelineHoverTimerRef.current = setTimeout(
+                                  () => setPipelinePopover(null),
+                                  200,
+                                );
+                              }}
+                              onFocus={(e) => {
+                                if (pipelineHoverTimerRef.current) {
+                                  clearTimeout(pipelineHoverTimerRef.current);
+                                  pipelineHoverTimerRef.current = null;
+                                }
+                                setCompanyPopover(null);
+                                setProfilePopover(null);
+                                const rect =
+                                  e.currentTarget.getBoundingClientRect();
+                                const layout = getPipelinePopoverLayout(rect);
+                                setPipelinePopover({
+                                  interview,
+                                  chain,
+                                  x: layout.x,
+                                  y: layout.y,
+                                  flipAbove: layout.flipAbove,
+                                });
+                              }}
+                              onBlur={() => {
+                                pipelineHoverTimerRef.current = setTimeout(
+                                  () => setPipelinePopover(null),
+                                  150,
+                                );
+                              }}
+                            >
+                              <GitBranch
+                                className="size-3.5 shrink-0 opacity-85"
+                                aria-hidden
+                              />
+                              {step}/{total}
+                            </button>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {editingCell?.id === interview.id && editingCell.field === "date" ? (
+                          <input
+                            type="date"
+                            autoFocus
+                            defaultValue={interview.interview_date ?? ""}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => {
+                              if (e.target.value !== (interview.interview_date ?? "")) {
+                                handleInterviewDateSave(interview, e.target.value);
+                              } else {
+                                setEditingCell(null);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") setEditingCell(null);
+                            }}
+                            className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
+                          />
+                        ) : (
+                          (() => {
+                            const dateStr = formatInterviewDateEst(
+                              interview.interview_date,
+                              interview.time_est,
+                              true,
+                            );
+                            const parts = dateStr.split(", ");
+                            const hasDay =
+                              parts.length > 1 && parts[0].length === 3;
+                            const day = hasDay ? parts[0] : "";
+                            // Drop the year — parts[1] is "MMM d" when a day badge is present.
+                            const rest = hasDay ? parts[1] : dateStr;
+
+                            let badgeColor = "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400";
+                            if (hasDay) {
+                              switch (day.toLowerCase()) {
+                                case "mon": badgeColor = "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"; break;
+                                case "tue": badgeColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"; break;
+                                case "wed": badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"; break;
+                                case "thu": badgeColor = "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"; break;
+                                case "fri": badgeColor = "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"; break;
+                                case "sat": badgeColor = "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"; break;
+                                case "sun": badgeColor = "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"; break;
+                              }
+                            }
+
+                            const badge = hasDay ? (
+                              <span
+                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${!isUpcoming ? "opacity-70" : ""
+                                  } ${badgeColor}`}
+                              >
+                                {day}
+                              </span>
+                            ) : null;
+
+                            return (
+                              <span
+                                className={`group/cell inline-flex items-center gap-1.5 ${isUpcoming ? "font-medium text-slate-800 dark:text-slate-200" : ""
+                                  }`}
+                              >
+                                {badge}
+                                <span>{rest}</span>
                                 {!cannotCRUD && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditingCell({ id: interview.id, field: "time" });
+                                      setEditingCell({ id: interview.id, field: "date" });
                                     }}
                                     disabled={savingCell}
-                                    title="Change time"
-                                    aria-label="Change time"
+                                    title="Change date"
+                                    aria-label="Change date"
                                     className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
                                   >
                                     <Pencil size={12} />
                                   </button>
                                 )}
                               </span>
-                              {isImminent && minsLeft !== null && (
-                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
-                                  🚨 {minsLeft}m
-                                </span>
-                              )}
-                              {isWarning && minsLeft !== null && (
-                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
-                                  ⚠ {minsLeft}m
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {editingCell?.id === interview.id && editingCell.field === "status" ? (
-                            <select
-                              autoFocus
-                              defaultValue={
-                                interview.status?.toLowerCase() === "closed"
-                                  ? ((interview.closed_sub_status || "").toLowerCase() === "lost"
-                                      ? "Closed:lost"
-                                      : "Closed:active")
-                                  : (interview.status ?? "")
+                            );
+                          })()
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {editingCell?.id === interview.id && editingCell.field === "time" ? (
+                          <input
+                            type="time"
+                            autoFocus
+                            defaultValue={interview.time_est ?? ""}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => {
+                              if (e.target.value !== (interview.time_est ?? "")) {
+                                handleInterviewTimeSave(interview, e.target.value);
+                              } else {
+                                setEditingCell(null);
                               }
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={(e) => {
-                                const val = e.target.value;
-                                if (val === "Closed:active") {
-                                  void handleInterviewStatusSave(interview, "Closed", "active");
-                                } else if (val === "Closed:lost") {
-                                  void handleInterviewStatusSave(interview, "Closed", "lost");
-                                } else {
-                                  void handleInterviewStatusSave(interview, val || null, null);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") setEditingCell(null);
-                              }}
-                              className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
-                            >
-                              <option value="">Unresponsed</option>
-                              <option value="Upcoming">Upcoming</option>
-                              <option value="Converted">Progressed</option>
-                              <option value="Closed:active">Closed · Active</option>
-                              <option value="Closed:lost">Closed · Lost</option>
-                              <option value="Dropped">Dropped</option>
-                              <option value="Rejected">Rejected</option>
-                            </select>
-                          ) : (
-                            <span className="group/cell inline-flex items-center gap-1.5">
-                              <StatusBadge
-                                status={interview.computed_status}
-                                closedSubStatus={interview.closed_sub_status}
-                              />
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") setEditingCell(null);
+                            }}
+                            title="Sets EST — PKT is calculated automatically"
+                            className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
+                          />
+                        ) : (
+                          <div className="group/cell flex flex-col gap-1">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span>
+                                {interview.time_est ? (
+                                  formatTime(interview.time_est)
+                                ) : (
+                                  <span className="text-slate-400 dark:text-slate-600">
+                                    —
+                                  </span>
+                                )}
+                                <span className="text-slate-400 dark:text-slate-600"> / </span>
+                                {interview.time_pkt ? (
+                                  formatTime(interview.time_pkt)
+                                ) : (
+                                  <span className="text-slate-400 dark:text-slate-600">
+                                    —
+                                  </span>
+                                )}
+                              </span>
                               {!cannotCRUD && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setEditingCell({ id: interview.id, field: "status" });
+                                    setEditingCell({ id: interview.id, field: "time" });
                                   }}
                                   disabled={savingCell}
-                                  title="Change status"
-                                  aria-label="Change status"
+                                  title="Change time"
+                                  aria-label="Change time"
                                   className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
                                 >
                                   <Pencil size={12} />
                                 </button>
                               )}
                             </span>
-                          )}
-                        </td>
-
-                        <td className="px-3 py-2 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
-                            {isDeptOnly ? (
-                              /* BD dept-only: show a locked badge instead of action buttons */
-                              <span
-                                title="You can see this interview exists in your department, but full details are restricted to its owning BD."
-                                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-200/60 dark:border-violet-500/25 cursor-default select-none"
-                              >
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
-                                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                                </svg>
-                                Dept view
+                            {isImminent && minsLeft !== null && (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wide bg-red-600 text-white animate-pulse w-fit">
+                                🚨 {minsLeft}m
                               </span>
-                            ) : (
-                              <>
-                                {!cannotCRUD && (
-                                  <RowActionsDropdown
-                                    interview={interview}
-                                    canAddPipelineRound={canAddPipelineRound}
-                                    isRejected={isRejectedInterview(interview)}
-                                    onAddNextRound={() => openCreateNextRound(interview)}
-                                    onEdit={() => openEditModal(interview)}
-                                    onDelete={() => setDeleteModal(interview)}
-                                  />
-                                )}
-                              </>
+                            )}
+                            {isWarning && minsLeft !== null && (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide bg-amber-500 text-white w-fit">
+                                ⚠ {minsLeft}m
+                              </span>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-white/60 dark:border-white/[0.07] bg-white/60 dark:bg-white/[0.04] px-4 py-3 sm:px-6">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-1 justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() =>
-                      setCurrentPage((p) => Math.min(totalPages, p + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="relative ml-3 inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-4">
-                    <p className="text-sm text-slate-700 dark:text-slate-400">
-                      Showing{" "}
-                      <span className="font-medium">
-                        {(currentPage - 1) * itemsPerPage + 1}
-                      </span>{" "}
-                      to{" "}
-                      <span className="font-medium">
-                        {Math.min(
-                          currentPage * itemsPerPage,
-                          filtered.length,
                         )}
-                      </span>{" "}
-                      of <span className="font-medium">{filtered.length}</span>{" "}
-                      results
-                    </p>
-                    <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
-                      <span>Per page:</span>
-                      <select
-                        value={itemsPerPage}
-                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                        className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
-                      >
-                        {PAGE_SIZE_OPTIONS.map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  {totalPages > 1 && (
-                    <div>
-                      <nav
-                        className="isolate inline-flex -space-x-px rounded-md shadow-sm"
-                        aria-label="Pagination"
-                      >
-                        <button
-                          onClick={() =>
-                            setCurrentPage((p) => Math.max(1, p - 1))
-                          }
-                          disabled={currentPage === 1}
-                          className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                        >
-                          <span className="sr-only">Previous</span>
-                          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                        </button>
-                        {/* Generates page buttons limited to total pages */}
-                        {[...Array(totalPages)].map((_, i) => (
-                          <button
-                            key={i + 1}
-                            onClick={() => setCurrentPage(i + 1)}
-                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${
-                              currentPage === i + 1
-                                ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                                : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
-                            }`}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {editingCell?.id === interview.id && editingCell.field === "status" ? (
+                          <select
+                            autoFocus
+                            defaultValue={
+                              interview.status?.toLowerCase() === "closed"
+                                ? ((interview.closed_sub_status || "").toLowerCase() === "lost"
+                                  ? "Closed:lost"
+                                  : "Closed:active")
+                                : (interview.status ?? "")
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => {
+                              const val = e.target.value;
+                              if (val === "Closed:active") {
+                                void handleInterviewStatusSave(interview, "Closed", "active");
+                              } else if (val === "Closed:lost") {
+                                void handleInterviewStatusSave(interview, "Closed", "lost");
+                              } else {
+                                void handleInterviewStatusSave(interview, val || null, null);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") setEditingCell(null);
+                            }}
+                            className="rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500/50"
                           >
-                            {i + 1}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() =>
-                            setCurrentPage((p) => Math.min(totalPages, p + 1))
-                          }
-                          disabled={currentPage === totalPages}
-                          className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                        >
-                          <span className="sr-only">Next</span>
-                          <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                        </button>
-                      </nav>
-                    </div>
-                  )}
+                            <option value="">Unresponsed</option>
+                            <option value="Upcoming">Upcoming</option>
+                            <option value="Converted">Progressed</option>
+                            <option value="Closed:active">Closed · Active</option>
+                            <option value="Closed:lost">Closed · Lost</option>
+                            <option value="Dropped">Dropped</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                        ) : (
+                          <span className="group/cell inline-flex items-center gap-1.5">
+                            <StatusBadge
+                              status={interview.computed_status}
+                              closedSubStatus={interview.closed_sub_status}
+                            />
+                            {!cannotCRUD && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingCell({ id: interview.id, field: "status" });
+                                }}
+                                disabled={savingCell}
+                                title="Change status"
+                                aria-label="Change status"
+                                className="shrink-0 rounded p-0.5 text-slate-400 opacity-0 transition-opacity hover:text-indigo-500 focus-visible:opacity-100 group-hover/cell:opacity-100"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          {isDeptOnly ? (
+                            /* BD dept-only: show a locked badge instead of action buttons */
+                            <span
+                              title="You can see this interview exists in your department, but full details are restricted to its owning BD."
+                              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-200/60 dark:border-violet-500/25 cursor-default select-none"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                              </svg>
+                              Dept view
+                            </span>
+                          ) : (
+                            <>
+                              {!cannotCRUD && (
+                                <RowActionsDropdown
+                                  interview={interview}
+                                  canAddPipelineRound={canAddPipelineRound}
+                                  isRejected={isRejectedInterview(interview)}
+                                  onAddNextRound={() => openCreateNextRound(interview)}
+                                  onEdit={() => openEditModal(interview)}
+                                  onDelete={() => setDeleteModal(interview)}
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-white/60 dark:border-white/[0.07] bg-white/60 dark:bg-white/[0.04] px-4 py-3 sm:px-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="relative ml-3 inline-flex items-center rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.02] disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <p className="text-sm text-slate-700 dark:text-slate-400">
+                    Showing{" "}
+                    <span className="font-medium">
+                      {(currentPage - 1) * itemsPerPage + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-medium">
+                      {Math.min(
+                        currentPage * itemsPerPage,
+                        filtered.length,
+                      )}
+                    </span>{" "}
+                    of <span className="font-medium">{filtered.length}</span>{" "}
+                    results
+                  </p>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
+                    <span>Per page:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                      className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
+                {totalPages > 1 && (
+                  <div>
+                    <nav
+                      className="isolate inline-flex -space-x-px rounded-md shadow-sm"
+                      aria-label="Pagination"
+                    >
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Previous</span>
+                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                      {/* Generates page buttons limited to total pages */}
+                      {[...Array(totalPages)].map((_, i) => (
+                        <button
+                          key={i + 1}
+                          onClick={() => setCurrentPage(i + 1)}
+                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 focus:outline-offset-0 ${currentPage === i + 1
+                              ? "z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                              : "text-slate-900 dark:text-white ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+                            }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-200 dark:ring-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.04] focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Next</span>
+                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    </nav>
+                  </div>
+                )}
               </div>
-              {/* Mobile: page size selector (desktop version is inline with the "Showing" text above) */}
-              <div className="flex justify-center sm:hidden">
-                <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
-                  <span>Per page:</span>
-                  <select
-                    value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                    className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
-                  >
-                    {PAGE_SIZE_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+            </div>
+            {/* Mobile: page size selector (desktop version is inline with the "Showing" text above) */}
+            <div className="flex justify-center sm:hidden">
+              <label className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-400">
+                <span>Per page:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  className="rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-transparent px-2 py-1 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
+        </div>
       )}
 
       {/* Create/Edit Modal */}
@@ -3491,9 +3482,8 @@ export default function InterviewsPage() {
                         (x) => x.thread_id === selectedLeadThreadId,
                       );
                       return l
-                        ? `${l.company_name ?? "Company"}${
-                            l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""
-                          }`
+                        ? `${l.company_name ?? "Company"}${l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""
+                        }`
                         : "Selected pipeline";
                     })()}
                   </div>
@@ -3501,9 +3491,8 @@ export default function InterviewsPage() {
                   <SearchableSelect
                     options={leadsForInterviewPicker.map((l) => ({
                       id: l.thread_id,
-                      label: `${l.company_name ?? "Company"}${
-                        l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""
-                      }`,
+                      label: `${l.company_name ?? "Company"}${l.primary_bd_name ? ` · ${l.primary_bd_name}` : ""
+                        }`,
                     }))}
                     value={selectedLeadThreadId}
                     onChange={(v) => {
@@ -3674,7 +3663,7 @@ export default function InterviewsPage() {
                   >
                     {meCandidateId
                       ? candidates.find((c) => c.id === meCandidateId)?.name ||
-                        "You (linked)"
+                      "You (linked)"
                       : "No candidate linked to your email — contact an admin."}
                   </div>
                 ) : (
@@ -3849,11 +3838,10 @@ export default function InterviewsPage() {
                       onClick={() =>
                         setFormData({ ...formData, duration_minutes: opt.minutes })
                       }
-                      className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                        selected
+                      className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition-all ${selected
                           ? "bg-indigo-600 text-white ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-indigo-500"
                           : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
-                      }`}
+                        }`}
                     >
                       {opt.label}
                     </button>
@@ -3897,10 +3885,9 @@ export default function InterviewsPage() {
                         })
                       }
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all
-                        ${
-                          selected
-                            ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-current`
-                            : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
+                        ${selected
+                          ? `${s.bg} ${s.text} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-slate-900 ring-current`
+                          : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]"
                         }`}
                     >
                       <span
@@ -3933,11 +3920,10 @@ export default function InterviewsPage() {
                           closed_sub_status: "active",
                         })
                       }
-                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                        (formData.closed_sub_status || "active") === "active"
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${(formData.closed_sub_status || "active") === "active"
                           ? "bg-emerald-500 text-white shadow-sm"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                      }`}
+                        }`}
                     >
                       😌 Active (Won)
                     </button>
@@ -3949,11 +3935,10 @@ export default function InterviewsPage() {
                           closed_sub_status: "lost",
                         })
                       }
-                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                        formData.closed_sub_status === "lost"
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${formData.closed_sub_status === "lost"
                           ? "bg-rose-500 text-white shadow-sm"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                      }`}
+                        }`}
                     >
                       😔 Lost
                     </button>
@@ -4454,7 +4439,7 @@ export default function InterviewsPage() {
                             <InlineLocationEditor
                               profileId={profile.id}
                               onLocationUpdated={(newLoc) => {
-                                setProfiles(profiles.map(p => 
+                                setProfiles(profiles.map(p =>
                                   p.id === profile.id ? { ...p, location: newLoc } : p
                                 ));
                               }}
@@ -4582,12 +4567,12 @@ export default function InterviewsPage() {
                                   {profile.education_degree}
                                   {(profile.education_start_year ||
                                     profile.education_end_year) && (
-                                    <span className="text-slate-500 dark:text-slate-500">
-                                      {" "}
-                                      ({profile.education_start_year ?? "—"}–
-                                      {profile.education_end_year ?? "—"})
-                                    </span>
-                                  )}
+                                      <span className="text-slate-500 dark:text-slate-500">
+                                        {" "}
+                                        ({profile.education_start_year ?? "—"}–
+                                        {profile.education_end_year ?? "—"})
+                                      </span>
+                                    )}
                                 </p>
                               </div>
                             )}
