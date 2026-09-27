@@ -1,4 +1,4 @@
-"""Unauthenticated, read-only list of today's AI/ML interviews for the virtual assistant.
+"""Unauthenticated, read-only AI/ML interview schedule for the virtual assistant.
 
 Gated only by a shared-secret token in the URL (settings.PUBLIC_VPA_TOKEN) — backs the
 /public/vpa/<token> page the VPA opens on her phone to know whom to remind and when. Only the
@@ -7,12 +7,14 @@ or feedback.
 
 "Today" follows the app's existing convention (see reminder_worker._pkt_to_utc): the stored
 interview_date paired with time_pkt is the Pakistan-time moment of the interview.
+Callers pass an optional start/end date range (defaults to today, capped at MAX_RANGE_DAYS).
 """
 
 import hmac
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select
 
 from app.config import get_settings
@@ -29,6 +31,8 @@ router = APIRouter(prefix="/api/v1/public", tags=["Public VPA"])
 
 AI_ML_DEPARTMENT_SLUG = "ai"
 PKT = timezone(timedelta(hours=5))
+# Enough for a month grid plus padding; keeps a crafted URL from pulling the whole table.
+MAX_RANGE_DAYS = 62
 
 
 def _require_valid_token(token: str) -> None:
@@ -43,16 +47,22 @@ def _hhmm(t) -> str | None:
 
 
 @router.get("/vpa/{token}")
-def get_vpa_today(
+def get_vpa_schedule(
     token: str,
     response: Response,
     session: Session = Depends(get_session),
+    start: Optional[date] = Query(default=None),
+    end: Optional[date] = Query(default=None),
 ):
     _require_valid_token(token)
     response.headers["Cache-Control"] = "no-store"
 
     now_pkt = datetime.now(PKT)
     today_pkt = now_pkt.date()
+    start = start or today_pkt
+    end = end or start
+    if end < start or (end - start).days >= MAX_RANGE_DAYS:
+        raise HTTPException(status_code=400, detail=f"Date range must be 1-{MAX_RANGE_DAYS} days")
 
     dept = session.exec(
         select(Department).where(Department.slug == AI_ML_DEPARTMENT_SLUG)
@@ -63,7 +73,8 @@ def get_vpa_today(
         interviews = session.exec(
             select(Interview).where(
                 Interview.department_id == dept.id,
-                Interview.interview_date == today_pkt,
+                Interview.interview_date >= start,
+                Interview.interview_date <= end,
             )
         ).all()
 
@@ -92,17 +103,22 @@ def get_vpa_today(
         else {}
     )
 
-    # Timed interviews first in PKT order; untimed ones trail at the end.
-    interviews.sort(key=lambda i: (i.time_pkt is None, i.time_pkt or datetime.min.time()))
+    # By day, then timed interviews in PKT order; untimed ones trail at the end of their day.
+    interviews.sort(
+        key=lambda i: (i.interview_date, i.time_pkt is None, i.time_pkt or datetime.min.time())
+    )
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "date_pkt": today_pkt.isoformat(),
+        "start": start.isoformat(),
+        "end": end.isoformat(),
         "now_pkt": now_pkt.strftime("%H:%M"),
         "department": dept.name if dept else None,
         "interviews": [
             {
                 "id": str(i.id),
+                "date": i.interview_date.isoformat(),
                 "time_pkt": _hhmm(i.time_pkt),
                 "time_est": _hhmm(i.time_est),
                 "duration_minutes": i.duration_minutes,
