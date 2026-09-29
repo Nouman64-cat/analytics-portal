@@ -7,7 +7,7 @@
    applied at surface points; each is split into a push on the body, a twist, and a push on
    every mode — which is what makes a landing squash it and a fast drag stretch it. */
 
-export const JELLY_HZ = 3.4; // base wobble frequency — higher = firmer jelly
+export const JELLY_HZ = 2.2; // base wobble frequency — higher = firmer jelly
 const MODES = [2, 3, 4];
 const MODE_HZ = [JELLY_HZ, JELLY_HZ * 1.45, JELLY_HZ * 1.9];
 const MODE_ZETA = 0.13; // wobble damping ratio (lower = jigglier, longer wobble)
@@ -27,7 +27,7 @@ const FRICTION_C = 30;
 const FRICTION_MU = 0.6;
 const GRAB_K = 380;
 const GRAB_C = 24;
-const GRAB_STRETCH = 4; // extra shape pull at the grabbed spot, so holding it visibly stretches
+const GRAB_STRETCH = 2.5; // extra shape pull at the grabbed spot, so holding it visibly stretches
 const RIGHTING_K = 14; // roly-poly torque pulling the face upright
 const SPIN_DAMP = 1.6;
 const MAX_SPEED = 3200;
