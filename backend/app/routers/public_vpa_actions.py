@@ -204,6 +204,12 @@ def _suggest_next_round(current: str) -> str:
             "third": "4th", "4th": "5th"}.get(lower, "")
 
 
+def _accepts_rounds(outcome: str) -> bool:
+    """Closed/dead/dropped/rejected leads are done; unresponsive ones often come back with a
+    next round (a round left 'unresponsed' flips the lead to unresponsive), so keep those."""
+    return outcome.lower() == "unresponsive" or not is_lead_terminal_outcome(outcome)
+
+
 def _clean(s: Optional[str]) -> Optional[str]:
     s = (s or "").strip()
     return s or None
@@ -310,7 +316,7 @@ def open_leads(q: str = Query(default="", max_length=100), session: Session = De
     out = []
     for tid, tip in tips.items():
         outcome = effective_lead_fields(session, tid, lead_map.get(tid), by_thread[tid])["lead_outcome"]
-        if is_lead_terminal_outcome(outcome):
+        if not _accepts_rounds(outcome):
             continue
         company = (company_names.get(tip.company_id) or "").strip()
         # Most recent candidate on the thread, so the form can pre-fill it.
@@ -327,6 +333,7 @@ def open_leads(q: str = Query(default="", max_length=100), session: Session = De
             "candidate_id": str(cand_id) if cand_id else None,
             "candidate": cand_names.get(cand_id) if cand_id else None,
             "suggested_round": _suggest_next_round(tip.round),
+            "unresponsive": outcome.lower() == "unresponsive",
             "_sort": max(r.updated_at for r in by_thread[tid]),
         })
     out.sort(key=lambda x: x.pop("_sort"), reverse=True)
@@ -451,7 +458,7 @@ def add_round(body: RoundIn, session: Session = Depends(get_session)):
     if not rows or any(r.department_id != dept.id for r in rows):
         raise HTTPException(status_code=404, detail="Lead not found")
     lead_row = load_lead_map(session, {body.thread_id}).get(body.thread_id)
-    if is_lead_terminal_outcome(effective_lead_fields(session, body.thread_id, lead_row, rows)["lead_outcome"]):
+    if not _accepts_rounds(effective_lead_fields(session, body.thread_id, lead_row, rows)["lead_outcome"]):
         raise HTTPException(status_code=409, detail="This lead is closed. Ask an admin to reopen it.")
     cand = session.get(Candidate, body.candidate_id)
     if not cand or not _candidate_in_dept(cand, dept.id):
@@ -481,6 +488,13 @@ def add_round(body: RoundIn, session: Session = Depends(get_session)):
     parent.status = "Converted"
     parent.updated_at = datetime.utcnow()
     session.add(parent)
+    # A new round means the lead responded: drop a manual "unresponsive" mark so the worker
+    # doesn't send follow-ups or auto-mark it dead. Derived unresponsive clears by itself.
+    if lead_row and (lead_row.outcome_override or "").lower() == "unresponsive":
+        lead_row.outcome_override = None
+        lead_row.unresponsive_since = None
+        lead_row.updated_at = datetime.utcnow()
+        session.add(lead_row)
     session.flush()
     company = session.get(Company, parent.company_id)
     record_activity(

@@ -53,6 +53,7 @@ interface OpenLead {
   candidate_id: string | null;
   candidate: string | null;
   suggested_round: string;
+  unresponsive: boolean;
 }
 
 export interface ReschedulableInterview {
@@ -1124,7 +1125,14 @@ function LeadPicker({
             {...tap(() => onChange(l))}
             className="block w-full touch-manipulation border-b border-slate-100 px-3 py-3 text-left last:border-b-0 active:bg-slate-50"
           >
-            <p className="truncate text-[15px] font-semibold text-slate-900">{l.company}</p>
+            <p className="flex items-center gap-2 text-[15px] font-semibold text-slate-900">
+              <span className="truncate">{l.company}</span>
+              {l.unresponsive && (
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  Unresponsive
+                </span>
+              )}
+            </p>
             <p className="truncate text-[13px] text-slate-500">
               {l.role} · {l.latest_round}
               {l.candidate ? ` · ${l.candidate}` : ""}
