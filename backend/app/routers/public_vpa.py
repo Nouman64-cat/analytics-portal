@@ -5,13 +5,14 @@ Gated only by a shared-secret token in the URL (settings.PUBLIC_VPA_TOKEN) — b
 fields needed for a reminder call are returned: no meeting links, documents, salaries, emails
 or feedback.
 
-"Today" follows the app's existing convention (see reminder_worker._pkt_to_utc): the stored
-interview_date paired with time_pkt is the Pakistan-time moment of the interview.
-Callers pass an optional start/end date range (defaults to today, capped at MAX_RANGE_DAYS).
+interview_date is the US Eastern date (the interview form derives time_pkt from time_est by
+adding 9/10h and wrapping at midnight), so an afternoon-EST interview lands on the *next* PKT
+day. pkt_moment works out the real PKT date+time; the start/end range (defaults to today,
+capped at MAX_RANGE_DAYS) and the ordering both use that PKT date.
 """
 
 import hmac
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -19,6 +20,7 @@ from sqlmodel import Session, select
 
 from app.config import get_settings
 from app.database import get_session
+from app.interview_time import PKT, pkt_moment
 from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
 from app.models.company import Company
@@ -30,7 +32,6 @@ from app.status_utils import computed_status_for_interview_display
 router = APIRouter(prefix="/api/v1/public", tags=["Public VPA"])
 
 AI_ML_DEPARTMENT_SLUG = "ai"
-PKT = timezone(timedelta(hours=5))
 # Enough for a month grid plus padding; keeps a crafted URL from pulling the whole table.
 MAX_RANGE_DAYS = 62
 
@@ -70,13 +71,17 @@ def get_vpa_schedule(
     if not dept:
         interviews: list[Interview] = []
     else:
+        # The EST date is the PKT date or the day before, so widen by a day and filter on PKT.
         interviews = session.exec(
             select(Interview).where(
                 Interview.department_id == dept.id,
-                Interview.interview_date >= start,
+                Interview.interview_date >= start - timedelta(days=1),
                 Interview.interview_date <= end,
             )
         ).all()
+
+    moments = {i.id: pkt_moment(i) for i in interviews}
+    interviews = [i for i in interviews if start <= moments[i.id][0] <= end]
 
     candidate_ids = {i.candidate_id for i in interviews if i.candidate_id}
     company_ids = {i.company_id for i in interviews}
@@ -103,9 +108,9 @@ def get_vpa_schedule(
         else {}
     )
 
-    # By day, then timed interviews in PKT order; untimed ones trail at the end of their day.
+    # By PKT day, then timed interviews in PKT order; untimed ones trail at the end of their day.
     interviews.sort(
-        key=lambda i: (i.interview_date, i.time_pkt is None, i.time_pkt or datetime.min.time())
+        key=lambda i: (moments[i.id][0], moments[i.id][1] is None, moments[i.id][1] or time.min)
     )
 
     return {
@@ -118,8 +123,9 @@ def get_vpa_schedule(
         "interviews": [
             {
                 "id": str(i.id),
-                "date": i.interview_date.isoformat(),
-                "time_pkt": _hhmm(i.time_pkt),
+                "date": moments[i.id][0].isoformat(),
+                "date_est": i.interview_date.isoformat(),
+                "time_pkt": _hhmm(moments[i.id][1]),
                 "time_est": _hhmm(i.time_est),
                 "duration_minutes": i.duration_minutes,
                 "candidate": candidates.get(i.candidate_id) if i.candidate_id else None,

@@ -22,7 +22,10 @@ import { formatTime } from "@/lib/utils";
 
 interface VpaInterview {
   id: string;
+  /** Actual PKT date of the interview (can be a day after date_est). */
   date: string;
+  /** Date as scheduled in US Eastern time. */
+  date_est: string;
   time_pkt: string | null;
   time_est: string | null;
   duration_minutes: number | null;
@@ -86,6 +89,8 @@ function formatDay(day: string, opts: Intl.DateTimeFormatOptions): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 }
 
+const SHORT_DAY: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" };
+
 function relativeDayLabel(day: string, today: string): string {
   if (day === today) return "Today";
   if (day === addDays(today, 1)) return "Tomorrow";
@@ -110,6 +115,12 @@ function shiftMonth(month: string, n: number): string {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + n, 1));
   return d.toISOString().slice(0, 7);
+}
+
+/** PKT day, then PKT time; untimed interviews trail at the end of their day. */
+function sortByPktTime(list: VpaInterview[]): VpaInterview[] {
+  const key = (i: VpaInterview) => `${i.date} ${i.time_pkt ?? "99:99"}`;
+  return [...list].sort((a, b) => key(a).localeCompare(key(b)));
 }
 
 function groupByDate(list: VpaInterview[]): Map<string, VpaInterview[]> {
@@ -235,6 +246,7 @@ function useSchedule(token: string, start: string, end: string, reloadKey: numbe
           return;
         }
         const data = (await res.json()) as VpaSchedule;
+        data.interviews = sortByPktTime(data.interviews);
         if (!cancelled) setState({ status: "ready", data });
       } catch {
         if (!cancelled)
@@ -286,13 +298,18 @@ function InterviewCard({
         } ${done ? "opacity-60" : ""}`}
       >
         <div className="flex items-start gap-3">
-          <div className="w-[84px] shrink-0">
+          <div className="w-[92px] shrink-0">
             <p className="whitespace-nowrap text-base font-bold leading-tight tabular-nums text-slate-900">
               {interview.time_pkt ? formatTime(interview.time_pkt) : "—"}
             </p>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">PKT</p>
+            <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
+              PKT · {formatDay(interview.date, SHORT_DAY)}
+            </p>
             <p className="mt-1 whitespace-nowrap text-[11px] tabular-nums text-slate-500">
               {interview.time_est ? `${formatTime(interview.time_est)} EST` : "EST —"}
+            </p>
+            <p className="whitespace-nowrap text-[10px] text-slate-400">
+              {formatDay(interview.date_est, SHORT_DAY)}
             </p>
           </div>
 
@@ -414,8 +431,10 @@ function NextUpBanner({
       <>
         <p className="text-xl font-bold">{next.candidate || "No candidate yet"}</p>
         <p className="text-sm text-white/80">
-          {formatTime(next.time_pkt)} PKT
-          {next.time_est ? ` · ${formatTime(next.time_est)} EST` : ""}
+          {formatTime(next.time_pkt)} PKT {formatDay(next.date, SHORT_DAY)}
+          {next.time_est
+            ? ` · ${formatTime(next.time_est)} EST ${formatDay(next.date_est, SHORT_DAY)}`
+            : ""}
         </p>
         <p className="text-sm text-white/80">
           {next.company?.trim()} · {next.round}
@@ -761,7 +780,7 @@ export default function PublicVpaPage() {
         {tab === "upcoming" && <UpcomingView {...viewProps} />}
         {tab === "calendar" && <CalendarView {...viewProps} />}
         <p className="pt-4 text-center text-[11px] text-slate-400">
-          Times in PKT, EST shown alongside · auto-refreshes every 2 min
+          Grouped by PKT date, US Eastern date &amp; time shown alongside · auto-refreshes every 2 min
         </p>
       </main>
 

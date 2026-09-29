@@ -9,6 +9,7 @@ from sqlmodel import Session, select, or_, and_
 from app.activity_log import record_activity
 from app.config import Settings
 from app.database import engine
+from app.interview_time import pkt_moment
 from app.email_ses import try_send_interview_reminder_email, make_presigned_doc_url
 from app.models.business_developer import BusinessDeveloper
 from app.models.candidate import Candidate
@@ -79,7 +80,9 @@ def _escalate_explicit_unresponsive_leads() -> None:
 def _pkt_to_utc(interview: Interview) -> datetime | None:
     if not interview.interview_date or not interview.time_pkt:
         return None
-    pkt_dt = datetime.combine(interview.interview_date, interview.time_pkt)
+    # interview_date is the US Eastern date; late-EST interviews roll into the next PKT day.
+    pkt_date, pkt_time = pkt_moment(interview)
+    pkt_dt = datetime.combine(pkt_date, pkt_time)
     # PKT is UTC+5
     return pkt_dt - timedelta(hours=5)
 
