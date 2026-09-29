@@ -38,6 +38,7 @@ interface Option {
 
 interface Lookups {
   candidates: Option[];
+  job_roles: Option[];
   resume_profiles: (Option & { bd_id: string | null })[];
   bds: Option[];
   rounds: string[];
@@ -441,21 +442,59 @@ const inputCls =
 function Field({
   label,
   required,
+  group,
   children,
 }: {
   label: string;
   required?: boolean;
+  /** Set for composite pickers: a <label> around buttons makes iOS refocus its input on tap. */
+  group?: boolean;
   children: React.ReactNode;
 }) {
+  const Tag = group ? "div" : "label";
   return (
-    <label className="block">
+    <Tag className="block">
       <span className="mb-1.5 block text-[13px] font-semibold text-slate-700">
         {label}
         {required && <span className="text-red-500"> *</span>}
       </span>
       {children}
-    </label>
+    </Tag>
   );
+}
+
+/**
+ * Tap handlers for list items under a focused input. On phones the first touch closes the
+ * keyboard and the sheet shifts before `click` fires, so the click lands on the wrong row (or
+ * nothing). Acting on pointer-up beats the shift; drags past 10px are scrolls and are ignored.
+ * `click` stays as the keyboard fallback and is skipped when pointer-up already handled it.
+ */
+function useTap() {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const handled = useRef(false);
+  return (fn: () => void) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      start.current = { x: e.clientX, y: e.clientY };
+      handled.current = false;
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const s = start.current;
+      start.current = null;
+      if (!s || Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) return;
+      handled.current = true;
+      fn();
+    },
+    onPointerCancel: () => {
+      start.current = null;
+    },
+    onClick: () => {
+      if (handled.current) {
+        handled.current = false;
+        return;
+      }
+      fn();
+    },
+  });
 }
 
 function Select({
@@ -728,64 +767,80 @@ function PinKey({
 
 // ---- New lead
 
-function CompanyPicker({
-  api,
+/** Type-ahead picker with an optional "add new" row; shared by company and role. */
+function SearchPicker({
   value,
-  onChange,
+  onClear,
+  search,
+  onPick,
+  onCreate,
+  createLabel,
+  placeholder,
+  listOnFocus,
 }: {
-  api: Api;
-  value: Option | null;
-  onChange: (c: Option | null) => void;
+  value: string | null;
+  onClear: () => void;
+  search: (term: string) => Promise<Option[]>;
+  onPick: (o: Option) => void;
+  onCreate?: (term: string) => Promise<void> | void;
+  createLabel?: (term: string) => string;
+  placeholder: string;
+  /** Show suggestions as soon as the field is focused (before typing). */
+  listOnFocus?: boolean;
 }) {
   const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
   const [results, setResults] = useState<Option[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
+  const tap = useTap();
+  const term = q.trim();
+  const active = Boolean(term) || (listOnFocus && open);
 
   useEffect(() => {
-    const term = q.trim();
     const mine = ++seq.current;
-    if (!term) {
+    if (!active) {
+       
       setResults([]);
       return;
     }
     const t = setTimeout(() => {
-      api<Option[]>(`/companies?q=${encodeURIComponent(term)}`)
+      search(term)
         .then((r) => mine === seq.current && setResults(r))
         .catch(() => {});
-    }, 250);
+    }, 200);
     return () => clearTimeout(t);
+    // `search` is recreated every render; the term is what matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  }, [term, active]);
 
   if (value)
     return (
-      <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
-        <span className="text-base font-semibold text-indigo-900">{value.name}</span>
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
+        <span className="min-w-0 truncate text-base font-semibold text-indigo-900">{value}</span>
         <button
           type="button"
-          onClick={() => onChange(null)}
-          className="text-sm font-semibold text-indigo-600"
+          {...tap(() => {
+            setQ("");
+            setOpen(false);
+            onClear();
+          })}
+          className="shrink-0 text-sm font-semibold text-indigo-600"
         >
           Change
         </button>
       </div>
     );
 
-  const term = q.trim();
   const exact = results.some((r) => r.name.toLowerCase() === term.toLowerCase());
 
-  const addNew = async () => {
+  const create = async () => {
+    if (!onCreate || busy) return;
     setBusy(true);
     setError(null);
     try {
-      onChange(
-        await api<Option>("/companies", {
-          method: "POST",
-          body: { name: term },
-        }),
-      );
+      await onCreate(term);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -803,32 +858,34 @@ function CompanyPicker({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search company…"
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
           autoComplete="off"
+          enterKeyHint="search"
           className={`${inputCls} pl-9`}
         />
       </div>
-      {term && (
-        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {active && (results.length > 0 || (term && onCreate && !exact)) && (
+        <div className="mt-2 max-h-[40dvh] overflow-y-auto rounded-xl border border-slate-200 bg-white">
           {results.map((r) => (
             <button
               key={r.id}
               type="button"
-              onClick={() => onChange(r)}
-              className="block w-full border-b border-slate-100 px-3 py-3 text-left text-[15px] text-slate-800 last:border-b-0 active:bg-slate-50"
+              {...tap(() => onPick(r))}
+              className="block w-full touch-manipulation border-b border-slate-100 px-3 py-3 text-left text-[15px] text-slate-800 last:border-b-0 active:bg-slate-100"
             >
               {r.name}
             </button>
           ))}
-          {!exact && (
+          {term && onCreate && !exact && (
             <button
               type="button"
-              onClick={addNew}
+              {...tap(create)}
               disabled={busy}
-              className="flex w-full items-center gap-2 px-3 py-3 text-left text-[15px] font-semibold text-indigo-600 active:bg-indigo-50"
+              className="flex w-full touch-manipulation items-center gap-2 px-3 py-3 text-left text-[15px] font-semibold text-indigo-600 active:bg-indigo-50"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              Add &ldquo;{term}&rdquo; as a new company
+              {createLabel ? createLabel(term) : `Add "${term}"`}
             </button>
           )}
         </div>
@@ -913,15 +970,32 @@ function NewLeadSheet({
       <FormError message={loadError} />
       {data && (
         <div className="space-y-4">
-          <Field label="Company" required>
-            <CompanyPicker api={api} value={company} onChange={setCompany} />
+          <Field label="Company" required group>
+            <SearchPicker
+              value={company?.name ?? null}
+              onClear={() => setCompany(null)}
+              search={(term) => api<Option[]>(`/companies?q=${encodeURIComponent(term)}`)}
+              onPick={setCompany}
+              onCreate={async (name) =>
+                setCompany(await api<Option>("/companies", { method: "POST", body: { name } }))
+              }
+              createLabel={(term) => `Add \u201c${term}\u201d as a new company`}
+              placeholder="Search company…"
+            />
           </Field>
-          <Field label="Role" required>
-            <input
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="e.g. Senior ML Engineer"
-              className={inputCls}
+          <Field label="Role" required group>
+            <SearchPicker
+              value={role.trim() || null}
+              onClear={() => setRole("")}
+              search={async (term) => {
+                const t = term.toLowerCase();
+                return data.job_roles.filter((r) => r.name.toLowerCase().includes(t)).slice(0, 30);
+              }}
+              onPick={(r) => setRole(r.name)}
+              onCreate={(name) => setRole(name.replace(/\s+/g, " "))}
+              createLabel={(term) => `Use \u201c${term}\u201d as a new role`}
+              placeholder="Search role, e.g. ML Engineer"
+              listOnFocus
             />
           </Field>
           <Field label="BD">
@@ -982,6 +1056,7 @@ function LeadPicker({
   const [q, setQ] = useState("");
   const [leads, setLeads] = useState<OpenLead[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const tap = useTap();
 
   useEffect(() => {
     let cancelled = false;
@@ -1046,8 +1121,8 @@ function LeadPicker({
           <button
             key={l.thread_id}
             type="button"
-            onClick={() => onChange(l)}
-            className="block w-full border-b border-slate-100 px-3 py-3 text-left last:border-b-0 active:bg-slate-50"
+            {...tap(() => onChange(l))}
+            className="block w-full touch-manipulation border-b border-slate-100 px-3 py-3 text-left last:border-b-0 active:bg-slate-50"
           >
             <p className="truncate text-[15px] font-semibold text-slate-900">{l.company}</p>
             <p className="truncate text-[13px] text-slate-500">
@@ -1138,7 +1213,7 @@ function AddRoundSheet({
       <FormError message={loadError} />
       {data && (
         <div className="space-y-4">
-          <Field label="Lead" required>
+          <Field label="Lead" required group>
             <LeadPicker api={api} value={lead} onChange={pickLead} />
           </Field>
           {lead && (

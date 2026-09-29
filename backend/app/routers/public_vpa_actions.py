@@ -40,6 +40,7 @@ from app.models.company import Company
 from app.models.department import Department
 from app.models.interview import Interview
 from app.models.interview_reminder_log import InterviewReminderLog
+from app.models.job_role import JobRole
 from app.models.resume_profile import ResumeProfile
 from app.routers.public_vpa import AI_ML_DEPARTMENT_SLUG, _require_valid_token
 
@@ -232,8 +233,10 @@ def lookups(session: Session = Depends(get_session)):
         .where(or_(BusinessDeveloper.department_ids.is_(None), in_dept(BusinessDeveloper.department_ids)))
         .order_by(BusinessDeveloper.name)
     ).all()
+    job_roles = session.exec(select(JobRole).order_by(JobRole.name)).all()
     return {
         "candidates": [{"id": str(c.id), "name": c.name} for c in candidates],
+        "job_roles": [{"id": str(r.id), "name": r.name} for r in job_roles],
         "resume_profiles": [
             {"id": str(p.id), "name": p.name, "bd_id": str(p.bd_id) if p.bd_id else None}
             for p in profiles
@@ -360,7 +363,12 @@ def create_lead(body: LeadIn, session: Session = Depends(get_session)):
         if not cand or not _candidate_in_dept(cand, dept.id):
             raise HTTPException(status_code=404, detail="Candidate not found")
 
-    role = body.role.strip()
+    role = " ".join(body.role.split())
+    if not role:
+        raise HTTPException(status_code=400, detail="Role is required")
+    # Same as the desktop role picker: a new title joins the shared job-role list.
+    if not session.exec(select(JobRole).where(func.lower(JobRole.name) == role.lower())).first():
+        session.add(JobRole(name=role))
     arrived = body.arrived_on or datetime.now(PKT).date()
     thread_id = uuid.uuid4()
     lt = ensure_lead_thread(session, thread_id)
