@@ -120,6 +120,8 @@ def get_vpa_schedule(
         "end": end.isoformat(),
         "now_pkt": now_pkt.strftime("%H:%M"),
         "department": dept.name if dept else None,
+        # Lets the page show its "Add" actions; they still need a PIN session to work.
+        "writes_enabled": bool((get_settings().PUBLIC_VPA_PIN or "").strip()),
         "interviews": [
             {
                 "id": str(i.id),

@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     # Unauthenticated read-only "today's AI/ML interviews" page for the VPA (/public/vpa/<token>).
     # Separate from PUBLIC_STATS_TOKEN so either link can be revoked on its own. Empty disables it (404).
     PUBLIC_VPA_TOKEN: Optional[str] = Field(None, env="PUBLIC_VPA_TOKEN")
+    # PIN that unlocks create-lead / add-round / reschedule on that page. Empty keeps it read-only.
+    # Changing it (or the token) signs the VPA out on every device.
+    PUBLIC_VPA_PIN: Optional[str] = Field(None, env="PUBLIC_VPA_PIN")
 
     @property
     def cors_origins_list(self) -> list[str]:

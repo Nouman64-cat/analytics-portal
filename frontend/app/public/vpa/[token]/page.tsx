@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Briefcase,
+  CalendarClock,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { API_V1 } from "@/lib/constants";
 import { formatTime } from "@/lib/utils";
+import { VpaActionsProvider, useVpaActions } from "./_components/vpa-actions";
 
 interface VpaInterview {
   id: string;
@@ -46,6 +48,7 @@ interface VpaSchedule {
   start: string;
   end: string;
   department: string | null;
+  writes_enabled?: boolean;
   interviews: VpaInterview[];
 }
 
@@ -276,6 +279,7 @@ function InterviewCard({
   now: number;
 }) {
   const [open, setOpen] = useState(false);
+  const actions = useVpaActions();
   const { phase, minsUntil } = phaseOf(interview, today, now);
   const done = phase === "done";
   const highlight = phase === "live" || phase === "soon";
@@ -289,14 +293,15 @@ function InterviewCard({
         <span className="mt-1 w-px flex-1 bg-slate-200" />
       </div>
 
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={`mb-3 min-w-0 flex-1 rounded-2xl border bg-white p-3.5 text-left shadow-sm transition active:scale-[0.99] ${
-          highlight ? "border-amber-300 ring-2 ring-amber-100" : "border-slate-200"
-        } ${done ? "opacity-60" : ""}`}
-      >
+      <div className="mb-3 min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className={`w-full rounded-2xl border bg-white p-3.5 text-left shadow-sm transition active:scale-[0.99] ${
+            highlight ? "border-amber-300 ring-2 ring-amber-100" : "border-slate-200"
+          } ${done ? "opacity-60" : ""}`}
+        >
         <div className="flex items-start gap-3">
           <div className="w-[92px] shrink-0">
             <p className="whitespace-nowrap text-base font-bold leading-tight tabular-nums text-slate-900">
@@ -362,7 +367,17 @@ function InterviewCard({
             {showStatus && <Detail icon={<Clock size={13} />} label="Status" value={interview.status} />}
           </div>
         )}
-      </button>
+        </button>
+        {open && actions.enabled && !done && (
+          <button
+            type="button"
+            onClick={() => actions.reschedule(interview)}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700 active:bg-indigo-100"
+          >
+            <CalendarClock size={15} /> Reschedule
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -706,6 +721,16 @@ export default function PublicVpaPage() {
   const [now, setNow] = useState(pktMinutesNow);
   const [reloadKey, setReloadKey] = useState(0);
   const [spinning, setSpinning] = useState(false);
+  const [writesEnabled, setWritesEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    // Only decides whether to show the "+" button; the server enforces the PIN on every write.
+    fetch(`${API_V1}/public/vpa/${encodeURIComponent(token)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: VpaSchedule | null) => setWritesEnabled(Boolean(d?.writes_enabled)))
+      .catch(() => {});
+  }, [token]);
 
   const refresh = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -739,6 +764,7 @@ export default function PublicVpaPage() {
   return (
     // w-full + flex-1: the root <body> is a flex row, so without these the page shrinks to a
     // narrow column and the app's tinted body background shows beside it.
+    <VpaActionsProvider token={token} enabled={writesEnabled} onChanged={refresh}>
     <div
       className="min-h-dvh w-full flex-1 bg-slate-50 text-slate-900 [color-scheme:light]"
       data-theme="light"
@@ -814,5 +840,6 @@ export default function PublicVpaPage() {
         </div>
       </nav>
     </div>
+    </VpaActionsProvider>
   );
 }

@@ -294,7 +294,7 @@ def _propagate_thread_id(
             select(Interview).where(Interview.parent_interview_id == nid)
         ).all()
         for ch in children:
-            stack.append(ch.id)
+            stack.append(ch.id) 
 
 
 @router.get("/", response_model=list[InterviewReadWithDetails])
