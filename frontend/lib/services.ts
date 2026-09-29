@@ -72,6 +72,16 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+const WORD_MIME_TYPES = [
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+/** True for .doc/.docx — checks the extension too since some browsers leave `type` empty. */
+export function isWordFile(file: File): boolean {
+  return WORD_MIME_TYPES.includes(file.type) || /\.docx?$/i.test(file.name);
+}
+
 // ─── Auth ────────────────────────────────────────────────────
 
 export const authService = {
@@ -381,8 +391,11 @@ export const interviewsService = {
       method: "PATCH",
       body: JSON.stringify({ room_id: roomId }),
     }),
+  /** Word files go through the backend, which converts them to PDF before storing in S3. */
   uploadInterviewDoc: (id: string, file: File, onProgress?: (pct: number) => void) =>
-    interviewsService._presignAndUpload(id, "document", file, onProgress),
+    isWordFile(file)
+      ? interviewsService._uploadViaProxy(id, "document", file, onProgress)
+      : interviewsService._presignAndUpload(id, "document", file, onProgress),
 
   uploadInterviewResume: (id: string, file: File, onProgress?: (pct: number) => void) =>
     interviewsService._presignAndUpload(id, "resume", file, onProgress),

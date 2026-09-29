@@ -41,6 +41,19 @@ python -m app.seed
 
 _Note: This automatically creates the schema tables on the first run._
 
+## LibreOffice (Word → PDF conversion)
+
+Interview documents uploaded as `.doc`/`.docx` are converted to PDF with headless LibreOffice before being stored in S3. Install it on any machine running the backend:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y libreoffice-writer-nogui
+# macOS
+brew install --cask libreoffice
+```
+
+If `soffice` isn't on `PATH`, set `LIBREOFFICE_PATH` in `.env` (macOS: `/Applications/LibreOffice.app/Contents/MacOS/soffice`).
+
 ## Running the Server
 
 Start the local development server with live reload:

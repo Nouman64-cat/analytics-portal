@@ -1,3 +1,4 @@
+import io
 import uuid
 import os
 import logging
@@ -51,6 +52,7 @@ from app.status_utils import (
     compute_status,
 )
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
+from app.doc_conversion import DocumentConversionError, convert_word_to_pdf, word_extension_for
 
 logger = logging.getLogger(__name__)
 
@@ -904,7 +906,7 @@ def upload_interview_document(
     settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload interview detail document (Word DOC or DOCX) to S3."""
+    """Upload interview detail document to S3. PDFs are stored as-is; DOC/DOCX are converted to PDF first."""
     assert_write_access(current_user)
     interview = session.get(Interview, interview_id)
     if not interview:
@@ -925,10 +927,11 @@ def upload_interview_document(
             detail=f"File is too large (limit {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB)",
         )
 
-    if file.content_type != "application/pdf":
+    word_ext = word_extension_for(file.content_type, file.filename)
+    if file.content_type != "application/pdf" and not word_ext:
         raise HTTPException(
             status_code=400,
-            detail="Only PDF files are allowed for interview documents",
+            detail="Only PDF, DOC, and DOCX files are allowed for interview documents",
         )
 
     key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.pdf"
@@ -938,10 +941,22 @@ def upload_interview_document(
         raise HTTPException(
             status_code=500, detail="AWS S3 bucket not configured")
 
-    try:
+    # Word documents are converted to PDF before storing — only the PDF ever lands in S3,
+    # so downloads and keyword highlighting (PDF-only) work the same for every upload.
+    body = file.file
+    if word_ext:
         file.file.seek(0)
+        try:
+            pdf_bytes = convert_word_to_pdf(
+                file.file.read(), word_ext, settings.LIBREOFFICE_PATH)
+        except DocumentConversionError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        body = io.BytesIO(pdf_bytes)
+
+    try:
+        body.seek(0)
         s3_client.upload_fileobj(
-            file.file,
+            body,
             settings.AWS_S3_BUCKET_NAME,
             key,
             ExtraArgs={"ContentType": "application/pdf", "ACL": "private"},

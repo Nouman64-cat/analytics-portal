@@ -47,6 +47,7 @@ import {
   authService,
   leadsService,
   jobRolesService,
+  isWordFile,
 } from "@/lib/services";
 import {
   formatInterviewDateEst,
@@ -1632,9 +1633,13 @@ export default function InterviewsPage() {
       }
 
       if (filesAttached && savedInterview?.id) {
-        if (interviewDocFile && interviewDocFile.type !== "application/pdf")
+        if (
+          interviewDocFile &&
+          interviewDocFile.type !== "application/pdf" &&
+          !isWordFile(interviewDocFile)
+        )
           throw new Error(
-            "Only PDF files are allowed for interview documents.",
+            "Only PDF, DOC, and DOCX files are allowed for interview documents.",
           );
         if (
           interviewResumeFile &&
@@ -1917,13 +1922,7 @@ export default function InterviewsPage() {
     setUploadError(null);
     setUploadingInterviewId(interviewId);
 
-    if (
-      ![
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/pdf",
-      ].includes(file.type)
-    ) {
+    if (file.type !== "application/pdf" && !isWordFile(file)) {
       setUploadError("Only DOC, DOCX, and PDF files are allowed.");
       setUploadingInterviewId(null);
       return;
@@ -3957,17 +3956,17 @@ export default function InterviewsPage() {
             </FormField>
           </div>
           <div className="col-span-1">
-            <FormField label="Interview Document (PDF)">
+            <FormField label="Interview Document (PDF / Word)">
               <input
                 id="interview-doc-file-input"
                 type="file"
-                accept=".pdf,application/pdf"
+                accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                 className="hidden"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const file = e.target.files?.[0] ?? null;
                   if (file) {
-                    if (file.type !== "application/pdf") {
-                      setInterviewDocError("Only PDF files are allowed.");
+                    if (file.type !== "application/pdf" && !isWordFile(file)) {
+                      setInterviewDocError("Only PDF, DOC, and DOCX files are allowed.");
                       setInterviewDocFile(null);
                       return;
                     }
@@ -3996,8 +3995,8 @@ export default function InterviewsPage() {
                   setDocDragOver(false);
                   const file = e.dataTransfer.files?.[0] ?? null;
                   if (!file) return;
-                  if (file.type !== "application/pdf") {
-                    setInterviewDocError("Only PDF files are allowed.");
+                  if (file.type !== "application/pdf" && !isWordFile(file)) {
+                    setInterviewDocError("Only PDF, DOC, and DOCX files are allowed.");
                     return;
                   }
                   setInterviewDocError(null);
@@ -4024,7 +4023,7 @@ export default function InterviewsPage() {
                 ) : (
                   <div>
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      {docDragOver ? "Drop to upload" : "Drag & drop PDF here"}
+                      {docDragOver ? "Drop to upload" : "Drag & drop PDF or Word file here"}
                     </p>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">or click to browse</p>
                   </div>
