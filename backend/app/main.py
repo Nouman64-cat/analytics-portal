@@ -49,6 +49,7 @@ from app.routers import public_vpa
 from app.routers import public_vpa_actions
 from app.routers import messages
 from app.routers import import_router
+from app.routers import mcp
 
 settings = get_settings()
 
@@ -178,6 +179,7 @@ app.include_router(public_vpa.router)
 app.include_router(public_vpa_actions.router)
 app.include_router(messages.router)
 app.include_router(messages.ws_router)
+app.include_router(mcp.router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"], tags=["Health"])

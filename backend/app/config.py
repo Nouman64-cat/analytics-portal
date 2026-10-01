@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     # Changing it (or the token) signs the VPA out on every device.
     PUBLIC_VPA_PIN: Optional[str] = Field(None, env="PUBLIC_VPA_PIN")
 
+    # Read-only MCP endpoint (/api/v1/mcp/<token>) so ChatGPT / Claude connectors can query portal data.
+    # The token in the URL is the only access control — treat it like a password. Empty disables it (404).
+    MCP_TOKEN: Optional[str] = Field(None, env="MCP_TOKEN")
+    # Every MCP tool call runs as this user, with exactly their role's data scoping (superadmin = everything).
+    MCP_USER_EMAIL: Optional[str] = Field(None, env="MCP_USER_EMAIL")
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
