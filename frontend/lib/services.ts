@@ -165,6 +165,17 @@ export const dashboardService = {
 };
 
 export const leadsService = {
+  parseMessage: (body: {
+    message: string;
+    companies: { id: string; name: string }[];
+    resume_profiles: { id: string; name: string }[];
+    candidates: { id: string; name: string }[];
+    job_roles: { id: string; name: string }[];
+  }) =>
+    apiFetch<import("./types").LeadMessageParse>("/leads/parse-message", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   list: (params?: LeadListParams) => {
     const sp = new URLSearchParams();
     if (params?.page != null) sp.set("page", String(params.page));

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal, Optional
@@ -22,7 +23,16 @@ from app.models.resume_profile import ResumeProfile
 from app.models.lead_thread import LeadThread
 from app.models.user import User, UserRole
 from app.models.interview_reminder_log import InterviewReminderLog
-from app.schemas.lead import LeadCreate, LeadListItem, LeadListPage, LeadListStats, LeadUpdate
+from app.schemas.lead import (
+    LeadCreate,
+    LeadListItem,
+    LeadListPage,
+    LeadListStats,
+    LeadMessageParseRequest,
+    LeadMessageParseResponse,
+    LeadUpdate,
+)
+from app.interview_doc_ai import ai_failure_reason, est_to_pkt
 from app.dept_scope import apply_dept_filter, assert_dept_in_scope
 from app.team_member_scope import (
     apply_team_member_interview_list_filter,
@@ -34,6 +44,8 @@ from sqlmodel import func
 from sqlalchemy import false as sql_false
 from app.config import get_settings
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/leads",
                    tags=["Leads"], dependencies=[Depends(get_current_user)])
@@ -527,6 +539,34 @@ def list_leads(
     )
 
 
+@router.post("/parse-message", response_model=LeadMessageParseResponse)
+def parse_lead_message_endpoint(
+    body: LeadMessageParseRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Read a pasted "Interview Scheduled!" message into lead-form values. Stores nothing — the
+    form is filled for review and the lead is created through the normal create endpoint."""
+    _require_lead_write_role(current_user)
+    settings = get_settings()
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
+    from app.lead_message_ai import parse_lead_message
+
+    try:
+        parsed = parse_lead_message(
+            body.message,
+            companies=[o.model_dump() for o in body.companies],
+            resume_profiles=[o.model_dump() for o in body.resume_profiles],
+            candidates=[o.model_dump() for o in body.candidates],
+            job_roles=[o.model_dump() for o in body.job_roles],
+            api_key=settings.OPENAI_API_KEY,
+        )
+    except Exception as e:
+        logger.exception("Lead message parsing failed")
+        raise HTTPException(status_code=502, detail=ai_failure_reason(e))
+    return LeadMessageParseResponse(**parsed)
+
+
 @router.post("/", response_model=LeadListItem, status_code=status.HTTP_201_CREATED)
 def create_lead(
     data: LeadCreate,
@@ -593,11 +633,17 @@ def create_lead(
         candidate_id=data.candidate_id,
         resume_profile_id=resume_profile_id,
         role=role,
-        round="1st",
+        round=(data.round or "").strip() or "1st",
         status="Upcoming",
         salary_range=sr,
         bd_id=bd_id,
-        interview_date=data.arrived_on,
+        interviewer=(data.interviewer or "").strip() or None,
+        interview_date=data.interview_date or data.arrived_on,
+        time_est=data.time_est,
+        time_pkt=(
+            est_to_pkt(data.interview_date or data.arrived_on or date.today(), data.time_est)
+            if data.time_est else None
+        ),
         department_id=dept_id,
         created_by_user_id=current_user.id,
     )

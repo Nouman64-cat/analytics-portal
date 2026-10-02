@@ -53,6 +53,7 @@ from app.status_utils import (
 )
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
 from app.interview_doc_ai import (
+    ai_failure_reason,
     DOCX_CONTENT_TYPE,
     DocumentReadError,
     analyze_interview_document,
@@ -1194,21 +1195,6 @@ def _download_s3_object_bytes(settings, url: str) -> bytes:
             status_code=500, detail=f"Failed to fetch document from S3: {e}")
 
 
-def _ai_failure_reason(e: Exception) -> str:
-    """A user-facing reason for an OpenAI failure — specific enough to act on, no secrets."""
-    import openai
-
-    if isinstance(e, openai.AuthenticationError):
-        return "AI document reading failed: the OpenAI API key is invalid."
-    if isinstance(e, openai.RateLimitError):
-        if "insufficient_quota" in str(e) or "credit" in str(e).lower():
-            return "AI document reading failed: the OpenAI account has no credits left."
-        return "AI document reading failed: OpenAI rate limit reached, try again in a minute."
-    if isinstance(e, (openai.APIConnectionError, openai.APITimeoutError)):
-        return "AI document reading failed: could not reach OpenAI."
-    return "Could not analyze the document right now."
-
-
 class DocumentDetailsResponse(BaseModel):
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
@@ -1252,7 +1238,7 @@ def extract_document_details(
         details = analyze_interview_document(text, settings.OPENAI_API_KEY)
     except Exception as e:
         logger.exception("Interview document analysis failed")
-        raise HTTPException(status_code=502, detail=_ai_failure_reason(e))
+        raise HTTPException(status_code=502, detail=ai_failure_reason(e))
     return DocumentDetailsResponse(**details)
 
 

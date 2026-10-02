@@ -359,6 +359,26 @@ export interface LeadCreate {
   is_converted_override?: boolean | null;
   /** Active department context when creating — ensures multi-dept candidates are stamped to the right dept. */
   active_department_id?: string | null;
+  /** First interview's details (from a pasted lead message). Time is US Eastern; PKT is derived server-side. */
+  round?: string | null;
+  interviewer?: string | null;
+  interview_date?: string | null;
+  time_est?: string | null;
+}
+
+/** POST /api/v1/leads/parse-message — a pasted lead message mapped onto lead-form options. */
+export interface LeadMessageParse {
+  company_id: string | null;
+  company_name: string | null;
+  resume_profile_id: string | null;
+  candidate_id: string | null;
+  job_role_name: string | null;
+  job_role_exists: boolean;
+  round: string | null;
+  interviewer: string | null;
+  interview_date: string | null;
+  /** "HH:MM:SS", US Eastern */
+  time_est: string | null;
 }
 
 /** PATCH /api/v1/leads/{thread_id} */

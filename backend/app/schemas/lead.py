@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -30,6 +30,39 @@ class LeadCreate(BaseModel):
                     "When provided, this takes priority over the candidate's primary department_id "
                     "so that multi-dept candidates are stamped to the correct department.",
     )
+    # First interview's details — set when the lead comes from a pasted "Interview Scheduled!"
+    # message. Without them the initial round is "1st" dated on arrived_on, as before.
+    round: Optional[str] = Field(default=None, max_length=100)
+    interviewer: Optional[str] = Field(default=None, max_length=255)
+    interview_date: Optional[date] = None
+    time_est: Optional[time] = Field(default=None, description="US Eastern; PKT is derived from it")
+
+
+class LeadMessageParseRequest(BaseModel):
+    """A pasted lead message plus the options the user can pick in the lead form."""
+
+    class Option(BaseModel):
+        id: str
+        name: str
+
+    message: str = Field(..., min_length=1, max_length=4000)
+    companies: list[Option] = Field(default_factory=list, max_length=5000)
+    resume_profiles: list[Option] = Field(default_factory=list, max_length=2000)
+    candidates: list[Option] = Field(default_factory=list, max_length=2000)
+    job_roles: list[Option] = Field(default_factory=list, max_length=2000)
+
+
+class LeadMessageParseResponse(BaseModel):
+    company_id: Optional[str] = None
+    company_name: Optional[str] = None
+    resume_profile_id: Optional[str] = None
+    candidate_id: Optional[str] = None
+    job_role_name: Optional[str] = None
+    job_role_exists: bool = False
+    round: Optional[str] = None
+    interviewer: Optional[str] = None
+    interview_date: Optional[date] = None
+    time_est: Optional[time] = None
 
 
 

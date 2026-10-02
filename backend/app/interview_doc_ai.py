@@ -139,7 +139,7 @@ Return ONLY a JSON object with exactly these keys:
 Never invent anything that is not in the document."""
 
 
-def _resolve_date(value, today: date) -> Optional[date]:
+def resolve_date(value, today: date) -> Optional[date]:
     """{"year", "month", "day"} → date. Documents usually omit the year ("Mon 5 Oct"), so a
     missing year picks whichever of last/this/next year's date is closest to today — right for
     upcoming interviews, for documents uploaded after the fact, and across New Year."""
@@ -195,7 +195,7 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
     link = link.strip() if isinstance(link, str) else ""
     meeting_link = link if re.match(r"^https?://\S+$", link) and len(link) <= _LINK_MAX_LEN else None
 
-    interview_date = _resolve_date(raw.get("interview_date"), today)
+    interview_date = resolve_date(raw.get("interview_date"), today)
 
     try:
         time_est = datetime.strptime(str(raw.get("start_time") or "").strip(), "%H:%M").time()
@@ -226,3 +226,18 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
         "job_description": job_description,
         "keywords": keywords,
     }
+
+
+def ai_failure_reason(e: Exception) -> str:
+    """A user-facing reason for an OpenAI failure — specific enough to act on, no secrets."""
+    import openai
+
+    if isinstance(e, openai.AuthenticationError):
+        return "AI document reading failed: the OpenAI API key is invalid."
+    if isinstance(e, openai.RateLimitError):
+        if "insufficient_quota" in str(e) or "credit" in str(e).lower():
+            return "AI document reading failed: the OpenAI account has no credits left."
+        return "AI document reading failed: OpenAI rate limit reached, try again in a minute."
+    if isinstance(e, (openai.APIConnectionError, openai.APITimeoutError)):
+        return "AI document reading failed: could not reach OpenAI."
+    return "Could not analyze the document right now."

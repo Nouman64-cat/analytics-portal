@@ -23,6 +23,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   X,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
   leadsService,
@@ -81,6 +83,9 @@ import EditableProfileCell from "@/components/EditableProfileCell";
 import BdAvatar from "@/components/BdAvatar";
 import { useDepartmentContext } from "@/lib/DepartmentContext";
 import { useVoiceContext, useVoiceCommand } from "react-voice-action-router";
+
+/** Same choices as the interview form's Round picker. */
+const LEAD_ROUND_OPTIONS = ["Recruiter's Call", "Phone Screen", "1st", "2nd", "3rd", "4th", "5th", "6th", "Final"];
 
 const SORT_OPTIONS: { value: LeadListSort; label: string }[] = [
   { value: "last_activity_desc", label: "Activity · newest" },
@@ -219,6 +224,16 @@ export default function LeadsPage() {
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // "Paste lead message" → AI fills the form; the first interview's details ride along on create.
+  const [leadMessage, setLeadMessage] = useState("");
+  const [parsingMessage, setParsingMessage] = useState(false);
+  const [parseNotes, setParseNotes] = useState<{ ok: string[]; warn: string[] } | null>(null);
+  const [firstInterview, setFirstInterview] = useState<{
+    round: string;
+    interviewer: string;
+    interview_date: string;
+    time_est: string;
+  } | null>(null);
   const [form, setForm] = useState<LeadCreate>({
     company_id: "",
     resume_profile_id: "",
@@ -722,6 +737,91 @@ Return "all" for fields the user didn't mention.`;
     })();
   };
 
+  const handleFillFromMessage = async () => {
+    const message = leadMessage.trim();
+    if (!message) return;
+    setParsingMessage(true);
+    setParseNotes(null);
+    const ok: string[] = [];
+    const warn: string[] = [];
+    try {
+      const candidateLocked = isTeamMember && !!meCandidateId;
+      const res = await leadsService.parseMessage({
+        message,
+        companies: companies.map((c) => ({ id: c.id, name: c.name })),
+        resume_profiles: activeProfiles.map((p) => ({ id: p.id, name: p.name })),
+        candidates: candidateLocked
+          ? []
+          : activeCandidates.map((c) => ({ id: c.id, name: c.name })),
+        job_roles: jobRoles.map((r) => ({ id: r.id, name: r.name })),
+      });
+
+      let companyId = res.company_id || "";
+      if (companyId) {
+        ok.push(`Company: ${companies.find((c) => c.id === companyId)?.name}`);
+      } else if (res.company_name) {
+        const created = await companiesService.create({ name: res.company_name, is_staffing_firm: false });
+        setCompanies((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        companyId = created.id;
+        ok.push(`Company: ${created.name} (new — created)`);
+      } else {
+        warn.push("No company found in the message.");
+      }
+
+      let roleName = "";
+      if (res.job_role_name) {
+        roleName = res.job_role_name;
+        if (!res.job_role_exists) {
+          const created = await jobRolesService.create(res.job_role_name);
+          roleName = created.name;
+          setJobRoles((prev) =>
+            prev.some((r) => r.id === created.id)
+              ? prev
+              : [...prev, created].sort((a, b) => a.name.localeCompare(b.name)),
+          );
+          ok.push(`Role: ${roleName} (new — created)`);
+        } else {
+          ok.push(`Role: ${roleName}`);
+        }
+      } else {
+        warn.push("No role/title found in the message.");
+      }
+
+      const profile = profiles.find((p) => p.id === res.resume_profile_id);
+      if (profile) ok.push(`Profile: ${profile.name}`);
+      else warn.push("Profile name didn't match any resume profile — select it manually.");
+
+      const candidate = candidates.find((c) => c.id === res.candidate_id);
+      if (!candidateLocked) {
+        if (candidate) ok.push(`Candidate: ${candidate.name}`);
+        else warn.push("Dev didn't match any candidate — select it manually.");
+      }
+
+      // The message's date/time is the interview's; the lead itself arrived today.
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      setForm((f) => ({
+        ...f,
+        company_id: companyId || f.company_id,
+        role: roleName || f.role,
+        resume_profile_id: profile ? profile.id : f.resume_profile_id,
+        candidate_id: !candidateLocked && candidate ? candidate.id : f.candidate_id,
+        arrived_on: today,
+      }));
+      setFirstInterview({
+        round: res.round || "1st",
+        interviewer: res.interviewer || "",
+        interview_date: res.interview_date || "",
+        time_est: res.time_est ? res.time_est.slice(0, 5) : "",
+      });
+      setParseNotes({ ok, warn });
+    } catch (e) {
+      setParseNotes({ ok, warn: [e instanceof Error ? e.message : "Could not read the message."] });
+    } finally {
+      setParsingMessage(false);
+    }
+  };
+
   const handleSubmitLead = async () => {
     if (modalMode === "create") {
       // Auto-create company if user typed a new name without clicking Create in dropdown
@@ -747,6 +847,10 @@ Return "all" for fields the user didn't mention.`;
           arrived_on: form.arrived_on || null,
           // Pass the active dept context so multi-dept candidates get stamped correctly
           active_department_id: departmentId || null,
+          round: firstInterview?.round || null,
+          interviewer: firstInterview?.interviewer.trim() || null,
+          interview_date: firstInterview?.interview_date || null,
+          time_est: firstInterview?.time_est || null,
         };
         await leadsService.create(payload);
         resetLeadFormModal();
@@ -811,6 +915,9 @@ Return "all" for fields the user didn't mention.`;
   };
 
   const resetLeadFormModal = () => {
+    setLeadMessage("");
+    setParseNotes(null);
+    setFirstInterview(null);
     setModalOpen(false);
     setEditingThreadId(null);
     setModalMode("create");
@@ -1364,6 +1471,43 @@ Return "all" for fields the user didn't mention.`;
         size="lg"
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+          {modalMode === "create" && (
+            <div className="col-span-1 sm:col-span-2 rounded-xl border border-dashed border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-500/[0.04] p-3">
+              <FormField label="Paste lead message (optional)">
+                <textarea
+                  value={leadMessage}
+                  onChange={(e) => setLeadMessage(e.target.value)}
+                  rows={5}
+                  className={textareaClass}
+                  placeholder={"Interview Scheduled!\nAgency/End Client: …\nRole/Title: …\nRound: …\nDev: …\nProfile Name: …\nInterviewer: …\nDate and Time: …"}
+                />
+              </FormField>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleFillFromMessage}
+                  disabled={!leadMessage.trim() || parsingMessage}
+                  className={`${buttonSecondary} inline-flex items-center gap-1.5 disabled:opacity-50`}
+                >
+                  {parsingMessage ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {parsingMessage ? "Reading message…" : "Fill form from message"}
+                </button>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Review the fields below, then create the lead.
+                </span>
+              </div>
+              {parseNotes && (
+                <ul className="mt-2 space-y-0.5 text-xs">
+                  {parseNotes.ok.map((n) => (
+                    <li key={n} className="text-emerald-600 dark:text-emerald-400">✓ {n}</li>
+                  ))}
+                  {parseNotes.warn.map((n) => (
+                    <li key={n} className="text-amber-600 dark:text-amber-400">! {n}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <FormField label="Company">
             <CompanyCombobox
               ref={comboboxRef}
@@ -1510,6 +1654,47 @@ Return "all" for fields the user didn't mention.`;
               />
             )}
           </FormField>
+          {modalMode === "create" && firstInterview && (
+            <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-4 gap-x-4 gap-y-3 border-t border-slate-100 dark:border-white/[0.06] pt-3">
+              <p className="sm:col-span-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                First interview (from message)
+              </p>
+              <FormField label="Round">
+                <select
+                  value={firstInterview.round}
+                  onChange={(e) => setFirstInterview((fi) => fi && { ...fi, round: e.target.value })}
+                  className={selectClass}
+                >
+                  {LEAD_ROUND_OPTIONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="Interviewer">
+                <input
+                  value={firstInterview.interviewer}
+                  onChange={(e) => setFirstInterview((fi) => fi && { ...fi, interviewer: e.target.value })}
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Interview date">
+                <input
+                  type="date"
+                  value={firstInterview.interview_date}
+                  onChange={(e) => setFirstInterview((fi) => fi && { ...fi, interview_date: e.target.value })}
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Time (EST)">
+                <input
+                  type="time"
+                  value={firstInterview.time_est}
+                  onChange={(e) => setFirstInterview((fi) => fi && { ...fi, time_est: e.target.value })}
+                  className={inputClass}
+                />
+              </FormField>
+            </div>
+          )}
           {isSuperAdmin && modalMode === "edit" && (
             <FormField label="Conversion Override (Superadmin)">
               <select
