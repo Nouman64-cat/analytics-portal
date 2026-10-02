@@ -83,6 +83,7 @@ class InterviewRead(BaseModel):
     resume_url: Optional[str] = None
     interview_doc_highlighted_url: Optional[str] = None
     interview_doc_keywords: Optional[str] = None
+    job_description: Optional[str] = None
     room_id: Optional[uuid.UUID] = None
     created_at: datetime
     updated_at: datetime

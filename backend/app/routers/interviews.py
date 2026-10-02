@@ -53,6 +53,7 @@ from app.status_utils import (
 )
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
 from app.doc_conversion import DocumentConversionError, convert_word_to_pdf, word_extension_for
+from app.interview_doc_ai import DocumentReadError, analyze_interview_document, text_from_pdf_document, text_from_upload
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,7 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "resume_url": interview.resume_url,
         "interview_doc_highlighted_url": interview.interview_doc_highlighted_url,
         "interview_doc_keywords": interview.interview_doc_keywords,
+        "job_description": interview.job_description,
         "is_phone_call": interview.is_phone_call,
         "room_id": interview.room_id,
         "computed_status": computed_status_for_interview_display(
@@ -166,6 +168,7 @@ def _enrich_interview_for_reader(
         data["resume_url"] = None
         data["interview_link"] = None
         data["salary_range"] = None
+        data["job_description"] = None
         return data
     if current_user.role != UserRole.TEAM_MEMBER:
         return data
@@ -180,6 +183,7 @@ def _enrich_interview_for_reader(
     data["salary_range"] = None
     data["interview_doc_highlighted_url"] = None
     data["interview_doc_keywords"] = None
+    data["job_description"] = None
     return data
 
 
@@ -968,6 +972,7 @@ def upload_interview_document(
     # Clear any highlighted copy from a previous document — it no longer matches this upload.
     interview.interview_doc_highlighted_url = None
     interview.interview_doc_keywords = None
+    interview.job_description = None
     interview.updated_at = datetime.utcnow()
     session.add(interview)
     session.commit()
@@ -1147,6 +1152,7 @@ def confirm_upload(
         # Clear any highlighted copy from a previous document — it no longer matches this upload.
         interview.interview_doc_highlighted_url = None
         interview.interview_doc_keywords = None
+        interview.job_description = None
         background_tasks.add_task(_highlight_interview_document_in_background, interview_id)
     elif body.upload_type == "resume":
         if not body.s3_key.startswith(expected_prefix_resume):
@@ -1183,11 +1189,57 @@ def _download_s3_object_bytes(settings, url: str) -> bytes:
             status_code=500, detail=f"Failed to fetch document from S3: {e}")
 
 
+class DocumentDetailsResponse(BaseModel):
+    interviewer: Optional[str] = None
+    interview_link: Optional[str] = None
+    job_description: Optional[str] = None
+    keywords: list[str] = []
+
+
+@router.post("/extract-document-details", response_model=DocumentDetailsResponse)
+def extract_document_details(
+    file: UploadFile = File(...),
+    settings=Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+):
+    """Read an interview document (PDF / DOC / DOCX) before it's saved, so the interview form can
+    prefill Interviewer and Interview Link from it. Stores nothing — the upload itself still goes
+    through the normal document endpoints, which save the job description afterwards."""
+    assert_write_access(current_user)
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
+
+    word_ext = word_extension_for(file.content_type, file.filename)
+    if file.content_type != "application/pdf" and not word_ext:
+        raise HTTPException(
+            status_code=400, detail="Only PDF, DOC, and DOCX files are allowed for interview documents")
+    data = file.file.read(settings.MAX_UPLOAD_SIZE + 1)
+    if len(data) > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File is too large (limit {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB)",
+        )
+
+    try:
+        text = text_from_upload(data, word_ext, settings.LIBREOFFICE_PATH)
+    except DocumentReadError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if not text:
+        return DocumentDetailsResponse()
+    try:
+        details = analyze_interview_document(text, settings.OPENAI_API_KEY)
+    except Exception:
+        logger.exception("Interview document analysis failed")
+        raise HTTPException(status_code=502, detail="Could not analyze the document right now.")
+    return DocumentDetailsResponse(**details)
+
+
 def _generate_highlighted_interview_document(
     session: Session, settings, interview: Interview
 ) -> Optional[list[str]]:
-    """Detect frameworks/languages/tools/concepts mentioned in the interview document (job
-    description) via AI, and produce a copy of the PDF with those keywords highlighted on S3.
+    """Read the interview document with AI: store its job description, fill in the interviewer(s)
+    and meeting link when those are still empty, and produce a copy of the PDF on S3 with the
+    technical keywords (frameworks/languages/tools/concepts) highlighted.
     Persists the result onto `interview` and commits. Returns the keywords found + highlighted,
     or None if none were found (the document is left as-is — not treated as an error, since some
     documents simply have no matching technical content)."""
@@ -1211,49 +1263,23 @@ def _generate_highlighted_interview_document(
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}")
 
     try:
-        doc_text = "\n".join(page.get_text() for page in doc).strip()
+        doc_text = text_from_pdf_document(doc)
         if not doc_text:
             return None
 
-        system_prompt = """You extract technical keywords from job description / interview documents.
-
-Identify every distinct framework, programming language, tool, technology, and technical concept mentioned in the text (for example: React, Python, Docker, AWS, microservices, REST API, CI/CD, Agile, machine learning).
-
-Rules:
-- Return ONLY a JSON array of strings, nothing else — no markdown, no explanation
-- Copy each keyword EXACTLY as it appears in the source text (same casing, same spelling) so it can be located verbatim
-- Do not invent keywords that are not present in the text
-- Do not include generic soft-skill words (e.g. "communication", "teamwork") or company/role/person names
-- Deduplicate; each keyword should appear once in the array"""
-
-        from openai import OpenAI
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": doc_text[:6000]},
-            ],
-            temperature=0.1,
-            max_tokens=650,
-        )
-
-        import json
-        raw = response.choices[0].message.content.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        try:
-            candidate_keywords = json.loads(raw)
-            if not isinstance(candidate_keywords, list):
-                candidate_keywords = []
-        except Exception:
-            candidate_keywords = []
-        candidate_keywords = [str(k).strip() for k in candidate_keywords if str(k).strip()]
+        details = analyze_interview_document(doc_text, settings.OPENAI_API_KEY)
+        interview.job_description = details["job_description"]
+        # Only fill blanks — never overwrite what someone typed into the form.
+        if not interview.interviewer and details["interviewer"]:
+            interview.interviewer = details["interviewer"]
+        if not interview.interview_link and not interview.is_phone_call and details["interview_link"]:
+            interview.interview_link = details["interview_link"]
+        interview.updated_at = datetime.utcnow()
+        session.add(interview)
+        session.commit()
 
         found_keywords: list[str] = []
-        seen_lower: set[str] = set()
-        for keyword in candidate_keywords:
-            if keyword.lower() in seen_lower:
-                continue
+        for keyword in details["keywords"]:
             hit_on_any_page = False
             for page in doc:
                 for quad in page.search_for(keyword, quads=True):
@@ -1261,7 +1287,6 @@ Rules:
                     hit_on_any_page = True
             if hit_on_any_page:
                 found_keywords.append(keyword)
-                seen_lower.add(keyword.lower())
 
         if not found_keywords:
             return None
@@ -1593,6 +1618,7 @@ def update_interview(
     if doc_url_changed:
         interview.interview_doc_highlighted_url = None
         interview.interview_doc_keywords = None
+        interview.job_description = None
 
     for key, value in update_data.items():
         setattr(interview, key, value)

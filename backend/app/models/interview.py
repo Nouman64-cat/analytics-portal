@@ -52,6 +52,8 @@ class Interview(SQLModel, table=True):
     interview_doc_highlighted_url: Optional[str] = Field(default=None, max_length=1000)
     # Comma-separated list of keywords found + highlighted in the interview document
     interview_doc_keywords: Optional[str] = Field(default=None)
+    # Job description section of the interview document, extracted by AI after upload
+    job_description: Optional[str] = Field(default=None)
     is_phone_call: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     created_by_user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)

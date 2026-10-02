@@ -518,6 +518,8 @@ def migrate():
              "Migration successful! 'interview_doc_highlighted_url' column added to 'interviews' table."),
             ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_doc_keywords TEXT;",
              "Migration successful! 'interview_doc_keywords' column added to 'interviews' table."),
+            ("ALTER TABLE interviews ADD COLUMN IF NOT EXISTS job_description TEXT;",
+             "Migration successful! 'job_description' column added to 'interviews' table."),
 
             # ── Internal messaging: multi-department users ───────────────────────────
             ("ALTER TABLE users ADD COLUMN IF NOT EXISTS department_ids TEXT;",

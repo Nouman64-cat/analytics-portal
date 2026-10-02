@@ -294,6 +294,8 @@ export interface Interview {
   interview_doc_highlighted_url?: string | null;
   /** Comma-separated list of keywords found + highlighted in the interview document. */
   interview_doc_keywords?: string | null;
+  /** Job description section of the interview document, extracted by AI after upload. */
+  job_description?: string | null;
   is_phone_call: boolean;
   /** Interview room assignment — coordinators (and superadmin) assign this. */
   room_id?: string | null;

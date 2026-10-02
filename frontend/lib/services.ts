@@ -397,6 +397,29 @@ export const interviewsService = {
       ? interviewsService._uploadViaProxy(id, "document", file, onProgress)
       : interviewsService._presignAndUpload(id, "document", file, onProgress),
 
+  /** Read an interview document before it's saved — returns details to prefill the form. */
+  extractInterviewDocDetails: async (file: File) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_V1}/interviews/extract-document-details`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+    if (res.status === 401) { clearToken(); window.location.href = "/login"; }
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(error.detail || `API Error: ${res.status}`);
+    }
+    return res.json() as Promise<{
+      interviewer: string | null;
+      interview_link: string | null;
+      job_description: string | null;
+      keywords: string[];
+    }>;
+  },
+
   uploadInterviewResume: (id: string, file: File, onProgress?: (pct: number) => void) =>
     interviewsService._presignAndUpload(id, "resume", file, onProgress),
 

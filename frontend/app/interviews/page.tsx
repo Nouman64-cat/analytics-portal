@@ -777,6 +777,38 @@ function QuickCreateLead({
 
 // ─── Main page ───────────────────────────────────────────────
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Renders `text` with every keyword occurrence (case-insensitive) highlighted. */
+function HighlightedText({ text, keywords }: { text: string; keywords: string[] }) {
+  const terms = keywords.map((k) => k.trim()).filter(Boolean);
+  if (!terms.length) return <>{text}</>;
+  // Longest first so "REST API" wins over "REST"; word-ish boundaries so "Go" doesn't match "Google".
+  const pattern = terms
+    .sort((a, b) => b.length - a.length)
+    .map((k) => `(?<![\\w])${escapeRegExp(k)}(?![\\w])`)
+    .join("|");
+  const re = new RegExp(`(${pattern})`, "gi");
+  return (
+    <>
+      {text.split(re).map((part, i) =>
+        i % 2 === 1 ? (
+          <mark
+            key={i}
+            className="rounded bg-amber-200/80 dark:bg-amber-400/25 px-0.5 text-inherit"
+          >
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 function isRejectedInterview(interview: Interview): boolean {
   if (interview.lead_outcome?.toLowerCase() === "rejected") return true;
   return interview.computed_status.toLowerCase().includes("rejected");
@@ -1168,6 +1200,12 @@ export default function InterviewsPage() {
     resume: number;
   }>({ doc: 0, resume: 0 });
   const [docDragOver, setDocDragOver] = useState(false);
+  // Reading the picked interview document to prefill Interviewer / Interview Link.
+  const [docExtract, setDocExtract] = useState<{
+    state: "reading" | "filled" | "nothing" | "error";
+    text?: string;
+  } | null>(null);
+  const docExtractFileRef = useRef<File | null>(null);
   const [resumeDragOver, setResumeDragOver] = useState(false);
   const [docToasts, setDocToasts] = useState<
     { id: string; text: string; tone: "info" | "success" }[]
@@ -1329,6 +1367,8 @@ export default function InterviewsPage() {
     role: "",
     round: "",
   });
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
   const [leadsList, setLeadsList] = useState<LeadListItem[]>([]);
   /** Matches `LeadListItem.thread_id` when creating from an existing lead or after "Add next round". */
   const [selectedLeadThreadId, setSelectedLeadThreadId] = useState("");
@@ -1417,6 +1457,8 @@ export default function InterviewsPage() {
   }, [fetchData]);
 
   const closeInterviewModal = () => {
+    docExtractFileRef.current = null; // a read still in flight must not fill the next form
+    setDocExtract(null);
     setModalOpen(false);
     setLockLeadPicker(false);
   };
@@ -1917,6 +1959,46 @@ export default function InterviewsPage() {
     }
   };
 
+  // Picking a document in the interview form reads it right away and fills Interviewer /
+  // Interview Link — only fields that are still empty, so nothing typed gets overwritten.
+  // The job description itself is stored server-side after the save uploads the document.
+  const handleFormDocSelected = async (file: File | null) => {
+    setInterviewDocFile(file);
+    docExtractFileRef.current = file;
+    if (!file) {
+      setDocExtract(null);
+      return;
+    }
+    setDocExtract({ state: "reading" });
+    try {
+      const details = await interviewsService.extractInterviewDocDetails(file);
+      if (docExtractFileRef.current !== file) return; // replaced/removed while reading
+      const prev = formDataRef.current; // latest form values, incl. anything typed while reading
+      const next = { ...prev };
+      const filled: string[] = [];
+      if (!prev.interviewer && details.interviewer) {
+        next.interviewer = details.interviewer;
+        filled.push("interviewer");
+      }
+      if (!prev.interview_link && !prev.is_phone_call && details.interview_link) {
+        next.interview_link = details.interview_link;
+        filled.push("meeting link");
+      }
+      if (filled.length) setFormData(next);
+      setDocExtract(
+        filled.length
+          ? { state: "filled", text: `Filled ${filled.join(" & ")} from the document.` }
+          : { state: "nothing", text: "No new interviewer or meeting link found in the document." },
+      );
+    } catch (err) {
+      if (docExtractFileRef.current !== file) return;
+      setDocExtract({
+        state: "error",
+        text: `Couldn't read the document (${err instanceof Error ? err.message : "error"}) — fill the fields manually.`,
+      });
+    }
+  };
+
   const handleInterviewDocUpload = async (interviewId: string, file?: File) => {
     if (!file) return;
     setUploadError(null);
@@ -1966,7 +2048,7 @@ export default function InterviewsPage() {
       await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
         const latest = await interviewsService.get(interviewId);
-        if (latest.interview_doc_highlighted_url) {
+        if (latest.interview_doc_highlighted_url || latest.job_description) {
           setDetailModal((prev) =>
             prev && prev.id === interviewId ? latest : prev,
           );
@@ -3971,9 +4053,9 @@ export default function InterviewsPage() {
                       return;
                     }
                     setInterviewDocError(null);
-                    setInterviewDocFile(file);
+                    handleFormDocSelected(file);
                   } else {
-                    setInterviewDocFile(null);
+                    handleFormDocSelected(null);
                     setInterviewDocError(null);
                   }
                 }}
@@ -4000,7 +4082,7 @@ export default function InterviewsPage() {
                     return;
                   }
                   setInterviewDocError(null);
-                  setInterviewDocFile(file);
+                  handleFormDocSelected(file);
                 }}
               >
                 <Upload
@@ -4014,7 +4096,7 @@ export default function InterviewsPage() {
                     </span>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setInterviewDocFile(null); setInterviewDocError(null); }}
+                      onClick={(e) => { e.stopPropagation(); handleFormDocSelected(null); setInterviewDocError(null); }}
                       className="text-xs text-red-500 hover:text-red-400 transition-colors"
                     >
                       Remove
@@ -4051,6 +4133,21 @@ export default function InterviewsPage() {
               {interviewDocError && (
                 <p className="mt-1.5 text-xs text-red-500">
                   {interviewDocError}
+                </p>
+              )}
+              {interviewDocFile && docExtract && (
+                <p
+                  className={`mt-1.5 flex items-center gap-1.5 text-xs ${docExtract.state === "filled"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : docExtract.state === "error"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-slate-500 dark:text-slate-400"
+                    }`}
+                >
+                  {docExtract.state === "reading" && <Loader2 size={12} className="animate-spin" />}
+                  {docExtract.state === "reading"
+                    ? "Reading document for interviewer & meeting link…"
+                    : docExtract.text}
                 </p>
               )}
             </FormField>
@@ -4860,6 +4957,31 @@ export default function InterviewsPage() {
                 </div>
               )}
             </div>
+            {detailModal.job_description && (
+              <div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                  Job Description
+                </p>
+                {detailModal.interview_doc_keywords && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {detailModal.interview_doc_keywords.split(",").map((k) => k.trim()).filter(Boolean).map((k) => (
+                      <span
+                        key={k}
+                        className="rounded-md bg-amber-100 dark:bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300"
+                      >
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-xl bg-white dark:bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300 border border-slate-100 dark:border-white/[0.06]">
+                  <HighlightedText
+                    text={detailModal.job_description}
+                    keywords={(detailModal.interview_doc_keywords || "").split(",")}
+                  />
+                </p>
+              </div>
+            )}
             {(detailModal.feedback || detailModal.recruiter_feedback) && (
               <div className="space-y-4">
                 {detailModal.feedback && (
