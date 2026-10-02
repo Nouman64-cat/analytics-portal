@@ -72,14 +72,13 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-const WORD_MIME_TYPES = [
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
+const DOCX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-/** True for .doc/.docx — checks the extension too since some browsers leave `type` empty. */
+/** True for .docx — checks the extension too since some browsers leave `type` empty.
+ * Old binary .doc isn't supported (it can't be read without a conversion step). */
 export function isWordFile(file: File): boolean {
-  return WORD_MIME_TYPES.includes(file.type) || /\.docx?$/i.test(file.name);
+  return file.type === DOCX_MIME_TYPE || /\.docx$/i.test(file.name);
 }
 
 // ─── Auth ────────────────────────────────────────────────────
@@ -415,6 +414,10 @@ export const interviewsService = {
     return res.json() as Promise<{
       interviewer: string | null;
       interview_link: string | null;
+      interview_date: string | null;
+      /** "HH:MM:SS", US Eastern */
+      time_est: string | null;
+      duration_minutes: number | null;
       job_description: string | null;
       keywords: string[];
     }>;

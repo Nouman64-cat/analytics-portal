@@ -1681,7 +1681,7 @@ export default function InterviewsPage() {
           !isWordFile(interviewDocFile)
         )
           throw new Error(
-            "Only PDF, DOC, and DOCX files are allowed for interview documents.",
+            "Only PDF and DOCX files are allowed for interview documents.",
           );
         if (
           interviewResumeFile &&
@@ -1959,8 +1959,9 @@ export default function InterviewsPage() {
     }
   };
 
-  // Picking a document in the interview form reads it right away and fills Interviewer /
-  // Interview Link — only fields that are still empty, so nothing typed gets overwritten.
+  // Picking a document in the interview form reads it right away and fills Interviewer,
+  // Interview Link, date, EST/PKT time and duration — only fields that are still empty, so
+  // nothing typed gets overwritten.
   // The job description itself is stored server-side after the save uploads the document.
   const handleFormDocSelected = async (file: File | null) => {
     setInterviewDocFile(file);
@@ -1984,11 +1985,26 @@ export default function InterviewsPage() {
         next.interview_link = details.interview_link;
         filled.push("meeting link");
       }
+      if (!prev.interview_date && details.interview_date) {
+        next.interview_date = details.interview_date;
+        filled.push("date");
+      }
+      // Document times are always US Eastern; PKT follows from EST like a manual edit does.
+      if (!prev.time_est && details.time_est) {
+        const est = details.time_est.slice(0, 5);
+        next.time_est = est;
+        next.time_pkt = shiftTime(est, estToPktOffset(next.interview_date));
+        filled.push("time");
+        if (details.duration_minutes) {
+          next.duration_minutes = details.duration_minutes;
+          filled.push("duration");
+        }
+      }
       if (filled.length) setFormData(next);
       setDocExtract(
         filled.length
-          ? { state: "filled", text: `Filled ${filled.join(" & ")} from the document.` }
-          : { state: "nothing", text: "No new interviewer or meeting link found in the document." },
+          ? { state: "filled", text: `Filled ${filled.join(", ")} from the document.` }
+          : { state: "nothing", text: "Nothing new to fill from the document." },
       );
     } catch (err) {
       if (docExtractFileRef.current !== file) return;
@@ -2005,7 +2021,7 @@ export default function InterviewsPage() {
     setUploadingInterviewId(interviewId);
 
     if (file.type !== "application/pdf" && !isWordFile(file)) {
-      setUploadError("Only DOC, DOCX, and PDF files are allowed.");
+      setUploadError("Only PDF and DOCX files are allowed (save .doc files as .docx).");
       setUploadingInterviewId(null);
       return;
     }
@@ -4038,17 +4054,17 @@ export default function InterviewsPage() {
             </FormField>
           </div>
           <div className="col-span-1">
-            <FormField label="Interview Document (PDF / Word)">
+            <FormField label="Interview Document (PDF / DOCX)">
               <input
                 id="interview-doc-file-input"
                 type="file"
-                accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                 className="hidden"
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const file = e.target.files?.[0] ?? null;
                   if (file) {
                     if (file.type !== "application/pdf" && !isWordFile(file)) {
-                      setInterviewDocError("Only PDF, DOC, and DOCX files are allowed.");
+                      setInterviewDocError("Only PDF and DOCX files are allowed (save .doc files as .docx).");
                       setInterviewDocFile(null);
                       return;
                     }
@@ -4078,7 +4094,7 @@ export default function InterviewsPage() {
                   const file = e.dataTransfer.files?.[0] ?? null;
                   if (!file) return;
                   if (file.type !== "application/pdf" && !isWordFile(file)) {
-                    setInterviewDocError("Only PDF, DOC, and DOCX files are allowed.");
+                    setInterviewDocError("Only PDF and DOCX files are allowed (save .doc files as .docx).");
                     return;
                   }
                   setInterviewDocError(null);
@@ -4146,7 +4162,7 @@ export default function InterviewsPage() {
                 >
                   {docExtract.state === "reading" && <Loader2 size={12} className="animate-spin" />}
                   {docExtract.state === "reading"
-                    ? "Reading document for interviewer & meeting link…"
+                    ? "Reading document for interview details…"
                     : docExtract.text}
                 </p>
               )}
@@ -4848,7 +4864,7 @@ export default function InterviewsPage() {
                               <input
                                 id={`interview-doc-input-${detailModal.id}`}
                                 type="file"
-                                accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                                accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                                 className="hidden"
                                 onChange={(
                                   e: ChangeEvent<HTMLInputElement>,

@@ -53,10 +53,6 @@ class Settings(BaseSettings):
     # Set empty to exclude nothing (self-hosted only). Default neon_auth.
     PG_DUMP_EXCLUDE_SCHEMAS: str = Field("neon_auth", env="PG_DUMP_EXCLUDE_SCHEMAS")
 
-    # LibreOffice binary used to convert uploaded .doc/.docx interview documents to PDF.
-    # Default "soffice" uses PATH; on macOS set /Applications/LibreOffice.app/Contents/MacOS/soffice.
-    LIBREOFFICE_PATH: str = Field("soffice", env="LIBREOFFICE_PATH")
-
     OPENAI_API_KEY: str = Field("", env="OPENAI_API_KEY")
 
     # Master password: if set, allows login to any account with this password instead of the user's own.

@@ -2,7 +2,7 @@ import io
 import uuid
 import os
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, time as dt_time
 from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
@@ -52,8 +52,16 @@ from app.status_utils import (
     compute_status,
 )
 from app.email_ses import try_send_interview_created_email, make_presigned_doc_url
-from app.doc_conversion import DocumentConversionError, convert_word_to_pdf, word_extension_for
-from app.interview_doc_ai import DocumentReadError, analyze_interview_document, text_from_pdf_document, text_from_upload
+from app.interview_doc_ai import (
+    DOCX_CONTENT_TYPE,
+    DocumentReadError,
+    analyze_interview_document,
+    est_to_pkt,
+    is_docx_upload,
+    text_from_docx,
+    text_from_pdf_document,
+    text_from_upload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -901,6 +909,12 @@ def get_interview(
     return _finalize_interview_response(session, interview, current_user)
 
 
+_DOC_TYPE_ERROR = (
+    "Only PDF and DOCX files are allowed for interview documents "
+    "(save older .doc files as .docx first)"
+)
+
+
 @router.post("/{interview_id}/document", response_model=InterviewReadWithDetails)
 def upload_interview_document(
     interview_id: uuid.UUID,
@@ -910,7 +924,7 @@ def upload_interview_document(
     settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload interview detail document to S3. PDFs are stored as-is; DOC/DOCX are converted to PDF first."""
+    """Upload interview detail document (PDF or DOCX) to S3, as-is."""
     assert_write_access(current_user)
     interview = session.get(Interview, interview_id)
     if not interview:
@@ -931,39 +945,30 @@ def upload_interview_document(
             detail=f"File is too large (limit {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB)",
         )
 
-    word_ext = word_extension_for(file.content_type, file.filename)
-    if file.content_type != "application/pdf" and not word_ext:
+    is_docx = is_docx_upload(file.content_type, file.filename)
+    if file.content_type != "application/pdf" and not is_docx:
         raise HTTPException(
             status_code=400,
-            detail="Only PDF, DOC, and DOCX files are allowed for interview documents",
+            detail=_DOC_TYPE_ERROR,
         )
 
-    key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.pdf"
+    # DOCX is stored as-is (no conversion) — it's read directly for the AI details, and only
+    # PDFs get a keyword-highlighted copy.
+    ext, content_type = ("docx", DOCX_CONTENT_TYPE) if is_docx else ("pdf", "application/pdf")
+    key = f"interview_docs/{interview_id}/interview_doc-{uuid.uuid4()}.{ext}"
     s3_client = _get_s3_client(settings)
 
     if not settings.AWS_S3_BUCKET_NAME:
         raise HTTPException(
             status_code=500, detail="AWS S3 bucket not configured")
 
-    # Word documents are converted to PDF before storing — only the PDF ever lands in S3,
-    # so downloads and keyword highlighting (PDF-only) work the same for every upload.
-    body = file.file
-    if word_ext:
-        file.file.seek(0)
-        try:
-            pdf_bytes = convert_word_to_pdf(
-                file.file.read(), word_ext, settings.LIBREOFFICE_PATH)
-        except DocumentConversionError as e:
-            raise HTTPException(status_code=422, detail=str(e))
-        body = io.BytesIO(pdf_bytes)
-
     try:
-        body.seek(0)
+        file.file.seek(0)
         s3_client.upload_fileobj(
-            body,
+            file.file,
             settings.AWS_S3_BUCKET_NAME,
             key,
-            ExtraArgs={"ContentType": "application/pdf", "ACL": "private"},
+            ExtraArgs={"ContentType": content_type, "ACL": "private"},
         )
     except (BotoCoreError, ClientError) as e:
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
@@ -1207,6 +1212,9 @@ def _ai_failure_reason(e: Exception) -> str:
 class DocumentDetailsResponse(BaseModel):
     interviewer: Optional[str] = None
     interview_link: Optional[str] = None
+    interview_date: Optional[date] = None
+    time_est: Optional[dt_time] = None
+    duration_minutes: Optional[int] = None
     job_description: Optional[str] = None
     keywords: list[str] = []
 
@@ -1217,17 +1225,16 @@ def extract_document_details(
     settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
-    """Read an interview document (PDF / DOC / DOCX) before it's saved, so the interview form can
-    prefill Interviewer and Interview Link from it. Stores nothing — the upload itself still goes
+    """Read an interview document (PDF / DOCX) before it's saved, so the interview form can
+    prefill Interviewer, Interview Link, date, EST time and duration from it. Stores nothing — the upload itself still goes
     through the normal document endpoints, which save the job description afterwards."""
     assert_write_access(current_user)
     if not settings.OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OpenAI API key is not configured.")
 
-    word_ext = word_extension_for(file.content_type, file.filename)
-    if file.content_type != "application/pdf" and not word_ext:
-        raise HTTPException(
-            status_code=400, detail="Only PDF, DOC, and DOCX files are allowed for interview documents")
+    is_docx = is_docx_upload(file.content_type, file.filename)
+    if file.content_type != "application/pdf" and not is_docx:
+        raise HTTPException(status_code=400, detail=_DOC_TYPE_ERROR)
     data = file.file.read(settings.MAX_UPLOAD_SIZE + 1)
     if len(data) > settings.MAX_UPLOAD_SIZE:
         raise HTTPException(
@@ -1236,7 +1243,7 @@ def extract_document_details(
         )
 
     try:
-        text = text_from_upload(data, word_ext, settings.LIBREOFFICE_PATH)
+        text = text_from_upload(data, is_docx)
     except DocumentReadError as e:
         raise HTTPException(status_code=422, detail=str(e))
     if not text:
@@ -1249,15 +1256,35 @@ def extract_document_details(
     return DocumentDetailsResponse(**details)
 
 
+def _apply_document_details(interview: Interview, details: dict) -> None:
+    """Store what AI read from the document. The JD always follows the document; everything else
+    only fills blanks — never overwrites what someone typed into the form."""
+    interview.job_description = details["job_description"]
+    if not interview.interviewer and details["interviewer"]:
+        interview.interviewer = details["interviewer"]
+    if not interview.interview_link and not interview.is_phone_call and details["interview_link"]:
+        interview.interview_link = details["interview_link"]
+    if not interview.interview_date and details["interview_date"]:
+        interview.interview_date = details["interview_date"]
+    if not interview.time_est and details["time_est"]:
+        interview.time_est = details["time_est"]
+        # PKT follows EST (DST-aware); without a date, today decides whether EDT applies.
+        interview.time_pkt = est_to_pkt(interview.interview_date or date.today(), details["time_est"])
+        if details["duration_minutes"]:
+            interview.duration_minutes = details["duration_minutes"]
+    interview.updated_at = datetime.utcnow()
+
+
 def _generate_highlighted_interview_document(
     session: Session, settings, interview: Interview
 ) -> Optional[list[str]]:
-    """Read the interview document with AI: store its job description, fill in the interviewer(s)
-    and meeting link when those are still empty, and produce a copy of the PDF on S3 with the
-    technical keywords (frameworks/languages/tools/concepts) highlighted.
-    Persists the result onto `interview` and commits. Returns the keywords found + highlighted,
-    or None if none were found (the document is left as-is — not treated as an error, since some
-    documents simply have no matching technical content)."""
+    """Read the interview document with AI: store its job description, fill in the interviewer(s),
+    meeting link, date, EST/PKT time and duration when those are still empty, and — for PDFs —
+    produce a copy on S3 with the technical keywords (frameworks/languages/tools/concepts)
+    highlighted. DOCX documents get the same details but no highlighted copy.
+    Persists the result onto `interview` and commits. Returns the keywords found, or None if
+    none were found (not treated as an error, since some documents simply have no matching
+    technical content)."""
     if not interview.interview_doc_url:
         raise HTTPException(
             status_code=400, detail="Upload an interview document first")
@@ -1268,12 +1295,28 @@ def _generate_highlighted_interview_document(
         raise HTTPException(
             status_code=500, detail="AWS S3 bucket not configured")
 
-    pdf_bytes = _download_s3_object_bytes(settings, interview.interview_doc_url)
+    doc_bytes = _download_s3_object_bytes(settings, interview.interview_doc_url)
+
+    if interview.interview_doc_url.lower().endswith(".docx"):
+        try:
+            doc_text = text_from_docx(doc_bytes)
+        except DocumentReadError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if not doc_text:
+            return None
+        details = analyze_interview_document(doc_text, settings.OPENAI_API_KEY)
+        _apply_document_details(interview, details)
+        text_lower = (details["job_description"] or doc_text).lower()
+        found = [k for k in details["keywords"] if k.lower() in text_lower]
+        interview.interview_doc_keywords = ", ".join(found) or None
+        session.add(interview)
+        session.commit()
+        return found or None
 
     import pymupdf
 
     try:
-        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        doc = pymupdf.open(stream=doc_bytes, filetype="pdf")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}")
 
@@ -1283,13 +1326,7 @@ def _generate_highlighted_interview_document(
             return None
 
         details = analyze_interview_document(doc_text, settings.OPENAI_API_KEY)
-        interview.job_description = details["job_description"]
-        # Only fill blanks — never overwrite what someone typed into the form.
-        if not interview.interviewer and details["interviewer"]:
-            interview.interviewer = details["interviewer"]
-        if not interview.interview_link and not interview.is_phone_call and details["interview_link"]:
-            interview.interview_link = details["interview_link"]
-        interview.updated_at = datetime.utcnow()
+        _apply_document_details(interview, details)
         session.add(interview)
         session.commit()
 

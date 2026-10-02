@@ -1,9 +1,9 @@
-"""Read interview documents (PDF / Word) and pull out interview details with AI.
+"""Read interview documents (PDF / DOCX) and pull out interview details with AI.
 
 An interview document is usually a recruiter's invite: who the interviewers are, the meeting
-link, and the job description. `analyze_interview_document` turns its text into those fields
-plus the technical keywords the JD names (used both for PDF highlighting and for highlighting
-the JD text in the UI).
+link, when the interview is, and the job description. `analyze_interview_document` turns its
+text into those fields plus the technical keywords the JD names (used both for PDF highlighting
+and for highlighting the JD text in the UI). DOCX is read straight from its XML — no conversion.
 """
 
 from __future__ import annotations
@@ -13,8 +13,10 @@ import json
 import logging
 import re
 import zipfile
+from datetime import date, datetime, time
 from typing import Optional
 from xml.etree import ElementTree
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,22 @@ _LINK_MAX_LEN = 1000  # Interview.interview_link column
 _W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _R_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 _HYPERLINK_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+
+DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+DEFAULT_DURATION_MINUTES = 30
+
+_TZ_EASTERN = ZoneInfo("America/New_York")
+_TZ_PKT = ZoneInfo("Asia/Karachi")
+
+
+def is_docx_upload(content_type: Optional[str], filename: Optional[str]) -> bool:
+    """Some browsers send an empty/generic content type for Word files, so check the name too."""
+    return content_type == DOCX_CONTENT_TYPE or (filename or "").lower().endswith(".docx")
+
+
+def est_to_pkt(on: date, est: time) -> time:
+    """US Eastern wall-clock time (EST or EDT, whichever applies on that date) → PKT."""
+    return datetime.combine(on, est, tzinfo=_TZ_EASTERN).astimezone(_TZ_PKT).time()
 
 
 class DocumentReadError(Exception):
@@ -103,19 +121,8 @@ def text_from_docx(data: bytes) -> str:
     return _with_links(text, links)
 
 
-def text_from_upload(data: bytes, word_ext: Optional[str], soffice_path: str) -> str:
-    """Text of an uploaded interview document. Old binary .doc has no XML to read, so it's
-    converted to PDF first (same LibreOffice path the upload itself uses)."""
-    if word_ext == ".docx":
-        return text_from_docx(data)
-    if word_ext == ".doc":
-        from app.doc_conversion import DocumentConversionError, convert_word_to_pdf
-
-        try:
-            data = convert_word_to_pdf(data, ".doc", soffice_path)
-        except DocumentConversionError as e:
-            raise DocumentReadError(str(e)) from e
-    return text_from_pdf(data)
+def text_from_upload(data: bytes, is_docx: bool) -> str:
+    return text_from_docx(data) if is_docx else text_from_pdf(data)
 
 
 _SYSTEM_PROMPT = """You read interview invitation / job description documents for a recruiting team and extract structured details.
@@ -123,6 +130,9 @@ _SYSTEM_PROMPT = """You read interview invitation / job description documents fo
 Return ONLY a JSON object with exactly these keys:
 - "interviewers": array of the full names of the people who will conduct the interview (the interviewers / panel). Do NOT include the candidate, the recruiter who sent the invite, or the hiring company's name. Empty array if none are named.
 - "meeting_link": the URL to join the interview meeting (Zoom, Microsoft Teams, Google Meet, Webex, etc.), copied exactly. Prefer a real join URL from the "Hyperlinks in the document" list over anchor text. null if there is none.
+- "interview_date": the date of the interview as "YYYY-MM-DD". If the year is not written, use the next occurrence of that date on or after today's date (given below). null if no interview date is given.
+- "start_time": the interview start time as 24-hour "HH:MM", exactly as written in the document (times are US Eastern; do not convert time zones). null if no time is given.
+- "duration_minutes": the interview length in minutes as an integer, taken from a stated duration (e.g. "45 minutes", "1 hour") or from a start–end time range. null if neither is given.
 - "job_description": the job description section of the document, copied VERBATIM (same wording, same order, keep line breaks and bullet points). Leave out meeting logistics (interviewer names, links, dial-in numbers, scheduling notes). null if the document has no job description.
 - "keywords": every distinct framework, programming language, tool, technology, platform, methodology, and technical concept named in the job description (e.g. React, Python, Docker, AWS, microservices, REST API, CI/CD, Agile, machine learning). Copy each EXACTLY as it appears in the text (same casing and spelling) so it can be found verbatim. No soft skills (e.g. "communication"), no company/role/person names. Deduplicate.
 
@@ -130,8 +140,11 @@ Never invent anything that is not in the document."""
 
 
 def analyze_interview_document(text: str, api_key: str) -> dict:
-    """Ask the model for {interviewers, meeting_link, job_description, keywords}. Every value is
-    sanitized here, so callers can store what comes back without re-checking it."""
+    """Ask the model for the interview's details. Returns interviewer, interview_link,
+    interview_date (date), time_est (time), duration_minutes (int or None when the document
+    doesn't say), job_description and keywords. Every value is sanitized here, so callers can
+    store what comes back without re-checking it."""
+    today = datetime.now(_TZ_EASTERN).date()
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
@@ -139,7 +152,7 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
         model="gpt-4o",
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": text[:_MAX_TEXT_CHARS]},
+            {"role": "user", "content": f"Today's date: {today.isoformat()}\n\n{text[:_MAX_TEXT_CHARS]}"},
         ],
         temperature=0.1,
         max_tokens=4096,
@@ -161,6 +174,19 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
     link = link.strip() if isinstance(link, str) else ""
     meeting_link = link if re.match(r"^https?://\S+$", link) and len(link) <= _LINK_MAX_LEN else None
 
+    try:
+        interview_date = date.fromisoformat(str(raw.get("interview_date") or ""))
+    except ValueError:
+        interview_date = None
+
+    try:
+        time_est = datetime.strptime(str(raw.get("start_time") or "").strip(), "%H:%M").time()
+    except ValueError:
+        time_est = None
+
+    duration = raw.get("duration_minutes")
+    duration_minutes = duration if isinstance(duration, int) and 5 <= duration <= 480 else None
+
     jd = raw.get("job_description")
     job_description = jd.strip() if isinstance(jd, str) and jd.strip() else None
 
@@ -176,6 +202,9 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
     return {
         "interviewer": interviewer,
         "interview_link": meeting_link,
+        "interview_date": interview_date,
+        "time_est": time_est,
+        "duration_minutes": duration_minutes,
         "job_description": job_description,
         "keywords": keywords,
     }
