@@ -1959,9 +1959,9 @@ export default function InterviewsPage() {
     }
   };
 
-  // Picking a document in the interview form reads it right away and fills Interviewer,
-  // Interview Link, date, EST/PKT time and duration — only fields that are still empty, so
-  // nothing typed gets overwritten.
+  // Picking a document in the interview form reads it right away and sets Interviewer,
+  // Interview Link, date, EST/PKT time and duration from it — the document wins over what's in
+  // the form (the user sees the result and can still edit before saving).
   // The job description itself is stored server-side after the save uploads the document.
   const handleFormDocSelected = async (file: File | null) => {
     setInterviewDocFile(file);
@@ -1977,34 +1977,37 @@ export default function InterviewsPage() {
       const prev = formDataRef.current; // latest form values, incl. anything typed while reading
       const next = { ...prev };
       const filled: string[] = [];
-      if (!prev.interviewer && details.interviewer) {
+      if (details.interviewer && details.interviewer !== prev.interviewer) {
         next.interviewer = details.interviewer;
         filled.push("interviewer");
       }
-      if (!prev.interview_link && !prev.is_phone_call && details.interview_link) {
+      if (!prev.is_phone_call && details.interview_link && details.interview_link !== prev.interview_link) {
         next.interview_link = details.interview_link;
         filled.push("meeting link");
       }
-      if (!prev.interview_date && details.interview_date) {
+      if (details.interview_date && details.interview_date !== prev.interview_date) {
         next.interview_date = details.interview_date;
         filled.push("date");
       }
       // Document times are always US Eastern; PKT follows from EST like a manual edit does.
-      if (!prev.time_est && details.time_est) {
-        const est = details.time_est.slice(0, 5);
+      const est = details.time_est ? details.time_est.slice(0, 5) : null;
+      if (est && est !== prev.time_est) {
         next.time_est = est;
-        next.time_pkt = shiftTime(est, estToPktOffset(next.interview_date));
         filled.push("time");
-        if (details.duration_minutes) {
-          next.duration_minutes = details.duration_minutes;
-          filled.push("duration");
-        }
+      }
+      if (next.time_est) {
+        // Recomputed even when only the date changed — EST/EDT (and so PKT) depends on the date.
+        next.time_pkt = shiftTime(next.time_est, estToPktOffset(next.interview_date));
+      }
+      if (details.duration_minutes && details.duration_minutes !== prev.duration_minutes) {
+        next.duration_minutes = details.duration_minutes;
+        filled.push("duration");
       }
       if (filled.length) setFormData(next);
       setDocExtract(
         filled.length
-          ? { state: "filled", text: `Filled ${filled.join(", ")} from the document.` }
-          : { state: "nothing", text: "Nothing new to fill from the document." },
+          ? { state: "filled", text: `Updated ${filled.join(", ")} from the document — review before saving.` }
+          : { state: "nothing", text: "The form already matches the document." },
       );
     } catch (err) {
       if (docExtractFileRef.current !== file) return;

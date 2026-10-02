@@ -130,13 +130,34 @@ _SYSTEM_PROMPT = """You read interview invitation / job description documents fo
 Return ONLY a JSON object with exactly these keys:
 - "interviewers": array of the full names of the people who will conduct the interview (the interviewers / panel). Do NOT include the candidate, the recruiter who sent the invite, or the hiring company's name. Empty array if none are named.
 - "meeting_link": the URL to join the interview meeting (Zoom, Microsoft Teams, Google Meet, Webex, etc.), copied exactly. Prefer a real join URL from the "Hyperlinks in the document" list over anchor text. null if there is none.
-- "interview_date": the date of the interview as "YYYY-MM-DD". If the year is not written, use the next occurrence of that date on or after today's date (given below). null if no interview date is given.
+- "interview_date": the date of the interview as an object {"year": <4-digit year, or null if the document doesn't write the year>, "month": <1-12>, "day": <1-31>}. Read dates like "Mon 5 Oct" or "10/5" carefully (US documents write month/day). null if no interview date is given.
 - "start_time": the interview start time as 24-hour "HH:MM", exactly as written in the document (times are US Eastern; do not convert time zones). null if no time is given.
 - "duration_minutes": the interview length in minutes as an integer, taken from a stated duration (e.g. "45 minutes", "1 hour") or from a start–end time range. null if neither is given.
 - "job_description": the job description section of the document, copied VERBATIM (same wording, same order, keep line breaks and bullet points). Leave out meeting logistics (interviewer names, links, dial-in numbers, scheduling notes). null if the document has no job description.
 - "keywords": every distinct framework, programming language, tool, technology, platform, methodology, and technical concept named in the job description (e.g. React, Python, Docker, AWS, microservices, REST API, CI/CD, Agile, machine learning). Copy each EXACTLY as it appears in the text (same casing and spelling) so it can be found verbatim. No soft skills (e.g. "communication"), no company/role/person names. Deduplicate.
 
 Never invent anything that is not in the document."""
+
+
+def _resolve_date(value, today: date) -> Optional[date]:
+    """{"year", "month", "day"} → date. Documents usually omit the year ("Mon 5 Oct"), so a
+    missing year picks whichever of last/this/next year's date is closest to today — right for
+    upcoming interviews, for documents uploaded after the fact, and across New Year."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        month, day = int(value["month"]), int(value["day"])
+        if value.get("year"):
+            return date(int(value["year"]), month, day)
+    except (KeyError, TypeError, ValueError):
+        return None
+    candidates = []
+    for year in (today.year - 1, today.year, today.year + 1):
+        try:
+            candidates.append(date(year, month, day))
+        except ValueError:  # e.g. Feb 29 outside a leap year
+            pass
+    return min(candidates, key=lambda d: abs((d - today).days), default=None)
 
 
 def analyze_interview_document(text: str, api_key: str) -> dict:
@@ -174,10 +195,7 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
     link = link.strip() if isinstance(link, str) else ""
     meeting_link = link if re.match(r"^https?://\S+$", link) and len(link) <= _LINK_MAX_LEN else None
 
-    try:
-        interview_date = date.fromisoformat(str(raw.get("interview_date") or ""))
-    except ValueError:
-        interview_date = None
+    interview_date = _resolve_date(raw.get("interview_date"), today)
 
     try:
         time_est = datetime.strptime(str(raw.get("start_time") or "").strip(), "%H:%M").time()
