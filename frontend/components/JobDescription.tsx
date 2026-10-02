@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import type { JdHighlight, JdHighlightType } from "@/lib/types";
 
 /** Color + label per highlight type — the order here is the legend order. */
@@ -102,4 +107,63 @@ export function interviewJdHighlights(interview: {
     .map((k) => k.trim())
     .filter(Boolean)
     .map((text) => ({ text, type: "skill" as const }));
+}
+
+/** Centered dialog for reading/editing a JD at full size. Stacks above the side drawer (Modal):
+ * Escape and backdrop clicks close only this dialog, not the drawer underneath. */
+export function JobDescriptionDialog({
+  open,
+  onClose,
+  title = "Job Description",
+  headerActions,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  headerActions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Capture phase on window runs before the drawer's own Escape listener — stop it there.
+      e.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, onClose]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-8"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-white/40 dark:border-white/[0.08] bg-white dark:bg-[#14161f] shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/70 dark:border-white/[0.07] px-5 py-3.5">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
+            {title}
+          </h2>
+          {headerActions}
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-900 dark:hover:text-white transition-colors"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">{children}</div>
+      </div>
+    </div>,
+    document.body,
+  );
 }

@@ -36,6 +36,7 @@ import {
   Check,
   X,
   MoreVertical,
+  Maximize2,
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import {
@@ -79,6 +80,7 @@ import type {
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
 import {
+  JobDescriptionDialog,
   JobDescriptionLegend,
   JobDescriptionText,
   interviewJdHighlights,
@@ -1183,6 +1185,8 @@ export default function InterviewsPage() {
   // The document whose JD is in the form — its upload then keeps that (possibly edited) JD.
   const jdFromDocRef = useRef<File | null>(null);
   const [jdEditing, setJdEditing] = useState(false);
+  // Which JD is open in the centered full-size dialog: the form's, or the detail view's.
+  const [jdExpanded, setJdExpanded] = useState<"form" | "detail" | null>(null);
   const [resumeDragOver, setResumeDragOver] = useState(false);
   const [docToasts, setDocToasts] = useState<
     { id: string; text: string; tone: "info" | "success" }[]
@@ -1437,6 +1441,7 @@ export default function InterviewsPage() {
     docExtractFileRef.current = null; // a read still in flight must not fill the next form
     jdFromDocRef.current = null;
     setJdEditing(false);
+    setJdExpanded(null);
     setDocExtract(null);
     setModalOpen(false);
     setLockLeadPicker(false);
@@ -4272,16 +4277,64 @@ export default function InterviewsPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Job Description
               </span>
-              {formData.job_description && (
+              <div className="flex items-center gap-3">
+                {formData.job_description && (
+                  <button
+                    type="button"
+                    onClick={() => setJdEditing((v) => !v)}
+                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                  >
+                    {jdEditing ? "Show highlights" : "Edit text"}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setJdEditing((v) => !v)}
-                  className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                  onClick={() => setJdExpanded("form")}
+                  className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                  title="Expand"
+                  aria-label="Expand job description"
                 >
-                  {jdEditing ? "Show highlights" : "Edit text"}
+                  <Maximize2 size={14} />
                 </button>
-              )}
+              </div>
             </div>
+            <JobDescriptionDialog
+              open={jdExpanded === "form"}
+              onClose={() => setJdExpanded(null)}
+              headerActions={
+                formData.job_description ? (
+                  <button
+                    type="button"
+                    onClick={() => setJdEditing((v) => !v)}
+                    className="mr-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                  >
+                    {jdEditing ? "Show highlights" : "Edit text"}
+                  </button>
+                ) : null
+              }
+            >
+              {formData.job_description && !jdEditing ? (
+                <div className="space-y-3">
+                  <JobDescriptionLegend highlights={formData.jd_highlights || []} />
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                    <JobDescriptionText
+                      text={formData.job_description}
+                      highlights={formData.jd_highlights || []}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <textarea
+                  value={formData.job_description || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, job_description: e.target.value })
+                  }
+                  placeholder="Paste the JD here."
+                  className={`${textareaClass} min-h-[60vh]`}
+                  autoFocus
+                />
+              )}
+            </JobDescriptionDialog>
             {formData.job_description && !jdEditing ? (
               <div className="space-y-2">
                 <JobDescriptionLegend highlights={formData.jd_highlights || []} />
@@ -5015,9 +5068,35 @@ export default function InterviewsPage() {
             </div>
             {detailModal.job_description && (
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                  Job Description
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                    Job Description
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setJdExpanded("detail")}
+                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.07] hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                    title="Expand"
+                    aria-label="Expand job description"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                </div>
+                <JobDescriptionDialog
+                  open={jdExpanded === "detail"}
+                  onClose={() => setJdExpanded(null)}
+                  title={`Job Description — ${detailModal.company_name ?? ""} · ${detailModal.role}`}
+                >
+                  <div className="space-y-3">
+                    <JobDescriptionLegend highlights={interviewJdHighlights(detailModal)} />
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      <JobDescriptionText
+                        text={detailModal.job_description}
+                        highlights={interviewJdHighlights(detailModal)}
+                      />
+                    </div>
+                  </div>
+                </JobDescriptionDialog>
                 <div className="mt-2">
                   <JobDescriptionLegend highlights={interviewJdHighlights(detailModal)} />
                 </div>
