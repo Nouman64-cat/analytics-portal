@@ -44,6 +44,7 @@ from app.schemas.interview import (
     InterviewRead,
     InterviewUpdate,
     InterviewReadWithDetails,
+    JdHighlight,
 )
 from app.schemas.lead_thread import LeadThreadRead, LeadThreadUpdate
 from app.status_utils import (
@@ -145,6 +146,7 @@ def _enrich_interview(interview: Interview, bd_dept_only: bool = False) -> dict:
         "interview_doc_highlighted_url": interview.interview_doc_highlighted_url,
         "interview_doc_keywords": interview.interview_doc_keywords,
         "job_description": interview.job_description,
+        "jd_highlights": interview.jd_highlights,
         "is_phone_call": interview.is_phone_call,
         "room_id": interview.room_id,
         "computed_status": computed_status_for_interview_display(
@@ -178,6 +180,7 @@ def _enrich_interview_for_reader(
         data["interview_link"] = None
         data["salary_range"] = None
         data["job_description"] = None
+        data["jd_highlights"] = None
         return data
     if current_user.role != UserRole.TEAM_MEMBER:
         return data
@@ -193,6 +196,7 @@ def _enrich_interview_for_reader(
     data["interview_doc_highlighted_url"] = None
     data["interview_doc_keywords"] = None
     data["job_description"] = None
+    data["jd_highlights"] = None
     return data
 
 
@@ -921,11 +925,14 @@ def upload_interview_document(
     interview_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    keep_job_description: bool = Query(False),
     session: Session = Depends(get_session),
     settings=Depends(get_settings),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload interview detail document (PDF or DOCX) to S3, as-is."""
+    """Upload interview detail document (PDF or DOCX) to S3, as-is. `keep_job_description` is
+    sent by the interview form when it already saved a JD (read from this same document and
+    possibly edited) — otherwise the old document's JD is cleared and re-extracted."""
     assert_write_access(current_user)
     interview = session.get(Interview, interview_id)
     if not interview:
@@ -978,7 +985,9 @@ def upload_interview_document(
     # Clear any highlighted copy from a previous document — it no longer matches this upload.
     interview.interview_doc_highlighted_url = None
     interview.interview_doc_keywords = None
-    interview.job_description = None
+    if not keep_job_description:
+        interview.job_description = None
+        interview.jd_highlights = None
     interview.updated_at = datetime.utcnow()
     session.add(interview)
     session.commit()
@@ -1072,6 +1081,7 @@ class PresignResponse(BaseModel):
 class ConfirmUploadRequest(BaseModel):
     upload_type: str  # "document" or "resume"
     s3_key: str
+    keep_job_description: bool = False  # see upload_interview_document
 
 
 @router.post("/{interview_id}/presign-upload", response_model=PresignResponse)
@@ -1158,7 +1168,9 @@ def confirm_upload(
         # Clear any highlighted copy from a previous document — it no longer matches this upload.
         interview.interview_doc_highlighted_url = None
         interview.interview_doc_keywords = None
-        interview.job_description = None
+        if not body.keep_job_description:
+            interview.job_description = None
+            interview.jd_highlights = None
         background_tasks.add_task(_highlight_interview_document_in_background, interview_id)
     elif body.upload_type == "resume":
         if not body.s3_key.startswith(expected_prefix_resume):
@@ -1202,6 +1214,7 @@ class DocumentDetailsResponse(BaseModel):
     time_est: Optional[dt_time] = None
     duration_minutes: Optional[int] = None
     job_description: Optional[str] = None
+    jd_highlights: list[JdHighlight] = []
     keywords: list[str] = []
 
 
@@ -1243,9 +1256,12 @@ def extract_document_details(
 
 
 def _apply_document_details(interview: Interview, details: dict) -> None:
-    """Store what AI read from the document. The JD always follows the document; everything else
-    only fills blanks — never overwrites what someone typed into the form."""
-    interview.job_description = details["job_description"]
+    """Store what AI read from the document — only into blank fields, never over what someone
+    typed into the form (a new document clears the old JD before this runs, unless the form
+    already saved this document's JD)."""
+    if not interview.job_description and details["job_description"]:
+        interview.job_description = details["job_description"]
+        interview.jd_highlights = details["jd_highlights"]
     if not interview.interviewer and details["interviewer"]:
         interview.interviewer = details["interviewer"]
     if not interview.interview_link and not interview.is_phone_call and details["interview_link"]:
@@ -1657,6 +1673,7 @@ def update_interview(
         interview.interview_doc_highlighted_url = None
         interview.interview_doc_keywords = None
         interview.job_description = None
+        interview.jd_highlights = None
 
     for key, value in update_data.items():
         setattr(interview, key, value)

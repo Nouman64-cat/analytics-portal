@@ -75,8 +75,14 @@ import type {
   LeadListItem,
   JobRole,
   ImportJob,
+  JdHighlight,
 } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
+import {
+  JobDescriptionLegend,
+  JobDescriptionText,
+  interviewJdHighlights,
+} from "@/components/JobDescription";
 import {
   PageLoader,
   ErrorState,
@@ -777,38 +783,6 @@ function QuickCreateLead({
 
 // ─── Main page ───────────────────────────────────────────────
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Renders `text` with every keyword occurrence (case-insensitive) highlighted. */
-function HighlightedText({ text, keywords }: { text: string; keywords: string[] }) {
-  const terms = keywords.map((k) => k.trim()).filter(Boolean);
-  if (!terms.length) return <>{text}</>;
-  // Longest first so "REST API" wins over "REST"; word-ish boundaries so "Go" doesn't match "Google".
-  const pattern = terms
-    .sort((a, b) => b.length - a.length)
-    .map((k) => `(?<![\\w])${escapeRegExp(k)}(?![\\w])`)
-    .join("|");
-  const re = new RegExp(`(${pattern})`, "gi");
-  return (
-    <>
-      {text.split(re).map((part, i) =>
-        i % 2 === 1 ? (
-          <mark
-            key={i}
-            className="rounded bg-amber-200/80 dark:bg-amber-400/25 px-0.5 text-inherit"
-          >
-            {part}
-          </mark>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}
-
 function isRejectedInterview(interview: Interview): boolean {
   if (interview.lead_outcome?.toLowerCase() === "rejected") return true;
   return interview.computed_status.toLowerCase().includes("rejected");
@@ -1206,6 +1180,9 @@ export default function InterviewsPage() {
     text?: string;
   } | null>(null);
   const docExtractFileRef = useRef<File | null>(null);
+  // The document whose JD is in the form — its upload then keeps that (possibly edited) JD.
+  const jdFromDocRef = useRef<File | null>(null);
+  const [jdEditing, setJdEditing] = useState(false);
   const [resumeDragOver, setResumeDragOver] = useState(false);
   const [docToasts, setDocToasts] = useState<
     { id: string; text: string; tone: "info" | "success" }[]
@@ -1458,6 +1435,8 @@ export default function InterviewsPage() {
 
   const closeInterviewModal = () => {
     docExtractFileRef.current = null; // a read still in flight must not fill the next form
+    jdFromDocRef.current = null;
+    setJdEditing(false);
     setDocExtract(null);
     setModalOpen(false);
     setLockLeadPicker(false);
@@ -1555,6 +1534,8 @@ export default function InterviewsPage() {
       bd_id: interview.bd_id || "",
       interviewer: interview.interviewer || "",
       interview_link: interview.interview_link || "",
+      job_description: interview.job_description || "",
+      jd_highlights: interview.jd_highlights ?? null,
       is_phone_call: interview.is_phone_call || false,
       parent_interview_id: interview.parent_interview_id ?? undefined,
       room_id: interview.room_id || "",
@@ -1629,7 +1610,9 @@ export default function InterviewsPage() {
         is_phone_call?: boolean;
         salary_range?: string | null;
         room_id?: string | null;
-        [key: string]: string | number | boolean | null | undefined;
+        job_description?: string | null;
+        jd_highlights?: JdHighlight[] | null;
+        [key: string]: string | number | boolean | JdHighlight[] | null | undefined;
       };
 
       // Send null to accurately clear fields in the database
@@ -1648,6 +1631,10 @@ export default function InterviewsPage() {
       if (!payload.recruiter_feedback) payload.recruiter_feedback = null;
       if (!payload.bd_id) payload.bd_id = null;
       if (!payload.room_id) payload.room_id = null;
+      if (!payload.job_description?.trim()) {
+        payload.job_description = null;
+        payload.jd_highlights = null;
+      }
 
       delete (payload as { thread_id?: string }).thread_id;
       if (editingId) {
@@ -1696,6 +1683,8 @@ export default function InterviewsPage() {
               savedInterview.id,
               interviewDocFile,
               (pct) => setUploadProgress((p) => ({ ...p, doc: pct })),
+              // JD already read from this document (and maybe edited) — keep it.
+              jdFromDocRef.current === interviewDocFile && !!payload.job_description,
             )
             : Promise.resolve(),
           interviewResumeFile
@@ -2002,6 +1991,13 @@ export default function InterviewsPage() {
       if (details.duration_minutes && details.duration_minutes !== prev.duration_minutes) {
         next.duration_minutes = details.duration_minutes;
         filled.push("duration");
+      }
+      if (details.job_description) {
+        if (details.job_description !== prev.job_description) filled.push("job description");
+        next.job_description = details.job_description;
+        next.jd_highlights = details.jd_highlights;
+        jdFromDocRef.current = file;
+        setJdEditing(false);
       }
       if (filled.length) setFormData(next);
       setDocExtract(
@@ -4272,6 +4268,47 @@ export default function InterviewsPage() {
             </FormField>
           </div>
           <div className="col-span-1 sm:col-span-2">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Job Description
+              </span>
+              {formData.job_description && (
+                <button
+                  type="button"
+                  onClick={() => setJdEditing((v) => !v)}
+                  className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                >
+                  {jdEditing ? "Show highlights" : "Edit text"}
+                </button>
+              )}
+            </div>
+            {formData.job_description && !jdEditing ? (
+              <div className="space-y-2">
+                <JobDescriptionLegend highlights={formData.jd_highlights || []} />
+                <div
+                  className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] p-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300 cursor-text"
+                  onClick={() => setJdEditing(true)}
+                  title="Click to edit"
+                >
+                  <JobDescriptionText
+                    text={formData.job_description}
+                    highlights={formData.jd_highlights || []}
+                  />
+                </div>
+              </div>
+            ) : (
+              <textarea
+                value={formData.job_description || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, job_description: e.target.value })
+                }
+                rows={8}
+                placeholder="Filled automatically from the interview document — or paste the JD here."
+                className={textareaClass}
+              />
+            )}
+          </div>
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Our notes (after presentation)">
               <textarea
                 value={formData.feedback || ""}
@@ -4981,22 +5018,13 @@ export default function InterviewsPage() {
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-500 uppercase tracking-wider">
                   Job Description
                 </p>
-                {detailModal.interview_doc_keywords && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {detailModal.interview_doc_keywords.split(",").map((k) => k.trim()).filter(Boolean).map((k) => (
-                      <span
-                        key={k}
-                        className="rounded-md bg-amber-100 dark:bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300"
-                      >
-                        {k}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="mt-2">
+                  <JobDescriptionLegend highlights={interviewJdHighlights(detailModal)} />
+                </div>
                 <p className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-xl bg-white dark:bg-white/[0.03] p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300 border border-slate-100 dark:border-white/[0.06]">
-                  <HighlightedText
+                  <JobDescriptionText
                     text={detailModal.job_description}
-                    keywords={(detailModal.interview_doc_keywords || "").split(",")}
+                    highlights={interviewJdHighlights(detailModal)}
                   />
                 </p>
               </div>

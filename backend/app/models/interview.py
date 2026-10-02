@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, date, time
+from sqlalchemy import JSON
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional
 
@@ -54,6 +55,8 @@ class Interview(SQLModel, table=True):
     interview_doc_keywords: Optional[str] = Field(default=None)
     # Job description section of the interview document, extracted by AI after upload
     job_description: Optional[str] = Field(default=None)
+    # Color-coded phrases of the JD: [{"text": ..., "type": skill|concept|requirement|compensation|employment}]
+    jd_highlights: Optional[list] = Field(default=None, sa_type=JSON)
     is_phone_call: bool = Field(default=False)
     department_id: Optional[uuid.UUID] = Field(default=None, foreign_key="departments.id", index=True)
     created_by_user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id", index=True)

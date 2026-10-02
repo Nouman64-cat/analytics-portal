@@ -402,10 +402,17 @@ export const interviewsService = {
       body: JSON.stringify({ room_id: roomId }),
     }),
   /** Word files go through the backend, which converts them to PDF before storing in S3. */
-  uploadInterviewDoc: (id: string, file: File, onProgress?: (pct: number) => void) =>
+  /** `keepJobDescription`: the form already saved this document's JD (maybe edited) — don't let
+   * the upload clear and re-extract it. */
+  uploadInterviewDoc: (
+    id: string,
+    file: File,
+    onProgress?: (pct: number) => void,
+    keepJobDescription = false,
+  ) =>
     isWordFile(file)
-      ? interviewsService._uploadViaProxy(id, "document", file, onProgress)
-      : interviewsService._presignAndUpload(id, "document", file, onProgress),
+      ? interviewsService._uploadViaProxy(id, "document", file, onProgress, keepJobDescription)
+      : interviewsService._presignAndUpload(id, "document", file, onProgress, keepJobDescription),
 
   /** Read an interview document before it's saved — returns details to prefill the form. */
   extractInterviewDocDetails: async (file: File) => {
@@ -430,6 +437,7 @@ export const interviewsService = {
       time_est: string | null;
       duration_minutes: number | null;
       job_description: string | null;
+      jd_highlights: import("./types").JdHighlight[];
       keywords: string[];
     }>;
   },
@@ -443,10 +451,11 @@ export const interviewsService = {
     uploadType: "document" | "resume",
     file: File,
     onProgress?: (pct: number) => void,
+    keepJobDescription = false,
   ): Promise<Interview> => {
     const token = getToken();
     const endpoint = uploadType === "document"
-      ? `/interviews/${id}/document`
+      ? `/interviews/${id}/document${keepJobDescription ? "?keep_job_description=true" : ""}`
       : `/interviews/${id}/resume`;
     return new Promise<Interview>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -479,6 +488,7 @@ export const interviewsService = {
     uploadType: "document" | "resume",
     file: File,
     onProgress?: (pct: number) => void,
+    keepJobDescription = false,
   ) => {
     const token = getToken();
     const jsonHeaders: Record<string, string> = { "Content-Type": "application/json" };
@@ -516,14 +526,14 @@ export const interviewsService = {
     if (!s3Ok) {
       // Direct S3 upload blocked (CORS not configured on bucket). Route through backend instead.
       if (onProgress) onProgress(0); // reset bar so proxy progress starts clean
-      return interviewsService._uploadViaProxy(id, uploadType, file, onProgress);
+      return interviewsService._uploadViaProxy(id, uploadType, file, onProgress, keepJobDescription);
     }
 
     // Step 3: tell the backend to persist the URL
     const confirmRes = await fetch(`${API_V1}/interviews/${id}/confirm-upload`, {
       method: "POST",
       headers: jsonHeaders,
-      body: JSON.stringify({ upload_type: uploadType, s3_key }),
+      body: JSON.stringify({ upload_type: uploadType, s3_key, keep_job_description: keepJobDescription }),
     });
     if (!confirmRes.ok) {
       const error = await confirmRes.json().catch(() => ({ detail: confirmRes.statusText }));

@@ -296,6 +296,8 @@ export interface Interview {
   interview_doc_keywords?: string | null;
   /** Job description section of the interview document, extracted by AI after upload. */
   job_description?: string | null;
+  /** Color-coded phrases of the job description. */
+  jd_highlights?: JdHighlight[] | null;
   is_phone_call: boolean;
   /** Interview room assignment — coordinators (and superadmin) assign this. */
   room_id?: string | null;
@@ -659,6 +661,14 @@ export interface UserFormData {
 
 // ─── Form Payloads ──────────────────────────────────────────
 
+export type JdHighlightType = "skill" | "concept" | "requirement" | "compensation" | "employment";
+
+/** An important phrase of a job description, highlighted by type. */
+export interface JdHighlight {
+  text: string;
+  type: JdHighlightType;
+}
+
 export interface InterviewFormData {
   company_id: string;
   candidate_id: string;
@@ -682,6 +692,8 @@ export interface InterviewFormData {
   thread_id?: string | null;
   room_id?: string | null;
   closed_sub_status?: string | null;
+  job_description?: string | null;
+  jd_highlights?: JdHighlight[] | null;
 }
 
 /** Superadmin: POST /api/v1/admin/backup/ */

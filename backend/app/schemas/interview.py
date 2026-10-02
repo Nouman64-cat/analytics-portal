@@ -1,7 +1,13 @@
 import uuid
 from datetime import datetime, date, time
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
+
+
+class JdHighlight(BaseModel):
+    """An important phrase of the job description, color-coded by type in the UI."""
+    text: str
+    type: Literal["skill", "concept", "requirement", "compensation", "employment"]
 
 
 class InterviewCreate(BaseModel):
@@ -30,6 +36,8 @@ class InterviewCreate(BaseModel):
     is_phone_call: bool = False
     room_id: Optional[uuid.UUID] = None
     closed_sub_status: Optional[str] = None
+    job_description: Optional[str] = None
+    jd_highlights: Optional[list[JdHighlight]] = None
 
 
 class InterviewUpdate(BaseModel):
@@ -56,6 +64,8 @@ class InterviewUpdate(BaseModel):
     is_phone_call: Optional[bool] = None
     room_id: Optional[uuid.UUID] = None
     closed_sub_status: Optional[str] = None
+    job_description: Optional[str] = None
+    jd_highlights: Optional[list[JdHighlight]] = None
 
 
 class InterviewRead(BaseModel):
@@ -84,6 +94,7 @@ class InterviewRead(BaseModel):
     interview_doc_highlighted_url: Optional[str] = None
     interview_doc_keywords: Optional[str] = None
     job_description: Optional[str] = None
+    jd_highlights: Optional[list[JdHighlight]] = None
     room_id: Optional[uuid.UUID] = None
     created_at: datetime
     updated_at: datetime

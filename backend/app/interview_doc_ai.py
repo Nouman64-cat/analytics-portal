@@ -2,8 +2,9 @@
 
 An interview document is usually a recruiter's invite: who the interviewers are, the meeting
 link, when the interview is, and the job description. `analyze_interview_document` turns its
-text into those fields plus the technical keywords the JD names (used both for PDF highlighting
-and for highlighting the JD text in the UI). DOCX is read straight from its XML — no conversion.
+text into those fields plus the JD's highlights — important phrases labelled skill / concept /
+requirement / compensation / employment, shown color-coded on the JD in the UI. The skill and
+concept phrases double as the keywords highlighted on PDF documents. DOCX is read straight from its XML — no conversion.
 """
 
 from __future__ import annotations
@@ -134,7 +135,13 @@ Return ONLY a JSON object with exactly these keys:
 - "start_time": the interview start time as 24-hour "HH:MM", exactly as written in the document (times are US Eastern; do not convert time zones). null if no time is given.
 - "duration_minutes": the interview length in minutes as an integer, taken from a stated duration (e.g. "45 minutes", "1 hour") or from a start–end time range. null if neither is given.
 - "job_description": the job description section of the document, copied VERBATIM (same wording, same order, keep line breaks and bullet points). Leave out meeting logistics (interviewer names, links, dial-in numbers, scheduling notes). null if the document has no job description.
-- "keywords": every distinct framework, programming language, tool, technology, platform, methodology, and technical concept named in the job description (e.g. React, Python, Docker, AWS, microservices, REST API, CI/CD, Agile, machine learning). Copy each EXACTLY as it appears in the text (same casing and spelling) so it can be found verbatim. No soft skills (e.g. "communication"), no company/role/person names. Deduplicate.
+- "highlights": the important phrases of the job description, as an array of {"text": ..., "type": ...}. Copy each "text" EXACTLY as it appears in the document (same casing, spelling and punctuation) so it can be found verbatim, and keep it short (a word or a short phrase, never a whole sentence). "type" is one of:
+  - "skill": a programming language, framework, library, tool, platform, database or cloud service (e.g. Python, React, PostgreSQL, AWS, Docker, LangChain).
+  - "concept": a technical concept, practice or domain (e.g. microservices, REST API, CI/CD, Agile, machine learning, RAG, distributed systems).
+  - "requirement": a must-have qualification (e.g. "5+ years of experience", "Bachelor's degree in Computer Science", "US Citizen", "AWS Certified").
+  - "compensation": pay, salary range, hourly rate, bonus or equity (e.g. "$150,000 - $180,000", "$70/hr").
+  - "employment": employment type, work arrangement, location or contract length (e.g. "Full-time", "Contract", "W2", "C2C", "Remote", "Hybrid", "Onsite in Dallas, TX", "6-month contract").
+  Include every skill and concept named; no soft skills (e.g. "communication") and no company/role/person names. Deduplicate.
 
 Never invent anything that is not in the document."""
 
@@ -160,10 +167,33 @@ def resolve_date(value, today: date) -> Optional[date]:
     return min(candidates, key=lambda d: abs((d - today).days), default=None)
 
 
+HIGHLIGHT_TYPES = ("skill", "concept", "requirement", "compensation", "employment")
+_MAX_HIGHLIGHTS = 150
+
+
+def clean_highlights(value, source_text: str) -> list[dict]:
+    """Keep only well-formed {text, type} highlights whose text really occurs in the JD."""
+    source = " ".join(source_text.split()).lower()  # phrases may wrap across lines in the doc
+    out: list[dict] = []
+    seen: set[str] = set()
+    for h in value if isinstance(value, list) else []:
+        if not isinstance(h, dict) or h.get("type") not in HIGHLIGHT_TYPES:
+            continue
+        text = " ".join(str(h.get("text") or "").split())
+        if not text or len(text) > 200 or text.lower() in seen or text.lower() not in source:
+            continue
+        seen.add(text.lower())
+        out.append({"text": text, "type": h["type"]})
+        if len(out) >= _MAX_HIGHLIGHTS:
+            break
+    return out
+
+
 def analyze_interview_document(text: str, api_key: str) -> dict:
     """Ask the model for the interview's details. Returns interviewer, interview_link,
     interview_date (date), time_est (time), duration_minutes (int or None when the document
-    doesn't say), job_description and keywords. Every value is sanitized here, so callers can
+    doesn't say), job_description, jd_highlights ([{text, type}]) and keywords (the skill/concept
+    texts, for PDF highlighting). Every value is sanitized here, so callers can
     store what comes back without re-checking it."""
     today = datetime.now(_TZ_EASTERN).date()
     from openai import OpenAI
@@ -208,14 +238,8 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
     jd = raw.get("job_description")
     job_description = jd.strip() if isinstance(jd, str) and jd.strip() else None
 
-    kws = raw.get("keywords")
-    keywords: list[str] = []
-    seen: set[str] = set()
-    for k in kws if isinstance(kws, list) else []:
-        k = str(k).strip()
-        if k and k.lower() not in seen:
-            seen.add(k.lower())
-            keywords.append(k)
+    jd_highlights = clean_highlights(raw.get("highlights"), job_description or text)
+    keywords = [h["text"] for h in jd_highlights if h["type"] in ("skill", "concept")]
 
     return {
         "interviewer": interviewer,
@@ -224,6 +248,7 @@ def analyze_interview_document(text: str, api_key: str) -> dict:
         "time_est": time_est,
         "duration_minutes": duration_minutes,
         "job_description": job_description,
+        "jd_highlights": jd_highlights,
         "keywords": keywords,
     }
 
